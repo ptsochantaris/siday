@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 // Pro Tracker 2.x player, ported from Ay_Emul by Sergey Bulba (Players.pas, PT2_Get_Registers).
 // Field names and control flow follow the Pascal so the two can be read side by side. The Pascal relies on
 // 8- and 16-bit variables wrapping; here every field is an Int and the wrap is applied explicitly.
@@ -36,7 +34,7 @@ public final class PT2Source: AYFrameSource {
     // Scratch shared by the three channels within one tick.
     private var tempMixer = 0
 
-    public init(_ data: Data) throws {
+    public init(_ data: [UInt8]) throws {
         // The cheap part of FoundPT2: room for a header and one position, and a pattern table inside the file.
         // The rest of its checks (ornament 0 being 01 00 00, the 255 that ends the position list, the size of
         // the pattern table) fail on modules that still play, so they are not applied.

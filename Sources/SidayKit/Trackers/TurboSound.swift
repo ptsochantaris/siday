@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 /// Two independent modules played on two chips (TurboSound). Files carry both modules back to back,
 /// followed by a 16-byte footer: type tag and size of each, then "02TS".
 public final class TurboSoundPair: AYFrameSource {
@@ -42,15 +40,14 @@ public final class TurboSoundPair: AYFrameSource {
     }
 
     /// Splits a file with a TurboSound footer into its two modules and their formats.
-    static func split(_ data: Data) -> (TuneFormat, Data, TuneFormat, Data)? {
+    static func split(_ data: [UInt8]) -> (TuneFormat, [UInt8], TuneFormat, [UInt8])? {
         guard data.count > 16 else { return nil }
-        let r = ByteReader(data.suffix(16))
+        let r = ByteReader(Array(data.suffix(16)))
         guard r.ascii(at: 12, length: 4) == "02TS" else { return nil }
         let size1 = r.u16le(4), size2 = r.u16le(10)
         guard size1 > 0, size2 > 0, size1 + size2 == data.count - 16,
               let type1 = format(tag: r.ascii(at: 0, length: 4)), let type2 = format(tag: r.ascii(at: 6, length: 4)) else { return nil }
-        let start = data.startIndex
-        return (type1, data.subdata(in: start ..< start + size1), type2, data.subdata(in: start + size1 ..< start + size1 + size2))
+        return (type1, Array(data[..<size1]), type2, Array(data[size1 ..< size1 + size2]))
     }
 
     private static func format(tag: String) -> TuneFormat? {

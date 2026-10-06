@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 /// VTX (Vortex) and YM (ST-Sound) files: a recording of the AY/YM registers, one set per interrupt.
 /// Atari-only YM5/YM6 effects (digidrums, SID voice, sync buzzer) are not reproduced.
 public final class RegisterDumpSource: AYFrameSource {
@@ -36,7 +34,7 @@ public final class RegisterDumpSource: AYFrameSource {
         self.loopFrame = loopFrame >= 0 && loopFrame < frames ? loopFrame : 0
         if let clock, let frameHz {
             let chipName = chip == .ym ? "YM" : "AY"
-            let summary = String(format: "%@ %.4g MHz, %g Hz", chipName, clock / 1_000_000, frameHz)
+            let summary = "\(chipName) \(significant(clock / 1_000_000, digits: 4)) MHz, \(significant(frameHz)) Hz"
             self.info.detail = self.info.detail.isEmpty ? summary : "\(summary), \(self.info.detail)"
         }
         fileClockHz = clock
@@ -44,7 +42,7 @@ public final class RegisterDumpSource: AYFrameSource {
         fileChipType = chip
     }
 
-    public static func vtx(_ file: Data) throws -> RegisterDumpSource {
+    public static func vtx(_ file: [UInt8]) throws -> RegisterDumpSource {
         let r = ByteReader(file)
         let rawID = r.ascii(at: 0, length: 2)
         let id = rawID.lowercased()
@@ -59,7 +57,7 @@ public final class RegisterDumpSource: AYFrameSource {
         var at = old ? 14 : 16
         var strings: [String] = []
         for _ in 0 ..< (old ? 2 : 5) {
-            let (s, next) = r.cString(at: at, encoding: .windowsCP1251)
+            let (s, next) = r.cString(at: at, encoding: .windows1251)
             strings.append(s)
             at = next
         }
@@ -77,7 +75,7 @@ public final class RegisterDumpSource: AYFrameSource {
                                   chip: id == "ym" ? .ym : .ay)
     }
 
-    public static func ym(_ file: Data) throws -> RegisterDumpSource {
+    public static func ym(_ file: [UInt8]) throws -> RegisterDumpSource {
         var bytes = [UInt8](file)
         if let unpacked = LH5.unwrapArchive(bytes) { bytes = unpacked }
         let r = ByteReader(bytes)

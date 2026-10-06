@@ -1,8 +1,6 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import Foundation
-
 /// Register values a frame-based player wants on the chip after one tick.
 /// Field names follow Ay_Emul's `RegisterAY` so the tracker ports read like their source.
 public struct AYRegs {

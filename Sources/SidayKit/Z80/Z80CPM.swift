@@ -1,8 +1,6 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import Foundation
-
 /// Runs a CP/M `.com` program on the Z80 core with just enough of BDOS to print text.
 /// This exists so the instruction exercisers ZEXDOC and ZEXALL can be run against the core
 /// (`siday --zex zexdoc.com`); nothing in playback uses it.

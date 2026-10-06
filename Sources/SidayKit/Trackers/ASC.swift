@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 // ASC Sound Master player, ported from Ay_Emul by Sergey Bulba (Players.pas, ASC_Get_Registers).
 // Field names and control flow follow the Pascal so the two can be read side by side. The Pascal relies on
 // 8- and 16-bit variables wrapping; here every field is an Int and the wrap is applied explicitly.
@@ -43,7 +41,7 @@ public final class ASCSource: AYFrameSource {
     // Scratch shared by the three channels within one tick.
     private var tempMixer = 0
 
-    public init(_ data: Data) throws {
+    public init(_ data: [UInt8]) throws {
         guard data.count >= 10, data.count <= 65536 else { throw TuneError.malformed("not an ASC module") }
         // Nothing in the file names the variant, so it is told apart by structure, ASC1 first (FoundASC1, then
         // FoundASC0). Modules those tests turn down (recompiled ones with packed tables, files cut short) are
@@ -86,16 +84,16 @@ public final class ASCSource: AYFrameSource {
 
     /// LoadTrackerModule for ASC0: a zero loop position is inserted after the delay and the three pointers,
     /// which count from the start of the file, move up by one.
-    private static func convertASC0(_ data: Data) -> Data? {
+    private static func convertASC0(_ data: [UInt8]) -> [UInt8]? {
         guard data.count < 65535 else { return nil }
-        var bytes = [UInt8](data)
+        var bytes = data
         bytes.insert(0, at: 1)
         for offset in [patternsPointersOffset, samplesPointersOffset, ornamentsPointersOffset] {
             let pointer = (Int(bytes[offset]) | Int(bytes[offset + 1]) << 8) + 1
             bytes[offset] = UInt8(pointer & 0xFF)
             bytes[offset + 1] = UInt8((pointer >> 8) & 0xFF)
         }
-        return Data(bytes)
+        return bytes
     }
 
     /// FoundASC1 without the timing run (FoundASC0 is the same test on the unconverted layout).

@@ -3,8 +3,6 @@
 //
 // Start-up state, ROM stand-ins and timing rules follow libsidplayfp (GPL-2.0-or-later; see THIRD-PARTY.md).
 
-import Foundation
-
 /// The parts of a C64 a SID tune can see: RAM, the bank switch at $01, stand-ins for the BASIC and KERNAL
 /// ROMs, both CIAs, the VIC's raster counter and interrupt, and the SID. No real ROM images are needed.
 ///

@@ -50,8 +50,6 @@
 // Not ported: changing the chip model of an existing chip, SIDError (every argument is acceptable
 // here), and the paddle inputs, which reSIDfp does not model either (POTX/POTY read 0xff).
 
-import Foundation
-
 /// reSIDfp's SamplingMethod.
 public enum ReSIDfpSampling: Sendable {
     /// DECIMATE: the cycle nearest each sample point, linearly interpolated with the one before it

@@ -26,8 +26,6 @@
 // SincResampler's ring buffer is zeroed when it is made: reSIDfp leaves it uninitialised until the
 // first SID::reset().
 
-import Foundation
-
 extension ReSIDfpChip {
     // MARK: - resample/Resampler.h
 

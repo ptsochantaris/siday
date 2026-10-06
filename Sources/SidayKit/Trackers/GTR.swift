@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 // Global Tracker player, ported from Ay_Emul by Sergey Bulba (Players.pas, GTR_Get_Registers).
 // Field names and control flow follow the Pascal so the two can be read side by side. The Pascal relies on
 // 8- and 16-bit variables wrapping; here every field is an Int and the wrap is applied explicitly.
@@ -39,11 +37,11 @@ public final class GTRSource: AYFrameSource {
     // Scratch shared by the three channels within one tick.
     private var tempMixer = 0
 
-    public init(_ data: Data) throws {
+    public init(_ data: [UInt8]) throws {
         guard data.count > Self.positions, data.count <= 65536 else { throw TuneError.malformed("not a GTR module") }
         // LoadTrackerModule: the 15 sample, 16 ornament and 32 * 3 pattern pointers lose the load address.
         // Ay_Emul turns down a module with a pointer below that address; here it wraps and the test below decides.
-        var bytes = [UInt8](data)
+        var bytes = data
         let address = Int(bytes[Self.addressOffset]) | Int(bytes[Self.addressOffset + 1]) << 8
         for i in 0 ..< 15 + 16 + 32 * 3 {
             let at = Self.samplesPointers + i * 2
@@ -53,7 +51,7 @@ public final class GTRSource: AYFrameSource {
         }
         bytes[Self.addressOffset] = 0
         bytes[Self.addressOffset + 1] = 0
-        mem = ModuleMemory(Data(bytes))
+        mem = ModuleMemory(bytes)
         version = Int(mem[Self.id + 3])
 
         // Ay_Emul opens a .gtr file without testing it (FoundGTR is for ripping). What is asked for here is the

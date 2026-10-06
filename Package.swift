@@ -13,7 +13,9 @@ let package = Package(
     ],
     targets: [
         // All emulation lives in one module so per-sample and per-cycle loops are optimised together.
-        .target(name: "SidayKit"),
+        // It uses no Foundation, so it builds wherever Swift does. The C library's maths functions are
+        // declared directly (Core/Maths.swift), which is what the Extern feature allows.
+        .target(name: "SidayKit", swiftSettings: [.enableExperimentalFeature("Extern")]),
         .executableTarget(
             name: "siday",
             dependencies: [
@@ -22,5 +24,6 @@ let package = Package(
             ]
         ),
         .testTarget(name: "SidayKitTests", dependencies: ["SidayKit"]),
+        .testTarget(name: "sidayTests", dependencies: ["siday"]),
     ]
 )

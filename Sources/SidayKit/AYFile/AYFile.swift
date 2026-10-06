@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 /// A parsed ZXAYEMUL (`.ay`) file: Z80 code and data ripped from ZX Spectrum and Amstrad CPC programs,
 /// one or more songs each with its own memory image, entry points and register preset.
 ///
@@ -60,7 +58,7 @@ public struct AYFile: Sendable {
     private let bytes: [UInt8]
 
     /// - Parameter corrected: apply the built-in timing fixes for files known to be ripped at the wrong speed.
-    public init(_ data: Data, corrected: Bool = true) throws {
+    public init(_ data: [UInt8], corrected: Bool = true) throws {
         let reader = ByteReader(data)
         bytes = reader.data
         guard reader.count >= 20 else { throw TuneError.malformed("AY file is too short") }
@@ -120,9 +118,9 @@ public struct AYFile: Sendable {
         // The collections are mostly ASCII; the rest is Windows Cyrillic, which is what Ay_Emul's users wrote.
         let text = slice.allSatisfy { $0 < 0x80 }
             ? String(decoding: slice, as: UTF8.self)
-            : String(data: Data(slice), encoding: .windowsCP1251) ?? String(decoding: slice.map { $0 < 0x80 ? $0 : 0x3F }, as: UTF8.self)
+            : TextEncoding.windows1251.decode(slice) ?? String(decoding: slice.map { $0 < 0x80 ? $0 : 0x3F }, as: UTF8.self)
         return String(text.unicodeScalars.map { $0.value < 0x20 ? " " : Character($0) })
-            .trimmingCharacters(in: .whitespaces)
+            .trimmed()
     }
 
     /// Reads the block list: address, length, relative data offset, ended by a zero address.

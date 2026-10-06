@@ -46,8 +46,6 @@
 // of clock(), changing the chip model of an existing chip, and the paddle inputs (which reSID does
 // not model either: POTX/POTY read 0xff).
 
-import Foundation
-
 public enum SIDModel: Sendable { case mos6581, mos8580 }
 
 /// reSID's sampling_method.

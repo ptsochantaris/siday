@@ -3,8 +3,6 @@
 //
 // Start-up state, ROM stand-ins and timing rules follow libsidplayfp (GPL-2.0-or-later; see THIRD-PARTY.md).
 
-import Foundation
-
 /// Lets tools pull the stream of SID register writes out of a tune for comparison against reference players.
 public protocol SIDWriteLogging {
     /// Restarts the current subsong and returns every SID write in the first `seconds` as (cycle, register, value).
@@ -33,7 +31,7 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         return lengths[currentSubsong]
     }
 
-    public init(_ data: Data, url: URL?, options: LoadOptions) throws {
+    public init(_ data: [UInt8], path: String?, options: LoadOptions) throws {
         file = try SIDFile(data)
         if file.isMUS { throw TuneError.unsupported("Compute!'s Sidplayer (MUS) data") }
         if file.needsBASIC { throw TuneError.unsupported("needs the C64 BASIC ROM") }
@@ -47,7 +45,7 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         case .mos8580: .mos8580
         }
         machine = C64Machine(clockHz: clockHz, ntsc: ntsc, model: model, engine: options.sidEngine, filterCurve: options.sidFilterCurve)
-        lengths = SongLengthDatabase.find(explicitPath: options.songLengthsPath, near: url)?.lengths(data: data, url: url)
+        lengths = options.songLengths?.lengths(of: data, path: path)
 
         var info = TuneInfo(format: file.isRSID ? "RSID" : "PSID")
         info.title = file.name

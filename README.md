@@ -109,8 +109,10 @@ Dalglish Soccer Match menu tune, which it plays 5% slow. Giving
 
 ## How it is built
 
-`Sources/SidayKit` holds all emulation and has no dependencies; `Sources/siday` is the player
-(Core Audio output, terminal keys, options, via swift-argument-parser).
+`Sources/SidayKit` holds all emulation. It has no dependencies and uses none of Foundation: it is
+given a file's bytes and gives back samples, so it builds wherever Swift does, WebAssembly and Embedded
+Swift included (see `Embedded/`). `Sources/siday` is the player for macOS: reading files, Core Audio
+output, terminal keys and options (via swift-argument-parser).
 
 | Part | Based on | Checked against |
 |---|---|---|

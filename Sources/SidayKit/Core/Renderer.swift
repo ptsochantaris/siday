@@ -1,8 +1,6 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import Foundation
-
 /// Output sample rate used throughout. Everything renders interleaved stereo Float32 at this rate.
 public let outputSampleRate = 48000
 
@@ -89,7 +87,8 @@ public struct LoadOptions: Sendable {
     /// Where the 6581's filter sits, 0 (bright) to 1 (dark). Real chips varied this much from one to the
     /// next. Only the reSIDfp engine has it.
     public var sidFilterCurve = 0.5
-    public var songLengthsPath: String?
+    /// HVSC's song-length database, for SID tunes.
+    public var songLengths: SongLengthDatabase?
     /// Run an AY file's songs silently to find the lengths the file does not give. Off saves the time when
     /// lengths are not wanted.
     public var findsMissingLengths = true
@@ -118,12 +117,12 @@ public final class ModuleMemory {
     public let bytes: UnsafeMutablePointer<UInt8>
     public let size: Int
 
-    public init(_ data: Data) {
+    public init(_ data: [UInt8]) {
         bytes = .allocate(capacity: 65536)
         bytes.initialize(repeating: 0, count: 65536)
         size = min(data.count, 65536)
-        data.withUnsafeBytes { raw in
-            if let base = raw.bindMemory(to: UInt8.self).baseAddress, size > 0 {
+        data.withUnsafeBufferPointer { source in
+            if let base = source.baseAddress, size > 0 {
                 bytes.update(from: base, count: size)
             }
         }
@@ -153,17 +152,13 @@ public final class ModuleMemory {
             let b = self[address + i]
             scalars.append(Unicode.Scalar(b >= 0x20 && b < 0x7F ? b : 0x20))
         }
-        return String(scalars).trimmingCharacters(in: .whitespaces)
+        return String(scalars).trimmed()
     }
 }
 
 /// Bounds-checked view over file bytes: out-of-range reads return zero.
 public struct ByteReader {
     public let data: [UInt8]
-
-    public init(_ data: Data) {
-        self.data = [UInt8](data)
-    }
 
     public init(_ bytes: [UInt8]) {
         data = bytes
@@ -182,12 +177,11 @@ public struct ByteReader {
     public func u32be(_ i: Int) -> Int { u16be(i) << 16 | u16be(i + 2) }
 
     /// Reads a NUL-terminated string starting at `i`; returns the string and the index after the terminator.
-    public func cString(at i: Int, encoding: String.Encoding = .isoLatin1) -> (String, Int) {
+    func cString(at i: Int, encoding: TextEncoding = .latin1) -> (String, Int) {
         var end = i
         while end < data.count, data[end] != 0 { end += 1 }
-        let slice = i < data.count ? Data(data[i ..< end]) : Data()
-        let s = String(data: slice, encoding: encoding) ?? ""
-        return (s.trimmingCharacters(in: .whitespacesAndNewlines), end + 1)
+        let s = (i < data.count ? encoding.decode(data[i ..< end]) : nil) ?? ""
+        return (s.trimmed(newlines: true), end + 1)
     }
 
     public func ascii(at i: Int, length: Int) -> String {
@@ -197,6 +191,6 @@ public struct ByteReader {
             if b == 0 { break }
             scalars.append(Unicode.Scalar(b >= 0x20 && b < 0x7F ? b : 0x20))
         }
-        return String(scalars).trimmingCharacters(in: .whitespaces)
+        return String(scalars).trimmed()
     }
 }

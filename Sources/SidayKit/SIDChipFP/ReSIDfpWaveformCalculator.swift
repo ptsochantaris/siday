@@ -19,8 +19,6 @@
 // reSIDfp; here each is one block of Int16 with the rows back to back. The pulldown tables are single
 // precision arithmetic, in reSIDfp's operand order.
 
-import Foundation
-
 /// The strength of the combined waveforms: reSIDfp's `CombinedWaveforms`. Each setting is a set of
 /// parameters fitted to samplings of one real chip per model.
 public enum ReSIDfpCombinedWaveforms: Sendable {

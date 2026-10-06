@@ -231,7 +231,7 @@ private func spectrumTune() -> [UInt8] {
 }
 
 @Test func ayFileParsesAndBuildsMemory() throws {
-    let file = try AYFile(Data(spectrumTune()))
+    let file = try AYFile(spectrumTune())
     #expect(file.author == "Tester")
     #expect(file.misc == "misc")
     #expect(file.songs.count == 1)
@@ -253,7 +253,7 @@ private func spectrumTune() -> [UInt8] {
 }
 
 @Test func ayFilePlaysASpectrumTune() throws {
-    let renderer = try AYFileRenderer(Data(spectrumTune()))
+    let renderer = try AYFileRenderer(spectrumTune())
     #expect(renderer.info.format == "AY")
     #expect(renderer.info.title == "Tiny" && renderer.info.author == "Tester")
     #expect(renderer.info.detail == "ZX Spectrum")
@@ -285,7 +285,7 @@ private func spectrumTune() -> [UInt8] {
     func out(_ port: Int) -> [UInt8] { [0x01, UInt8(port & 0xFF), UInt8(port >> 8), 0xED, 0x49] } // LD BC,port; OUT (C),C
     // Select register 7 through the 8255, then write 3Eh to it.
     let code = out(0xF407) + out(0xF6C0) + out(0xF600) + out(0xF43E) + out(0xF680) + out(0xF600) + [0xC9, 0xC9]
-    let renderer = try AYFileRenderer(Data(makeAYFile(code: code, initOffset: 0, interruptOffset: code.count - 1, length: 0, fade: 0)))
+    let renderer = try AYFileRenderer(makeAYFile(code: code, initOffset: 0, interruptOffset: code.count - 1, length: 0, fade: 0))
     #expect(renderer.machineKind == .cpc)
     #expect(renderer.info.detail == "Amstrad CPC")
     // The file gives no length; the tune stops touching the chip at once, which is found by running it.
@@ -301,7 +301,7 @@ private func spectrumTune() -> [UInt8] {
 @Test func ayFileBeeperIsHeard() throws {
     // DI; loop: XOR 10h; OUT (FEh),A; LD B,0; DJNZ $; JR loop — a square wave from the speaker bit.
     let code: [UInt8] = [0xF3, 0xEE, 0x10, 0xD3, 0xFE, 0x06, 0x00, 0x10, 0xFE, 0x18, 0xF6]
-    let renderer = try AYFileRenderer(Data(makeAYFile(code: code, initOffset: 0, interruptOffset: nil)))
+    let renderer = try AYFileRenderer(makeAYFile(code: code, initOffset: 0, interruptOffset: nil))
     #expect(renderer.machineKind == .undetected)
     #expect(renderer.info.detail == "ZX Spectrum beeper")
     var samples = [Float](repeating: 0, count: 4800 * 2)
@@ -314,14 +314,14 @@ private func spectrumTune() -> [UInt8] {
 
 @Test func ayFileRejectsDamageWithoutTrapping() throws {
     let good = spectrumTune()
-    #expect(throws: TuneError.self) { _ = try AYFile(Data([UInt8]("ZXAYAMAD".utf8) + [UInt8](repeating: 0, count: 40))) }
-    #expect(throws: TuneError.self) { _ = try AYFile(Data(good.prefix(19))) }
+    #expect(throws: TuneError.self) { _ = try AYFile([UInt8]("ZXAYAMAD".utf8) + [UInt8](repeating: 0, count: 40)) }
+    #expect(throws: TuneError.self) { _ = try AYFile(Array(good.prefix(19))) }
     var buffer = [Float](repeating: 0, count: 512)
     var quick = LoadOptions()
     quick.findsMissingLengths = false
     // Every truncation either fails to load or plays.
     for length in stride(from: 0, to: good.count, by: 3) {
-        if let renderer = try? AYFileRenderer(Data(good.prefix(length)), options: quick) {
+        if let renderer = try? AYFileRenderer(Array(good.prefix(length)), options: quick) {
             buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 256) }
         }
     }
@@ -332,7 +332,7 @@ private func spectrumTune() -> [UInt8] {
         seed = seed &* 1_664_525 &+ 1_013_904_223
         damaged[offset] = UInt8(truncatingIfNeeded: seed >> 24)
         damaged[offset + 1] = UInt8(truncatingIfNeeded: seed >> 16)
-        if let renderer = try? AYFileRenderer(Data(damaged), options: quick) {
+        if let renderer = try? AYFileRenderer(damaged, options: quick) {
             for song in 0 ..< min(renderer.subsongCount, 3) {
                 renderer.select(subsong: song)
                 buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 256) }

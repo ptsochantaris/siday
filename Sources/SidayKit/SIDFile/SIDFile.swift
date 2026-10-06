@@ -1,10 +1,6 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import CryptoKit
-import Foundation
-import Synchronization
-
 /// A parsed PSID/RSID file. Layout per HVSC's SID_file_format.txt.
 struct SIDFile {
     enum Clock { case unknown, pal, ntsc, both }
@@ -50,7 +46,7 @@ struct SIDFile {
         return speed & (1 << UInt32(bit)) != 0
     }
 
-    init(_ data: Data) throws {
+    init(_ data: [UInt8]) throws {
         let r = ByteReader(data)
         let magic = r.ascii(at: 0, length: 4)
         guard magic == "PSID" || magic == "RSID" else { throw TuneError.malformed("not a SID file") }
@@ -67,8 +63,7 @@ struct SIDFile {
         func text(_ offset: Int) -> String {
             var end = offset
             while end < offset + 32, r[end] != 0 { end += 1 }
-            let bytes = Data(r.data[offset ..< min(end, r.count)])
-            return (String(data: bytes, encoding: .windowsCP1252) ?? "").trimmingCharacters(in: .whitespaces)
+            return (TextEncoding.windows1252.decode(r.data[offset ..< min(end, r.count)]) ?? "").trimmed()
         }
         name = text(0x16)
         author = text(0x36)
@@ -92,19 +87,22 @@ struct SIDFile {
 /// HVSC's Songlengths.md5: play time of every subtune, keyed by the MD5 of the whole SID file.
 /// Each entry is preceded by a comment line with the tune's path inside HVSC, which serves as a second
 /// key for copies of a tune from a different HVSC release.
-final class SongLengthDatabase: Sendable {
+public final class SongLengthDatabase: Sendable {
     private let byHash: [String: [Double]]
     private let byPath: [String: [Double]]
 
-    private init(path: String) {
-        let data = (try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe)) ?? Data()
+    /// - Parameter data: the contents of a `Songlengths.md5` file.
+    public init(_ data: [UInt8]) {
         (byHash, byPath) = Self.parse(data)
     }
+
+    /// True when the file gave no tune's length: it was not a song-length database.
+    public var isEmpty: Bool { byHash.isEmpty }
 
     /// Reads the database's text, which is ISO Latin-1. It is five megabytes, and is read as bytes: taken
     /// apart as a `String`, a line and a character at a time, it held up the first SID tune of every run
     /// by a third of a second.
-    static func parse(_ data: Data) -> (byHash: [String: [Double]], byPath: [String: [Double]]) {
+    static func parse(_ data: [UInt8]) -> (byHash: [String: [Double]], byPath: [String: [Double]]) {
         var hashes: [String: [Double]] = [:]
         var paths: [String: [Double]] = [:]
         hashes.reserveCapacity(data.count / 80)
@@ -113,7 +111,7 @@ final class SongLengthDatabase: Sendable {
             func text(_ range: Range<Int>) -> String {
                 let slice = UnsafeRawBufferPointer(rebasing: bytes[range])
                 if slice.allSatisfy({ $0 < 0x80 }) { return String(decoding: slice, as: UTF8.self) }
-                return String(bytes: slice, encoding: .isoLatin1) ?? ""
+                return TextEncoding.latin1.decode(slice) ?? ""
             }
             var currentPath: Range<Int>?
             var lengths: [Double] = []
@@ -197,49 +195,16 @@ final class SongLengthDatabase: Sendable {
         return Double(String(decoding: text, as: UTF8.self))
     }
 
-    func lengths(data: Data, url: URL?) -> [Double]? {
-        let hash = Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        if let found = byHash[hash] { return found }
-        // Fall back to the path inside the collection, starting at one of HVSC's top-level folders.
-        guard let url else { return nil }
-        let components = url.standardizedFileURL.pathComponents
+    /// The lengths of a SID file's songs in seconds, in order.
+    /// - Parameters:
+    ///   - file: the whole SID file, which is looked up by its contents.
+    ///   - path: where it is kept, if known. A tune from another HVSC release than the database's is found
+    ///     by its place in the collection, from the `DEMOS`, `GAMES` or `MUSICIANS` folder down.
+    public func lengths(of file: [UInt8], path: String?) -> [Double]? {
+        if let found = byHash[MD5.hex(file)] { return found }
+        guard let path else { return nil }
+        let components = path.split(separator: "/")
         guard let top = components.lastIndex(where: { ["DEMOS", "GAMES", "MUSICIANS"].contains($0) }) else { return nil }
         return byPath[("/" + components[top...].joined(separator: "/")).lowercased()]
-    }
-
-    private static let cache = Mutex<[String: SongLengthDatabase?]>([:])
-
-    /// The database at an explicit path, or the one found in a `DOCUMENTS` folder above the tune.
-    static func find(explicitPath: String?, near url: URL?) -> SongLengthDatabase? {
-        if let explicitPath, let database = load(explicitPath) {
-            return database
-        }
-        guard var folder = url?.standardizedFileURL.deletingLastPathComponent() else { return nil }
-        for _ in 0 ..< 8 {
-            let candidate = folder.appendingPathComponent("DOCUMENTS/Songlengths.md5").path
-            if let database = load(candidate) { return database }
-            let parent = folder.deletingLastPathComponent()
-            if parent.path == folder.path { break }
-            folder = parent
-        }
-        return nil
-    }
-
-    /// The database in the file at `path`. A file with no lengths in it is not one: were it taken for
-    /// one, naming it would stop the search beside the tune and every length would go unfound.
-    private static func load(_ path: String) -> SongLengthDatabase? {
-        if let cached = cache.withLock({ $0[path] }) { return cached }
-        var database = FileManager.default.fileExists(atPath: path) ? SongLengthDatabase(path: path) : nil
-        if let found = database, found.byHash.isEmpty { database = nil }
-        cache.withLock { $0[path] = .some(database) }
-        return database
-    }
-}
-
-/// What a front end can ask about a song-length database before relying on it.
-public enum SongLengths {
-    /// True when the file at `path` gives the length of at least one tune.
-    public static func isDatabase(atPath path: String) -> Bool {
-        SongLengthDatabase.find(explicitPath: path, near: nil) != nil
     }
 }

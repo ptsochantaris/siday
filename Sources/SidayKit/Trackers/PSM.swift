@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 // Pro Sound Maker player, ported from Ay_Emul by Sergey Bulba (Players.pas, PSM_Get_Registers).
 // Field names and control flow follow the Pascal so the two can be read side by side. The Pascal relies on
 // 8- and 16-bit variables wrapping; here every field is an Int and the wrap is applied explicitly.
@@ -39,7 +37,7 @@ public final class PSMSource: AYFrameSource {
     // Scratch shared by the three channels within one tick.
     private var tempMixer = 0
 
-    public init(_ data: Data) throws {
+    public init(_ data: [UInt8]) throws {
         guard data.count > Self.remark + 2, data.count <= 65536 else { throw TuneError.malformed("not a PSM module") }
         mem = ModuleMemory(data)
         positionsPointer = mem.word(Self.positionsPointerOffset)

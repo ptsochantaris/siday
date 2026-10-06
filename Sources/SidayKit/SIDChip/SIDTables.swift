@@ -25,8 +25,6 @@
 // expressions below keep reSID's operand order exactly; Swift never fuses a*b+c into an FMA, which
 // corresponds to compiling the C++ with -ffp-contract=off.
 
-import Foundation
-
 // MARK: C++ conversion semantics
 
 // Swift traps when a floating-point value does not fit the integer type; C++ leaves it undefined.

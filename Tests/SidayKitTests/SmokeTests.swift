@@ -29,34 +29,27 @@ import Testing
 @Test func songLengthDatabaseIsReadFromBytes() {
     let text = "[Database]\r\n; /MUSICIANS/H/Hubbard_Rob/Commando.sid\r\n0123456789abcdef0123456789abcdef=3:55 0:07.5 1:02.125\n"
         + ";a comment that names no tune\n; /DEMOS/A-F/Other.sid   \nfedcba9876543210fedcba9876543210=0:30\nnot an entry\n"
-    let parsed = SongLengthDatabase.parse(Data(text.utf8))
+    let parsed = SongLengthDatabase.parse(Array(text.utf8))
     #expect(parsed.byHash.count == 2)
     #expect(parsed.byHash["0123456789abcdef0123456789abcdef"] == [235, 7.5, 62.125])
     #expect(parsed.byPath["/musicians/h/hubbard_rob/commando.sid"] == [235, 7.5, 62.125])
     #expect(parsed.byPath["/demos/a-f/other.sid"] == [30])
 }
 
-@Test func aFileWithNoSongLengthsIsNotADatabase() throws {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("siday-" + UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: folder) }
-    try FileManager.default.createDirectory(at: folder.appendingPathComponent("DOCUMENTS"), withIntermediateDirectories: true)
-    let database = folder.appendingPathComponent("DOCUMENTS/Songlengths.md5")
-    try Data("[Database]\n; /MUSICIANS/X/Tune.sid\n0123456789abcdef0123456789abcdef=1:00\n".utf8).write(to: database)
-    let empty = folder.appendingPathComponent("empty.md5"), other = folder.appendingPathComponent("notes.txt")
-    try Data().write(to: empty)
-    try Data("Nothing here gives a length.\nname=value\n".utf8).write(to: other)
+@Test func songLengthsAreFoundByContentThenByPlace() {
+    let tune = Array("PSID and the rest of a tune".utf8)
+    // d41d8cd98f00b204e9800998ecf8427e is the MD5 of nothing at all.
+    let text = "[Database]\n; /MUSICIANS/X/Tune.sid\n0123456789abcdef0123456789abcdef=1:00\n; /DEMOS/Empty.sid\nd41d8cd98f00b204e9800998ecf8427e=0:07 0:09\n"
+    let database = SongLengthDatabase(Array(text.utf8))
+    #expect(!database.isEmpty)
+    #expect(database.lengths(of: [], path: nil) == [7, 9])
+    #expect(database.lengths(of: tune, path: nil) == nil)
+    #expect(database.lengths(of: tune, path: "/Volumes/C64Music/MUSICIANS/X/Tune.sid") == [60])
+    #expect(database.lengths(of: tune, path: "/elsewhere/Tune.sid") == nil)
 
-    #expect(SongLengths.isDatabase(atPath: database.path))
-    #expect(!SongLengths.isDatabase(atPath: empty.path))
-    #expect(!SongLengths.isDatabase(atPath: other.path))
-    #expect(!SongLengths.isDatabase(atPath: folder.appendingPathComponent("missing.md5").path))
-
-    // Named in place of a database, such a file does not stop the one beside the tune being found.
-    let tune = folder.appendingPathComponent("MUSICIANS/X/Tune.sid")
-    for named in [empty, other] {
-        let found = SongLengthDatabase.find(explicitPath: named.path, near: tune)
-        #expect(found?.lengths(data: Data(), url: tune) == [60])
-    }
+    // A file that gives no lengths is not a database.
+    #expect(SongLengthDatabase([]).isEmpty)
+    #expect(SongLengthDatabase(Array("Nothing here gives a length.\nname=value\n".utf8)).isEmpty)
 }
 
 @Test func televisionKeepsTheMiddleAndLosesTheEnds() {

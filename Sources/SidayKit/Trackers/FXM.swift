@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 // Fuxoft AY Language player, ported from Ay_Emul by Sergey Bulba (Players.pas, FXM_Get_Registers and GetTimeFXM).
 // Field names and control flow follow the Pascal so the two can be read side by side. The Pascal relies on
 // 8- and 16-bit variables wrapping; here every field is an Int and the wrap is applied explicitly.
@@ -51,14 +49,13 @@ public final class FXMSource: AYFrameSource {
     public private(set) var hasEnded = false
     public let info: TuneInfo
 
-    public init(_ data: Data) throws {
+    public init(_ data: [UInt8]) throws {
         guard data.count >= Self.headerSize + 6 else { throw TuneError.malformed("not an FXM module") }
         // LoadTrackerModule: everything after the header goes to the address the header names.
-        let start = data.startIndex
-        address = Int(data[start + 4]) | Int(data[start + 5]) << 8
+        address = Int(data[4]) | Int(data[5]) << 8
         let length = min(data.count - Self.headerSize, 65536 - address)
-        var image = Data(count: address)
-        image.append(data.subdata(in: start + Self.headerSize ..< start + Self.headerSize + length))
+        var image = [UInt8](repeating: 0, count: address)
+        image.append(contentsOf: data[Self.headerSize ..< Self.headerSize + length])
         mem = ModuleMemory(image)
 
         // Ay_Emul opens a .fxm file without testing it, and does not look at the signature either. What is

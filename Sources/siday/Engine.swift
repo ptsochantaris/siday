@@ -24,17 +24,17 @@ struct NowPlaying {
 final class Engine: @unchecked Sendable {
     private let ring: SampleRing
     private let playlist: [URL]
-    private let options: LoadOptions
+    private let files: TuneFiles
     private let policy: PlaybackPolicy
     private let commands = Mutex<[Command]>([])
     /// The television the sound is played through, if any. It can be changed while a tune plays.
     let television: Mutex<TelevisionSet?>
     let nowPlaying = Mutex(NowPlaying())
 
-    init(ring: SampleRing, playlist: [URL], options: LoadOptions, policy: PlaybackPolicy, television: TelevisionSet?) {
+    init(ring: SampleRing, playlist: [URL], files: TuneFiles, policy: PlaybackPolicy, television: TelevisionSet?) {
         self.ring = ring
         self.playlist = playlist
-        self.options = options
+        self.files = files
         self.policy = policy
         self.television = Mutex(television)
     }
@@ -103,7 +103,7 @@ final class Engine: @unchecked Sendable {
             let url = playlist[index]
             let renderer: any Renderer
             do {
-                renderer = try TuneLoader.load(url, options: options)
+                renderer = try files.load(url)
             } catch {
                 post("skipped \(url.lastPathComponent): \(error)")
                 if index + direction < 0 { direction = 1 }

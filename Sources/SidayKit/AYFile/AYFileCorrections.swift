@@ -1,9 +1,6 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import CryptoKit
-import Foundation
-
 /// Fixes for individual `.ay` files whose ripped player does not reproduce the timing of the program
 /// it was taken from. A file is recognised by the MD5 of its whole contents.
 ///
@@ -25,9 +22,8 @@ struct AYFileCorrection {
     /// Ticks that replace one of the file's 1/50 s interrupts, to convert its length and fade.
     var ticksPerFrame: Double
 
-    static func corrections(for data: Data) -> [AYFileCorrection] {
-        let hash = Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        return table[hash] ?? []
+    static func corrections(for data: [UInt8]) -> [AYFileCorrection] {
+        table[MD5.hex(data)] ?? []
     }
 
     func apply(to song: inout AYFile.Song) {

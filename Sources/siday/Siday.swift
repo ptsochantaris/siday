@@ -143,7 +143,8 @@ struct Siday: ParsableCommand {
         }
     }
 
-    private var loadOptions: LoadOptions {
+    /// How tunes are loaded: the emulation's options, and where to look for song lengths.
+    private var tuneFiles: TuneFiles {
         var options = LoadOptions()
         options.stereo = stereo
         options.chipType = chip
@@ -152,15 +153,14 @@ struct Siday: ParsableCommand {
         options.sidModel = sidModel
         options.sidEngine = sidEngine
         options.sidFilterCurve = sidFilterCurve
-        options.songLengthsPath = songLengthsPath
-        return options
+        return TuneFiles(options: options, songLengthsPath: songLengthsPath)
     }
 
     /// The file named with `--songlengths`, when it is a song-length database.
     private var namedSongLengths: String? {
         guard let songlengths else { return nil }
         let path = URL(fileURLWithPath: (songlengths as NSString).expandingTildeInPath).standardizedFileURL.path
-        return SongLengths.isDatabase(atPath: path) ? path : nil
+        return SongLengthFiles.database(atPath: path) != nil ? path : nil
     }
 
     /// The song-length database to use: the one named now, the environment's, or the remembered one.
@@ -231,7 +231,7 @@ struct Siday: ParsableCommand {
 
         if ayLengths {
             for url in scan.files {
-                guard let renderer = try? TuneLoader.load(url, options: loadOptions) as? AYFileRenderer else { continue }
+                guard let renderer = try? tuneFiles.load(url) as? AYFileRenderer else { continue }
                 for (song, lengths) in renderer.lengthSurvey().enumerated() {
                     print("\(lengths.stated)\t\(lengths.measured)\t\(song)\t\(url.path)")
                 }
@@ -241,7 +241,7 @@ struct Siday: ParsableCommand {
         } else if let dumpAy {
             try dumpRegisters(scan.files[0], frames: dumpAy)
         } else if let dumpSid {
-            let renderer = try TuneLoader.load(scan.files[0], options: loadOptions)
+            let renderer = try tuneFiles.load(scan.files[0])
             guard let logger = renderer as? any SIDWriteLogging else {
                 throw ValidationError("\(scan.files[0].lastPathComponent) is not a SID tune")
             }
@@ -259,7 +259,7 @@ struct Siday: ParsableCommand {
             }
             FileHandle.standardOutput.write(Data(text.utf8))
         } else if let raw {
-            let renderer = try TuneLoader.load(scan.files[0], options: loadOptions)
+            let renderer = try tuneFiles.load(scan.files[0])
             let frames = Int((maxTime.flatMap(parseTime) ?? 20) * Double(outputSampleRate))
             var samples = [Float](repeating: 0, count: frames * 2)
             samples.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
@@ -282,7 +282,7 @@ struct Siday: ParsableCommand {
     private func play(_ files: [URL]) throws {
         let ring = SampleRing(frames: 8192)
         let output = try AudioOutput(ring: ring)
-        let engine = Engine(ring: ring, playlist: files, options: loadOptions, policy: policy, television: tv)
+        let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: tv)
         Terminal.enterKeyMode()
         engine.start()
 
@@ -372,7 +372,7 @@ struct Siday: ParsableCommand {
     // MARK: Tools
 
     private func listFiles(_ files: [URL]) {
-        let options = loadOptions
+        let loader = tuneFiles
         let policy = policy
         // Loading can mean running a tune silently to find its length, so files are loaded on every core,
         // a batch at a time, and printed in order.
@@ -384,7 +384,7 @@ struct Siday: ParsableCommand {
                 let url = slice[slice.startIndex + i]
                 let line: String
                 do {
-                    let renderer = try TuneLoader.load(url, options: options)
+                    let renderer = try loader.load(url)
                     let session = TuneSession(renderer: renderer, policy: policy)
                     let length = renderer.knownLength == nil ? "  ?  " : formatTime(session.displayLength).leftPadded(to: 5)
                     let songs = renderer.subsongCount > 1 ? " [\(renderer.subsongCount) songs]" : ""
@@ -407,7 +407,7 @@ struct Siday: ParsableCommand {
         defer { buffer.deallocate() }
         for url in files {
             do {
-                let renderer = try TuneLoader.load(url, options: loadOptions)
+                let renderer = try tuneFiles.load(url)
                 let first = policy.allSubsongs ? 0 : policy.firstSubsong(of: renderer)
                 let last = policy.allSubsongs ? renderer.subsongCount - 1 : first
                 for subsong in first ... last {
@@ -443,7 +443,7 @@ struct Siday: ParsableCommand {
         defer { buffer.deallocate() }
         var totalRendered = 0.0, totalTaken = 0.0
         for url in files.prefix(50) {
-            guard let renderer = try? TuneLoader.load(url, options: loadOptions) else { continue }
+            guard let renderer = try? tuneFiles.load(url) else { continue }
             let start = DispatchTime.now().uptimeNanoseconds
             var frames = 0
             while frames < seconds * outputSampleRate {
@@ -465,10 +465,10 @@ struct Siday: ParsableCommand {
             var ok = 0, silent = 0, rejected = 0, bad = 0
             var notes: [String] = []
         }
-        let options = {
-            var options = loadOptions
-            options.findsMissingLengths = false
-            return options
+        let loader = {
+            var loader = tuneFiles
+            loader.options.findsMissingLengths = false
+            return loader
         }()
         let results = Mutex<[String: Tally]>([:])
         let done = Atomic<Int>(0)
@@ -479,7 +479,7 @@ struct Siday: ParsableCommand {
             var outcome = 0 // 0 ok, 1 silent, 2 rejected, 3 bad output
             var note: String?
             do {
-                let renderer = try TuneLoader.load(url, options: options)
+                let renderer = try loader.load(url)
                 let block = 1024
                 let buffer = UnsafeMutablePointer<Float>.allocate(capacity: block * 2)
                 defer { buffer.deallocate() }
@@ -541,7 +541,7 @@ struct Siday: ParsableCommand {
     /// One line per AY register write (`W frame tstate register value`) and beeper change
     /// (`B frame tstate level`), then the register state at the end of each frame (`F frame bytes`).
     private func dumpAYPortLog(_ url: URL, frames: Int) throws {
-        guard let renderer = try TuneLoader.load(url, options: loadOptions) as? AYFileRenderer else {
+        guard let renderer = try tuneFiles.load(url) as? AYFileRenderer else {
             throw ValidationError("\(url.lastPathComponent) is not a ZXAYEMUL file")
         }
         if let subsong { renderer.select(subsong: subsong - 1) }
@@ -562,7 +562,7 @@ struct Siday: ParsableCommand {
     }
 
     private func dumpRegisters(_ url: URL, frames: Int) throws {
-        let renderer = try TuneLoader.load(url, options: loadOptions)
+        let renderer = try tuneFiles.load(url)
         guard let dumper = renderer as? any AYRegisterDumping else {
             throw ValidationError("\(url.lastPathComponent) is not a frame-based AY tune")
         }

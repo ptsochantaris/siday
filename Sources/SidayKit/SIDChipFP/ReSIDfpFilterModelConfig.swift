@@ -30,14 +30,13 @@
 //   C++ tables differ from run to run by one unit in some entries. Here each table is given the
 //   stretch of the dither sequence it gets when the four are built one after the other in the
 //   order reSIDfp starts its threads. That is one of the outcomes the C++ can produce, and it is
-//   what the reference build (SIDFP_SEQUENTIAL_TABLES) does. The four are still built concurrently.
+//   what the reference build (SIDFP_SEQUENTIAL_TABLES) does. The four are still built concurrently
+//   where the platform has Dispatch, and one after the other where it has not; the tables are the same.
 // - The dither counter, uCox and the current factor are members of the shared FilterModelConfig
 //   in reSIDfp, so one chip changes them under every other chip of its model. Here they belong to
 //   the chip (ReSIDfpChip.Filter): each chip behaves as the first chip of a fresh process does.
 // - mixer, summer, resonance and opamp_rev have margins in place of reSIDfp's range asserts (see
 //   the comments at the table declarations).
-
-import Foundation
 
 // MARK: C++ conversion semantics
 
@@ -51,6 +50,10 @@ import Foundation
     if d <= -2_147_483_648.0 { return Int32.min }
     return 0
 }
+
+#if canImport(Dispatch) && !hasFeature(Embedded)
+import Dispatch
+#endif
 
 extension ReSIDfpChip {
     // MARK: - Spline.h / Spline.cpp
@@ -656,9 +659,11 @@ extension ReSIDfpChip {
             let build = TableBuild(config: self, opamp_voltage: opamp_voltage, mixer_nRatio: mixer_nRatio,
                                    volume_nDivisor: volume_nDivisor, resonance_n: resonance_n,
                                    first: [summer_first, mixer_first, volume_first, resonance_first])
-            DispatchQueue.concurrentPerform(iterations: 4) { table in
-                build.run(table)
-            }
+            #if canImport(Dispatch) && !hasFeature(Embedded)
+            DispatchQueue.concurrentPerform(iterations: 4) { build.run($0) }
+            #else
+            for table in 0 ..< 4 { build.run(table) }
+            #endif
 
             FilterModelConfig.fillMargins(mixer, mixer_size, FilterModelConfig.mixer_margin_low, FilterModelConfig.mixer_margin_high)
             FilterModelConfig.fillMargins(summer, summer_size, FilterModelConfig.summer_margin, FilterModelConfig.summer_margin)

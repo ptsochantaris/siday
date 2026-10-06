@@ -4,8 +4,6 @@
 // Derived from Ay_Emul, (c) 1999-2026 S.V. Bulba, whose source may be used freely with reference to
 // its author (see THIRD-PARTY.md).
 
-import Foundation
-
 /// Z80 clock of the ZX Spectrum 128 and its frame of 69,888 T-states at 50 Hz, as Ay_Emul uses.
 public let ayFileSpectrumCPUHz = 3_494_400.0
 /// Clocks used once Amstrad CPC port use has been seen.
@@ -241,7 +239,7 @@ public final class AYFileRenderer: Renderer {
     /// Lengths found that way, in frames, by song; 0 when the run found neither an ending nor a repeat.
     private var measuredFrames: [Int: Int] = [:]
 
-    public init(_ data: Data, options: LoadOptions = LoadOptions()) throws {
+    public init(_ data: [UInt8], options: LoadOptions = LoadOptions()) throws {
         // An explicit frame rate plays the file exactly as written.
         file = try AYFile(data, corrected: options.frameHz == nil)
         self.options = options
@@ -251,8 +249,8 @@ public final class AYFileRenderer: Renderer {
         memory = .allocate(capacity: 65536)
         memory.initialize(repeating: 0, count: 65536)
         // An OUT takes at least 11 T-states and can change both the beeper and a register.
-        let slowestFrameHz = file.songs.compactMap(\.frameHz).reduce(baseFrameHz, min)
-        let fastestCPUHz = file.songs.compactMap(\.cpuHz).reduce(max(ayFileSpectrumCPUHz, ayFileCPCCPUHz), max)
+        let slowestFrameHz = file.songs.compactMap({ $0.frameHz }).reduce(baseFrameHz, min)
+        let fastestCPUHz = file.songs.compactMap({ $0.cpuHz }).reduce(max(ayFileSpectrumCPUHz, ayFileCPCCPUHz), max)
         let longestFrame = Int(fastestCPUHz / slowestFrameHz) + 64
         machine = AYMachine(eventCapacity: longestFrame / 11 * 2 + 64)
         cpu = Z80(memory: memory, bus: machine)
