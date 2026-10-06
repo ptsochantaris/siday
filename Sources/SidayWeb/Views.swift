@@ -23,7 +23,8 @@ struct PlayerView {
                 span(.class("hint")) { "or drop them anywhere on the page. They stay on your computer." }
             }
 
-            if !player.files.isEmpty {
+            // One tune needs no list to choose from.
+            if player.files.count > 1 {
                 Playlist(player: player)
             }
 

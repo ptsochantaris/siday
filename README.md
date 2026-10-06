@@ -144,6 +144,10 @@ Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly 
 what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` happens
 to be installed, the page's module comes out about a third smaller.
 
+The modules are built to use WebAssembly's SIMD instructions (`-msimd128` in `Web/toolset.json`), which
+makes rendering a quarter to a third faster and changes no sample of it. Every current browser has
+them; Safari has since 16.4.
+
 The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else. It runs in a
 worker (`engine.js`), which renders the whole of a song and keeps it (23 MB for each minute, for the
 song that is playing), and the audio thread (`worklet.js`) only plays what it is sent, a fifth of a
