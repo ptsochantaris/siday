@@ -13,9 +13,11 @@ import JavaScriptKit
 ///   - added: files have been added to the list: their names, one to a line, in the order they now have
 ///     after those already there.
 ///   - loaded: the tune asked for with `sidayPlay` has started, or could not be: whether it plays, its
-///     details one to a line (format, title, author, detail) or the reason it does not, how many songs
-///     it has, which one is playing, and its length in seconds.
-///   - progress: where the playing song has got to, in seconds, and how loud it is just now (0 to 1).
+///     details one to a line (format, title, author, detail, then for a tune of several songs a line
+///     for each: its length in milliseconds if known, a tab, its name if it has one) or the reason it
+///     does not, how many songs it has, which one is playing, and its length in seconds.
+///   - progress: where the playing song has got to, in seconds, and the spectrum analyser's bars: the
+///     height of each, low notes to high, and then the height of each bar's cap, all from 0 to 1.
 ///   - ended: the song is over.
 ///   - held: the browser will not let the sound start until the listener has pressed something on the
 ///     page; the tune is loaded and waiting.
@@ -24,7 +26,7 @@ func sidayListen(
     _ accepts: @escaping (String) -> Bool,
     _ added: @escaping (String) -> Void,
     _ loaded: @escaping (Bool, String, Int, Int, Double) -> Void,
-    _ progress: @escaping (Double, Double) -> Void,
+    _ progress: @escaping (Double, [Double]) -> Void,
     _ ended: @escaping () -> Void,
     _ held: @escaping () -> Void
 ) throws(JSException)

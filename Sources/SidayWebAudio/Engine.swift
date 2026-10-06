@@ -3,20 +3,26 @@
 
 import SidayKit
 
-// The player for the browser's audio thread. It is a WebAssembly module of its own, with no user
-// interface and no JavaScript library: an audio worklet hands it the bytes of a tune and asks it for
-// samples, through the functions exported at the foot of this file.
+// The web player's engine. It is a WebAssembly module of its own, with no user interface and no
+// JavaScript library: a worker (Web/engine.js) hands it the bytes of a tune and asks it for samples,
+// through the functions exported at the foot of this file, and passes them on to the audio thread.
 
 /// One tune at a time: what the command-line player's engine does between a file and the sound card.
 final class WebPlayer {
     /// The length of a block, as the command-line player renders them: the rules that end a tune look
     /// at the sound a block at a time, so the two front ends must cut it the same way.
     static let blockFrames = 512
-    /// What an audio worklet asks for at a time.
+    /// What is handed out at a time: the size of block a browser's audio thread works in.
     static let quantumFrames = 128
 
     var options = LoadOptions()
-    var policy = PlaybackPolicy()
+    /// Every song of a tune is played, from the first: the page lists them, and goes on to the next
+    /// when one ends.
+    var policy: PlaybackPolicy = {
+        var policy = PlaybackPolicy()
+        policy.allSubsongs = true
+        return policy
+    }()
     private var renderer: (any Renderer)?
     private var session: TuneSession?
     private var television: Television?
@@ -27,6 +33,9 @@ final class WebPlayer {
     let output = UnsafeMutablePointer<Float>.allocate(capacity: WebPlayer.quantumFrames * 2)
     /// The last thing to tell the page in words: a tune's details, or why a file would not load.
     private(set) var text: [UInt8] = []
+    private var spectrum = SpectrumAnalyzer()
+    /// The analyser's bars and then their caps, each as a byte from 0 to 255.
+    private(set) var bars: [UInt8] = []
 
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     func load(_ data: [UInt8], name: String) -> Bool {
@@ -57,11 +66,20 @@ final class WebPlayer {
         if renderer.subsongCount > 1 || song != renderer.currentSubsong { renderer.select(subsong: song) }
         session = TuneSession(renderer: renderer, policy: policy)
         television?.reset()
+        spectrum.reset()
         blockLength = 0
         blockCursor = 0
-        // One line each: format, title, author, detail. The page takes them apart again.
+        // One line each: format, title, author, detail. Then a line for each song when there are several:
+        // its length in milliseconds, if that is known, a tab, and its name, if it has one. The page
+        // takes them apart again.
         let info = renderer.info
-        let lines = [info.format, info.title, info.author, info.detail].map { field in String(field.map { $0.isNewline ? " " : $0 }) }
+        func tidy(_ field: String) -> String { String(field.map { $0.isNewline || $0 == "\t" ? " " : $0 }) }
+        var lines = [info.format, info.title, info.author, info.detail].map(tidy)
+        if renderer.subsongCount > 1 {
+            for song in renderer.songs {
+                lines.append("\(song.length.map { String(Int($0 * 1000)) } ?? "")\t\(tidy(song.title))")
+            }
+        }
         text = Array(lines.joined(separator: "\n").utf8)
     }
 
@@ -89,7 +107,14 @@ final class WebPlayer {
         if filled < Self.quantumFrames {
             (output + filled * 2).update(repeating: 0, count: (Self.quantumFrames - filled) * 2)
         }
+        spectrum.add(output, frames: Self.quantumFrames)
         return filled == Self.quantumFrames || !(session?.finished ?? true)
+    }
+
+    /// Brings `bars` up to date with what has been played.
+    func analyse() {
+        spectrum.analyse()
+        bars = (spectrum.levels + spectrum.caps).map { UInt8(max(0, min(255, $0 * 255))) }
     }
 
     var subsongCount: Int { renderer?.subsongCount ?? 0 }
@@ -173,6 +198,21 @@ public func sidayPull() -> Int32 {
 @_cdecl("siday_output")
 public func sidayOutput() -> UnsafeMutablePointer<Float> {
     player.output
+}
+
+/// The spectrum analyser's bars for the sound played so far: `siday_spectrum_bands` bars, low to high,
+/// and then as many caps, each a byte from 0 to 255. Call it as often as the bars are drawn.
+@_expose(wasm, "siday_spectrum")
+@_cdecl("siday_spectrum")
+public func sidaySpectrum() -> UnsafePointer<UInt8>? {
+    player.analyse()
+    return player.bars.withUnsafeBufferPointer { $0.baseAddress }
+}
+
+@_expose(wasm, "siday_spectrum_bands")
+@_cdecl("siday_spectrum_bands")
+public func sidaySpectrumBands() -> Int32 {
+    Int32(player.bars.count / 2)
 }
 
 @_expose(wasm, "siday_text")

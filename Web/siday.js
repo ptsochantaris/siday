@@ -12,6 +12,7 @@
 import { instantiate } from "./generated/instantiate.js";
 
 const workletAddress = new URL("./worklet.js", import.meta.url);
+const engineAddress = new URL("./engine.js", import.meta.url);
 const audioModuleAddress = new URL("./generated/SidayWebAudio.wasm", import.meta.url);
 const pageModuleAddress = new URL("./generated/SidayWeb.wasm", import.meta.url);
 
@@ -20,48 +21,88 @@ let listeners;
 /// The tunes, in the order the Swift side has them: { name, file }.
 const tunes = [];
 let context;
-/// A promise of the audio worklet's node, once the first tune has been asked for.
-let node;
+/// A promise of the two halves of the sound, once the first tune has been asked for: the engine, a
+/// worker that renders the tunes (engine.js), and the output, the audio thread that plays what the
+/// engine sends it (worklet.js).
+let sound;
 /// Counts requests to play. Answers to any but the latest are dropped.
 let serial = 0;
 let television = 0;
 let songLengths;
+/// True while the player is paused. The audio hardware is let go a moment after.
+let silenced = false;
+let letGo;
 
 /// The audio graph, made when the first tune is played: a browser will not start one before the
 /// listener has done something on the page.
 function audio() {
-  node ??= (async () => {
-    // SidayKit renders at 48 kHz; the browser converts if the hardware runs at another rate.
+  sound ??= (async () => {
+    // SidayKit renders at 48 kHz; the browser converts if the hardware runs at another rate. The
+    // browser is asked to keep plenty of sound in hand, which guards against breaks in it.
     context = new AudioContext({ sampleRate: 48000, latencyHint: "playback" });
     const [module] = await Promise.all([
       fetch(audioModuleAddress).then((response) => response.arrayBuffer()),
       context.audioWorklet.addModule(workletAddress),
     ]);
-    const made = new AudioWorkletNode(context, "siday", {
-      numberOfInputs: 0,
-      outputChannelCount: [2],
-      processorOptions: { module },
-    });
-    made.port.onmessage = (event) => heard(event.data);
-    made.connect(context.destination);
-    made.port.postMessage({ type: "television", set: television });
-    if (songLengths) made.port.postMessage({ type: "songlengths", bytes: songLengths });
-    return made;
+    const output = new AudioWorkletNode(context, "siday", { numberOfInputs: 0, outputChannelCount: [2] });
+    const engine = new Worker(engineAddress);
+    output.port.onmessage = (event) => heard(event.data);
+    output.connect(context.destination);
+
+    // The engine sends its sound straight to the output, on a line of their own that the page is not
+    // part of. If the browser will not carry such a line into the audio thread (the output says when
+    // it has it), the page passes the sound along instead.
+    const line = new MessageChannel();
+    const connected = new Promise((resolve) => (direct = resolve));
+    output.port.postMessage({ type: "engine", port: line.port1 }, [line.port1]);
+    const ready = new Promise((resolve) => (engine.onmessage = resolve));
+    engine.postMessage({ type: "start", module, output: line.port2 }, [module, line.port2]);
+    await ready;
+    engine.onmessage = (event) => heard(event.data);
+    if (!(await Promise.race([connected.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 500))]))) {
+      const relay = new MessageChannel();
+      relay.port1.onmessage = (event) => output.port.postMessage(event.data, [event.data.samples.buffer]);
+      passBack = (message) => relay.port1.postMessage(message);
+      engine.postMessage({ type: "output", output: relay.port2 }, [relay.port2]);
+    }
+
+    engine.postMessage({ type: "television", set: television });
+    if (songLengths) engine.postMessage({ type: "songlengths", bytes: songLengths });
+    return { engine, output };
   })();
-  return node;
+  return sound;
+}
+
+/// Called when the output says the engine's line has reached it.
+let direct = () => {};
+/// When the page is passing the sound along, how word of a played chunk gets back to the engine.
+let passBack;
+
+/// Seconds between a sound being made and its being heard, as far as the browser knows.
+function delay() {
+  return (context?.baseLatency || 0) + (context?.outputLatency || 0);
 }
 
 function heard(message) {
+  if (message.type === "connected") return direct();
   if (message.serial !== serial) return;
   switch (message.type) {
     case "loaded":
       listeners?.loaded(message.plays, message.text, message.songs, message.song, message.length);
       break;
-    case "progress":
-      listeners?.progress(message.position, message.level);
+    case "progress": {
+      // This is news of sound that has been made but not yet heard: it is shown when its sound
+      // comes out of the speakers, as near as the browser can say when that is.
+      setTimeout(() => {
+        if (message.serial === serial && !silenced) listeners?.progress(message.position, Array.from(message.bars, (bar) => bar / 255));
+      }, delay() * 1000);
       break;
+    }
     case "ended":
       listeners?.ended();
+      break;
+    case "played":
+      passBack?.(message);
       break;
   }
 }
@@ -70,13 +111,15 @@ async function play(index, subsong) {
   const request = ++serial;
   const tune = tunes[index];
   try {
-    const [bytes, made] = await Promise.all([tune.file.arrayBuffer(), audio()]);
+    const [bytes, { engine, output }] = await Promise.all([tune.file.arrayBuffer(), audio()]);
     if (request !== serial) return;
+    // The output drops what it was playing at once; the engine starts on the new tune.
+    output.port.postMessage({ type: "tune", serial: request });
     const name = new TextEncoder().encode(tune.name).buffer;
-    made.port.postMessage({ type: "load", serial: request, name, bytes, subsong }, [name, bytes]);
+    engine.postMessage({ type: "load", serial: request, name, bytes, subsong }, [name, bytes]);
     // A browser keeps the sound back until the listener has pressed something on the page. If it is
     // still holding a moment from now, the page shows the tune as paused, and pressing play starts it.
-    void context.resume();
+    pause(false);
     setTimeout(() => {
       if (request === serial && context.state !== "running") listeners?.held();
     }, 300);
@@ -90,7 +133,7 @@ async function add(chosen) {
   const database = chosen.find((item) => item.name.split("/").pop().toLowerCase() === "songlengths.md5");
   if (database) {
     songLengths = await database.file.arrayBuffer();
-    if (node) (await node).port.postMessage({ type: "songlengths", bytes: songLengths });
+    if (sound) (await sound).engine.postMessage({ type: "songlengths", bytes: songLengths });
   }
   const accepted = chosen
     .filter((item) => listeners?.accepts(item.name))
@@ -98,6 +141,21 @@ async function add(chosen) {
   if (accepted.length === 0) return;
   tunes.push(...accepted);
   listeners?.added(accepted.map((item) => item.name).join("\n"));
+}
+
+/// Pausing fades the sound out in the audio thread and only then lets the audio hardware go. Stopped
+/// dead, the browser would keep the sound it had in hand and play it when started again: a moment of
+/// the old tune at the head of the next one.
+function pause(paused) {
+  silenced = paused;
+  clearTimeout(letGo);
+  void sound?.then(({ output }) => output.port.postMessage({ type: "pause", paused }));
+  if (paused) {
+    // Long enough for the silence to have pushed out everything that was waiting.
+    letGo = setTimeout(() => void context?.suspend(), 1200 + delay() * 2000);
+  } else {
+    void context?.resume();
+  }
 }
 
 // A file chooser of each kind, kept out of sight and clicked on the listener's behalf.
@@ -179,11 +237,11 @@ Object.assign(globalThis, {
     void play(index, subsong);
   },
   sidayPause(paused) {
-    void (paused ? context?.suspend() : context?.resume());
+    pause(paused);
   },
   sidayTelevision(set) {
     television = set;
-    void node?.then((made) => made.port.postMessage({ type: "television", set }));
+    void sound?.then(({ engine }) => engine.postMessage({ type: "television", set }));
   },
 });
 

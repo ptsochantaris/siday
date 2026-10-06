@@ -20,7 +20,18 @@ if lsof -ti tcp:$port -sTCP:LISTEN > /dev/null; then
   exit 1
 fi
 
-python3 -m http.server --bind 127.0.0.1 --directory . $port &
+# Served with word that nothing is to be kept: a browser would otherwise go on using its own copies
+# of these files for a while after they have changed.
+python3 - $port <<'PYTHON' &
+import http.server, sys
+
+class Fresh(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Fresh).serve_forever()
+PYTHON
 server=$!
 trap 'kill $server 2> /dev/null' EXIT INT TERM
 

@@ -1,112 +1,87 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-// The audio thread. It holds the SidayWebAudio WebAssembly module (SidayKit and nothing else), gives it
-// the tunes the page sends, and asks it for sound 128 frames at a time. Plain JavaScript with no
-// imports: it is loaded as it stands by audioWorklet.addModule.
+// The audio thread. It makes no sound of its own: the engine (engine.js, in a worker) renders the tune
+// a little ahead and sends it here in chunks, and this plays them, 128 frames at a time. It never
+// waits for anything; when it has nothing to play it plays silence. Plain JavaScript with no imports:
+// it is loaded as it stands by audioWorklet.addModule.
 
-class SidayProcessor extends AudioWorkletProcessor {
-  constructor(options) {
+class SidayOutput extends AudioWorkletProcessor {
+  constructor() {
     super();
-    const instance = new WebAssembly.Instance(new WebAssembly.Module(options.processorOptions.module), {
-      wasi_snapshot_preview1: {
-        // Swift seeds its hash tables with this. Nothing here needs it to be unguessable.
-        random_get: (pointer, length) => {
-          const bytes = new Uint8Array(this.core.memory.buffer, pointer, length);
-          for (let index = 0; index < length; index++) bytes[index] = Math.random() * 256;
-          return 0;
-        },
-      },
-    });
-    this.core = instance.exports;
-    this.core._initialize();
+    /// Chunks waiting to be played, in order: { samples, position, bars, last }.
+    this.queue = [];
+    /// How far into the first of them playing has got, in frames.
+    this.offset = 0;
+    /// The tune being played. Chunks of any other are dropped.
     this.serial = 0;
-    this.playing = false;
-    this.quanta = 0;
-    this.peak = 0;
-    this.port.onmessage = (event) => this.receive(event.data);
+    // Pausing fades the sound out over one block and resuming fades it in, so neither clicks.
+    this.paused = false;
+    this.audible = true;
+    this.port.onmessage = (event) => this.told(event.data);
     if (sampleRate !== 48000) console.warn(`siday: the audio runs at ${sampleRate} Hz, not 48000; tunes will play at the wrong pitch`);
   }
 
-  /// Copies bytes into the module's memory, calls `use(pointer, length)` and frees them again.
-  withBytes(buffer, use) {
-    const bytes = new Uint8Array(buffer);
-    const pointer = this.core.siday_alloc(bytes.length);
-    new Uint8Array(this.core.memory.buffer, pointer, bytes.length).set(bytes);
-    const result = use(pointer, bytes.length);
-    this.core.siday_free(pointer);
-    return result;
-  }
-
-  /// The text the module last had to say, which is UTF-8. (A worklet has no TextDecoder.)
-  text() {
-    const bytes = new Uint8Array(this.core.memory.buffer, this.core.siday_text(), this.core.siday_text_length());
-    let text = "";
-    for (let index = 0; index < bytes.length; ) {
-      let code = bytes[index++];
-      const more = code >= 0xf0 ? 3 : code >= 0xe0 ? 2 : code >= 0xc0 ? 1 : 0;
-      if (more > 0) code &= 0x3f >> more;
-      for (let count = 0; count < more && index < bytes.length; count++) code = (code << 6) | (bytes[index++] & 0x3f);
-      text += String.fromCodePoint(code);
-    }
-    return text;
-  }
-
-  receive(message) {
-    const core = this.core;
+  /// From the page.
+  told(message) {
     switch (message.type) {
-      case "load": {
+      case "engine":
+        // The line to the engine: chunks come in on it, and word of each one played goes back.
+        this.engine = message.port;
+        this.engine.onmessage = (event) => this.told(event.data);
+        this.port.postMessage({ type: "connected" });
+        break;
+      case "chunk":
+        // From the engine, or passed along by the page if the engine's line could not be had.
+        if (message.serial === this.serial) this.queue.push(message);
+        break;
+      case "tune":
+        // Another tune has been chosen: what was waiting of the last one is dropped at once.
         this.serial = message.serial;
-        const plays = this.withBytes(message.name, (name, nameLength) =>
-          this.withBytes(message.bytes, (data, length) => core.siday_load(data, length, name, nameLength)),
-        ) === 1;
-        if (plays && message.subsong >= 0) core.siday_select(message.subsong);
-        this.playing = plays;
-        this.quanta = 0;
-        this.peak = 0;
-        this.port.postMessage({
-          type: "loaded", serial: this.serial, plays, text: this.text(),
-          songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
-        });
+        this.queue = [];
+        this.offset = 0;
+        this.paused = false;
+        this.audible = true;
         break;
-      }
-      case "television":
-        core.siday_set_television(message.set);
-        break;
-      case "songlengths":
-        this.withBytes(message.bytes, (data, length) => core.siday_set_songlengths(data, length));
+      case "pause":
+        this.paused = message.paused;
         break;
     }
   }
 
   process(inputs, outputs) {
     const left = outputs[0][0], right = outputs[0][1] ?? outputs[0][0];
-    if (!this.playing) return true;
-    const core = this.core;
-    for (let offset = 0; offset + 128 <= left.length; offset += 128) {
-      const more = core.siday_pull();
-      // The memory can have grown, and moved, since the last time: the view is made afresh.
-      const samples = new Float32Array(core.memory.buffer, core.siday_output(), 256);
+    for (let start = 0; start + 128 <= left.length; start += 128) {
+      // Paused and faded out, or nothing has arrived yet: silence, and the tune stays where it is.
+      if (this.paused && !this.audible) return true;
+      const chunk = this.queue[0];
+      if (!chunk) return true;
+
+      // The page hears of each chunk as it begins to play: where the song has got to, and the
+      // spectrum analyser's bars for it.
+      if (this.offset === 0) {
+        this.port.postMessage({ type: "progress", serial: this.serial, position: chunk.position, bars: chunk.bars });
+      }
+      // 1 throughout, or a ramp down to silence or up from it across this block.
+      const from = this.audible ? 1 : 0, to = this.paused ? 0 : 1;
+      const samples = chunk.samples, base = this.offset * 2;
       for (let frame = 0; frame < 128; frame++) {
-        const l = samples[frame * 2], r = samples[frame * 2 + 1];
-        left[offset + frame] = l;
-        right[offset + frame] = r;
-        const size = Math.max(Math.abs(l), Math.abs(r));
-        if (size > this.peak) this.peak = size;
+        const gain = from + ((to - from) * frame) / 128;
+        left[start + frame] = samples[base + frame * 2] * gain;
+        right[start + frame] = samples[base + frame * 2 + 1] * gain;
       }
-      if (!more) {
-        this.playing = false;
-        this.port.postMessage({ type: "ended", serial: this.serial });
-        return true;
-      }
-      // About fifteen times a second.
-      if (++this.quanta % 24 === 0) {
-        this.port.postMessage({ type: "progress", serial: this.serial, position: core.siday_position(), level: this.peak });
-        this.peak = 0;
+      this.audible = !this.paused;
+
+      this.offset += 128;
+      if (this.offset * 2 >= samples.length) {
+        this.queue.shift();
+        this.offset = 0;
+        (this.engine ?? this.port).postMessage({ type: "played", serial: this.serial });
+        if (chunk.last) this.port.postMessage({ type: "ended", serial: this.serial });
       }
     }
     return true;
   }
 }
 
-registerProcessor("siday", SidayProcessor);
+registerProcessor("siday", SidayOutput);

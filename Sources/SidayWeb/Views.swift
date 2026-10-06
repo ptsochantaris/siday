@@ -56,15 +56,19 @@ struct NowPlaying {
                     }
                 }
                 p(.class("detail")) {
-                    [tune.songs > 1 ? "song \(tune.song + 1) of \(tune.songs)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
+                    [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
                         .filter { !$0.isEmpty }.joined(separator: " · ")
                 }
+                Analyser(bars: player.bars, caps: player.caps)
                 div(.class("time")) {
                     span { formatTime(player.position) }
                     div(.class("bar")) {
                         div(.class("fill"), .style(["width": "\(percent(player.position, of: tune.length))%"])) {}
                     }
                     span { formatTime(tune.length) }
+                }
+                if tune.songs.count > 1 {
+                    Songs(player: player, tune: tune)
                 }
             } else if let problem = player.problem {
                 p(.class("problem")) { "\(fileName(player)): \(problem)" }
@@ -79,21 +83,101 @@ struct NowPlaying {
                 button(.class("main"), .title("Pause or play (space)")) { player.paused || player.finished || player.tune == nil ? "▶" : "⏸" }
                     .onClick { player.togglePause() }
                 button(.title("Next (n)")) { "⏭" }.onClick { player.next() }
-                if let tune = player.tune, tune.songs > 1 {
-                    button(.title("Previous song (−)")) { "−" }.onClick { player.song(-1) }
-                    button(.title("Next song (+)")) { "+" }.onClick { player.song(1) }
-                }
                 button(.class(player.television == nil ? "toggle" : "toggle on"), .title("Play through an early-1980s television (t)")) {
                     "tv: \(player.television?.rawValue ?? "off")"
                 }
                 .onClick { player.cycleTelevision() }
                 button(.class(player.shuffled ? "toggle on" : "toggle"), .title("Play in random order")) { "shuffle" }
                     .onClick { player.toggleShuffle() }
-                div(.class("meter"), .title("Level")) {
-                    div(.class("fill"), .style(["width": "\(percent(player.level, of: 1))%"])) {}
+            }
+        }
+    }
+}
+
+/// A spectrum analyser: a bar for each band of pitch, low notes on the left, each with a cap that
+/// stays a moment where the bar last reached. The colours run through the rainbow, because they should.
+@View
+struct Analyser {
+    var bars: [Double]
+    var caps: [Double]
+
+    var body: some View {
+        div(.class("analyser")) {
+            ForEach(Array(bars.indices), key: { String($0) }) { index in
+                div(.class("band")) {
+                    div(.class("bar"), .style(["background": colour(index), "transform": "scaleY(\(hundredths(bars[index])))"])) {}
+                    div(.class("cap"), .style(["background": colour(index), "bottom": "\(hundredths(index < caps.count ? caps[index] : 0) * 100)%"])) {}
                 }
             }
         }
+    }
+
+    /// Red for the lowest band, round to violet for the highest.
+    private func colour(_ index: Int) -> String {
+        "hsl(\(index * 290 / max(1, bars.count - 1)) 95% 58%)"
+    }
+
+    private func hundredths(_ value: Double) -> Double {
+        Double(Int(max(0, min(1, value)) * 100)) / 100
+    }
+}
+
+/// The songs of a tune that has several. Where the file names them they are listed; where it only
+/// numbers them, the numbers are enough.
+@View
+struct Songs {
+    var player: Player
+    var tune: Tune
+
+    var body: some View {
+        if tune.namesSongs {
+            ul(.class("songs")) {
+                ForEach(Array(tune.songs.indices), key: { String($0) }) { index in
+                    SongRow(player: player, index: index, song: tune.songs[index], playing: index == tune.song)
+                }
+            }
+        } else {
+            div(.class("songs numbered")) {
+                ForEach(Array(tune.songs.indices), key: { String($0) }) { index in
+                    SongButton(player: player, index: index, song: tune.songs[index], playing: index == tune.song)
+                }
+            }
+        }
+    }
+}
+
+@View
+struct SongRow {
+    var player: Player
+    var index: Int
+    var song: Tune.Song
+    var playing: Bool
+
+    var body: some View {
+        li(.class(playing ? "current" : "")) {
+            span(.class("number")) { "\(index + 1)" }
+            span(.class("name")) { song.title.isEmpty ? "Song \(index + 1)" : song.title }
+            span(.class("length")) { song.length.map { formatTime($0) } ?? "" }
+        }
+        .onClick { player.playSong(index) }
+    }
+}
+
+@View
+struct SongButton {
+    var player: Player
+    var index: Int
+    var song: Tune.Song
+    var playing: Bool
+
+    var body: some View {
+        button(.class(playing ? "song on" : "song"), .title("Song \(index + 1)")) {
+            span { "\(index + 1)" }
+            if let length = song.length {
+                span(.class("length")) { formatTime(length) }
+            }
+        }
+        .onClick { player.playSong(index) }
     }
 }
 

@@ -93,20 +93,48 @@ footer {
   font-variant-numeric: tabular-nums;
 }
 
-.bar, .meter {
+.time .bar {
+  flex: 1;
   height: 6px;
   background: var(--line);
   border-radius: 3px;
   overflow: hidden;
 }
 
-.bar {
+/* The spectrum analyser: bars scaled from the bottom, with the gaps of a row of lights drawn over them. */
+
+.analyser {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  height: 72px;
+}
+
+.analyser::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to top, transparent 0 5px, var(--panel) 5px 7px);
+  pointer-events: none;
+}
+
+.band {
+  position: relative;
   flex: 1;
 }
 
-.meter {
-  width: 90px;
-  margin-left: auto;
+.band .bar {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  opacity: 0.9;
+}
+
+.band .cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
 }
 
 .fill {
@@ -178,6 +206,50 @@ li:hover {
 
 li.current {
   color: var(--accent);
+}
+
+/* The songs of the tune that is playing. */
+
+ul.songs {
+  max-height: 13.5em;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
+}
+
+.songs .number {
+  color: var(--dim);
+  min-width: 1.6em;
+  text-align: right;
+}
+
+.songs .length {
+  color: var(--dim);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.songs.numbered {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button.song {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 9px;
+}
+
+button.song .length {
+  margin-left: 0;
+  font-size: 0.8rem;
+}
+
+button.song.on {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .name {

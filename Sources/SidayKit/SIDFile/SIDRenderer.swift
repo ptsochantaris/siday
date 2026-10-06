@@ -31,6 +31,13 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         return lengths[currentSubsong]
     }
 
+    /// A SID file does not name its songs; the song-length database, where there is one, times them.
+    public var songs: [SongInfo] {
+        (0 ..< subsongCount).map { song in
+            SongInfo(length: lengths.flatMap { song < $0.count ? $0[song] : nil })
+        }
+    }
+
     public init(_ data: [UInt8], path: String?, options: LoadOptions) throws {
         file = try SIDFile(data)
         if file.isMUS { throw TuneError.unsupported("Compute!'s Sidplayer (MUS) data") }

@@ -10,9 +10,19 @@ struct Tune {
     var title: String
     var author: String
     var detail: String
-    var songs: Int
+    /// Its songs, when it has more than one: what each is called and how long it is, where the file says.
+    var songs: [Song]
+    /// The song that is playing, counted from 0.
     var song: Int
     var length: Double
+
+    struct Song {
+        var title: String
+        var length: Double?
+    }
+
+    /// True when the file names its songs, and not only numbers them.
+    var namesSongs: Bool { songs.contains { !$0.title.isEmpty } }
 }
 
 /// The page's state: the list of files, which one is playing, and what the controls do. The files
@@ -26,13 +36,18 @@ final class Player {
     /// The place in `files` of the tune that is playing or was asked for.
     private(set) var current: Int?
     private(set) var tune: Tune?
+    /// The place in `files` of the file `tune` describes.
+    private var tuneFile: Int?
     /// Why the current file is not playing, when it is not.
     private(set) var problem: String?
     private(set) var paused = false
     /// True once the last tune of the list has finished.
     private(set) var finished = false
     private(set) var position = 0.0
-    private(set) var level = 0.0
+    /// The spectrum analyser: the height of each bar, low notes to high, and of the cap above it, 0 to 1.
+    /// (Twenty-four of each: what the audio side sends. Until it does, the bars are there and flat.)
+    private(set) var bars = [Double](repeating: 0, count: 24)
+    private(set) var caps = [Double](repeating: 0, count: 24)
     private(set) var television: TelevisionSet?
     private(set) var shuffled = false
     /// The order tunes are played in: places in `files`.
@@ -55,11 +70,13 @@ final class Player {
             },
             { [self] names in add(names.split(separator: "\n").map { String($0) }) },
             { [self] plays, text, songs, song, length in loaded(plays, text, songs, song, length) },
-            { [self] seconds, loudness in
+            { [self] seconds, heights in
                 position = seconds
-                level = loudness
+                let count = heights.count / 2
+                bars = Array(heights[..<count])
+                caps = Array(heights[count...])
             },
-            { [self] in next(automatic: true) },
+            { [self] in songEnded() },
             { [self] in paused = true }
         )
     }
@@ -112,18 +129,26 @@ final class Player {
 
     func play(_ index: Int, song: Int = -1) {
         guard files.indices.contains(index) else { return }
+        // Another song of the tune that is showing: its details stay up, with the new song marked,
+        // until the song itself reports in.
+        if index == tuneFile, let tune, tune.songs.indices.contains(song) {
+            self.tune?.song = song
+        } else {
+            tune = nil
+            tuneFile = nil
+        }
         current = index
-        tune = nil
         problem = nil
         finished = false
         paused = false
         position = 0
-        level = 0
         try? sidayPlay(index, song)
     }
 
     private func loaded(_ plays: Bool, _ text: String, _ songs: Int, _ song: Int, _ length: Double) {
         guard plays else {
+            tune = nil
+            tuneFile = nil
             problem = text
             failures += 1
             if failures < files.count { next(automatic: true) }
@@ -132,7 +157,30 @@ final class Player {
         failures = 0
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map { String($0) }
         func line(_ index: Int) -> String { index < lines.count ? lines[index] : "" }
-        tune = Tune(format: line(0), title: line(1), author: line(2), detail: line(3), songs: songs, song: song, length: length)
+        var list: [Tune.Song] = []
+        if songs > 1 {
+            for index in 0 ..< songs {
+                let fields = line(4 + index).split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+                let milliseconds = fields.first.flatMap { Int($0) }
+                list.append(Tune.Song(title: fields.count > 1 ? String(fields[1]) : "", length: milliseconds.map { Double($0) / 1000 }))
+            }
+            // A song whose file gives no length has it found when it is played. What was found for the
+            // songs of this tune played before this one is kept.
+            if current == tuneFile, let known = tune?.songs, known.count == list.count {
+                for index in list.indices where list[index].length == nil { list[index].length = known[index].length }
+            }
+        }
+        tuneFile = current
+        tune = Tune(format: line(0), title: line(1), author: line(2), detail: line(3), songs: list, song: song, length: length)
+    }
+
+    /// A song has played to its end: the tune's next song follows if it has one, and the next tune if not.
+    private func songEnded() {
+        if let tune, tune.song + 1 < tune.songs.count {
+            playSong(tune.song + 1)
+        } else {
+            next(automatic: true)
+        }
     }
 
     /// The next tune in the order. When a tune ends of its own accord at the end of the list, playing stops there.
@@ -142,7 +190,7 @@ final class Player {
             play(order[place])
         } else if automatic {
             finished = true
-            level = 0
+            rest()
         }
     }
 
@@ -151,20 +199,28 @@ final class Player {
         if place >= 0 { play(order[place]) }
     }
 
-    func song(_ step: Int) {
-        guard let tune, let current else { return }
-        let song = tune.song + step
-        guard song >= 0, song < tune.songs else { return }
-        // Nothing comes back for a change of song but the progress that follows, so the details are kept
-        // and the song number moved on; the new song's length arrives with a fresh load.
+    /// Plays a song of the tune that is loaded, counted from 0.
+    func playSong(_ song: Int) {
+        guard let tune, let current, tune.songs.indices.contains(song) else { return }
         play(current, song: song)
+    }
+
+    /// The song after the one playing, or the one before.
+    func song(_ step: Int) {
+        if let tune { playSong(tune.song + step) }
     }
 
     func togglePause() {
         guard tune != nil, !finished else { return }
         paused.toggle()
-        if paused { level = 0 }
+        if paused { rest() }
         try? sidayPause(paused)
+    }
+
+    /// Nothing is sounding: the analyser's bars drop.
+    private func rest() {
+        bars = bars.map { _ in 0 }
+        caps = caps.map { _ in 0 }
     }
 
     /// Off, then each set in turn.

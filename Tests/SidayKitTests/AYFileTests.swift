@@ -260,6 +260,8 @@ private func spectrumTune() -> [UInt8] {
     #expect(renderer.knownLength == 10)
     #expect(renderer.fileFade == 1)
     #expect(renderer.subsongCount == 1 && renderer.defaultSubsong == 0)
+    // What a front end can list of the songs before any is played.
+    #expect(renderer.songs == [SongInfo(title: "Tiny", length: 10)])
 
     let (events, states) = renderer.portLog(frames: 6)
     #expect(states.count == 6)

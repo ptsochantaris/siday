@@ -17,6 +17,19 @@ public struct TuneInfo: Sendable {
     }
 }
 
+/// What can be said of one song of a tune without playing it.
+public struct SongInfo: Sendable, Equatable {
+    /// The song's own name, where the file names its songs; otherwise empty.
+    public var title: String
+    /// Its length in seconds, where the file or a database gives one.
+    public var length: Double?
+
+    public init(title: String = "", length: Double? = nil) {
+        self.title = title
+        self.length = length
+    }
+}
+
 /// A loaded tune. The player calls this once per audio block; nothing below it is dynamically dispatched.
 /// Instances are confined to the thread that created them.
 public protocol Renderer: AnyObject {
@@ -27,6 +40,8 @@ public protocol Renderer: AnyObject {
     var currentSubsong: Int { get }
     /// Restarts playback at the given subsong.
     func select(subsong: Int)
+    /// The tune's songs in order, `subsongCount` of them, with what is known of each before it is played.
+    var songs: [SongInfo] { get }
     /// Length of the current subsong in seconds when the format knows it (to the loop point for trackers).
     var knownLength: Double? { get }
     /// Seconds of fade-out the file itself asks for, if any.
@@ -46,6 +61,7 @@ public extension Renderer {
     var defaultSubsong: Int { 0 }
     var currentSubsong: Int { 0 }
     func select(subsong _: Int) {}
+    var songs: [SongInfo] { Array(repeating: SongInfo(), count: subsongCount) }
     var fileFade: Double? { nil }
     var hasEnded: Bool { false }
     var loopCount: Int { 0 }

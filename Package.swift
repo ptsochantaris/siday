@@ -26,8 +26,8 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
-        // The web player (see Web/) is two WebAssembly modules. This one is its audio half: SidayKit for an
-        // audio worklet, with no user interface and no JavaScript library.
+        // The web player (see Web/) is two WebAssembly modules. This one is its audio half: SidayKit in a
+        // worker, with no user interface and no JavaScript library.
         .executableTarget(name: "SidayWebAudio", dependencies: ["SidayKit"]),
         // And this is the page: the playlist and controls, in ElementaryUI.
         .executableTarget(

@@ -274,6 +274,17 @@ public final class AYFileRenderer: Renderer {
         return frames > 0 ? Double(frames) / frameHz : nil
     }
 
+    /// The file names each song. A length is given where the file has a usable one, or where the song has
+    /// been played and measured; the others are not run just to fill in the list.
+    public var songs: [SongInfo] {
+        file.songs.indices.map { song in
+            var frames = file.songs[song].lengthFrames
+            if lengthIsMissing(song) { frames = measuredFrames[song] ?? 0 }
+            let rate = file.songs[song].frameHz ?? baseFrameHz
+            return SongInfo(title: file.songs[song].name, length: frames > 0 ? Double(frames) / rate : nil)
+        }
+    }
+
     /// True when the file gives no usable length for a song: none at all, or the three minutes exactly
     /// (9000 interrupts) that many rips carry as a stand-in whatever the tune's real length.
     private func lengthIsMissing(_ song: Int) -> Bool {

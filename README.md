@@ -119,7 +119,7 @@ keys. Nothing is uploaded; the files are read where they are.
 That builds what needs building, serves the folder at http://localhost:8000 (to this Mac only) and
 opens the page; Ctrl-C stops it. `./Web/build.sh` builds without serving.
 
-The folder is the whole site, static files and nothing more: an HTML page, a stylesheet, two short
+The folder is the whole site, static files and nothing more: an HTML page, a stylesheet, three short
 JavaScript files, and what `build.sh` puts in `Web/generated`. Any web server can serve it (a browser
 will not load it straight from disk). After a rebuild, reload the page.
 
@@ -127,10 +127,12 @@ Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly 
 what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` happens
 to be installed, the page's module comes out about a third smaller.
 
-The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else, running in an audio
-worklet (`worklet.js`) so the sound does not depend on what the page is doing. `SidayWeb` is the page
-itself, written in [ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only
-a browser has: the chosen files and the audio graph. All told it is about 700 kB compressed.
+The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else. It runs in a
+worker (`engine.js`), rendering a fifth of a second ahead, and the audio thread (`worklet.js`) only
+plays what it is sent: the same arrangement as the command-line player, so neither loading a tune nor
+anything the page does can hold the sound up. `SidayWeb` is the page itself, written in
+[ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
+chosen files and the audio graph. All told it is about 700 kB compressed.
 
 With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
 what they depend on for the Mac, which takes minutes the first time and is of no use.

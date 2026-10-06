@@ -95,3 +95,50 @@ import Testing
         #expect(buffer[frames * 2 - 1] == 0)
     }
 }
+
+@Test func spectrumAnalyzerShowsATone() {
+    let frames = 4096
+    let buffer = UnsafeMutablePointer<Float>.allocate(capacity: frames * 2)
+    defer { buffer.deallocate() }
+    func play(_ hertz: Double, amplitude: Double, into analyzer: inout SpectrumAnalyzer) {
+        for frame in 0 ..< frames {
+            let sample = Float(amplitude * Foundation.sin(2 * Double.pi * hertz * Double(frame) / Double(outputSampleRate)))
+            buffer[frame * 2] = sample
+            buffer[frame * 2 + 1] = sample
+        }
+        analyzer.add(buffer, frames: frames)
+        analyzer.analyse()
+    }
+    func tallest(_ analyzer: SpectrumAnalyzer) -> Int {
+        analyzer.levels.indices.max { analyzer.levels[$0] < analyzer.levels[$1] }!
+    }
+
+    // Silence shows nothing.
+    var analyzer = SpectrumAnalyzer()
+    play(1000, amplitude: 0, into: &analyzer)
+    #expect(analyzer.levels.allSatisfy { $0 == 0 })
+
+    // A tone stands up in one place: its own band and little either side of it.
+    play(1000, amplitude: 0.25, into: &analyzer)
+    let band = tallest(analyzer)
+    #expect(analyzer.levels[band] > 0.5)
+    #expect(analyzer.levels.indices.filter { abs($0 - band) > 2 }.allSatisfy { analyzer.levels[$0] < 0.1 })
+
+    // A higher tone stands further to the right.
+    var other = SpectrumAnalyzer()
+    play(4000, amplitude: 0.25, into: &other)
+    #expect(tallest(other) > band)
+
+    // When the tone stops the bar falls, and its cap stays up a little longer.
+    let before = analyzer.levels[band]
+    for index in 0 ..< frames * 2 { buffer[index] = 0 }
+    analyzer.add(buffer, frames: 2048)
+    analyzer.analyse()
+    #expect(analyzer.levels[band] < before)
+    #expect(analyzer.caps[band] == before)
+    for _ in 0 ..< 60 {
+        analyzer.add(buffer, frames: 2048)
+        analyzer.analyse()
+    }
+    #expect(analyzer.levels[band] == 0 && analyzer.caps[band] == 0)
+}
