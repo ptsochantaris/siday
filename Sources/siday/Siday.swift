@@ -10,6 +10,7 @@ extension StereoLayout: ExpressibleByArgument {}
 extension AYChipType: ExpressibleByArgument {}
 extension SIDModelChoice: ExpressibleByArgument {}
 extension SIDEngineChoice: ExpressibleByArgument {}
+extension TelevisionSet: ExpressibleByArgument {}
 
 @main
 struct Siday: ParsableCommand {
@@ -17,7 +18,8 @@ struct Siday: ParsableCommand {
         commandName: "siday",
         abstract: "Plays AY/YM and SID chiptunes from files and folders.",
         discussion: """
-        Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
+        Keys while playing: space pause · n or → next · p or ← previous · + and - subsong ·
+        t television (off, plastic, wood) · q quit.
         Folders are searched recursively. The files are only ever read.
         """
     )
@@ -69,6 +71,9 @@ struct Siday: ParsableCommand {
 
     @Option(help: "Where the 6581's filter sits, from 0 (bright) to 1 (dark); real chips varied. residfp only.")
     var sidFilterCurve = 0.5
+
+    @Option(help: "Play through an early-1980s television's speaker: plastic (a small portable) or wood (a large set in a wooden cabinet). Always mono.")
+    var tv: TelevisionSet?
 
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree.")
     var songlengths: String?
@@ -277,13 +282,14 @@ struct Siday: ParsableCommand {
     private func play(_ files: [URL]) throws {
         let ring = SampleRing(frames: 8192)
         let output = try AudioOutput(ring: ring)
-        let engine = Engine(ring: ring, playlist: files, options: loadOptions, policy: policy)
+        let engine = Engine(ring: ring, playlist: files, options: loadOptions, policy: policy, television: tv)
         Terminal.enterKeyMode()
         engine.start()
 
         var generation = 0
         var length = 0.0
         var paused = false
+        var television = tv
         var statusShown = false
         func clearStatus() {
             if statusShown, Terminal.interactive { print("\r\u{1B}[K", terminator: "") }
@@ -300,6 +306,12 @@ struct Siday: ParsableCommand {
             case .pause:
                 paused.toggle()
                 ring.paused.store(paused, ordering: .relaxed)
+            case .television:
+                // Off, then each set in turn.
+                let sets = TelevisionSet.allCases
+                let next = television.flatMap { sets.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
+                television = next < sets.count ? sets[next] : nil
+                engine.television.withLock { $0 = television }
             case nil: break
             }
             let state = engine.nowPlaying.withLock { state -> NowPlaying in
@@ -320,7 +332,8 @@ struct Siday: ParsableCommand {
             if state.finished { break loop }
             if Terminal.interactive, generation > 0 {
                 let played = Double(ring.framesPlayed.load(ordering: .relaxed)) / Double(outputSampleRate)
-                print("\r  \(formatTime(played)) / \(formatTime(length))\(paused ? "  paused" : "")\u{1B}[K", terminator: "")
+                let through = television.map { "  tv: \($0.rawValue)" } ?? ""
+                print("\r  \(formatTime(played)) / \(formatTime(length))\(through)\(paused ? "  paused" : "")\u{1B}[K", terminator: "")
                 fflush(stdout)
                 statusShown = true
             }
@@ -401,8 +414,10 @@ struct Siday: ParsableCommand {
                     if renderer.subsongCount > 1 { renderer.select(subsong: subsong) }
                     let session = TuneSession(renderer: renderer, policy: policy)
                     var writer = WAVWriter()
+                    var television = tv.map { Television($0) }
                     while !session.finished {
                         let produced = session.render(into: buffer, frames: block)
+                        television?.process(buffer, frames: produced)
                         writer.append(buffer, frames: produced)
                     }
                     var name = url.deletingPathExtension().lastPathComponent + "." + url.pathExtension.lowercased()

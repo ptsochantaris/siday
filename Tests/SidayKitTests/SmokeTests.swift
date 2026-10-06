@@ -58,3 +58,47 @@ import Testing
         #expect(found?.lengths(data: Data(), url: tune) == [60])
     }
 }
+
+@Test func televisionKeepsTheMiddleAndLosesTheEnds() {
+    for set in TelevisionSet.allCases {
+        let television = Television(set)
+        let middle = television.response(at: 1000)
+        #expect(middle > 0.5 && middle < 2)
+        // No bass to speak of, and little top.
+        #expect(television.response(at: 40) < middle * 0.1)
+        #expect(television.response(at: 12000) < middle * 0.25)
+        // Nothing steady gets through: a speaker cannot hold a cone out.
+        #expect(television.response(at: 0.001) < 1e-6)
+    }
+    // The wooden cabinet has the more bass of the two.
+    #expect(Television(.wood).response(at: 120) > Television(.plastic).response(at: 120) * 1.5)
+}
+
+@Test func televisionIsMonoAndStaysInRange() {
+    for set in TelevisionSet.allCases {
+        var television = Television(set)
+        let frames = 48000
+        let buffer = UnsafeMutablePointer<Float>.allocate(capacity: frames * 2)
+        defer { buffer.deallocate() }
+        // A full-scale 110 Hz square wave on the left only, the loudest thing a chip could send.
+        for frame in 0 ..< frames {
+            buffer[frame * 2] = (frame * 110 / 24000) % 2 == 0 ? 1 : -1
+            buffer[frame * 2 + 1] = 0
+        }
+        television.process(buffer, frames: frames)
+        var peak: Float = 0, heard = false
+        for frame in 0 ..< frames {
+            #expect(buffer[frame * 2] == buffer[frame * 2 + 1])
+            peak = max(peak, abs(buffer[frame * 2]))
+            if abs(buffer[frame * 2]) > 0.05 { heard = true }
+        }
+        #expect(peak.isFinite && peak <= 1)
+        #expect(heard)
+
+        // Silence in, after the cone has settled, is silence out.
+        television.reset()
+        for index in 0 ..< frames * 2 { buffer[index] = 0 }
+        television.process(buffer, frames: frames)
+        #expect(buffer[frames * 2 - 1] == 0)
+    }
+}

@@ -39,7 +39,8 @@ siday <files or folders…>
 
 Folders are searched recursively and files are recognised by extension. The files are only ever read.
 
-While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+` / `-` (or `↑` / `↓`) subsong · `q` quit.
+While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+` / `-` (or `↑` / `↓`) subsong ·
+`t` television (off, plastic, wood) · `q` quit.
 
 | Option | Effect |
 |---|---|
@@ -56,6 +57,7 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 | `--sid-model auto\|6581\|8580` | SID model (default: what the tune asks for) |
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, bright to dark (default 0.5). Real chips varied this much; reSIDfp only |
+| `--tv plastic\|wood` | Play through an early-1980s television's speaker (see below). Always mono |
 | `--songlengths path` | HVSC's `Songlengths.md5`; remembered for later runs. A file with no lengths in it is ignored |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
 | `--list` | Show what would be played, with format, length and title |
@@ -76,6 +78,25 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
   particular fade gets that one.
 - Any tune that falls silent for five seconds ends early.
 - Multi-song AY and SID files play the song the file names as its first; `+` and `-` move between songs.
+
+### Through a television
+
+These chips were written for and heard through a television: one small paper cone in a vented plastic
+or wooden cabinet, fed by a sound stage with little treble to give. `--tv` puts that between the chip
+and your speakers, and `t` switches it while a tune plays, so the two can be compared.
+
+| Stage | What it does |
+|---|---|
+| One speaker | The two channels are added together |
+| Sound channel | Treble falls away gently from about 4.5 kHz |
+| Amplifier and cone | Loud passages are bent slightly, adding a little second and third harmonic |
+| Speaker | No bass below its own resonance (about 170 Hz in `plastic`, 105 Hz in `wood`), little above 6 to 7 kHz |
+| Cabinet | A few resonances and a dip in between: the boxy low-middle and the forward upper-middle of a small set |
+
+`plastic` is a small portable, thin and forward. `wood` is a large set in a veneered cabinet, fuller and
+rounder. The level in the middle of the range is kept where it was. No particular set was measured: the
+figures are typical ones, chosen to be judged by ear, and are all in one place
+(`Sources/SidayKit/Core/Television.swift`).
 
 ### AY files ripped at the wrong speed
 
