@@ -25,7 +25,7 @@ A few RSID tunes that depend on exact video or serial-port timing will not play 
 ## Building
 
 ```
-swift build -c release
+swift build -c release --product siday
 ```
 
 The binary is `.build/out/Products/Release/siday` (`swift build -c release --show-bin-path` prints the folder).
@@ -106,6 +106,34 @@ are corrected by content (`Sources/SidayKit/AYFile/AYFileCorrections.swift`) and
 when they play; so far those are the Exolon 128K title tune, which the rip plays 14% fast, and the Kenny
 Dalglish Soccer Match menu tune, which it plays 5% slow. Giving
 `--frame-rate` plays any file exactly as written.
+
+## In a browser
+
+`Web/` is the same player as a web page: drop tunes or a folder on it and it plays them, with the same
+keys. Nothing is uploaded; the files are read where they are.
+
+```
+./Web/serve.sh
+```
+
+That builds what needs building, serves the folder at http://localhost:8000 (to this Mac only) and
+opens the page; Ctrl-C stops it. `./Web/build.sh` builds without serving.
+
+The folder is the whole site, static files and nothing more: an HTML page, a stylesheet, two short
+JavaScript files, and what `build.sh` puts in `Web/generated`. Any web server can serve it (a browser
+will not load it straight from disk). After a rebuild, reload the page.
+
+Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly (`swift sdk list` shows
+what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` happens
+to be installed, the page's module comes out about a third smaller.
+
+The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else, running in an audio
+worklet (`worklet.js`) so the sound does not depend on what the page is doing. `SidayWeb` is the page
+itself, written in [ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only
+a browser has: the chosen files and the audio graph. All told it is about 700 kB compressed.
+
+With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
+what they depend on for the Mac, which takes minutes the first time and is of no use.
 
 ## How it is built
 

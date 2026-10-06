@@ -1,0 +1,197 @@
+/* Copyright (C) 2026 Paul Tsochantaris. SPDX-License-Identifier: GPL-2.0-or-later */
+
+:root {
+  color-scheme: dark;
+  --paper: #14161a;
+  --panel: #1d2026;
+  --line: #2e333c;
+  --ink: #e6e3da;
+  --dim: #8d919a;
+  --accent: #f2b84b;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 15px;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+p {
+  margin: 0;
+}
+
+.tagline, .hint, .detail, footer {
+  color: var(--dim);
+}
+
+footer {
+  font-size: 0.82rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.now, .list {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.format {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 0.8rem;
+}
+
+.title {
+  font-size: 1.2rem;
+}
+
+.author {
+  color: var(--dim);
+}
+
+.problem {
+  color: #e8836b;
+}
+
+.time {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar, .meter {
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bar {
+  flex: 1;
+}
+
+.meter {
+  width: 90px;
+  margin-left: auto;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.controls, .add, .search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--dim);
+}
+
+button.main {
+  min-width: 3.4em;
+}
+
+button.toggle.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="search"] {
+  font: inherit;
+  flex: 1;
+  min-width: 12em;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+li:hover {
+  background: var(--paper);
+}
+
+li.current {
+  color: var(--accent);
+}
+
+.name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder {
+  color: var(--dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: auto;
+  max-width: 50%;
+}
