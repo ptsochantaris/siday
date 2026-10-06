@@ -1,3 +1,5 @@
+<img src="logo.png" alt="The siday logo: a chip marked SIDAY, with a stave of music" width="180" align="right">
+
 # siday
 
 A command-line chiptune player for macOS, written entirely in Swift. Point it at files or folders
