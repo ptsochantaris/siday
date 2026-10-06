@@ -2,10 +2,17 @@
 
 # siday
 
-A command-line chiptune player for macOS, written entirely in Swift. Point it at files or folders
-and it plays them.
+A chiptune player written entirely in Swift, in two forms: **a page that plays in your browser**, and
+a command-line player for macOS. Both are the same emulators underneath: of the sound chips of the
+ZX Spectrum, the Amstrad CPC and the Commodore 64.
 
 The name is the two families of sound chip it plays, SID and AY. How to pronounce it is left open.
+
+**In a browser:** open **[ptsochantaris.github.io/siday](https://ptsochantaris.github.io/siday/)** and
+drop tunes or a whole folder on the page. Nothing is uploaded: they are played where they are. See
+[In a browser](#in-a-browser).
+
+**On the command line:** point it at files or folders. See [On the command line](#on-the-command-line).
 
 ```
 siday ~/Music/chiptunes --shuffle
@@ -24,7 +31,67 @@ Not supported: RSID tunes that need the C64 BASIC ROM, Compute!'s Sidplayer (MUS
 Atari-ST-only effects in some YM5/YM6 files (digidrums, SID voice), which play without those effects.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 
-## Building
+## In a browser
+
+[ptsochantaris.github.io/siday](https://ptsochantaris.github.io/siday/) is the player as a web page,
+and `Web/` is where it comes from. It is Swift too: the emulators and the page itself are compiled
+to WebAssembly.
+
+- Drop tunes or a whole folder on it, or choose them, and it plays them. Nothing is uploaded: the
+  files are read where they are and never leave your computer.
+- A tune with several songs lists them, by name where the file names them, and plays them in turn.
+- A spectrum analyser follows what is being heard.
+- Press anywhere on the time bar to move there, in either direction.
+- SID tunes know their lengths: those of the High Voltage SID Collection are built in.
+- The early-1980s television speaker is a button away, and the keys are the command-line player's.
+
+Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
+over. A song is rendered to its end as soon as it starts, far faster than it plays, and the bar
+shades in behind as it goes: anywhere in the shaded part is reached at once, and a place beyond it
+as soon as the rendering gets there.
+
+Rendering ahead also finds the length of a tune whose file does not give one. Such a tune is allowed
+three minutes; if it turns out to end sooner, the page shows its real length as soon as it is known,
+and does not sit through the seconds of silence it takes to be sure a tune is over.
+
+To run it from here:
+
+```
+./Web/serve.sh
+```
+
+That builds what needs building, serves the folder at http://localhost:8000 (to this Mac only) and
+opens the page; Ctrl-C stops it. `./Web/build.sh` builds without serving. `./Web/publish.sh` builds
+and puts the result on the web: it pushes the site, and nothing else, to the repository's `gh-pages`
+branch, which GitHub Pages serves. The page on the web changes when that is run, and not before.
+
+The folder is the whole site, static files and nothing more: an HTML page, a stylesheet, three short
+JavaScript files, and what `build.sh` puts in `Web/generated`. Any web server can serve it (a browser
+will not load it straight from disk). After a rebuild, reload the page.
+
+Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly (`swift sdk list` shows
+what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` happens
+to be installed, the page's module comes out about a third smaller.
+
+The modules are built to use WebAssembly's SIMD instructions (`-msimd128` in `Web/toolset.json`), which
+makes rendering a quarter to a third faster and changes no sample of it. Every current browser has
+them; Safari has since 16.4.
+
+The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else. It runs in a
+worker (`engine.js`), which renders the whole of a song and keeps it (23 MB for each minute, for the
+song that is playing), and the audio thread (`worklet.js`) only plays what it is sent, a fifth of a
+second ahead: much the arrangement of the command-line player, so neither loading a tune nor anything
+the page does can hold the sound up. What is kept is the sound as the chip made it; the television and
+the spectrum analyser are applied as it is played, so the television can be switched at any moment. `SidayWeb` is the page itself, written in
+[ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
+chosen files and the audio graph. All told it is about 1.3 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that.
+
+With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
+what they depend on for the Mac, which takes minutes the first time and is of no use.
+
+## On the command line
+
+`siday` is the player for the terminal, on macOS. To build it:
 
 ```
 swift build -c release --product siday
@@ -33,7 +100,7 @@ swift build -c release --product siday
 The binary is `.build/out/Products/Release/siday` (`swift build -c release --show-bin-path` prints the folder).
 Always use a release build: the emulators are far too slow in debug.
 
-## Using it
+### Using it
 
 ```
 siday <files or folders…>
@@ -116,51 +183,6 @@ are corrected by content (`Sources/SidayKit/AYFile/AYFileCorrections.swift`) and
 when they play; so far those are the Exolon 128K title tune, which the rip plays 14% fast, and the Kenny
 Dalglish Soccer Match menu tune, which it plays 5% slow. Giving
 `--frame-rate` plays any file exactly as written.
-
-## In a browser
-
-`Web/` is the same player as a web page: drop tunes or a folder on it and it plays them, with the same
-keys. Nothing is uploaded; the files are read where they are.
-
-Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
-over. A song is rendered to its end as soon as it starts, far faster than it plays, and the bar
-shades in behind as it goes: anywhere in the shaded part is reached at once, and a place beyond it
-as soon as the rendering gets there.
-
-Rendering ahead also finds the length of a tune whose file does not give one. Such a tune is allowed
-three minutes; if it turns out to end sooner, the page shows its real length as soon as it is known,
-and does not sit through the seconds of silence it takes to be sure a tune is over.
-
-```
-./Web/serve.sh
-```
-
-That builds what needs building, serves the folder at http://localhost:8000 (to this Mac only) and
-opens the page; Ctrl-C stops it. `./Web/build.sh` builds without serving.
-
-The folder is the whole site, static files and nothing more: an HTML page, a stylesheet, three short
-JavaScript files, and what `build.sh` puts in `Web/generated`. Any web server can serve it (a browser
-will not load it straight from disk). After a rebuild, reload the page.
-
-Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly (`swift sdk list` shows
-what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` happens
-to be installed, the page's module comes out about a third smaller.
-
-The modules are built to use WebAssembly's SIMD instructions (`-msimd128` in `Web/toolset.json`), which
-makes rendering a quarter to a third faster and changes no sample of it. Every current browser has
-them; Safari has since 16.4.
-
-The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else. It runs in a
-worker (`engine.js`), which renders the whole of a song and keeps it (23 MB for each minute, for the
-song that is playing), and the audio thread (`worklet.js`) only plays what it is sent, a fifth of a
-second ahead: much the arrangement of the command-line player, so neither loading a tune nor anything
-the page does can hold the sound up. What is kept is the sound as the chip made it; the television and
-the spectrum analyser are applied as it is played, so the television can be switched at any moment. `SidayWeb` is the page itself, written in
-[ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
-chosen files and the audio graph. All told it is about 1.3 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that.
-
-With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
-what they depend on for the Mac, which takes minutes the first time and is of no use.
 
 ## How it is built
 
