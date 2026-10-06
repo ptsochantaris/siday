@@ -53,6 +53,7 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         }
         machine = C64Machine(clockHz: clockHz, ntsc: ntsc, model: model, engine: options.sidEngine, filterCurve: options.sidFilterCurve)
         lengths = options.songLengths?.lengths(of: data, path: path)
+            ?? (options.usesBuiltInSongLengths ? BuiltInSongLengths.lengths(of: data) : nil)
 
         var info = TuneInfo(format: file.isRSID ? "RSID" : "PSID")
         info.title = file.name

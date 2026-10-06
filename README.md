@@ -58,7 +58,7 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, bright to dark (default 0.5). Real chips varied this much; reSIDfp only |
 | `--tv plastic\|wood` | Play through an early-1980s television's speaker (see below). Always mono |
-| `--songlengths path` | HVSC's `Songlengths.md5`; remembered for later runs. A file with no lengths in it is ignored |
+| `--songlengths path` | A copy of HVSC's `Songlengths.md5` to ask before the lengths that are built in; remembered for later runs. A file with no lengths in it is ignored |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
 | `--list` | Show what would be played, with format, length and title |
 | `--check` | Load and render a few seconds of every file silently and report per format |
@@ -70,9 +70,17 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 - AY files carry a length per song. Many give none, or the exactly three minutes that rips use as a
   stand-in; those songs are run silently for up to six minutes to find where they end or begin to repeat.
   If that finds neither, they get `--default-time`.
-- SID tunes use HVSC's song-length database when one is available: named with `--songlengths` (once is
-  enough), in `$SIDAY_SONGLENGTHS`, or found in a `DOCUMENTS` folder above the tune. A tune is looked up
-  by content, then by its path inside HVSC. Otherwise it gets `--default-time`.
+- SID tunes use the song lengths of the High Voltage SID Collection (HVSC). A SID file does not say how
+  long its songs are, and most never end; the collection's team have timed every one. Their lengths
+  for release 85, all 61,157 tunes, are built into the player, in the command line and the browser
+  alike, and a tune is found among them by its content. A copy of the collection's own
+  `Songlengths.md5` is asked first when there is one: named with `--songlengths` (once is enough), in
+  `$SIDAY_SONGLENGTHS`, or found in a `DOCUMENTS` folder above the tune. That is the way to use a
+  newer release's lengths, and it also finds a tune by its path inside HVSC when its content differs.
+  A SID tune in neither gets `--default-time`.
+- When a new release comes out, `swift Scripts/pack-songlengths.swift <its Songlengths.md5> <its
+  number>` rebuilds the table in `Sources/SidayKit/SIDFile/SongLengthsData.swift`, and
+  `SIDAY_SONGLENGTHS=<that file> swift test` checks every entry of it against the file.
 - Only a tune that is still playing at that point is faded out, since it would go on repeating. One
   that has come to rest there has an ending of its own and simply stops. An AY file that asks for a
   particular fade gets that one.
@@ -112,6 +120,15 @@ Dalglish Soccer Match menu tune, which it plays 5% slow. Giving
 `Web/` is the same player as a web page: drop tunes or a folder on it and it plays them, with the same
 keys. Nothing is uploaded; the files are read where they are.
 
+Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
+over. A song is rendered to its end as soon as it starts, far faster than it plays, and the bar
+shades in behind as it goes: anywhere in the shaded part is reached at once, and a place beyond it
+as soon as the rendering gets there.
+
+Rendering ahead also finds the length of a tune whose file does not give one. Such a tune is allowed
+three minutes; if it turns out to end sooner, the page shows its real length as soon as it is known,
+and does not sit through the seconds of silence it takes to be sure a tune is over.
+
 ```
 ./Web/serve.sh
 ```
@@ -128,11 +145,13 @@ what is installed), and nothing else: no Node, no packages to install. If Binary
 to be installed, the page's module comes out about a third smaller.
 
 The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else. It runs in a
-worker (`engine.js`), rendering a fifth of a second ahead, and the audio thread (`worklet.js`) only
-plays what it is sent: the same arrangement as the command-line player, so neither loading a tune nor
-anything the page does can hold the sound up. `SidayWeb` is the page itself, written in
+worker (`engine.js`), which renders the whole of a song and keeps it (23 MB for each minute, for the
+song that is playing), and the audio thread (`worklet.js`) only plays what it is sent, a fifth of a
+second ahead: much the arrangement of the command-line player, so neither loading a tune nor anything
+the page does can hold the sound up. What is kept is the sound as the chip made it; the television and
+the spectrum analyser are applied as it is played, so the television can be switched at any moment. `SidayWeb` is the page itself, written in
 [ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
-chosen files and the audio graph. All told it is about 700 kB compressed.
+chosen files and the audio graph. All told it is about 1.3 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that.
 
 With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
 what they depend on for the Mac, which takes minutes the first time and is of no use.

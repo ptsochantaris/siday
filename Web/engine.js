@@ -2,27 +2,59 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 // The player's engine, in a worker of its own. It holds the SidayWebAudio WebAssembly module (SidayKit
-// and nothing else), loads the tunes the page sends, and renders a little way ahead of what is being
-// heard, handing the sound in chunks to the audio thread (worklet.js). It is the arrangement the
-// command-line player has: one thread makes the sound and another only plays it.
+// and nothing else), loads the tunes the page sends, and hands their sound in chunks to the audio
+// thread (worklet.js), a little ahead of what is being heard. It is the arrangement the command-line
+// player has: one thread makes the sound and another only plays it.
+//
+// It does not stop at a little ahead in the making, though. A song is rendered to its end as fast as
+// the machine will go, and kept, so the listener can move to any place in it: these tunes are
+// programs, and the only way to the middle of one is through everything before it. Moving is then a
+// matter of sending from another place in what is kept; if the place has not been rendered yet, the
+// sound waits until it has. A song costs 23 MB a minute while it is the one playing.
 //
 // Nothing is loaded or rendered on the audio thread itself. Loading a tune can take a good part of a
 // second, and an audio thread held up for that long does not merely leave a gap: a browser may play
 // catch-up afterwards, and everything after it is then heard late.
 
-/// Frames in a chunk: eight of the module's 128-frame blocks, 21 ms. Each chunk carries the position
-/// it reaches and the spectrum analyser's bars, so the page is told of both about 47 times a second.
+/// Frames in a chunk: eight of the module's 128-frame blocks, 21 ms. Each chunk sent carries the
+/// position it reaches and the spectrum analyser's bars, so the page is told of both about 47 times a second.
 const blocksPerChunk = 8;
 const chunkFrames = blocksPerChunk * 128;
-/// How far ahead to render: chunks handed over and not yet reported played. About a fifth of a second.
+const sampleRate = 48000;
+/// How far ahead to send: chunks handed over and not yet reported played. About a fifth of a second.
 const ahead = 10;
+/// How long to render before seeing whether there is anything else to do, in milliseconds.
+const turn = 10;
 
 let core;
+/// A chunk's worth of the module's memory, for finishing each chunk on its way out.
+let scratch;
 /// The way to the audio thread, and back from it.
 let output;
-/// The tune being rendered: the page's count of its requests to play.
+
+/// The tune that is loaded: the page's count of its requests to play.
+let tune = 0;
+/// The song as far as it has been rendered: { samples, position, last } for each chunk, in order,
+/// the sound as the chip made it. The last chunk of the song is marked.
+let kept = [];
+/// True when there is no more of the song to render.
+let complete = true;
+/// The song's length in seconds, once all of it is rendered, if that is how it was found out: the
+/// file did not say, and the song came to an end before the time it was allowed. Otherwise 0.
+let found = 0;
+/// Silence left at the end of a song that ended by falling silent, in seconds.
+const rest = 1;
+/// True while `work` has another turn coming.
+let working = false;
+let reported = 0;
+
+/// The run of sound being sent: the page starts another, with another number, for each tune and for
+/// each move within one, and the audio thread drops what it has of the last.
 let serial = 0;
-let playing = false;
+/// The next chunk to send, by its place in `kept`.
+let next = 0;
+/// False once the last chunk of the song has been sent.
+let sending = false;
 /// Chunks handed to the audio thread that it has not yet played.
 let waiting = 0;
 
@@ -36,30 +68,86 @@ function withBytes(buffer, use) {
   return result;
 }
 
-/// Renders chunks until enough are waiting to be played, or the tune is over.
+/// Renders the next chunk of the song and keeps it.
 function render() {
-  while (playing && waiting < ahead) {
-    const samples = new Float32Array(chunkFrames * 2);
-    let last = false;
-    for (let block = 0; block < blocksPerChunk; block++) {
-      last = core.siday_pull() === 0;
-      // The memory can have grown, and moved, since the last time: the view is made afresh.
-      samples.set(new Float32Array(core.memory.buffer, core.siday_output(), 256), block * 256);
-      // What is left of the chunk after the tune's end stays silent.
-      if (last) break;
-    }
-    const bars = new Uint8Array(core.memory.buffer, core.siday_spectrum(), core.siday_spectrum_bands() * 2).slice();
-    output.postMessage({ type: "chunk", serial, samples, position: core.siday_position(), bars, last }, [samples.buffer]);
+  const samples = new Float32Array(chunkFrames * 2);
+  let last = false;
+  for (let block = 0; block < blocksPerChunk; block++) {
+    last = core.siday_pull() === 0;
+    // The memory can have grown, and moved, since the last time: the view is made afresh.
+    samples.set(new Float32Array(core.memory.buffer, core.siday_output(), 256), block * 256);
+    // What is left of the chunk after the tune's end stays silent.
+    if (last) break;
+  }
+  kept.push({ samples, position: core.siday_position(), last });
+  if (last) finish();
+}
+
+/// The whole song is rendered, and so it is known how it ends.
+function finish() {
+  complete = true;
+  const end = kept[kept.length - 1].position;
+  // A tune with no ending of its own is over when it has been silent for some seconds. Those seconds
+  // were needed to find that out, and now it is known: a moment of them is kept and the rest dropped.
+  const silence = core.siday_silence();
+  if (silence > rest) {
+    kept.length = Math.max(1, Math.min(kept.length, Math.ceil(((end - silence + rest) * sampleRate) / chunkFrames)));
+    kept[kept.length - 1].last = true;
+  }
+  // Where the file gave no length the page was told the time the tune would be allowed. If the tune
+  // did not need it all, its real length is the sound it made.
+  const length = end - silence;
+  found = core.siday_length_known() === 0 && length > 0 && length < core.siday_length() ? length : 0;
+}
+
+/// Sends chunks until enough are waiting to be played, or there are no more to send yet.
+function send() {
+  // A place past the end of the song: its last moment is played, and so it ends.
+  if (sending && complete && next >= kept.length) next = kept.length - 1;
+  while (sending && waiting < ahead && next < kept.length) {
+    const chunk = kept[next++];
+    // The television and the spectrum analyser belong to what is heard, not to what is kept.
+    new Float32Array(core.memory.buffer, scratch, chunkFrames * 2).set(chunk.samples);
+    core.siday_present(scratch, chunkFrames);
+    const samples = new Float32Array(core.memory.buffer, scratch, chunkFrames * 2).slice();
+    // Asked for first: working the bars out can make the module's memory grow, and so move.
+    const spectrum = core.siday_spectrum();
+    const bars = new Uint8Array(core.memory.buffer, spectrum, core.siday_spectrum_bands() * 2).slice();
+    output.postMessage({ type: "chunk", serial, samples, position: chunk.position, bars, last: chunk.last }, [samples.buffer]);
     waiting++;
-    if (last) playing = false;
+    if (chunk.last) sending = false;
   }
 }
 
-/// From the audio thread: a chunk of this tune has been played, so there is room for another.
+/// Tells the page how much of the song there is to move about in.
+function report() {
+  const now = performance.now();
+  if (!complete && now - reported < 100) return;
+  reported = now;
+  self.postMessage({ type: "rendered", tune, seconds: (kept.length * chunkFrames) / sampleRate, length: complete ? found : 0 });
+}
+
+// Rendering is done a turn at a time, with a message to itself between turns, so that word from the
+// page and from the audio thread is heard promptly however long the song.
+const turns = new MessageChannel();
+turns.port1.onmessage = work;
+
+function work() {
+  const until = performance.now() + turn;
+  while (!complete && performance.now() < until) {
+    render();
+    send();
+  }
+  report();
+  working = !complete;
+  if (working) turns.port2.postMessage(0);
+}
+
+/// From the audio thread: a chunk of this run has been played, so there is room for another.
 function played(message) {
   if (message.serial !== serial) return;
   waiting--;
-  render();
+  send();
 }
 
 self.onmessage = async (event) => {
@@ -77,6 +165,7 @@ self.onmessage = async (event) => {
       });
       core = instance.exports;
       core._initialize();
+      scratch = core.siday_alloc(chunkFrames * 2 * 4);
       output = message.output;
       output.onmessage = (played_) => played(played_.data);
       self.postMessage({ type: "ready" });
@@ -88,21 +177,41 @@ self.onmessage = async (event) => {
       output.onmessage = (played_) => played(played_.data);
       break;
     case "load": {
+      tune = message.tune;
       serial = message.serial;
-      waiting = 0;
       const plays = withBytes(message.name, (name, nameLength) =>
         withBytes(message.bytes, (data, length) => core.siday_load(data, length, name, nameLength)),
       ) === 1;
       if (plays && message.subsong >= 0) core.siday_select(message.subsong);
       const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
       self.postMessage({
-        type: "loaded", serial, plays, text,
+        type: "loaded", tune, plays, text,
         songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
       });
-      playing = plays;
-      render();
+      kept = [];
+      found = 0;
+      complete = !plays;
+      next = 0;
+      waiting = 0;
+      sending = plays;
+      reported = 0;
+      if (plays && !working) {
+        working = true;
+        turns.port2.postMessage(0);
+      }
       break;
     }
+    case "seek":
+      // The listener has moved to another place in the song: sending goes on from there, as soon as
+      // there is something there to send.
+      if (kept.length === 0 && complete) break;
+      serial = message.serial;
+      next = Math.max(0, Math.floor((message.position * sampleRate) / chunkFrames));
+      waiting = 0;
+      sending = true;
+      core.siday_settle();
+      send();
+      break;
     case "television":
       core.siday_set_television(message.set);
       break;

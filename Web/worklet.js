@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 // The audio thread. It makes no sound of its own: the engine (engine.js, in a worker) renders the tune
-// a little ahead and sends it here in chunks, and this plays them, 128 frames at a time. It never
+// and sends it here in chunks, a little ahead, and this plays them, 128 frames at a time. It never
 // waits for anything; when it has nothing to play it plays silence. Plain JavaScript with no imports:
 // it is loaded as it stands by audioWorklet.addModule.
 
@@ -13,7 +13,7 @@ class SidayOutput extends AudioWorkletProcessor {
     this.queue = [];
     /// How far into the first of them playing has got, in frames.
     this.offset = 0;
-    /// The tune being played. Chunks of any other are dropped.
+    /// The run of sound being played: a tune, or a tune from some place in it. Chunks of any other are dropped.
     this.serial = 0;
     // Pausing fades the sound out over one block and resuming fades it in, so neither clicks.
     this.paused = false;
@@ -42,6 +42,12 @@ class SidayOutput extends AudioWorkletProcessor {
         this.offset = 0;
         this.paused = false;
         this.audible = true;
+        break;
+      case "seek":
+        // Another place in the same tune: the same, but a paused player stays paused.
+        this.serial = message.serial;
+        this.queue = [];
+        this.offset = 0;
         break;
       case "pause":
         this.paused = message.paused;

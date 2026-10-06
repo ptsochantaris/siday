@@ -112,6 +112,15 @@ SOFTWARE.
 `Sources/SidayKit/Dumps/LH5.swift` follows the decoder in ar002 by Haruhiko Okumura, which its author
 placed in the public domain.
 
+## High Voltage SID Collection — song lengths
+
+`Sources/SidayKit/SIDFile/SongLengthsData.swift` holds the play time of every song of every tune in
+release 85 of the [High Voltage SID Collection](https://www.hvsc.c64.org), packed from the
+`Songlengths.md5` in its `DOCUMENTS` folder by `Scripts/pack-songlengths.swift`. The times are the work
+of the collection's team. The table has the times and part of each SID file's MD5, and nothing of the
+tunes themselves. The collection's documents give no licence for the file; it is published for players
+to use, and players commonly carry it.
+
 ## Reference material
 
 - The SID file format and environment follow `SID_file_format.txt` from the High Voltage SID Collection.

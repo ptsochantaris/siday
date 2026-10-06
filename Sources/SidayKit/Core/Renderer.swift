@@ -103,8 +103,11 @@ public struct LoadOptions: Sendable {
     /// Where the 6581's filter sits, 0 (bright) to 1 (dark). Real chips varied this much from one to the
     /// next. Only the reSIDfp engine has it.
     public var sidFilterCurve = 0.5
-    /// HVSC's song-length database, for SID tunes.
+    /// HVSC's song-length database, for SID tunes: a copy of its `Songlengths.md5`, asked first.
     public var songLengths: SongLengthDatabase?
+    /// A SID tune that `songLengths` does not know, or that there is no `songLengths` to ask, is looked
+    /// up in the lengths that come with the player (`BuiltInSongLengths`).
+    public var usesBuiltInSongLengths = true
     /// Run an AY file's songs silently to find the lengths the file does not give. Off saves the time when
     /// lengths are not wanted.
     public var findsMissingLengths = true

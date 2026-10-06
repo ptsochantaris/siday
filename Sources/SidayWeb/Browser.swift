@@ -18,17 +18,24 @@ import JavaScriptKit
 ///     does not, how many songs it has, which one is playing, and its length in seconds.
 ///   - progress: where the playing song has got to, in seconds, and the spectrum analyser's bars: the
 ///     height of each, low notes to high, and then the height of each bar's cap, all from 0 to 1.
+///   - rendered: how much of the playing song is ready to be moved about in, in seconds from its start;
+///     and the song's length, when the file did not give one and the song, now rendered to its end,
+///     has turned out shorter than the time it was allowed (0 at any other time).
 ///   - ended: the song is over.
 ///   - held: the browser will not let the sound start until the listener has pressed something on the
 ///     page; the tune is loaded and waiting.
+///   - pointed: the pointer is over the time bar (anything of class "seek"): how far along it, from 0
+///     to 1, or a negative number when it has left; and whether the bar was pressed there.
 @JSFunction(from: .global)
 func sidayListen(
     _ accepts: @escaping (String) -> Bool,
     _ added: @escaping (String) -> Void,
     _ loaded: @escaping (Bool, String, Int, Int, Double) -> Void,
     _ progress: @escaping (Double, [Double]) -> Void,
+    _ rendered: @escaping (Double, Double) -> Void,
     _ ended: @escaping () -> Void,
-    _ held: @escaping () -> Void
+    _ held: @escaping () -> Void,
+    _ pointed: @escaping (Double, Bool) -> Void
 ) throws(JSException)
 
 /// Opens the browser's file chooser, for files or for a whole folder.
@@ -41,6 +48,11 @@ func sidayPlay(_ index: Int, _ subsong: Int) throws(JSException)
 
 @JSFunction(from: .global)
 func sidayPause(_ paused: Bool) throws(JSException)
+
+/// Moves to another place in the song that is playing, in seconds from its start. If that much of
+/// the song is not ready yet, the sound waits until it is.
+@JSFunction(from: .global)
+func sidaySeek(_ seconds: Double) throws(JSException)
 
 /// 0 for none, then the sets in the order SidayKit lists them.
 @JSFunction(from: .global)

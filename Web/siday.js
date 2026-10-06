@@ -16,7 +16,7 @@ const engineAddress = new URL("./engine.js", import.meta.url);
 const audioModuleAddress = new URL("./generated/SidayWebAudio.wasm", import.meta.url);
 const pageModuleAddress = new URL("./generated/SidayWeb.wasm", import.meta.url);
 
-/// The Swift side's callbacks: accepts, added, loaded, progress, ended, held.
+/// The Swift side's callbacks: accepts, added, loaded, progress, rendered, ended, held, pointed.
 let listeners;
 /// The tunes, in the order the Swift side has them: { name, file }.
 const tunes = [];
@@ -25,7 +25,10 @@ let context;
 /// worker that renders the tunes (engine.js), and the output, the audio thread that plays what the
 /// engine sends it (worklet.js).
 let sound;
-/// Counts requests to play. Answers to any but the latest are dropped.
+/// Counts requests to play a tune. Answers to any but the latest are dropped.
+let asked = 0;
+/// Counts runs of sound: one starts with each tune, and with each move to another place in one. Word
+/// of any but the latest is dropped, here and on the audio thread.
 let serial = 0;
 let television = 0;
 let songLengths;
@@ -85,10 +88,14 @@ function delay() {
 
 function heard(message) {
   if (message.type === "connected") return direct();
-  if (message.serial !== serial) return;
+  // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
+  if ("tune" in message ? message.tune !== asked : message.serial !== serial) return;
   switch (message.type) {
     case "loaded":
       listeners?.loaded(message.plays, message.text, message.songs, message.song, message.length);
+      break;
+    case "rendered":
+      listeners?.rendered(message.seconds, message.length);
       break;
     case "progress": {
       // This is news of sound that has been made but not yet heard: it is shown when its sound
@@ -107,25 +114,42 @@ function heard(message) {
   }
 }
 
+/// The last request to play, until it has been passed to the engine.
+let starting = Promise.resolve();
+
 async function play(index, subsong) {
-  const request = ++serial;
+  const request = ++asked;
   const tune = tunes[index];
   try {
     const [bytes, { engine, output }] = await Promise.all([tune.file.arrayBuffer(), audio()]);
-    if (request !== serial) return;
+    if (request !== asked) return;
     // The output drops what it was playing at once; the engine starts on the new tune.
-    output.port.postMessage({ type: "tune", serial: request });
+    const run = ++serial;
+    output.port.postMessage({ type: "tune", serial: run });
     const name = new TextEncoder().encode(tune.name).buffer;
-    engine.postMessage({ type: "load", serial: request, name, bytes, subsong }, [name, bytes]);
+    engine.postMessage({ type: "load", tune: request, serial: run, name, bytes, subsong }, [name, bytes]);
     // A browser keeps the sound back until the listener has pressed something on the page. If it is
     // still holding a moment from now, the page shows the tune as paused, and pressing play starts it.
     pause(false);
     setTimeout(() => {
-      if (request === serial && context.state !== "running") listeners?.held();
+      if (request === asked && context.state !== "running") listeners?.held();
     }, 300);
   } catch (error) {
-    if (request === serial) listeners?.loaded(false, error instanceof Error ? error.message : "the file could not be read", 0, 0, 0);
+    if (request === asked) listeners?.loaded(false, error instanceof Error ? error.message : "the file could not be read", 0, 0, 0);
   }
+}
+
+/// Moves to another place in the song that is playing. The engine has the song, or will have: the
+/// output drops what it was about to play, and the engine sends from the new place. A paused player
+/// stays paused, and starts from there.
+async function seek(seconds) {
+  if (!sound) return;
+  // A tune that has been asked for and is still being read is the one meant.
+  await starting;
+  const { engine, output } = await sound;
+  const run = ++serial;
+  output.port.postMessage({ type: "seek", serial: run });
+  engine.postMessage({ type: "seek", serial: run, position: seconds });
 }
 
 async function add(chosen) {
@@ -225,19 +249,51 @@ document.addEventListener(
   true,
 );
 
+// The time bar. The page draws it and decides what pointing at it and pressing it mean; what it
+// cannot know is where on the bar the pointer is, since only the browser knows how wide the bar has
+// come out. So that much is worked out here: anything marked "seek" is a bar, and the Swift side is
+// told how far along it the pointer is, from 0 to 1.
+let pointing = false;
+function along(event) {
+  const bar = event.target instanceof Element ? event.target.closest(".seek") : null;
+  if (!bar) return null;
+  const box = bar.getBoundingClientRect();
+  return box.width > 0 ? Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) : null;
+}
+function point(event) {
+  // A finger has no place it points at between presses.
+  const place = event.pointerType === "touch" ? null : along(event);
+  if (place === null && !pointing) return;
+  pointing = place !== null;
+  listeners?.pointed(place ?? -1, false);
+}
+document.addEventListener("pointermove", point);
+document.addEventListener("pointerover", point);
+document.documentElement.addEventListener("pointerleave", () => {
+  if (pointing) listeners?.pointed(-1, false);
+  pointing = false;
+});
+document.addEventListener("click", (event) => {
+  const place = along(event);
+  if (place !== null) listeners?.pointed(place, true);
+});
+
 // What the Swift side calls.
 Object.assign(globalThis, {
-  sidayListen(accepts, added, loaded, progress, ended, held) {
-    listeners = { accepts, added, loaded, progress, ended, held };
+  sidayListen(accepts, added, loaded, progress, rendered, ended, held, pointed) {
+    listeners = { accepts, added, loaded, progress, rendered, ended, held, pointed };
   },
   sidayChoose(folder) {
     (folder ? choosers.folder : choosers.files).click();
   },
   sidayPlay(index, subsong) {
-    void play(index, subsong);
+    starting = play(index, subsong);
   },
   sidayPause(paused) {
     pause(paused);
+  },
+  sidaySeek(seconds) {
+    void seek(seconds);
   },
   sidayTelevision(set) {
     television = set;

@@ -32,7 +32,7 @@ struct PlayerView {
                 p {
                     "Plays "
                     TuneFormat.allCases.map { $0.rawValue.uppercased() }.joined(separator: ", ")
-                    " files. A Songlengths.md5 from the High Voltage SID Collection, added like a tune, gives SID tunes their lengths."
+                    " files. SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first."
                 }
             }
         }
@@ -62,8 +62,18 @@ struct NowPlaying {
                 Analyser(bars: player.bars, caps: player.caps)
                 div(.class("time")) {
                     span { formatTime(player.position) }
-                    div(.class("bar")) {
-                        div(.class("fill"), .style(["width": "\(percent(player.position, of: tune.length))%"])) {}
+                    // Pressing the bar moves to that place in the song. Behind the part played is the
+                    // part that is ready to be moved to at once; the rest has to be waited for.
+                    div(.class("seek")) {
+                        div(.class("bar")) {
+                            div(.class("ready"), .style(["width": "\(percent(player.rendered, of: tune.length))%"])) {}
+                            div(.class(player.waiting ? "fill waiting" : "fill"), .style(["width": "\(percent(player.position, of: tune.length))%"])) {}
+                        }
+                        if let pointed = player.pointed {
+                            div(.class("pointer"), .style(["left": "\(percent(pointed, of: 1))%"])) {
+                                span { formatTime(pointed * tune.length) }
+                            }
+                        }
                     }
                     span { formatTime(tune.length) }
                 }

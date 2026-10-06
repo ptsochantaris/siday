@@ -44,6 +44,12 @@ final class Player {
     /// True once the last tune of the list has finished.
     private(set) var finished = false
     private(set) var position = 0.0
+    /// How much of the playing song is ready to be moved about in, in seconds from its start.
+    private(set) var rendered = 0.0
+    /// True while the place the listener has moved to is still to be rendered, and the sound is waiting for it.
+    var waiting: Bool { position > rendered + 0.05 }
+    /// Where on the time bar the pointer is, from 0 to 1, while it is over it.
+    private(set) var pointed: Double?
     /// The spectrum analyser: the height of each bar, low notes to high, and of the cap above it, 0 to 1.
     /// (Twenty-four of each: what the audio side sends. Until it does, the bars are there and flat.)
     private(set) var bars = [Double](repeating: 0, count: 24)
@@ -76,8 +82,16 @@ final class Player {
                 bars = Array(heights[..<count])
                 caps = Array(heights[count...])
             },
+            { [self] seconds, length in
+                rendered = seconds
+                if length > 0 { found(length) }
+            },
             { [self] in songEnded() },
-            { [self] in paused = true }
+            { [self] in paused = true },
+            { [self] place, pressed in
+                pointed = place >= 0 ? place : nil
+                if pressed, place >= 0 { seek(to: place) }
+            }
         )
     }
 
@@ -142,6 +156,7 @@ final class Player {
         finished = false
         paused = false
         position = 0
+        rendered = 0
         try? sidayPlay(index, song)
     }
 
@@ -172,6 +187,14 @@ final class Player {
         }
         tuneFile = current
         tune = Tune(format: line(0), title: line(1), author: line(2), detail: line(3), songs: list, song: song, length: length)
+    }
+
+    /// The playing song had no length in its file and was given the usual time; rendered to its end, it
+    /// has turned out shorter. That is its length, here and in the list of songs.
+    private func found(_ length: Double) {
+        guard let song = tune?.song else { return }
+        tune?.length = length
+        if tune?.songs.indices.contains(song) == true { tune?.songs[song].length = length }
     }
 
     /// A song has played to its end: the tune's next song follows if it has one, and the next tune if not.
@@ -208,6 +231,15 @@ final class Player {
     /// The song after the one playing, or the one before.
     func song(_ step: Int) {
         if let tune { playSong(tune.song + step) }
+    }
+
+    /// Moves to a place in the playing song: how far through it, from 0 to 1. A paused player stays
+    /// paused, and will start from there.
+    func seek(to place: Double) {
+        guard let tune, !finished, tune.length > 0 else { return }
+        position = max(0, min(1, place)) * tune.length
+        rest()
+        try? sidaySeek(position)
     }
 
     func togglePause() {

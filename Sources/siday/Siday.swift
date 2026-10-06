@@ -75,7 +75,7 @@ struct Siday: ParsableCommand {
     @Option(help: "Play through an early-1980s television's speaker: plastic (a small portable) or wood (a large set in a wooden cabinet). Always mono.")
     var tv: TelevisionSet?
 
-    @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree.")
+    @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
 
     @Option(help: "Render each tune to a WAV file in this folder instead of playing.")

@@ -6,6 +6,11 @@ import SidayKit
 // The web player's engine. It is a WebAssembly module of its own, with no user interface and no
 // JavaScript library: a worker (Web/engine.js) hands it the bytes of a tune and asks it for samples,
 // through the functions exported at the foot of this file, and passes them on to the audio thread.
+//
+// The worker renders a whole song as fast as it can and keeps it, so that the listener can move about
+// in it. What it keeps is the tune as the chip made it. The television, which can be switched while a
+// tune plays, and the spectrum analyser, which shows what is being heard, are applied to each piece
+// as it is sent to be played: `pull` makes the sound and `present` finishes it.
 
 /// One tune at a time: what the command-line player's engine does between a file and the sound card.
 final class WebPlayer {
@@ -65,8 +70,7 @@ final class WebPlayer {
         let song = min(max(0, subsong), renderer.subsongCount - 1)
         if renderer.subsongCount > 1 || song != renderer.currentSubsong { renderer.select(subsong: song) }
         session = TuneSession(renderer: renderer, policy: policy)
-        television?.reset()
-        spectrum.reset()
+        settle()
         blockLength = 0
         blockCursor = 0
         // One line each: format, title, author, detail. Then a line for each song when there are several:
@@ -87,15 +91,28 @@ final class WebPlayer {
         if set != television?.set { television = set.map { Television($0) } }
     }
 
-    /// Fills `output` with the next `quantumFrames` frames. Returns false once the tune is over: what
-    /// is left of the buffer is then silence.
+    /// What is about to be presented does not follow from what was presented last: the song has
+    /// started, or the listener has moved to another place in it.
+    func settle() {
+        television?.reset()
+        spectrum.reset()
+    }
+
+    /// Finishes sound that `pull` made, where it lies, as it goes to be heard: through the television,
+    /// if one is switched on, and past the spectrum analyser. Interleaved stereo.
+    func present(_ samples: UnsafeMutablePointer<Float>, frames: Int) {
+        television?.process(samples, frames: frames)
+        spectrum.add(samples, frames: frames)
+    }
+
+    /// Fills `output` with the next `quantumFrames` frames of the tune. Returns false once the tune is
+    /// over: what is left of the buffer is then silence.
     func pull() -> Bool {
         var filled = 0
         while filled < Self.quantumFrames {
             if blockCursor == blockLength {
                 guard let session, !session.finished else { break }
                 blockLength = session.render(into: block, frames: Self.blockFrames)
-                television?.process(block, frames: blockLength)
                 blockCursor = 0
                 if blockLength == 0 { break }
             }
@@ -107,11 +124,10 @@ final class WebPlayer {
         if filled < Self.quantumFrames {
             (output + filled * 2).update(repeating: 0, count: (Self.quantumFrames - filled) * 2)
         }
-        spectrum.add(output, frames: Self.quantumFrames)
         return filled == Self.quantumFrames || !(session?.finished ?? true)
     }
 
-    /// Brings `bars` up to date with what has been played.
+    /// Brings `bars` up to date with what has been presented.
     func analyse() {
         spectrum.analyse()
         bars = (spectrum.levels + spectrum.caps).map { UInt8(max(0, min(255, $0 * 255))) }
@@ -120,7 +136,16 @@ final class WebPlayer {
     var subsongCount: Int { renderer?.subsongCount ?? 0 }
     var subsong: Int { renderer?.currentSubsong ?? 0 }
     var length: Double { session?.displayLength ?? 0 }
-    /// Seconds of the song handed out so far.
+    /// False when the file does not say how long the song is, and `length` is only the time it is allowed.
+    var lengthIsKnown: Bool { renderer?.knownLength != nil }
+    /// For a song that ended because it had fallen silent, or never made a sound: the seconds of
+    /// silence it took to be sure. 0 for a song that is still playing or ended any other way.
+    var silenceAtEnd: Double {
+        guard let session, session.end == .silent || session.end == .neverSounded else { return 0 }
+        return session.silence
+    }
+
+    /// Seconds of the song made so far.
     var position: Double {
         guard let session else { return 0 }
         return Double(session.framesRendered - (blockLength - blockCursor)) / Double(outputSampleRate)
@@ -187,7 +212,8 @@ public func sidaySetTelevision(_ set: Int32) {
     player.setTelevision(set >= 1 && Int(set) <= sets.count ? sets[Int(set) - 1] : nil)
 }
 
-/// Renders the next 128 frames into the buffer at `siday_output`. Returns 0 once the tune is over.
+/// Renders the next 128 frames into the buffer at `siday_output`, as the chip made them. Returns 0
+/// once the tune is over.
 @_expose(wasm, "siday_pull")
 @_cdecl("siday_pull")
 public func sidayPull() -> Int32 {
@@ -200,7 +226,22 @@ public func sidayOutput() -> UnsafeMutablePointer<Float> {
     player.output
 }
 
-/// The spectrum analyser's bars for the sound played so far: `siday_spectrum_bands` bars, low to high,
+/// Finishes `frames` frames of rendered sound at `samples`, in place, on their way to being heard:
+/// the television, if one is on, and the spectrum analyser. They can be any part of the song, in any
+/// order; call `siday_settle` first when they do not follow the last ones.
+@_expose(wasm, "siday_present")
+@_cdecl("siday_present")
+public func sidayPresent(_ samples: UnsafeMutablePointer<Float>, _ frames: Int32) {
+    player.present(samples, frames: Int(frames))
+}
+
+@_expose(wasm, "siday_settle")
+@_cdecl("siday_settle")
+public func sidaySettle() {
+    player.settle()
+}
+
+/// The spectrum analyser's bars for the sound presented so far: `siday_spectrum_bands` bars, low to high,
 /// and then as many caps, each a byte from 0 to 255. Call it as often as the bars are drawn.
 @_expose(wasm, "siday_spectrum")
 @_cdecl("siday_spectrum")
@@ -238,6 +279,17 @@ public func sidaySubsong() -> Int32 { Int32(player.subsong) }
 @_expose(wasm, "siday_length")
 @_cdecl("siday_length")
 public func sidayLength() -> Double { player.length }
+
+/// 1 when the file says how long the song is; 0 when `siday_length` is only the time it is allowed.
+@_expose(wasm, "siday_length_known")
+@_cdecl("siday_length_known")
+public func sidayLengthKnown() -> Int32 { player.lengthIsKnown ? 1 : 0 }
+
+/// Once a song is over: the seconds of silence at its end that showed it was, if that is how it
+/// ended, and 0 if not. They are no part of the song.
+@_expose(wasm, "siday_silence")
+@_cdecl("siday_silence")
+public func sidaySilence() -> Double { player.silenceAtEnd }
 
 @_expose(wasm, "siday_position")
 @_cdecl("siday_position")

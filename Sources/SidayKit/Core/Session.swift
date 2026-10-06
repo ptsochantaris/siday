@@ -54,6 +54,9 @@ public final class TuneSession {
 
     public var finished: Bool { end != .playing }
     public var elapsed: Double { Double(framesRendered) / Double(outputSampleRate) }
+    /// Seconds of silence up to this moment. When a tune ends as `.silent` or `.neverSounded`, this is
+    /// the wait that showed it was over, and no part of the tune.
+    public var silence: Double { Double(silentFrames) / Double(outputSampleRate) }
 
     /// Length to show: the tune's own length when known, otherwise the time it will be given.
     public var displayLength: Double {
