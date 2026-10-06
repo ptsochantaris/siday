@@ -198,3 +198,31 @@ GNU General Public License, version 2 or (at your option) any later version; see
 This project stands on other people's work, most of all Sergey Bulba's Ay_Emul, Dag Lem's reSID,
 libsidplayfp and its reSIDfp (Leandro Nini, Antti Lankila, Simon White, Dag Lem) and Peter Sovietov's ayumi.
 `THIRD-PARTY.md` lists what came from where and under which terms.
+
+What it is made from:
+
+- [Ay_Emul](http://ay.strangled.net/) by Sergey Bulba: the tracker players, the VTX and YM handling
+  and the rules of the AY file machine are ported from its source. The `.ay` format is as he and
+  Patrik Rak describe it.
+- [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) and its reSIDfp, by Leandro Nini, Antti
+  Lankila, Simon White and Dag Lem: the SID chip, and the way a C64 is started for a tune.
+- [reSID](https://github.com/libsidplayfp/resid) by Dag Lem: the other SID chip (`--sid-engine resid`).
+- [ayumi](https://github.com/true-grue/ayumi) by Peter Sovietov: the AY and YM chip.
+- [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.
+- ar002 by Haruhiko Okumura: the unpacking of LH5, which VTX and YM files are packed with.
+- The [High Voltage SID Collection](https://www.hvsc.c64.org/): the length of every song of every SID
+  tune, which its team have timed and which are built into the player, and the description of the SID
+  file format.
+
+What it was checked against, besides the originals of the above:
+
+- [ayfly](https://github.com/l29ah/ayfly) and [ay_emul_c11](https://github.com/pdxiv/ay_emul_c11), for
+  the tracker players.
+- [z80ex](https://github.com/lipro/z80ex), and the
+  [ZEXDOC and ZEXALL](https://mdfs.net/Software/Z80/Exerciser/) instruction exercisers by Frank
+  Cringle, for the Z80 and the AY file machine.
+- [SingleStepTests/65x02](https://github.com/SingleStepTests/65x02), for the 6510.
+
+What it is built with: [swift-argument-parser](https://github.com/apple/swift-argument-parser) for the
+command line, and [ElementaryUI](https://elementary.codes) and
+[JavaScriptKit](https://github.com/swiftwasm/JavaScriptKit) for the page in the browser.
