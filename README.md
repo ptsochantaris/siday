@@ -43,12 +43,19 @@ to WebAssembly.
 - A spectrum analyser follows what is being heard.
 - Press anywhere on the time bar to move there, in either direction.
 - SID tunes know their lengths: those of the High Voltage SID Collection are built in.
+- The list shows every tune that was added, however many, and can be searched.
+- It has a volume of its own, apart from the computer's, which it remembers.
 - The early-1980s television speaker is a button away, and the keys are the command-line player's.
 
 Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
 over. A song is rendered to its end as soon as it starts, far faster than it plays, and the bar
 shades in behind as it goes: anywhere in the shaded part is reached at once, and a place beyond it
 as soon as the rendering gets there.
+
+The spectrum analyser is held back by as long as the browser says the sound takes to be heard, which
+with wireless headphones is a sixth of a second or more. When the sound is sent somewhere else while
+the page is open, headphones put on or taken off, the page makes its audio output afresh and carries
+on from where it was. Adding `?timing` to the page's address shows what the browser is reporting.
 
 Rendering ahead also finds the length of a tune whose file does not give one. Such a tune is allowed
 three minutes; if it turns out to end sooner, the page shows its real length as soon as it is known,
@@ -167,7 +174,7 @@ and your speakers, and `t` switches it while a tune plays, so the two can be com
 | One speaker | The two channels are added together |
 | Sound channel | Treble falls away gently from about 4.5 kHz |
 | Amplifier and cone | Loud passages are bent slightly, adding a little second and third harmonic |
-| Speaker | No bass below its own resonance (about 170 Hz in `plastic`, 105 Hz in `wood`), little above 6 to 7 kHz |
+| Speaker | No bass below its own resonance (about 170 Hz in `plastic`, 90 Hz in `wood`), little above 6 to 7 kHz |
 | Cabinet | A few resonances and a dip in between: the boxy low-middle and the forward upper-middle of a small set |
 
 `plastic` is a small portable, thin and forward. `wood` is a large set in a veneered cabinet, fuller and

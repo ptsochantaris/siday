@@ -166,13 +166,12 @@ self.onmessage = async (event) => {
       core = instance.exports;
       core._initialize();
       scratch = core.siday_alloc(chunkFrames * 2 * 4);
-      output = message.output;
-      output.onmessage = (played_) => played(played_.data);
       self.postMessage({ type: "ready" });
       break;
     }
     case "output":
-      // Another way to the audio thread, through the page.
+      // The way to the audio thread: a line of the engine's own to it, or one through the page. It is
+      // given again when the page makes a new audio thread.
       output = message.output;
       output.onmessage = (played_) => played(played_.data);
       break;

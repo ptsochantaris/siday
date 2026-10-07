@@ -249,6 +249,57 @@ ul {
   overflow-y: auto;
 }
 
+/* The list of tunes: a window on to a list as tall as all of them, of which only the rows in view are
+   there. Every row is the same height, which Player.rowHeight has too. */
+.rows {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.rows ul {
+  max-height: none;
+  overflow: visible;
+}
+
+.rows li {
+  height: 28px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+/* What siday.js has to say about the sound's journey to the ears, when asked with ?timing. */
+body[data-timing]::after {
+  content: attr(data-timing);
+  display: block;
+  max-width: 760px;
+  margin: -24px auto 0;
+  padding: 0 16px 28px;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+
+/* The player's own volume. */
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--dim);
+}
+
+.volume input {
+  width: 110px;
+  accent-color: var(--accent);
+}
+
+a {
+  color: var(--ink);
+}
+
+a:hover {
+  color: var(--accent);
+}
+
 li {
   display: flex;
   gap: 12px;

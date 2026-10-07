@@ -57,14 +57,16 @@ import Testing
         let television = Television(set)
         let middle = television.response(at: 1000)
         #expect(middle > 0.5 && middle < 2)
-        // No bass to speak of, and little top.
-        #expect(television.response(at: 40) < middle * 0.1)
+        // No deep bass, and little top.
+        #expect(television.response(at: 25) < middle * 0.1)
         #expect(television.response(at: 12000) < middle * 0.25)
         // Nothing steady gets through: a speaker cannot hold a cone out.
         #expect(television.response(at: 0.001) < 1e-6)
     }
-    // The wooden cabinet has the more bass of the two.
+    // The wooden cabinet has the more bass of the two, down towards the low notes of a man's voice,
+    // where the small set has next to none.
     #expect(Television(.wood).response(at: 120) > Television(.plastic).response(at: 120) * 1.5)
+    #expect(Television(.wood).response(at: 80) > Television(.plastic).response(at: 80) * 3)
 }
 
 @Test func televisionIsMonoAndStaysInRange() {

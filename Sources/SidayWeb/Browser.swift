@@ -26,6 +26,8 @@ import JavaScriptKit
 ///     page; the tune is loaded and waiting.
 ///   - pointed: the pointer is over the time bar (anything of class "seek"): how far along it, from 0
 ///     to 1, or a negative number when it has left; and whether the bar was pressed there.
+///   - scrolled: the list of tunes (the element of class "rows") has been scrolled, or has changed
+///     size: how far down it is, and how much of it can be seen, both in pixels.
 @JSFunction(from: .global)
 func sidayListen(
     _ accepts: @escaping (String) -> Bool,
@@ -35,7 +37,8 @@ func sidayListen(
     _ rendered: @escaping (Double, Double) -> Void,
     _ ended: @escaping () -> Void,
     _ held: @escaping () -> Void,
-    _ pointed: @escaping (Double, Bool) -> Void
+    _ pointed: @escaping (Double, Bool) -> Void,
+    _ scrolled: @escaping (Double, Double) -> Void
 ) throws(JSException)
 
 /// Opens the browser's file chooser, for files or for a whole folder.
@@ -53,6 +56,23 @@ func sidayPause(_ paused: Bool) throws(JSException)
 /// the song is not ready yet, the sound waits until it is.
 @JSFunction(from: .global)
 func sidaySeek(_ seconds: Double) throws(JSException)
+
+/// How loud the player is, from 0 to 1: its own volume, apart from the computer's. It is remembered
+/// from one visit to the next.
+@JSFunction(from: .global)
+func sidayVolume(_ volume: Double) throws(JSException)
+
+/// The volume remembered from the last visit, from 0 to 1; 1 if there was none.
+@JSFunction(from: .global)
+func sidayRememberedVolume() throws(JSException) -> Double
+
+/// How much of the list of tunes can be seen, in pixels; 0 if it is not on the page.
+@JSFunction(from: .global)
+func sidayListHeight() throws(JSException) -> Double
+
+/// Scrolls the list of tunes so that this many pixels of it are above what can be seen.
+@JSFunction(from: .global)
+func sidayScrollList(_ top: Double) throws(JSException)
 
 /// 0 for none, then the sets in the order SidayKit lists them.
 @JSFunction(from: .global)

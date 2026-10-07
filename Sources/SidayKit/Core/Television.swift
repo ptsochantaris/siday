@@ -5,7 +5,8 @@
 public enum TelevisionSet: String, Sendable, CaseIterable {
     /// A small portable in a moulded plastic case: a three-inch paper cone behind a slotted grille.
     case plastic
-    /// A large set in a veneered wooden cabinet, with a bigger elliptical speaker and more air behind it.
+    /// A large set in a veneered wooden cabinet, with a bigger elliptical speaker and more air behind it:
+    /// its bass reaches down towards the low notes of a man's voice, and the cabinet adds a little there.
     case wood
 }
 
@@ -38,8 +39,8 @@ public struct Television {
                         colour: [(310, 4.5, 3.5), (760, 3, 4), (1500, -3, 2.5), (2900, 5, 2.2)],
                         topCutoff: 6000, topQ: 0.8)
             case .wood:
-                Voicing(channelCutoff: 5000, odd: 0.12, even: 0.05, coneResonance: 105, coneQ: 1.1, ventCutoff: 70,
-                        colour: [(190, 4, 2), (430, 2.5, 3), (1200, -2, 2), (2400, 3.5, 2)],
+                Voicing(channelCutoff: 5000, odd: 0.12, even: 0.05, coneResonance: 90, coneQ: 1.15, ventCutoff: 58,
+                        colour: [(170, 4, 1.9), (430, 2.5, 3), (1200, -2, 2), (2400, 3.5, 2)],
                         topCutoff: 7000, topQ: 0.7)
             }
         }

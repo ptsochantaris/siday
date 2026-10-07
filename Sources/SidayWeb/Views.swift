@@ -35,6 +35,11 @@ struct PlayerView {
                     TuneFormat.allCases.map { $0.rawValue.uppercased() }.joined(separator: ", ")
                     " files. SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first."
                 }
+                p {
+                    "siday is free software, written in Swift. "
+                    a(.href("https://github.com/ptsochantaris/siday")) { "The source is on GitHub" }
+                    "."
+                }
             }
         }
         .onAppear { player.start() }
@@ -100,6 +105,11 @@ struct NowPlaying {
                 .onClick { player.cycleTelevision() }
                 button(.class(player.shuffled ? "toggle on" : "toggle"), .title("Play in random order")) { "shuffle" }
                     .onClick { player.toggleShuffle() }
+                label(.class("volume"), .title("The player's own volume")) {
+                    span { "vol" }
+                    input(.type(.range), .min(0), .max(100))
+                        .bindValue(#Binding(player.volume))
+                }
             }
         }
     }
@@ -197,18 +207,24 @@ struct Playlist {
     var player: Player
 
     var body: some View {
-        let visible = player.visible
+        let rows = player.rows
         section(.class("list")) {
             div(.class("search")) {
                 input(.type(.search), .placeholder("Search \(player.files.count) tunes"))
                     .bindValue(#Binding(player.search))
-                if visible.rows.count < visible.total {
-                    span(.class("hint")) { "showing \(visible.rows.count) of \(visible.total)" }
+                if player.found != nil {
+                    span(.class("hint")) { "\(player.listed) found" }
                 }
             }
-            ul {
-                ForEach(visible.rows, key: { String($0) }) { index in
-                    Row(player: player, index: index)
+            // Every tune has its place in the list, which is as tall as all of them, but only the rows
+            // that can be seen are there: the rest is empty space, filled in as it is scrolled to.
+            div(.class("rows")) {
+                div(.style(["height": "\(player.listed * Player.rowHeight)px"])) {
+                    ul(.style(["transform": "translateY(\(rows.first * Player.rowHeight)px)"])) {
+                        ForEach(rows.files, key: { String($0) }) { index in
+                            Row(player: player, index: index)
+                        }
+                    }
                 }
             }
         }

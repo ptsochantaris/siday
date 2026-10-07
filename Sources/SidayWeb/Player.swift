@@ -62,10 +62,29 @@ final class Player {
     private var failures = 0
 
     var search = "" {
-        didSet { needle = Array(search.lowercased().utf8) }
+        didSet {
+            needle = Array(search.lowercased().utf8)
+            find()
+            scrollList(to: 0)
+        }
     }
 
     private var needle: [UInt8] = []
+    /// The places in `files` of the tunes the search finds, in order. Nil when nothing is being
+    /// searched for, and every tune is listed.
+    private(set) var found: [Int]?
+
+    /// The height of a row of the list, in pixels. The stylesheet says the same.
+    static let rowHeight = 28
+    /// How far down the list has been scrolled and how much of it can be seen, in pixels: the
+    /// JavaScript side's news. Only the rows in view are drawn, so the list can be as long as it likes.
+    private var listTop = 0.0
+    private var listHeight = 1200.0
+
+    /// The player's own volume, 0 to 100.
+    var volume: Double? = 100 {
+        didSet { try? sidayVolume(max(0, min(100, volume ?? 100)) / 100) }
+    }
 
     /// Connects the page to the JavaScript side. Called once.
     func start() {
@@ -84,15 +103,20 @@ final class Player {
             },
             { [self] seconds, length in
                 rendered = seconds
-                if length > 0 { found(length) }
+                if length > 0 { measured(length) }
             },
             { [self] in songEnded() },
             { [self] in paused = true },
             { [self] place, pressed in
                 pointed = place >= 0 ? place : nil
                 if pressed, place >= 0 { seek(to: place) }
+            },
+            { [self] top, height in
+                if top != listTop { listTop = top }
+                if height > 0, height != listHeight { listHeight = height }
             }
         )
+        if let remembered = try? sidayRememberedVolume() { volume = (remembered * 100).rounded() }
     }
 
     // MARK: The list
@@ -103,23 +127,43 @@ final class Player {
         files.append(contentsOf: names)
         searchable.append(contentsOf: names.map { Array($0.lowercased().utf8) })
         order.append(contentsOf: first ..< files.count)
+        find()
         if shuffled { order[max(1, orderPlace + 1)...].shuffle() }
         if current == nil || finished { play(order[first == 0 ? 0 : min(orderPlace + 1, order.count - 1)]) }
     }
 
-    /// Places in `files` to show: those that match the search, or a stretch around the playing tune.
-    var visible: (rows: [Int], total: Int) {
-        let limit = 200
-        if needle.isEmpty {
-            let start = max(0, min((current ?? 0) - 8, files.count - limit))
-            return (Array(start ..< min(files.count, start + limit)), files.count)
-        }
-        var rows: [Int] = [], total = 0
-        for index in files.indices where contains(searchable[index], needle) {
-            total += 1
-            if rows.count < limit { rows.append(index) }
-        }
-        return (rows, total)
+    /// Works out which tunes the search finds.
+    private func find() {
+        found = needle.isEmpty ? nil : files.indices.filter { contains(searchable[$0], needle) }
+    }
+
+    /// How many tunes the list has: all of them, or those the search finds.
+    var listed: Int { found?.count ?? files.count }
+
+    /// The rows of the list to draw: those that can be seen and a few either side, as the place in the
+    /// list of the first of them and the place in `files` of each.
+    var rows: (first: Int, files: [Int]) {
+        let spare = 30
+        let first = max(0, min(listed, Int(listTop) / Self.rowHeight - spare))
+        let last = max(first, min(listed, Int(listTop + listHeight) / Self.rowHeight + 1 + spare))
+        return (first, found.map { Array($0[first ..< last]) } ?? Array(first ..< last))
+    }
+
+    /// Where a tune is in the list, counted in rows, if it is in it.
+    private func row(of index: Int) -> Int? {
+        guard let found else { return index }
+        return found.firstIndex(of: index)
+    }
+
+    private func isInView(_ index: Int) -> Bool {
+        guard let row = row(of: index) else { return false }
+        let top = Double(row * Self.rowHeight)
+        return top + Double(Self.rowHeight) > listTop && top < listTop + listHeight
+    }
+
+    private func scrollList(to top: Double) {
+        listTop = max(0, top)
+        try? sidayScrollList(listTop)
     }
 
     private func contains(_ text: [UInt8], _ part: [UInt8]) -> Bool {
@@ -143,6 +187,15 @@ final class Player {
 
     func play(_ index: Int, song: Int = -1) {
         guard files.indices.contains(index) else { return }
+        // The list follows the playing tune from one to the next, as long as the listener has not
+        // scrolled away from it to look for something else.
+        if index != current, let row = row(of: index) {
+            // Until the list is first scrolled, its size is a guess: ask.
+            if let height = try? sidayListHeight(), height > 0 { listHeight = height }
+            if !isInView(index), current.map({ isInView($0) }) ?? true {
+                scrollList(to: Double(row * Self.rowHeight) - listHeight / 3)
+            }
+        }
         // Another song of the tune that is showing: its details stay up, with the new song marked,
         // until the song itself reports in.
         if index == tuneFile, let tune, tune.songs.indices.contains(song) {
@@ -191,7 +244,7 @@ final class Player {
 
     /// The playing song had no length in its file and was given the usual time; rendered to its end, it
     /// has turned out shorter. That is its length, here and in the list of songs.
-    private func found(_ length: Double) {
+    private func measured(_ length: Double) {
         guard let song = tune?.song else { return }
         tune?.length = length
         if tune?.songs.indices.contains(song) == true { tune?.songs[song].length = length }

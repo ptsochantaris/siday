@@ -32,43 +32,70 @@ let asked = 0;
 let serial = 0;
 let television = 0;
 let songLengths;
+/// The player's own volume, 0 to 1, kept from one visit to the next, and the node that applies it.
+let volume = remembered();
+let loudness;
 /// True while the player is paused. The audio hardware is let go a moment after.
 let silenced = false;
 let letGo;
+
+/// The half of the audio graph that belongs to the audio hardware: an audio context, the output that
+/// plays what the engine sends (worklet.js), and the player's own volume after it. The context is made
+/// here and now, which matters: a browser lets sound start only from something the listener did, and
+/// this is called while they are doing it. The rest follows when the output's code has loaded.
+function open() {
+  // SidayKit renders at 48 kHz; the browser converts if the hardware runs at another rate. The
+  // browser is asked to keep plenty of sound in hand, which guards against breaks in it.
+  const made = new AudioContext({ sampleRate: 48000, latencyHint: "playback" });
+  opened++;
+  const ready = made.audioWorklet.addModule(workletAddress).then(() => {
+    const output = new AudioWorkletNode(made, "siday", { numberOfInputs: 0, outputChannelCount: [2] });
+    output.port.onmessage = (event) => heard(event.data);
+    // The volume comes after everything else: the spectrum analyser shows the tune, however quietly
+    // it is being listened to.
+    const level = made.createGain();
+    level.gain.value = gain(volume);
+    output.connect(level);
+    level.connect(made.destination);
+    return { output, level };
+  });
+  return { context: made, ready };
+}
+
+/// Joins the engine to an output. The engine sends its sound straight to it, on a line of their own
+/// that the page is not part of. If the browser will not carry such a line into the audio thread (the
+/// output says when it has it), the page passes the sound along instead.
+async function join(engine, output) {
+  const line = new MessageChannel();
+  const connected = new Promise((resolve) => (direct = resolve));
+  passBack = undefined;
+  output.port.postMessage({ type: "engine", port: line.port1 }, [line.port1]);
+  engine.postMessage({ type: "output", output: line.port2 }, [line.port2]);
+  if (!(await Promise.race([connected.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 500))]))) {
+    const relay = new MessageChannel();
+    relay.port1.onmessage = (event) => output.port.postMessage(event.data, [event.data.samples.buffer]);
+    passBack = (message) => relay.port1.postMessage(message);
+    engine.postMessage({ type: "output", output: relay.port2 }, [relay.port2]);
+  }
+}
 
 /// The audio graph, made when the first tune is played: a browser will not start one before the
 /// listener has done something on the page.
 function audio() {
   sound ??= (async () => {
-    // SidayKit renders at 48 kHz; the browser converts if the hardware runs at another rate. The
-    // browser is asked to keep plenty of sound in hand, which guards against breaks in it.
-    context = new AudioContext({ sampleRate: 48000, latencyHint: "playback" });
-    const [module] = await Promise.all([
+    const outlet = open();
+    context = outlet.context;
+    const [module, { output, level }] = await Promise.all([
       fetch(audioModuleAddress).then((response) => response.arrayBuffer()),
-      context.audioWorklet.addModule(workletAddress),
+      outlet.ready,
     ]);
-    const output = new AudioWorkletNode(context, "siday", { numberOfInputs: 0, outputChannelCount: [2] });
+    loudness = level;
     const engine = new Worker(engineAddress);
-    output.port.onmessage = (event) => heard(event.data);
-    output.connect(context.destination);
-
-    // The engine sends its sound straight to the output, on a line of their own that the page is not
-    // part of. If the browser will not carry such a line into the audio thread (the output says when
-    // it has it), the page passes the sound along instead.
-    const line = new MessageChannel();
-    const connected = new Promise((resolve) => (direct = resolve));
-    output.port.postMessage({ type: "engine", port: line.port1 }, [line.port1]);
     const ready = new Promise((resolve) => (engine.onmessage = resolve));
-    engine.postMessage({ type: "start", module, output: line.port2 }, [module, line.port2]);
+    engine.postMessage({ type: "start", module }, [module]);
     await ready;
     engine.onmessage = (event) => heard(event.data);
-    if (!(await Promise.race([connected.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 500))]))) {
-      const relay = new MessageChannel();
-      relay.port1.onmessage = (event) => output.port.postMessage(event.data, [event.data.samples.buffer]);
-      passBack = (message) => relay.port1.postMessage(message);
-      engine.postMessage({ type: "output", output: relay.port2 }, [relay.port2]);
-    }
-
+    await join(engine, output);
     engine.postMessage({ type: "television", set: television });
     if (songLengths) engine.postMessage({ type: "songlengths", bytes: songLengths });
     return { engine, output };
@@ -76,14 +103,142 @@ function audio() {
   return sound;
 }
 
+/// Replaces the hardware's half of the graph with a new one. The engine, and the song it has
+/// rendered, stay as they are; with `resume`, the song is taken up where it had got to.
+///
+/// This is for when the sound is sent somewhere else, a pair of headphones put on or taken off. A
+/// browser carries on with the audio context it has, but not always cleanly: the sound can come to
+/// lag behind what the browser says of it, and the display with it. A context made afresh for where
+/// the sound now goes has no such history, which is why loading the page again cures it; this does as
+/// much without losing the place.
+function renew(resume) {
+  const before = sound, old = context;
+  const outlet = open();
+  context = outlet.context;
+  void context.resume();
+  settled = undefined;
+  renewedAt = performance.now();
+  // Nothing more is shown of what the old output was playing.
+  serial++;
+  const renewed = (sound = (async () => {
+    const { engine } = await before;
+    const { output, level } = await outlet.ready;
+    loudness = level;
+    await join(engine, output);
+    void old.close();
+    return { engine, output };
+  })());
+  if (!resume) return;
+  void renewed.then(({ engine, output }) => {
+    if (sound !== renewed) return;
+    const run = ++serial;
+    output.port.postMessage({ type: "seek", serial: run });
+    if (silenced) output.port.postMessage({ type: "pause", paused: true });
+    engine.postMessage({ type: "seek", serial: run, position: shownFor === asked ? shownPosition : 0 });
+    // Made without the listener's doing anything, the new context may not be let start. Then the
+    // page shows the tune as paused, and pressing play starts it.
+    setTimeout(() => {
+      if (sound === renewed && !silenced && context.state !== "running") listeners?.held();
+    }, 300);
+  });
+}
+
+/// The sound is going somewhere else than it was, or seems to be.
+let changing;
+function moved() {
+  clearTimeout(changing);
+  changing = setTimeout(() => {
+    if (!sound) return;
+    if (silenced) {
+      // Nothing is playing: a new start is made when something is.
+      clearTimeout(letGo);
+      released = true;
+      void context.suspend();
+    } else {
+      renew(true);
+    }
+  }, 300);
+}
+navigator.mediaDevices?.addEventListener?.("devicechange", moved);
+
 /// Called when the output says the engine's line has reached it.
 let direct = () => {};
 /// When the page is passing the sound along, how word of a played chunk gets back to the engine.
 let passBack;
+/// How many times the hardware's half of the graph has been made.
+let opened = 0;
+/// True when the audio hardware has been let go, after a pause: it is made afresh to play again.
+let released = false;
+/// Where the song had got to when the display last showed it, and which request to play that was.
+let shownPosition = 0, shownFor = 0;
 
-/// Seconds between a sound being made and its being heard, as far as the browser knows.
+/// Seconds between a sound being made and its being heard, as far as the browser says. It says most
+/// while the sound is running: a browser may report nothing for a context that is at rest.
 function delay() {
   return (context?.baseLatency || 0) + (context?.outputLatency || 0);
+}
+
+/// The delay the browser has been reporting while this context plays, once it has held steady, and
+/// how long a different one has been seen. A browser does not always say when the sound is sent
+/// somewhere else, but the delay it reports changes: headphones without wires are a sixth of a second
+/// or so behind a loudspeaker.
+let settled, steady = 0, strayed = 0;
+/// When the hardware's half of the graph was last made anew. A delay that will not settle is not
+/// answered with one new start after another.
+let renewedAt = -Infinity;
+function watch(seconds) {
+  if (settled === undefined || Math.abs(seconds - settled) <= 0.05) {
+    strayed = 0;
+    // A second of agreement settles it.
+    if (settled === undefined && ++steady >= 47) settled = seconds;
+    else if (settled !== undefined) steady = 0;
+    return;
+  }
+  // Half a second of something else, and the sound has moved.
+  if (++strayed >= 24) {
+    strayed = 0;
+    steady = 0;
+    settled = undefined;
+    if (performance.now() - renewedAt > 10000) moved();
+  }
+}
+
+// Adding ?timing to the page's address shows, at its foot, what the browser says of the sound's
+// journey while a tune plays: for finding out what it knows about a pair of wireless headphones.
+let timing;
+if (new URLSearchParams(location.search).has("timing")) {
+  const ms = (seconds) => `${Math.round((seconds || 0) * 1000)} ms`;
+  setInterval(() => {
+    if (!context || !timing) return;
+    document.body.dataset.timing = `Timing: while playing, the browser reported ${ms(timing.base)} of its own and ` +
+      `${ms(timing.output)} for the output, and the display waited ${ms(timing.base + timing.output)}. ` +
+      `The sound is ${context.state}; its output has been set up ${opened === 1 ? "once" : `${opened} times`}.`;
+  }, 500);
+}
+
+/// The volume from the last visit. A browser may refuse to keep such things: then it is full.
+function remembered() {
+  try {
+    const kept = Number.parseFloat(localStorage.getItem("siday.volume"));
+    return kept >= 0 && kept <= 1 ? kept : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/// How much of the sound to let through for a volume: the ear hears it rise evenly when the sound
+/// itself rises as the square.
+function gain(level) {
+  return level * level;
+}
+
+function setVolume(level) {
+  volume = Math.max(0, Math.min(1, level));
+  // Eased over a few hundredths of a second, so that moving the slider makes no zipper of a noise.
+  if (loudness) loudness.gain.setTargetAtTime(gain(volume), context.currentTime, 0.015);
+  try {
+    localStorage.setItem("siday.volume", String(volume));
+  } catch {}
 }
 
 function heard(message) {
@@ -100,9 +255,15 @@ function heard(message) {
     case "progress": {
       // This is news of sound that has been made but not yet heard: it is shown when its sound
       // comes out of the speakers, as near as the browser can say when that is.
+      const seconds = delay();
+      watch(seconds);
+      timing = { base: context.baseLatency || 0, output: context.outputLatency || 0 };
       setTimeout(() => {
-        if (message.serial === serial && !silenced) listeners?.progress(message.position, Array.from(message.bars, (bar) => bar / 255));
-      }, delay() * 1000);
+        if (message.serial !== serial || silenced) return;
+        shownPosition = message.position;
+        shownFor = asked;
+        listeners?.progress(message.position, Array.from(message.bars, (bar) => bar / 255));
+      }, seconds * 1000);
       break;
     }
     case "ended":
@@ -120,6 +281,12 @@ let starting = Promise.resolve();
 async function play(index, subsong) {
   const request = ++asked;
   const tune = tunes[index];
+  // The audio hardware was let go while the player was paused: it is taken up again now, while the
+  // listener is pressing something.
+  if (released) {
+    released = false;
+    renew(false);
+  }
   try {
     const [bytes, { engine, output }] = await Promise.all([tune.file.arrayBuffer(), audio()]);
     if (request !== asked) return;
@@ -148,6 +315,8 @@ async function seek(seconds) {
   await starting;
   const { engine, output } = await sound;
   const run = ++serial;
+  shownPosition = seconds;
+  shownFor = asked;
   output.port.postMessage({ type: "seek", serial: run });
   engine.postMessage({ type: "seek", serial: run, position: seconds });
 }
@@ -170,13 +339,24 @@ async function add(chosen) {
 /// Pausing fades the sound out in the audio thread and only then lets the audio hardware go. Stopped
 /// dead, the browser would keep the sound it had in hand and play it when started again: a moment of
 /// the old tune at the head of the next one.
+///
+/// Once the hardware has been let go, playing again starts with a new audio context, not the old one
+/// woken up: the listener may have put headphones on in the meantime (see `renew`).
 function pause(paused) {
   silenced = paused;
   clearTimeout(letGo);
+  if (!paused && released) {
+    released = false;
+    renew(true);
+    return;
+  }
   void sound?.then(({ output }) => output.port.postMessage({ type: "pause", paused }));
   if (paused) {
     // Long enough for the silence to have pushed out everything that was waiting.
-    letGo = setTimeout(() => void context?.suspend(), 1200 + delay() * 2000);
+    letGo = setTimeout(() => {
+      released = true;
+      void context?.suspend();
+    }, 1200 + delay() * 2000);
   } else {
     void context?.resume();
   }
@@ -278,10 +458,35 @@ document.addEventListener("click", (event) => {
   if (place !== null) listeners?.pointed(place, true);
 });
 
+// The list of tunes. The page draws only the rows that can be seen, so it has to know where the list
+// has been scrolled to and how much of it shows, which again only the browser knows. Scrolling is
+// reported once a frame at most; a page that is not in front is given few frames or none, so a
+// moment's wait serves as well. (The event does not rise through the page, so it is caught on its
+// way down.)
+let listWaiting = false;
+function listMoved(list) {
+  if (listWaiting) return;
+  listWaiting = true;
+  const report = () => {
+    if (!listWaiting) return;
+    listWaiting = false;
+    listeners?.scrolled(list.scrollTop, list.clientHeight);
+  };
+  requestAnimationFrame(report);
+  setTimeout(report, 120);
+}
+document.addEventListener("scroll", (event) => {
+  if (event.target instanceof Element && event.target.classList.contains("rows")) listMoved(event.target);
+}, true);
+window.addEventListener("resize", () => {
+  const list = document.querySelector(".rows");
+  if (list) listMoved(list);
+});
+
 // What the Swift side calls.
 Object.assign(globalThis, {
-  sidayListen(accepts, added, loaded, progress, rendered, ended, held, pointed) {
-    listeners = { accepts, added, loaded, progress, rendered, ended, held, pointed };
+  sidayListen(accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled) {
+    listeners = { accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled };
   },
   sidayChoose(folder) {
     (folder ? choosers.folder : choosers.files).click();
@@ -294,6 +499,19 @@ Object.assign(globalThis, {
   },
   sidaySeek(seconds) {
     void seek(seconds);
+  },
+  sidayVolume(level) {
+    setVolume(level);
+  },
+  sidayRememberedVolume() {
+    return volume;
+  },
+  sidayListHeight() {
+    return document.querySelector(".rows")?.clientHeight ?? 0;
+  },
+  sidayScrollList(top) {
+    const list = document.querySelector(".rows");
+    if (list) list.scrollTop = top;
   },
   sidayTelevision(set) {
     television = set;
