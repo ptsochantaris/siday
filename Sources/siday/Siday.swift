@@ -15,7 +15,7 @@ extension SIDEngineChoice: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM and SID chiptunes from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -256,6 +256,12 @@ struct Siday: ParsableCommand {
         } else if let raw {
             let renderer = try tuneFiles.load(scan.files[0])
             let frames = Int((maxTime.flatMap(parseTime) ?? 20) * Double(outputSampleRate))
+            if let atari = renderer as? SNDHRenderer {
+                // The machine's own sixteen-bit output, one channel, as the reference player writes it.
+                if let subsong { atari.select(subsong: subsong - 1) }
+                try atari.renderRaw(frames: frames).withUnsafeBytes { Data($0) }.write(to: URL(fileURLWithPath: raw))
+                return
+            }
             var samples = [Float](repeating: 0, count: frames * 2)
             samples.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
             try samples.withUnsafeBytes { Data($0) }.write(to: URL(fileURLWithPath: raw))

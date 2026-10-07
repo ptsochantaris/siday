@@ -4,7 +4,7 @@
 
 A chiptune player written entirely in Swift, in two forms: **a page that plays in your browser**, and
 a command-line player for macOS. Both are the same emulators underneath: of the sound chips of the
-ZX Spectrum, the Amstrad CPC and the Commodore 64.
+ZX Spectrum, the Amstrad CPC, the Atari ST and the Commodore 64.
 
 The name is the two families of sound chip it plays, SID and AY. How to pronounce it is left open.
 
@@ -25,11 +25,14 @@ siday ~/Music/chiptunes --shuffle
 | AY-3-8910 / YM2149 tracker modules | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs |
 | AY register recordings | VTX, YM (YM2, YM3, YM3b, YM5, YM6) |
 | ZX Spectrum and Amstrad CPC program rips | AY (ZXAYEMUL), including beeper music |
+| Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, Compute!'s Sidplayer (MUS) data, and the
 Atari-ST-only effects in some YM5/YM6 files (digidrums, SID voice), which play without those effects.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
+An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
+SNDH files tried, a handful do not start; the reference player does not start them either.
 
 ## In a browser
 
@@ -214,12 +217,26 @@ output, terminal keys and options (via swift-argument-parser).
 | C64 environment | HVSC's SID file format document; driver and start-up state from libsidplayfp (GPL) | libsidplayfp's SID register writes |
 | SID chip | reSIDfp from libsidplayfp 2.16.1 (GPL) | C++ reSIDfp on the same register traces, bit for bit |
 | SID chip, `--sid-engine resid` | reSID 1.0 by Dag Lem (GPL) | C++ reSID on the same register traces, bit for bit |
+| 68000 CPU | written for this project, from Motorola's manual | AtariAudio's (Musashi), through the tunes below |
+| Atari ST machine, its sound chip, timers and STE samples | AtariAudio by Arnaud Carré (MIT); the chip's mixing table measured by Paulo Simões | AtariAudio itself, sample for sample: three minutes of each of 5,897 tunes, and every song of those with several |
+| Ice unpacking | the C version by Hans Wessels (public domain) | — |
 
 Where a reference player and Ay_Emul's source disagreed, the source was followed. Three deliberate
 departures from Ay_Emul are marked in the code: old-format PSC modules start with version-correct sample
 and ornament tables; an AY file only counts as Amstrad CPC once it writes a register through the CPC's
 ports; and the AY player stub is placed after the file's memory blocks rather than before.
 
+
+An Atari ST tune is the program that played it, so the machine is there to run it: a 68000, four
+megabytes, the sound hardware, and the few things such a program asks of the operating system. It is
+AtariAudio's design, and a light one. The tune's code is called and runs to its end in no time, once
+for each tick of its player and once for each interrupt of a timer it has set going, and the timers
+are moved on a sample of the output at a time. The sound chip here is not the one the Spectrum's tunes
+use: the ST ties the chip's three outputs together, so their level is looked up in a table recorded
+from the machine and not added up. One thing is done differently from AtariAudio, and only on the way
+out: the chip's 250,000 steps a second come down to the output's rate through a low-pass filter and
+not a plain average, which keeps out tones that were never played. `siday --raw file.raw tune.sndh`
+writes the plain average, which is what agrees with AtariAudio to the sample.
 
 Tracker players keep the field names and control flow of the Pascal they came from, so the two can be
 read side by side. Tracker modules are loaded into a 64 KB wrap-around memory and all file parsing is
@@ -230,7 +247,8 @@ bounds-checked, so a corrupt file plays wrongly or is skipped but does not crash
 GNU General Public License, version 2 or (at your option) any later version; see `LICENSE`.
 
 This project stands on other people's work, most of all Sergey Bulba's Ay_Emul, Dag Lem's reSID,
-libsidplayfp and its reSIDfp (Leandro Nini, Antti Lankila, Simon White, Dag Lem) and Peter Sovietov's ayumi.
+libsidplayfp and its reSIDfp (Leandro Nini, Antti Lankila, Simon White, Dag Lem), Peter Sovietov's ayumi
+and Arnaud Carré's AtariAudio.
 `THIRD-PARTY.md` lists what came from where and under which terms.
 
 What it is made from:
@@ -242,6 +260,12 @@ What it is made from:
   Lankila, Simon White and Dag Lem: the SID chip, and the way a C64 is started for a tune.
 - [reSID](https://github.com/libsidplayfp/resid) by Dag Lem: the other SID chip (`--sid-engine resid`).
 - [ayumi](https://github.com/true-grue/ayumi) by Peter Sovietov: the AY and YM chip.
+- [AtariAudio](https://github.com/arnaud-carre/AtariAudio) by Arnaud Carré (Leonard of Oxygene): the
+  Atari ST as a tune needs it, with its sound chip, its timers and the STE's samples. The table of
+  how the ST mixes its chip's three channels was measured on the machine by Paulo Simões. The SNDH
+  format is the work of the [SNDH archive](https://sndh.atari.org/) and those who keep it.
+- The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
+  by Axe of Delight.
 - [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.
 - ar002 by Haruhiko Okumura: the unpacking of LH5, which VTX and YM files are packed with.
 - The [High Voltage SID Collection](https://www.hvsc.c64.org/): the length of every song of every SID

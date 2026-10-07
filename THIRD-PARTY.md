@@ -78,6 +78,45 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
+## AtariAudio — the Atari ST
+
+`Sources/SidayKit/Atari` is a Swift port of AtariAudio 1.26 (https://github.com/arnaud-carre/AtariAudio):
+the machine as a tune needs it (`STMachine.swift`), its YM2149 (`STSoundChip.swift`), its timer chip
+(`MFP.swift`), the STE's sample player (`STESound.swift`) and the reading of an SNDH file's header.
+`STMixTable.swift` is AtariAudio's table of how an Atari ST mixes its sound chip's three channels,
+which its source says was measured and generated on real hardware by Paulo Simões and filled in
+between the measured levels by Arnaud Carré. The 68000 is not AtariAudio's (it uses Musashi): it was
+written for this project, and is in `Sources/SidayKit/M68000`.
+
+```
+MIT License
+
+Copyright (c) 2026 Arnaud Carré
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Ice 2.4 — unpacking SNDH files
+
+`Sources/SidayKit/Atari/ICE.swift` follows the "Ice 2_40 depacker, universal C version" that Hans
+Wessels placed in the public domain in 2007, as it is distributed with AtariAudio.
+
 ## superzazu/z80 — Z80 cycle counts
 
 The cycle-count tables in `Sources/SidayKit/Z80/Z80.swift` follow those of superzazu/z80

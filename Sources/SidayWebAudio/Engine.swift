@@ -34,7 +34,8 @@ final class WebPlayer {
     private var session: TuneSession?
     private var television: Television?
     /// How the loaded tune's channels were placed when it was loaded, if that is something it has:
-    /// an AY tune has three channels to place, and a SID tune a single output.
+    /// an AY tune has three channels to place, a SID tune has a single output, and an Atari ST joins
+    /// its three into one.
     private var layout: StereoLayout?
     private let block = UnsafeMutablePointer<Float>.allocate(capacity: WebPlayer.blockFrames * 2)
     private var blockLength = 0
@@ -60,7 +61,7 @@ final class WebPlayer {
         do {
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options)
             renderer = loaded
-            layout = format == .sid ? nil : options.stereo
+            layout = format == .sid || format == .sndh ? nil : options.stereo
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {
