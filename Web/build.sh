@@ -16,10 +16,17 @@ mkdir -p generated
 
 # The audio half: SidayKit alone, for the audio worklet.
 swift build $common -c release --product SidayWebAudio
-cp "$(swift build $common -c release --product SidayWebAudio --show-bin-path)/SidayWebAudio.wasm" generated/
+built="$(swift build $common -c release --product SidayWebAudio --show-bin-path)/SidayWebAudio.wasm"
+# With wasm-opt (from Binaryen) installed, the module goes through it and comes out a tenth smaller.
+# It renders no faster for it, and the sound is the same to the sample; without it, it is used as built.
+if command -v wasm-opt > /dev/null; then
+  wasm-opt -Os --strip-debug --strip-producers $built -o generated/SidayWebAudio.wasm
+else
+  cp $built generated/
+fi
 
 # The page. JavaScriptKit's packaging command writes the module and the JavaScript that connects it to
-# the browser; siday.js loads them. It makes the module smaller still if wasm-opt (from Binaryen) is installed.
+# the browser; siday.js loads them. It puts the module through wasm-opt too, if it is there, which nearly halves it.
 output=$package/.build/plugins/PackageToJS/outputs/siday-web
 optimise=()
 command -v wasm-opt > /dev/null || optimise=(--no-optimize)

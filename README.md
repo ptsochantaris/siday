@@ -82,8 +82,11 @@ JavaScript files, and what `build.sh` puts in `Web/generated`. Any web server ca
 will not load it straight from disk). After a rebuild, reload the page.
 
 Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly (`swift sdk list` shows
-what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` happens
-to be installed, the page's module comes out about a third smaller.
+what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` is
+installed (`brew install binaryen`), both modules go through it: the page's comes out a little over
+half the size and the engine's a tenth smaller, a quarter and a twentieth once compressed. That is all
+it buys. Measured on a SID, an AY, a tracker and an Atari ST tune, the engine renders no faster for it,
+and what it renders is the same to the sample.
 
 The modules are built to use WebAssembly's SIMD instructions (`-msimd128` in `Web/toolset.json`), which
 makes rendering a quarter to a third faster and changes no sample of it. Every current browser has
@@ -98,7 +101,7 @@ the spectrum analyser are applied as it is played, so a television can be put in
 any moment. Mono and stereo are what the chip makes, so a change between them renders the song again,
 which takes a moment, and it goes on from where it was. `SidayWeb` is the page itself, written in
 [ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
-chosen files and the audio graph. All told it is about 1.3 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that.
+chosen files and the audio graph. All told it is about 1.2 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that.
 
 With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
 what they depend on for the Mac, which takes minutes the first time and is of no use.
