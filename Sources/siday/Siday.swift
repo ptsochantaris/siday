@@ -254,11 +254,17 @@ struct Siday: ParsableCommand {
             }
             FileHandle.standardOutput.write(Data(text.utf8))
         } else if let raw {
-            let renderer = try tuneFiles.load(scan.files[0])
+            var renderer = try tuneFiles.load(scan.files[0])
             let frames = Int((maxTime.flatMap(parseTime) ?? 20) * Double(outputSampleRate))
-            if let atari = renderer as? SNDHRenderer {
+            // A YM file played on a chip of another machine has no reference output; for the comparison
+            // it is played as the reference player plays every YM file, on the Atari ST's.
+            if !(renderer is any ReferenceComparable), scan.files[0].pathExtension.lowercased() == "ym",
+               let atari = STYMRenderer([UInt8](try Data(contentsOf: scan.files[0])), always: true) {
+                renderer = atari
+            }
+            if let atari = renderer as? any ReferenceComparable {
                 // The machine's own sixteen-bit output, one channel, as the reference player writes it.
-                if let subsong { atari.select(subsong: subsong - 1) }
+                if let subsong { renderer.select(subsong: subsong - 1) }
                 try atari.renderRaw(frames: frames).withUnsafeBytes { Data($0) }.write(to: URL(fileURLWithPath: raw))
                 return
             }

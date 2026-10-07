@@ -23,13 +23,13 @@ siday ~/Music/chiptunes --shuffle
 | Family | Formats |
 |---|---|
 | AY-3-8910 / YM2149 tracker modules | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs |
-| AY register recordings | VTX, YM (YM2, YM3, YM3b, YM5, YM6) |
+| AY register recordings | VTX, YM (YM2, YM3, YM3b, YM5, YM6). A YM file from an Atari ST is played on the ST's chip, with the effects ST musicians made between one set of registers and the next (SID voices, digi-drums, sync-buzzer) |
+| Atari ST sample tunes | the two kinds of YM file that are samples and not registers: digi-mixes (MIX1) and YM tracker tunes (YMT1, YMT2) |
 | ZX Spectrum and Amstrad CPC program rips | AY (ZXAYEMUL), including beeper music |
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 
-Not supported: RSID tunes that need the C64 BASIC ROM, Compute!'s Sidplayer (MUS) data, and the
-Atari-ST-only effects in some YM5/YM6 files (digidrums, SID voice), which play without those effects.
+Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
@@ -222,6 +222,7 @@ output, terminal keys and options (via swift-argument-parser).
 | SID chip, `--sid-engine resid` | reSID 1.0 by Dag Lem (GPL) | C++ reSID on the same register traces, bit for bit |
 | 68000 CPU | written for this project, from Motorola's manual | AtariAudio's (Musashi), through the tunes below |
 | Atari ST machine, its sound chip, timers and STE samples | AtariAudio by Arnaud Carré (MIT); the chip's mixing table measured by Paulo Simões | AtariAudio itself, sample for sample: three minutes of each of 5,897 tunes, and every song of those with several |
+| Atari ST YM files, their effects, digi-mixes and YM tracker tunes | AtariAudio | AtariAudio, sample for sample, on the 23 files to hand; no YM2 or YMT2 file among them |
 | Ice unpacking | the C version by Hans Wessels (public domain) | — |
 
 Where a reference player and Ay_Emul's source disagreed, the source was followed. Three deliberate
@@ -240,6 +241,13 @@ from the machine and not added up. One thing is done differently from AtariAudio
 out: the chip's 250,000 steps a second come down to the output's rate through a low-pass filter and
 not a plain average, which keeps out tones that were never played. `siday --raw file.raw tune.sndh`
 writes the plain average, which is what agrees with AtariAudio to the sample.
+
+A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
+(`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
+gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
+on some other machine and is played like a VTX, with the stereo choices that go with that. Asking for
+a chip, a clock or a frame rate by name (`--chip`, `--clock`, `--frame-rate`) gets the plain recording
+whatever the file is.
 
 Tracker players keep the field names and control flow of the Pascal they came from, so the two can be
 read side by side. Tracker modules are loaded into a 64 KB wrap-around memory and all file parsing is
@@ -264,7 +272,8 @@ What it is made from:
 - [reSID](https://github.com/libsidplayfp/resid) by Dag Lem: the other SID chip (`--sid-engine resid`).
 - [ayumi](https://github.com/true-grue/ayumi) by Peter Sovietov: the AY and YM chip.
 - [AtariAudio](https://github.com/arnaud-carre/AtariAudio) by Arnaud Carré (Leonard of Oxygene): the
-  Atari ST as a tune needs it, with its sound chip, its timers and the STE's samples. The table of
+  Atari ST as a tune needs it, with its sound chip, its timers and the STE's samples, and the playing
+  of YM files as the ST played them. The YM format is his too. The table of
   how the ST mixes its chip's three channels was measured on the machine by Paulo Simões. The SNDH
   format is the work of the [SNDH archive](https://sndh.atari.org/) and those who keep it.
 - The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is

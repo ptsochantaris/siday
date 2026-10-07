@@ -22,6 +22,14 @@ public enum TuneLoader {
         case .vtx:
             return try AYFramePlayer(source: RegisterDumpSource.vtx(data), options: options)
         case .ym:
+            // A recording made on an Atari ST is played on the ST's chip, with the effects ST musicians
+            // made between one set of registers and the next, unless a chip, clock or rate has been
+            // asked for, which is to ask for the plain recording on a chip of one's own choosing.
+            if options.chipType == nil, options.clockHz == nil, options.frameHz == nil, let atari = STYMRenderer(data) {
+                return atari
+            }
+            // And two kinds of YM file are not recordings of the chip at all, but samples.
+            if let sampled = STSampleRenderer(data) { return sampled }
             return try AYFramePlayer(source: RegisterDumpSource.ym(data), options: options)
         case .pt3, .pt2, .pt1, .stc, .stp, .asc, .sqt, .psc, .ftc, .fxm, .psm, .gtr:
             if let (type1, module1, type2, module2) = TurboSoundPair.split(data) {

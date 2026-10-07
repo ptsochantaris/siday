@@ -5,7 +5,9 @@
 // its author (see THIRD-PARTY.md).
 
 /// VTX (Vortex) and YM (ST-Sound) files: a recording of the AY/YM registers, one set per interrupt.
-/// Atari-only YM5/YM6 effects (digidrums, SID voice, sync buzzer) are not reproduced.
+/// The Atari ST's effects in YM5 and YM6 files (digi-drums, SID voice, sync-buzzer) are not done here:
+/// a YM file that uses them, or that was recorded on an ST, is played by `STYMRenderer`, and this
+/// plays the rest, and any YM file for which a chip, clock or rate is asked for by name.
 public final class RegisterDumpSource: AYFrameSource {
     public private(set) var info: TuneInfo
     public let fileClockHz: Double?

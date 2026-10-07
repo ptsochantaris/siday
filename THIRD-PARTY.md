@@ -82,7 +82,10 @@ THE SOFTWARE.
 
 `Sources/SidayKit/Atari` is a Swift port of AtariAudio 1.26 (https://github.com/arnaud-carre/AtariAudio):
 the machine as a tune needs it (`STMachine.swift`), its YM2149 (`STSoundChip.swift`), its timer chip
-(`MFP.swift`), the STE's sample player (`STESound.swift`) and the reading of an SNDH file's header.
+(`MFP.swift`), the STE's sample player (`STESound.swift`), the reading of an SNDH file's header, and
+the playing of Atari ST YM files with their effects (`STYMRenderer.swift`) and of digi-mix and YM
+tracker files (`STSampleRenderer.swift`). `YM2Drums.swift` is AtariAudio's bank of the drum samples
+that YM2 files call on by number.
 `STMixTable.swift` is AtariAudio's table of how an Atari ST mixes its sound chip's three channels,
 which its source says was measured and generated on real hardware by Paulo Simões and filled in
 between the measured levels by Arnaud Carré. The 68000 is not AtariAudio's (it uses Musashi): it was

@@ -226,3 +226,94 @@ private func strength(_ samples: [Float], at hz: Double) -> Double {
     #expect(strength(plain, at: folded) > strength(plain, at: note) / 100)
     #expect(strength(filtered, at: folded) < strength(filtered, at: note) / 3000)
 }
+
+// MARK: YM files
+
+private func long(_ value: Int) -> [UInt8] { [UInt8(value >> 24 & 255), UInt8(value >> 16 & 255), UInt8(value >> 8 & 255), UInt8(value & 255)] }
+private func word(_ value: Int) -> [UInt8] { [UInt8(value >> 8 & 255), UInt8(value & 255)] }
+
+/// A YM6 file of 100 ticks that holds channel A open at full volume with no tone: a steady level,
+/// unless something is done to it between ticks.
+/// - Parameter sidVoice: ask for the SID-voice effect on channel A, from a timer firing 3,072 times a second.
+private func ym6(clock: Int, sidVoice: Bool) -> [UInt8] {
+    var file = Array("YM6!LeOnArD!".utf8) + long(100) + long(0) + word(0) + long(clock) + word(50) + long(0) + word(0)
+    file += Array("A level".utf8) + [0] + Array("siday".utf8) + [0] + [0]
+    for _ in 0 ..< 100 {
+        var registers = [UInt8](repeating: 0, count: 16)
+        registers[7] = 0x3F
+        registers[8] = 15
+        registers[13] = 0xFF
+        if sidVoice {
+            registers[1] = 0x10 // the effect is on channel A
+            registers[6] = 1 << 5 // the timer runs at a quarter of its clock
+            registers[14] = 200 // and counts 200 of those: 2,457,600 / 4 / 200
+        }
+        file += registers
+    }
+    return file + Array("End!".utf8)
+}
+
+private func rendered(_ renderer: any Renderer, seconds: Double = 1) -> [Float] {
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+    return stride(from: 0, to: frames * 2, by: 2).map { buffer[$0] }
+}
+
+@Test func ymFilesFromTheAtariGoToTheAtari() throws {
+    // Recorded at the ST's clock: the ST's to play.
+    #expect(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: false), format: .ym) is STYMRenderer)
+    // Another machine's clock and no effects: a plain recording, for any chip.
+    #expect(!(try TuneLoader.load(ym6(clock: 1_000_000, sidVoice: false), format: .ym) is STYMRenderer))
+    // Another clock, but with an effect only the ST's player does.
+    #expect(try TuneLoader.load(ym6(clock: 1_000_000, sidVoice: true), format: .ym) is STYMRenderer)
+    // And a chip asked for by name gets the plain recording whatever the file is.
+    var options = LoadOptions()
+    options.chipType = .ay
+    #expect(!(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: true), format: .ym, options: options) is STYMRenderer))
+
+    // The oldest kinds are the ST's by definition.
+    var registers = [UInt8](repeating: 0, count: 14)
+    registers[0] = 254
+    registers[7] = 0x3E
+    registers[8] = 15
+    registers[13] = 0xFF
+    // A register at a time: fifty ticks of register 0, then fifty of register 1, and so on.
+    let old = Array("YM3!".utf8) + registers.flatMap { [UInt8](repeating: $0, count: 50) }
+    let renderer = try TuneLoader.load(old, format: .ym)
+    #expect(renderer is STYMRenderer)
+    #expect(renderer.info.format == "YM3")
+    #expect(renderer.info.detail == "Atari ST")
+    #expect(abs((renderer.knownLength ?? 0) - 1) < 0.01)
+    let sound = rendered(renderer)
+    #expect(strength(sound, at: 125_000.0 / 254) > 0.02)
+}
+
+@Test func ymSidVoiceIsPlayedBetweenTicks() throws {
+    // The timer switches the channel's volume between full and nothing each time it fires, which
+    // makes a square wave of half its rate out of a level that the registers alone leave steady.
+    let note = 2_457_600.0 / 4 / 200 / 2
+    let with = rendered(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: true), format: .ym))
+    let without = rendered(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: false), format: .ym))
+    #expect(strength(with, at: note) > 0.02)
+    #expect(strength(without, at: note) < 0.0005)
+}
+
+@Test func ymFilesOfSamplesArePlayedAsSamples() throws {
+    // A digi-mix of one piece: a square wave of 500 Hz sampled 8,000 times a second, played four times over.
+    let wave = (0 ..< 800).map { UInt8(bitPattern: $0 / 8 % 2 == 0 ? 100 : -100) }
+    var file = Array("MIX1LeOnArD!".utf8) + long(1) + long(wave.count) + long(1)
+    file += long(0) + long(wave.count) + word(4) + word(8000)
+    file += Array("Square".utf8) + [0] + Array("siday".utf8) + [0] + [0]
+    file += wave
+    let renderer = try TuneLoader.load(file, format: .ym)
+    #expect(renderer is STSampleRenderer)
+    #expect(renderer.info.format == "MIX1")
+    #expect(renderer.info.title == "Square")
+    #expect(abs((renderer.knownLength ?? 0) - 0.4) < 0.001)
+    let sound = rendered(renderer, seconds: 0.5)
+    #expect(strength(sound, at: 500) > 0.05)
+    #expect(strength(sound, at: 700) < 0.005)
+    // It has been once round its list of pieces by now.
+    #expect(renderer.loopCount == 1)
+}

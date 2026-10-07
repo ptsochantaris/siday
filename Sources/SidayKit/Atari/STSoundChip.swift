@@ -21,7 +21,10 @@
 /// range of hearing, and a square wave puts out a great deal, does not come back down as tones that
 /// were never played.
 struct STSoundChip {
-    static let clockHz: UInt32 = 2_000_000
+    /// The clock the ST gives the chip.
+    static let atariClockHz: UInt32 = 2_000_000
+    /// The filter is kept in at most this many copies; see `kernel`.
+    private static let mostPhases = 1024
     /// The filter's length in steps of the chip, and the size of the buffer the steps are kept in.
     private static let taps = 240
     private static let windowSize = 256
@@ -38,10 +41,14 @@ struct STSoundChip {
     private let envelopes: UnsafeMutablePointer<UInt8>
     private let history: UnsafeMutablePointer<Int16>
     private let hostRate: UInt32
-    /// The filter, once for each place a sample can fall between two steps of the chip.
+    /// Steps of the chip in a second: an eighth of its clock.
+    private let stepRate: UInt32
+    /// The filter, once for each place a sample can fall between two steps of the chip. The host's
+    /// rate and the chip's have a common measure, and a sample falls on a multiple of it: with the
+    /// ST's clock there are twenty-four such places. A clock that would make more than `mostPhases`
+    /// of them gets that many, and each sample the nearest.
     private let kernel: UnsafeMutablePointer<Float>
-    /// The host's rate and the chip's have a common measure, and a sample falls on a multiple of it.
-    private let phaseStep: UInt32
+    private let phases: UInt32
     /// The chip's last steps, kept twice over so that the newest `taps` of them always lie in a row.
     private let window: UnsafeMutablePointer<Float>
     private var windowHead = 0
@@ -72,8 +79,10 @@ struct STSoundChip {
     private var insideTimer = false
     private var edgeNeedsReset: (Bool, Bool, Bool) = (false, false, false)
 
-    init(hostRate: Int) {
+    /// - Parameter clockHz: the chip's clock. The ST's unless the tune was recorded on something else.
+    init(hostRate: Int, clockHz: UInt32 = STSoundChip.atariClockHz) {
         self.hostRate = UInt32(hostRate)
+        stepRate = max(1, clockHz / 8)
         mix = .allocate(capacity: 32768)
         let packed = Base64.decode(STMixTable.packed)
         for index in 0 ..< 32768 {
@@ -102,17 +111,17 @@ struct STSoundChip {
 
         // A windowed sinc that lets through what can be heard and has shut by the time the host's rate
         // would fold it back: down by half at 22 kHz. One copy for each place a sample can fall.
-        let chipRate = Double(Self.clockHz / 8)
-        var measure = Self.clockHz / 8, other = UInt32(hostRate)
+        let chipRate = Double(stepRate)
+        var measure = stepRate, other = UInt32(hostRate)
         while other != 0 { (measure, other) = (other, measure % other) }
-        phaseStep = measure
-        let phases = hostRate / Int(measure)
+        let phases = min(Self.mostPhases, hostRate / Int(measure))
+        self.phases = UInt32(phases)
         let kernel = UnsafeMutablePointer<Float>.allocate(capacity: phases * Self.taps)
-        let cutoff = 2 * min(22000, Double(hostRate) * 0.458) / chipRate
+        let cutoff = min(0.9, 2 * min(22000, Double(hostRate) * 0.458) / chipRate)
         let half = Double(Self.taps) / 2
         for phase in 0 ..< phases {
-            // How far the newest step is past the moment the sample is for.
-            let lead = Double(phase) * Double(measure) / Double(hostRate)
+            // How far the newest step is past the moment the sample is for, as a part of a step.
+            let lead = Double(phase) / Double(phases)
             var weights = [Double](repeating: 0, count: Self.taps)
             var total = 0.0
             for tap in 0 ..< Self.taps {
@@ -171,6 +180,12 @@ struct STSoundChip {
     /// The chip's two ports as the ST has them: the register to speak to, and what to tell it.
     mutating func writePort(_ port: UInt32, _ value: UInt8) {
         if port & 2 != 0 { write(register: selected, value) } else { selected = Int(value) }
+    }
+
+    /// A register told its value outright.
+    mutating func write(_ register: Int, _ value: UInt8) {
+        selected = register
+        write(register: register, value)
     }
 
     func readPort(_ port: UInt32) -> UInt8 {
@@ -286,8 +301,8 @@ struct STSoundChip {
             sum += tick()
             count += 1
             innerCycle &+= hostRate
-        } while innerCycle < Self.clockHz / 8
-        innerCycle -= Self.clockHz / 8
+        } while innerCycle < stepRate
+        innerCycle -= stepRate
         return centred(Int16(truncatingIfNeeded: sum / count))
     }
 
@@ -300,12 +315,13 @@ struct STSoundChip {
             window[windowHead + Self.windowSize] = level
             windowHead = (windowHead + 1) & (Self.windowSize - 1)
             innerCycle &+= hostRate
-        } while innerCycle < Self.clockHz / 8
-        innerCycle -= Self.clockHz / 8
+        } while innerCycle < stepRate
+        innerCycle -= stepRate
 
         // Eight at a time into two running sums, as the other chips' filters are done.
         let steps = UnsafeRawPointer(window + ((windowHead - Self.taps) & (Self.windowSize - 1)))
-        let weights = UnsafeRawPointer(kernel + Int(innerCycle / phaseStep) * Self.taps)
+        let phase = Int(UInt64(innerCycle) * UInt64(phases) / UInt64(hostRate))
+        let weights = UnsafeRawPointer(kernel + phase * Self.taps)
         let width = MemoryLayout<SIMD8<Float>>.size
         var even = SIMD8<Float>.zero, odd = SIMD8<Float>.zero
         var offset = 0
