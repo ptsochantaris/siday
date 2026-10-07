@@ -8,9 +8,11 @@ import SidayKit
 // through the functions exported at the foot of this file, and passes them on to the audio thread.
 //
 // The worker renders a whole song as fast as it can and keeps it, so that the listener can move about
-// in it. What it keeps is the tune as the chip made it. The television, which can be switched while a
-// tune plays, and the spectrum analyser, which shows what is being heard, are applied to each piece
-// as it is sent to be played: `pull` makes the sound and `present` finishes it.
+// in it. What it keeps is the tune as the chip made it. The television, if the sound is going through
+// one, and the spectrum analyser, which shows what is being heard, are applied to each piece as it is
+// sent to be played: `pull` makes the sound and `present` finishes it. So a television can be put in
+// the way or taken out of it at any moment; a change between mono and stereo is a change to what the
+// chip makes, and the song has to be rendered again (`setOutput` says when).
 
 /// One tune at a time: what the command-line player's engine does between a file and the sound card.
 final class WebPlayer {
@@ -31,6 +33,9 @@ final class WebPlayer {
     private var renderer: (any Renderer)?
     private var session: TuneSession?
     private var television: Television?
+    /// How the loaded tune's channels were placed when it was loaded, if that is something it has:
+    /// an AY tune has three channels to place, and a SID tune a single output.
+    private var layout: StereoLayout?
     private let block = UnsafeMutablePointer<Float>.allocate(capacity: WebPlayer.blockFrames * 2)
     private var blockLength = 0
     private var blockCursor = 0
@@ -46,6 +51,7 @@ final class WebPlayer {
     func load(_ data: [UInt8], name: String) -> Bool {
         renderer = nil
         session = nil
+        layout = nil
         let fileExtension = name.split(separator: ".").count > 1 ? String(name.split(separator: ".").last ?? "") : ""
         guard let format = TuneFormat(fileExtension: fileExtension) else {
             text = Array("unknown file type .\(fileExtension)".utf8)
@@ -54,6 +60,7 @@ final class WebPlayer {
         do {
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options)
             renderer = loaded
+            layout = format == .sid ? nil : options.stereo
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {
@@ -87,8 +94,12 @@ final class WebPlayer {
         text = Array(lines.joined(separator: "\n").utf8)
     }
 
-    func setTelevision(_ set: TelevisionSet?) {
-        if set != television?.set { television = set.map { Television($0) } }
+    /// Changes what tunes are heard through. Returns true if the tune that is loaded has to be loaded
+    /// again to be heard that way: its channels were placed otherwise when it was rendered.
+    func setOutput(_ style: OutputStyle) -> Bool {
+        if style.television != television?.set { television = style.television.map { Television($0) } }
+        options.stereo = style.stereo
+        return layout.map { $0 != style.stereo } ?? false
     }
 
     /// What is about to be presented does not follow from what was presented last: the song has
@@ -204,12 +215,16 @@ public func sidaySelect(_ subsong: Int32) {
     player.select(Int(subsong))
 }
 
-/// 0 for none, then the sets in the order SidayKit lists them.
-@_expose(wasm, "siday_set_television")
-@_cdecl("siday_set_television")
-public func sidaySetTelevision(_ set: Int32) {
-    let sets = TelevisionSet.allCases
-    player.setTelevision(set >= 1 && Int(set) <= sets.count ? sets[Int(set) - 1] : nil)
+/// What tunes are heard through: an output style, by its place in the order SidayKit lists them.
+/// Returns 1 if the tune that is loaded has to be loaded again (`siday_load`) to be heard that way,
+/// which is so when the change is between mono and stereo, or one stereo and the other, and the tune
+/// is one that stereo makes a difference to. A television is put in or taken out as the tune plays.
+@_expose(wasm, "siday_set_output")
+@_cdecl("siday_set_output")
+public func sidaySetOutput(_ style: Int32) -> Int32 {
+    let styles = OutputStyle.allCases
+    guard styles.indices.contains(Int(style)) else { return 0 }
+    return player.setOutput(styles[Int(style)]) ? 1 : 0
 }
 
 /// Renders the next 128 frames into the buffer at `siday_output`, as the chip made them. Returns 0

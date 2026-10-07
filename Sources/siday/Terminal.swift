@@ -5,7 +5,7 @@ import Darwin
 import Foundation
 
 enum Key {
-    case pause, next, previous, nextSubsong, previousSubsong, television, quit
+    case pause, next, previous, nextSubsong, previousSubsong, quit
 }
 
 // Saved terminal state lives in globals so signal handlers can reach it.
@@ -94,7 +94,6 @@ enum Terminal {
         case UInt8(ascii: "p"), UInt8(ascii: "P"): return .previous
         case UInt8(ascii: "+"), UInt8(ascii: "="): return .nextSubsong
         case UInt8(ascii: "-"), UInt8(ascii: "_"): return .previousSubsong
-        case UInt8(ascii: "t"), UInt8(ascii: "T"): return .television
         case UInt8(ascii: "q"), UInt8(ascii: "Q"), 0x1B: return .quit
         default: return nil
         }

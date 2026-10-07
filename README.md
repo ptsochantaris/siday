@@ -45,7 +45,9 @@ to WebAssembly.
 - SID tunes know their lengths: those of the High Voltage SID Collection are built in.
 - The list shows every tune that was added, however many, and can be searched.
 - It has a volume of its own, apart from the computer's, which it remembers.
-- The early-1980s television speaker is a button away, and the keys are the command-line player's.
+- One list chooses what a tune is heard through: mono, the AY chip's channels spread in stereo, or
+  the speaker of an early-1980s television. It is remembered too.
+- The keys are the command-line player's.
 
 Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
 over. A song is rendered to its end as soon as it starts, far faster than it plays, and the bar
@@ -89,7 +91,9 @@ worker (`engine.js`), which renders the whole of a song and keeps it (23 MB for 
 song that is playing), and the audio thread (`worklet.js`) only plays what it is sent, a fifth of a
 second ahead: much the arrangement of the command-line player, so neither loading a tune nor anything
 the page does can hold the sound up. What is kept is the sound as the chip made it; the television and
-the spectrum analyser are applied as it is played, so the television can be switched at any moment. `SidayWeb` is the page itself, written in
+the spectrum analyser are applied as it is played, so a television can be put in the way or taken out at
+any moment. Mono and stereo are what the chip makes, so a change between them renders the song again,
+which takes a moment, and it goes on from where it was. `SidayWeb` is the page itself, written in
 [ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
 chosen files and the audio graph. All told it is about 1.3 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that.
 
@@ -116,7 +120,7 @@ siday <files or folders…>
 Folders are searched recursively and files are recognised by extension. The files are only ever read.
 
 While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+` / `-` (or `↑` / `↓`) subsong ·
-`t` television (off, plastic, wood) · `q` quit.
+`q` quit.
 
 | Option | Effect |
 |---|---|
@@ -129,11 +133,10 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 | `--max-time m:ss` | Cap on any tune |
 | `--subsong n` / `--all-subsongs` | Start at song n / play every song of multi-song files |
 | `--chip ay\|ym`, `--clock Hz`, `--frame-rate Hz` | AY settings. Defaults: what the file says, otherwise an AY at 1773400 Hz and 50 Hz |
-| `--stereo mono\|abc\|acb` | AY channel layout. Mono by default, because many tunes layer the three channels into one sound; `abc` and `acb` spread them left, centre and right |
+| `--output mono\|abc\|acb\|plastic\|wood` | What the tune is heard through. Mono by default, because many AY tunes layer the chip's three channels into one sound; `abc` and `acb` spread them left, centre and right (a SID has a single output, so for a SID tune these are mono); `plastic` and `wood` are the speaker of an early-1980s television (see below), which is mono too |
 | `--sid-model auto\|6581\|8580` | SID model (default: what the tune asks for) |
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, bright to dark (default 0.5). Real chips varied this much; reSIDfp only |
-| `--tv plastic\|wood` | Play through an early-1980s television's speaker (see below). Always mono |
 | `--songlengths path` | A copy of HVSC's `Songlengths.md5` to ask before the lengths that are built in; remembered for later runs. A file with no lengths in it is ignored |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
 | `--list` | Show what would be played, with format, length and title |
@@ -166,8 +169,10 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 ### Through a television
 
 These chips were written for and heard through a television: one small paper cone in a vented plastic
-or wooden cabinet, fed by a sound stage with little treble to give. `--tv` puts that between the chip
-and your speakers, and `t` switches it while a tune plays, so the two can be compared.
+or wooden cabinet, fed by a sound stage with little treble to give. `--output plastic` and `--output wood` put that
+between the chip and your speakers; in the browser the same two are in the list of outputs, and can
+be switched while a tune plays, so the sound with and without can be compared. A television has one
+loudspeaker, which is why it is a choice alongside mono and stereo and not on top of them.
 
 | Stage | What it does |
 |---|---|

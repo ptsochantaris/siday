@@ -6,11 +6,10 @@ import SidayKit
 import Foundation
 import Synchronization
 
-extension StereoLayout: ExpressibleByArgument {}
+extension OutputStyle: ExpressibleByArgument {}
 extension AYChipType: ExpressibleByArgument {}
 extension SIDModelChoice: ExpressibleByArgument {}
 extension SIDEngineChoice: ExpressibleByArgument {}
-extension TelevisionSet: ExpressibleByArgument {}
 
 @main
 struct Siday: ParsableCommand {
@@ -18,8 +17,7 @@ struct Siday: ParsableCommand {
         commandName: "siday",
         abstract: "Plays AY/YM and SID chiptunes from files and folders.",
         discussion: """
-        Keys while playing: space pause · n or → next · p or ← previous · + and - subsong ·
-        t television (off, plastic, wood) · q quit.
+        Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
         """
     )
@@ -54,8 +52,8 @@ struct Siday: ParsableCommand {
     @Option(help: "AY chip type: ay or ym. Default: what the file says, otherwise ay.")
     var chip: AYChipType?
 
-    @Option(help: "AY channel layout: mono, or abc / acb to spread the three channels across the stereo field.")
-    var stereo: StereoLayout = .mono
+    @Option(help: "What the tune is heard through: mono; abc or acb, the AY chip's three channels spread across the stereo field (a SID has one output, so for a SID tune these are mono); or the speaker of an early-1980s television, plastic (a small portable) or wood (a large set in a wooden cabinet).")
+    var output: OutputStyle = .mono
 
     @Option(help: "AY clock in Hz. Default: what the file says, otherwise 1773400.")
     var clock: Double?
@@ -71,9 +69,6 @@ struct Siday: ParsableCommand {
 
     @Option(help: "Where the 6581's filter sits, from 0 (bright) to 1 (dark); real chips varied. residfp only.")
     var sidFilterCurve = 0.5
-
-    @Option(help: "Play through an early-1980s television's speaker: plastic (a small portable) or wood (a large set in a wooden cabinet). Always mono.")
-    var tv: TelevisionSet?
 
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
@@ -146,7 +141,7 @@ struct Siday: ParsableCommand {
     /// How tunes are loaded: the emulation's options, and where to look for song lengths.
     private var tuneFiles: TuneFiles {
         var options = LoadOptions()
-        options.stereo = stereo
+        options.stereo = output.stereo
         options.chipType = chip
         options.clockHz = clock
         options.frameHz = frameRate
@@ -282,14 +277,13 @@ struct Siday: ParsableCommand {
     private func play(_ files: [URL]) throws {
         let ring = SampleRing(frames: 8192)
         let output = try AudioOutput(ring: ring)
-        let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: tv)
+        let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: self.output.television)
         Terminal.enterKeyMode()
         engine.start()
 
         var generation = 0
         var length = 0.0
         var paused = false
-        var television = tv
         var statusShown = false
         func clearStatus() {
             if statusShown, Terminal.interactive { print("\r\u{1B}[K", terminator: "") }
@@ -306,12 +300,6 @@ struct Siday: ParsableCommand {
             case .pause:
                 paused.toggle()
                 ring.paused.store(paused, ordering: .relaxed)
-            case .television:
-                // Off, then each set in turn.
-                let sets = TelevisionSet.allCases
-                let next = television.flatMap { sets.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
-                television = next < sets.count ? sets[next] : nil
-                engine.television.withLock { $0 = television }
             case nil: break
             }
             let state = engine.nowPlaying.withLock { state -> NowPlaying in
@@ -332,8 +320,7 @@ struct Siday: ParsableCommand {
             if state.finished { break loop }
             if Terminal.interactive, generation > 0 {
                 let played = Double(ring.framesPlayed.load(ordering: .relaxed)) / Double(outputSampleRate)
-                let through = television.map { "  tv: \($0.rawValue)" } ?? ""
-                print("\r  \(formatTime(played)) / \(formatTime(length))\(through)\(paused ? "  paused" : "")\u{1B}[K", terminator: "")
+                print("\r  \(formatTime(played)) / \(formatTime(length))\(paused ? "  paused" : "")\u{1B}[K", terminator: "")
                 fflush(stdout)
                 statusShown = true
             }
@@ -414,7 +401,7 @@ struct Siday: ParsableCommand {
                     if renderer.subsongCount > 1 { renderer.select(subsong: subsong) }
                     let session = TuneSession(renderer: renderer, policy: policy)
                     var writer = WAVWriter()
-                    var television = tv.map { Television($0) }
+                    var television = output.television.map { Television($0) }
                     while !session.finished {
                         let produced = session.render(into: buffer, frames: block)
                         television?.process(buffer, frames: produced)

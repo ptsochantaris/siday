@@ -30,7 +30,10 @@ let asked = 0;
 /// Counts runs of sound: one starts with each tune, and with each move to another place in one. Word
 /// of any but the latest is dropped, here and on the audio thread.
 let serial = 0;
-let television = 0;
+/// What tunes are heard through: an output style, by its place in SidayKit's list of them, and the
+/// name of the one kept from the last visit.
+let style = 0;
+const rememberedStyle = kept("siday.output") ?? "";
 let songLengths;
 /// The player's own volume, 0 to 1, kept from one visit to the next, and the node that applies it.
 let volume = remembered();
@@ -96,7 +99,7 @@ function audio() {
     await ready;
     engine.onmessage = (event) => heard(event.data);
     await join(engine, output);
-    engine.postMessage({ type: "television", set: television });
+    engine.postMessage({ type: "style", style });
     if (songLengths) engine.postMessage({ type: "songlengths", bytes: songLengths });
     return { engine, output };
   })();
@@ -216,14 +219,25 @@ if (new URLSearchParams(location.search).has("timing")) {
   }, 500);
 }
 
-/// The volume from the last visit. A browser may refuse to keep such things: then it is full.
-function remembered() {
+/// Something kept from the last visit, and keeping it. A browser may refuse to keep such things:
+/// then there is nothing.
+function kept(name) {
   try {
-    const kept = Number.parseFloat(localStorage.getItem("siday.volume"));
-    return kept >= 0 && kept <= 1 ? kept : 1;
+    return localStorage.getItem(name);
   } catch {
-    return 1;
+    return null;
   }
+}
+function keep(name, value) {
+  try {
+    localStorage.setItem(name, value);
+  } catch {}
+}
+
+/// The volume from the last visit, or full.
+function remembered() {
+  const level = Number.parseFloat(kept("siday.volume"));
+  return level >= 0 && level <= 1 ? level : 1;
 }
 
 /// How much of the sound to let through for a volume: the ear hears it rise evenly when the sound
@@ -236,9 +250,7 @@ function setVolume(level) {
   volume = Math.max(0, Math.min(1, level));
   // Eased over a few hundredths of a second, so that moving the slider makes no zipper of a noise.
   if (loudness) loudness.gain.setTargetAtTime(gain(volume), context.currentTime, 0.015);
-  try {
-    localStorage.setItem("siday.volume", String(volume));
-  } catch {}
+  keep("siday.volume", String(volume));
 }
 
 function heard(message) {
@@ -251,6 +263,9 @@ function heard(message) {
       break;
     case "rendered":
       listeners?.rendered(message.seconds, message.length);
+      break;
+    case "again":
+      void again(message.tune);
       break;
     case "progress": {
       // This is news of sound that has been made but not yet heard: it is shown when its sound
@@ -319,6 +334,17 @@ async function seek(seconds) {
   shownFor = asked;
   output.port.postMessage({ type: "seek", serial: run });
   engine.postMessage({ type: "seek", serial: run, position: seconds });
+}
+
+/// The engine is to render the playing song again, because what it is heard through has changed in a
+/// way that changes what the chip makes. Like a move within the song, to the place it had got to: the
+/// output drops what it was about to play, and the engine sends from there once it has rendered that far.
+async function again(tune) {
+  const { engine, output } = await sound;
+  if (tune !== asked) return;
+  const run = ++serial;
+  output.port.postMessage({ type: "seek", serial: run });
+  engine.postMessage({ type: "again", serial: run, position: shownFor === asked ? shownPosition : 0 });
 }
 
 async function add(chosen) {
@@ -419,7 +445,7 @@ document.addEventListener(
   "keydown",
   (event) => {
     const target = event.target;
-    const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+    const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
     if (typing || event.metaKey || event.ctrlKey || event.altKey || (event.key === " " && target instanceof HTMLButtonElement)) {
       event.stopPropagation();
     } else if (event.key === " " || event.key.startsWith("Arrow")) {
@@ -428,6 +454,17 @@ document.addEventListener(
   },
   true,
 );
+
+// A choice made from a list with the pointer leaves the list holding the keyboard, and the next press
+// of space would open it again instead of pausing the tune. So it gives the keyboard up, unless it
+// was the keyboard that made the choice.
+let pressed = false;
+document.addEventListener("pointerdown", (event) => (pressed = event.target instanceof HTMLSelectElement), true);
+document.addEventListener("keydown", () => (pressed = false), true);
+document.addEventListener("change", (event) => {
+  if (pressed && event.target instanceof HTMLSelectElement) event.target.blur();
+  pressed = false;
+});
 
 // The time bar. The page draws it and decides what pointing at it and pressing it mean; what it
 // cannot know is where on the bar the pointer is, since only the browser knows how wide the bar has
@@ -513,9 +550,13 @@ Object.assign(globalThis, {
     const list = document.querySelector(".rows");
     if (list) list.scrollTop = top;
   },
-  sidayTelevision(set) {
-    television = set;
-    void sound?.then(({ engine }) => engine.postMessage({ type: "television", set }));
+  sidayOutput(name, place) {
+    style = place;
+    keep("siday.output", name);
+    void sound?.then(({ engine }) => engine.postMessage({ type: "style", style: place }));
+  },
+  sidayRememberedOutput() {
+    return rememberedStyle;
   },
 });
 

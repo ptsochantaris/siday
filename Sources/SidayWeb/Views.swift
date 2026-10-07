@@ -29,7 +29,7 @@ struct PlayerView {
             }
 
             footer {
-                p { "Keys: space pause · n or → next · p or ← previous · + and − song · t television" }
+                p { "Keys: space pause · n or → next · p or ← previous · + and − song" }
                 p {
                     "Plays "
                     TuneFormat.allCases.map { $0.rawValue.uppercased() }.joined(separator: ", ")
@@ -99,17 +99,26 @@ struct NowPlaying {
                 button(.class("main"), .title("Pause or play (space)")) { player.paused || player.finished || player.tune == nil ? "▶" : "⏸" }
                     .onClick { player.togglePause() }
                 button(.title("Next (n)")) { "⏭" }.onClick { player.next() }
-                button(.class(player.television == nil ? "toggle" : "toggle on"), .title("Play through an early-1980s television (t)")) {
-                    "tv: \(player.television?.rawValue ?? "off")"
-                }
-                .onClick { player.cycleTelevision() }
                 button(.class(player.shuffled ? "toggle on" : "toggle"), .title("Play in random order")) { "shuffle" }
                     .onClick { player.toggleShuffle() }
-                label(.class("volume"), .title("The player's own volume")) {
-                    span { "vol" }
-                    input(.type(.range), .min(0), .max(100))
-                        .bindValue(#Binding(player.volume))
+                // What the tune is heard through. Stereo spreads an AY chip's three channels; a SID
+                // has one output, so for a SID tune those two are mono.
+                // The two have no words beside them: what each is shows in its shape, and they stand
+                // together at the far end, apart from the buttons that move through the tunes.
+                select(
+                    .class("output"), .custom(name: "aria-label", value: "Output"),
+                    .title("What the tune is heard through: stereo spreads an AY chip's three channels, and a television is an early-1980s set's speaker")
+                ) {
+                    ForEach(OutputStyle.allCases, key: { $0.rawValue }) { style in
+                        option(.value(style.rawValue)) { style.title }
+                            .attributes(.selected, when: style == player.output)
+                    }
                 }
+                .onInput { event in
+                    if let style = event.targetValue.flatMap({ OutputStyle(rawValue: $0) }) { player.hear(through: style) }
+                }
+                input(.type(.range), .min(0), .max(100), .class("volume"), .custom(name: "aria-label", value: "Volume"), .title("The player's own volume"))
+                    .bindValue(#Binding(player.volume))
             }
         }
     }

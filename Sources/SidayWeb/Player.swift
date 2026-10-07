@@ -54,7 +54,8 @@ final class Player {
     /// (Twenty-four of each: what the audio side sends. Until it does, the bars are there and flat.)
     private(set) var bars = [Double](repeating: 0, count: 24)
     private(set) var caps = [Double](repeating: 0, count: 24)
-    private(set) var television: TelevisionSet?
+    /// What tunes are heard through: at first, what they were heard through on the last visit.
+    private(set) var output = (try? sidayRememberedOutput()).flatMap { OutputStyle(rawValue: $0) } ?? .mono
     private(set) var shuffled = false
     /// The order tunes are played in: places in `files`.
     private var order: [Int] = []
@@ -81,8 +82,9 @@ final class Player {
     private var listTop = 0.0
     private var listHeight = 1200.0
 
-    /// The player's own volume, 0 to 100.
-    var volume: Double? = 100 {
+    /// The player's own volume, 0 to 100: at first, what it was on the last visit. (It is asked for
+    /// here and not once the page is up, so that the slider is drawn where it belongs from the start.)
+    var volume: Double? = (((try? sidayRememberedVolume()) ?? 1) * 100).rounded() {
         didSet { try? sidayVolume(max(0, min(100, volume ?? 100)) / 100) }
     }
 
@@ -116,7 +118,7 @@ final class Player {
                 if height > 0, height != listHeight { listHeight = height }
             }
         )
-        if let remembered = try? sidayRememberedVolume() { volume = (remembered * 100).rounded() }
+        tellOutput()
     }
 
     // MARK: The list
@@ -308,12 +310,15 @@ final class Player {
         caps = caps.map { _ in 0 }
     }
 
-    /// Off, then each set in turn.
-    func cycleTelevision() {
-        let sets = TelevisionSet.allCases
-        let place = television.flatMap { sets.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
-        television = place < sets.count ? sets[place] : nil
-        try? sidayTelevision(television.flatMap { sets.firstIndex(of: $0) }.map { $0 + 1 } ?? 0)
+    /// Changes what tunes are heard through.
+    func hear(through style: OutputStyle) {
+        guard style != output else { return }
+        output = style
+        tellOutput()
+    }
+
+    private func tellOutput() {
+        if let place = OutputStyle.allCases.firstIndex(of: output) { try? sidayOutput(output.rawValue, place) }
     }
 
     func toggleShuffle() {
@@ -335,7 +340,6 @@ final class Player {
         case "p", "P", "ArrowLeft": previous()
         case "+", "=", "ArrowUp": song(1)
         case "-", "_", "ArrowDown": song(-1)
-        case "t", "T": cycleTelevision()
         default: break
         }
     }

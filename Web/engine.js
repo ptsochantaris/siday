@@ -34,6 +34,9 @@ let output;
 
 /// The tune that is loaded: the page's count of its requests to play.
 let tune = 0;
+/// The file it came from, and the song of it that was asked for: { name, bytes, subsong }. Kept in
+/// case the song has to be rendered again.
+let file;
 /// The song as far as it has been rendered: { samples, position, last } for each chunk, in order,
 /// the sound as the chip made it. The last chunk of the song is marked.
 let kept = [];
@@ -66,6 +69,37 @@ function withBytes(buffer, use) {
   const result = use(pointer, bytes.length);
   core.siday_free(pointer);
   return result;
+}
+
+/// Loads the tune in `file` and starts on the song asked for. Returns false if it cannot be played.
+function load() {
+  const plays = withBytes(file.name, (name, nameLength) =>
+    withBytes(file.bytes, (data, length) => core.siday_load(data, length, name, nameLength)),
+  ) === 1;
+  if (plays && file.subsong >= 0) core.siday_select(file.subsong);
+  kept = [];
+  found = 0;
+  complete = !plays;
+  reported = 0;
+  return plays;
+}
+
+/// Sends from a place in the song, in seconds from its start, as a new run of sound: at once if that
+/// much of the song has been rendered, and when it has been if not.
+function sendFrom(position, run) {
+  serial = run;
+  next = Math.max(0, Math.floor((position * sampleRate) / chunkFrames));
+  waiting = 0;
+  sending = true;
+  core.siday_settle();
+  send();
+}
+
+/// Sees that rendering is going on, if there is any to do.
+function start() {
+  if (complete || working) return;
+  working = true;
+  turns.port2.postMessage(0);
 }
 
 /// Renders the next chunk of the song and keeps it.
@@ -178,41 +212,39 @@ self.onmessage = async (event) => {
     case "load": {
       tune = message.tune;
       serial = message.serial;
-      const plays = withBytes(message.name, (name, nameLength) =>
-        withBytes(message.bytes, (data, length) => core.siday_load(data, length, name, nameLength)),
-      ) === 1;
-      if (plays && message.subsong >= 0) core.siday_select(message.subsong);
+      file = { name: message.name, bytes: message.bytes, subsong: message.subsong };
+      const plays = load();
       const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
       self.postMessage({
         type: "loaded", tune, plays, text,
         songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
       });
-      kept = [];
-      found = 0;
-      complete = !plays;
       next = 0;
       waiting = 0;
       sending = plays;
-      reported = 0;
-      if (plays && !working) {
-        working = true;
-        turns.port2.postMessage(0);
-      }
+      start();
       break;
     }
     case "seek":
       // The listener has moved to another place in the song: sending goes on from there, as soon as
       // there is something there to send.
       if (kept.length === 0 && complete) break;
-      serial = message.serial;
-      next = Math.max(0, Math.floor((message.position * sampleRate) / chunkFrames));
-      waiting = 0;
-      sending = true;
-      core.siday_settle();
-      send();
+      sendFrom(message.position, message.serial);
       break;
-    case "television":
-      core.siday_set_television(message.set);
+    case "style":
+      // What tunes are heard through. A television is no more than something in the way of the sound
+      // as it is sent. Mono and stereo are what the chip makes, so a change between them means making
+      // the song again: the page is told, and says where it had got to.
+      if (core.siday_set_output(message.style) === 1 && file && !(kept.length === 0 && complete)) {
+        self.postMessage({ type: "again", tune });
+      }
+      break;
+    case "again":
+      // The song is rendered again from its start, as it is now to be heard, and taken up where it
+      // had got to. Until the rendering has reached that place, the sound waits.
+      if (!file || !load()) break;
+      sendFrom(message.position, message.serial);
+      start();
       break;
     case "songlengths":
       withBytes(message.bytes, (data, length) => core.siday_set_songlengths(data, length));

@@ -27,8 +27,8 @@ final class Engine: @unchecked Sendable {
     private let files: TuneFiles
     private let policy: PlaybackPolicy
     private let commands = Mutex<[Command]>([])
-    /// The television the sound is played through, if any. It can be changed while a tune plays.
-    let television: Mutex<TelevisionSet?>
+    /// The television the sound is played through, if any.
+    private let television: TelevisionSet?
     let nowPlaying = Mutex(NowPlaying())
 
     init(ring: SampleRing, playlist: [URL], files: TuneFiles, policy: PlaybackPolicy, television: TelevisionSet?) {
@@ -36,7 +36,7 @@ final class Engine: @unchecked Sendable {
         self.playlist = playlist
         self.files = files
         self.policy = policy
-        self.television = Mutex(television)
+        self.television = television
     }
 
     func send(_ command: Command) {
@@ -97,7 +97,7 @@ final class Engine: @unchecked Sendable {
         defer { buffer.deallocate() }
         var index = 0
         var direction = 1
-        var television: Television?
+        var television = television.map { Television($0) }
 
         outer: while index >= 0, index < playlist.count {
             let url = playlist[index]
@@ -151,8 +151,6 @@ final class Engine: @unchecked Sendable {
                         continue
                     }
                     let produced = session.render(into: buffer, frames: block)
-                    let set = self.television.withLock { $0 }
-                    if set != television?.set { television = set.map { Television($0) } }
                     television?.process(buffer, frames: produced)
                     if produced > 0 { ring.write(buffer, frames: produced) }
                 }

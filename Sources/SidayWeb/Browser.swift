@@ -74,6 +74,12 @@ func sidayListHeight() throws(JSException) -> Double
 @JSFunction(from: .global)
 func sidayScrollList(_ top: Double) throws(JSException)
 
-/// 0 for none, then the sets in the order SidayKit lists them.
+/// What tunes are heard through: an output style, by its name and by its place in the order SidayKit
+/// lists them. It is remembered from one visit to the next. If the playing song has to be rendered
+/// again to be heard that way, it is, and goes on from where it had got to once that much is ready.
 @JSFunction(from: .global)
-func sidayTelevision(_ set: Int) throws(JSException)
+func sidayOutput(_ name: String, _ place: Int) throws(JSException)
+
+/// The name of the output style remembered from the last visit; empty if there was none.
+@JSFunction(from: .global)
+func sidayRememberedOutput() throws(JSException) -> String
