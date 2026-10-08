@@ -191,7 +191,6 @@ private enum SIDReference {
     /// Renders the trace as the harnesses do: clock, write, then read OSC3 and ENV3.
     static func render(_ model: SIDModel, _ sampling: SIDSampling) -> (samples: [Int16], readBack: [UInt8]) {
         var sid = SIDChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: sampling)
-        defer { sid.deallocate() }
         var samples: [Int16] = []
         var readBack: [UInt8] = []
         let buffer = UnsafeMutablePointer<Int16>.allocate(capacity: 512)
@@ -223,7 +222,6 @@ private enum SIDReference {
 @Test func sidTablesMatchReSID() {
     for (model, expected) in [(SIDModel.mos6581, SIDReference.tables6581), (.mos8580, SIDReference.tables8580)] {
         let sid = SIDChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: .resample)
-        defer { sid.deallocate() }
         var found: [(String, Int, UInt64)] = []
         sid.withInternalTables { name, bytes in found.append((name, bytes.count, fnv1a(bytes))) }
         #expect(found.count == expected.count)
@@ -236,7 +234,6 @@ private enum SIDReference {
 @Test func sidOscillatorAndEnvelopeReadBack() {
     for model in [SIDModel.mos6581, .mos8580] {
         var sid = SIDChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: .interpolate)
-        defer { sid.deallocate() }
         // Voice 3: sawtooth at FREQ $1000 (the top 12 accumulator bits step once per cycle),
         // attack 0, sustain 15. Setting and clearing the test bit zeroes the accumulator.
         sid.write(0x0F, 0x10); sid.write(0x13, 0x00); sid.write(0x14, 0xF0)
@@ -266,7 +263,6 @@ private enum SIDReference {
 @Test func sidBusValueFades() {
     for (model, ttl) in [(SIDModel.mos6581, 0x1D00), (.mos8580, 0xA2000)] {
         var sid = SIDChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: .interpolate)
-        defer { sid.deallocate() }
         let buffer = UnsafeMutablePointer<Int16>.allocate(capacity: 1024)
         defer { buffer.deallocate() }
         func run(_ sid: inout SIDChip, _ count: Int) {
@@ -294,7 +290,6 @@ private enum SIDReference {
 @Test func sidClockStopsWhenTheBufferIsFull() {
     for sampling in [SIDSampling.fast, .interpolate, .resample, .resampleFastMem] {
         var sid = SIDChip(model: .mos8580, clockHz: 985_248, sampleRate: 48000, sampling: sampling)
-        defer { sid.deallocate() }
         #expect(sid.samplingMethod == sampling)
         let buffer = UnsafeMutablePointer<Int16>.allocate(capacity: 64)
         defer { buffer.deallocate() }
@@ -313,7 +308,6 @@ private enum SIDReference {
 @Test func sidFallsBackToInterpolationWhenResamplingCannotWork() {
     // reSID refuses to resample when 125 * clock / rate would overfill its 16384-sample ring buffer.
     var sid = SIDChip(model: .mos6581, clockHz: 985_248, sampleRate: 4000, sampling: .resample)
-    defer { sid.deallocate() }
     #expect(sid.samplingMethod == .interpolate)
     let passbandTooWide = sid.setSamplingParameters(clockHz: 985_248, sampling: .resample, sampleRate: 48000, passFrequency: 23000)
     #expect(!passbandTooWide)

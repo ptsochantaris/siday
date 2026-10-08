@@ -47,7 +47,7 @@ extension SIDChip {
     // by Adel S. Sedra and Kenneth C. Smith. See filter8580new.h in reSID for the
     // full circuit description and the derivation of the integrator models.
     // ----------------------------------------------------------------------------
-    struct Filter {
+    struct Filter: ~Copyable {
         /// reSID's Filter::Randomnoise: 1024 values of `rand() % (1 << 19)` added to the voice
         /// outputs as dither. The C++ takes them from libc's rand(), so its output depends on the
         /// platform's generator and on anything else in the process that has called rand().
@@ -203,7 +203,7 @@ extension SIDChip {
             reset()
         }
 
-        func deallocate() {
+        deinit {
             rnd.buffer.deallocate()
         }
 

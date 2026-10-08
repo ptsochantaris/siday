@@ -263,7 +263,7 @@ public final class AYFileRenderer: Renderer {
     }
 
     deinit {
-        chip.pointee.deallocate()
+        chip.deinitialize(count: 1)
         chip.deallocate()
         memory.deallocate()
     }
@@ -388,7 +388,6 @@ public final class AYFileRenderer: Renderer {
     private func rebuildChip(cpc: Bool) {
         chipIsCPC = cpc
         chipHz = options.clockHz ?? (cpc ? ayFileCPCChipHz : defaultAYClockHz)
-        chip.pointee.deallocate()
         chip.pointee = AYChip(type: chipType, clockHz: chipHz, sampleRate: outputSampleRate, stereo: options.stereo)
     }
 
@@ -442,7 +441,9 @@ public final class AYFileRenderer: Renderer {
     }
 
     /// Applies what is left of the finished frame, then runs the next one.
-    private func advanceFrame() {
+    /// Kept out of line: it runs once per frame, and inlined into the per-sample loop of `render` it
+    /// brought a check of `machineKind` with it that was then made for every sample.
+    @inline(never) private func advanceFrame() {
         while eventIndex < machine.eventCount {
             apply(machine.events[eventIndex])
             eventIndex += 1

@@ -75,8 +75,8 @@ struct AYToneChannel {
     var panRight = 0.5
 }
 
-/// One chip. Owns unmanaged buffers: call `deallocate()` when finished.
-struct AYChip {
+/// One chip. It owns its buffers and frees them when it goes, so there is only ever the one of it.
+struct AYChip: ~Copyable {
     var a = AYToneChannel(), b = AYToneChannel(), c = AYToneChannel()
     var noisePeriod = 1
     var noiseCounter = 0
@@ -132,7 +132,7 @@ struct AYChip {
         setStereo(stereo)
     }
 
-    func deallocate() {
+    deinit {
         dac.deallocate()
         fir.deallocate()
         firLeft.deallocate()

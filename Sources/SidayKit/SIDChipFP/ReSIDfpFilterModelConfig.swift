@@ -63,7 +63,7 @@ extension ReSIDfpChip {
     /// Based on the implementation from the [Monotone cubic interpolation] wikipedia page.
     ///
     /// [Monotone cubic interpolation]: https://en.wikipedia.org/wiki/Monotone_cubic_interpolation
-    struct Spline {
+    struct Spline: ~Copyable {
         struct Point {
             var x: Double
             var y: Double
@@ -142,7 +142,7 @@ extension ReSIDfpChip {
             params[coeffLength - 1].x2 = Double.greatestFiniteMagnitude
         }
 
-        func deallocate() {
+        deinit {
             params.deallocate()
         }
 
@@ -206,7 +206,7 @@ extension ReSIDfpChip {
     ///
     ///     f = a*(b - vx)^2 - c - (b - vo)^2
     ///     df = 2*((b - vo)*dvo - a*(b - vx))
-    struct OpAmp {
+    struct OpAmp: ~Copyable {
         static var EPSILON: Double { 1e-8 }
 
         /// Current root position (cached as guess to speed up next iteration)
@@ -228,10 +228,6 @@ extension ReSIDfpChip {
             self.vmin = vmin
             self.vmax = vmax
             opamp = Spline(opamp_voltages)
-        }
-
-        func deallocate() {
-            opamp.deallocate()
         }
 
         /// Reset root position
@@ -642,7 +638,6 @@ extension ReSIDfpChip {
                 // When interpolating outside range the first elements may be negative
                 opamp_rev[x] = out.x > 0.0 ? FilterModelConfig.to_ushort(out.x) : 0
             }
-            s.deallocate()
             FilterModelConfig.fillMargins(opamp_rev, 1 << 16, FilterModelConfig.opamp_rev_margin, FilterModelConfig.opamp_rev_margin)
 
             // Create lookup tables for gains / summers.
@@ -689,7 +684,6 @@ extension ReSIDfpChip {
                 case 2: config.buildVolumeTable(&opampModel, volume_nDivisor, &rnd)
                 default: config.buildResonanceTable(&opampModel, resonance_n, &rnd)
                 }
-                opampModel.deallocate()
             }
         }
 

@@ -60,7 +60,7 @@ public enum ReSIDfpSampling: Sendable {
     case resample
 }
 
-/// One SID chip, emulated by a port of reSIDfp. Owns unmanaged buffers: call `deallocate()` when finished.
+/// One SID chip, emulated by a port of reSIDfp. It owns its buffers and frees them when it goes.
 ///
 /// To reproduce what libsidplayfp's ReSIDfp wrapper feeds its mixer (mono, one chip, no gain):
 ///
@@ -76,7 +76,7 @@ public enum ReSIDfpSampling: Sendable {
 ///
 /// For speed, hand `clock` as many cycles at a time as there are until the next register write: stretches
 /// of cycles are run by a faster loop than single ones.
-public struct ReSIDfpChip {
+public struct ReSIDfpChip: ~Copyable {
     /// SID::envDAC and SID::oscDAC, which setChipModel() computes: the same for every chip of a model.
     final class ModelTables: @unchecked Sendable {
         static let mos6581 = ModelTables(.mos6581)
@@ -266,11 +266,9 @@ public struct ReSIDfpChip {
         reset()
     }
 
-    // ----------------------------------------------------------------------------
-    // Destructor.
-    // ----------------------------------------------------------------------------
-    public func deallocate() {
-        filter.deallocate()
+    // The resamplers stay plain values with a `deallocate()` of their own: the clocking loops work on a
+    // local copy of them and put it back. The chip is what there is only one of, so it frees them.
+    deinit {
         twoPassSincResampler.deallocate()
     }
 
@@ -786,19 +784,19 @@ public struct ReSIDfpChip {
         var Vlp = chip.filter.Vlp
 
         // Filter6581 / Filter8580: the two integrators.
-        let filter6581 = chip.filter.filter6581
+        let hp6581 = chip.filter.filter6581.hpIntegrator, bp6581 = chip.filter.filter6581.bpIntegrator
         let filter8580 = chip.filter.filter8580
-        var hp_vx = is6581 ? filter6581.hpIntegrator.vx : filter8580.hpIntegrator.vx
-        var hp_vc = is6581 ? filter6581.hpIntegrator.vc : filter8580.hpIntegrator.vc
-        var bp_vx = is6581 ? filter6581.bpIntegrator.vx : filter8580.bpIntegrator.vx
-        var bp_vc = is6581 ? filter6581.bpIntegrator.vc : filter8580.bpIntegrator.vc
-        let hp_nVddt_Vw_2 = filter6581.hpIntegrator.nVddt_Vw_2, bp_nVddt_Vw_2 = filter6581.bpIntegrator.nVddt_Vw_2
-        let hp_nVddt = filter6581.hpIntegrator.nVddt, bp_nVddt = filter6581.bpIntegrator.nVddt
-        let hp_nVt_nVmin = filter6581.hpIntegrator.nVt &+ filter6581.hpIntegrator.nVmin
-        let bp_nVt_nVmin = filter6581.bpIntegrator.nVt &+ filter6581.bpIntegrator.nVmin
-        let n_snake = filter6581.n_snake
-        let vcr_nVg = filter6581.vcr_nVg
-        let vcr_n_Ids_term = UnsafePointer(filter6581.vcr_n_Ids_term)
+        var hp_vx = is6581 ? hp6581.vx : filter8580.hpIntegrator.vx
+        var hp_vc = is6581 ? hp6581.vc : filter8580.hpIntegrator.vc
+        var bp_vx = is6581 ? bp6581.vx : filter8580.bpIntegrator.vx
+        var bp_vc = is6581 ? bp6581.vc : filter8580.bpIntegrator.vc
+        let hp_nVddt_Vw_2 = hp6581.nVddt_Vw_2, bp_nVddt_Vw_2 = bp6581.nVddt_Vw_2
+        let hp_nVddt = hp6581.nVddt, bp_nVddt = bp6581.nVddt
+        let hp_nVt_nVmin = hp6581.nVt &+ hp6581.nVmin
+        let bp_nVt_nVmin = bp6581.nVt &+ bp6581.nVmin
+        let n_snake = chip.filter.filter6581.n_snake
+        let vcr_nVg = chip.filter.filter6581.vcr_nVg
+        let vcr_n_Ids_term = UnsafePointer(chip.filter.filter6581.vcr_n_Ids_term)
         let hp_nVgt = filter8580.hpIntegrator.nVgt, bp_nVgt = filter8580.bpIntegrator.nVgt
         let hp_n_dac = filter8580.hpIntegrator.n_dac, bp_n_dac = filter8580.bpIntegrator.n_dac
 
@@ -1092,7 +1090,7 @@ public struct ReSIDfpChip {
         return common + (model == .mos6581 ? FilterModelConfig6581.instance.bytes : FilterModelConfig8580.instance.bytes)
     }
 
-    /// Bytes this chip owns (what `deallocate()` frees).
+    /// Bytes this chip owns.
     public var ownedBytes: Int {
         filter.filter6581.bytes + twoPassSincResampler.s1.bytes + twoPassSincResampler.s2.bytes
     }
@@ -1140,10 +1138,12 @@ public struct ReSIDfpChip {
         table("pulldown_3", WaveformCalculator.buildPulldownTable(chipModel, .strong), 5 * 4096)
         body("extfilt", nil, " \(externalFilter.w0lp_1_s7) \(externalFilter.w0hp_1_s17)")
         if sampling == .resample {
-            for (k, s) in [twoPassSincResampler.s1, twoPassSincResampler.s2].enumerated() {
-                body("sinc\(k + 1)", nil, " firN \(s.firN) firRES \(s.firRES) cyclesPerSample \(s.cyclesPerSample)")
-                table("fir\(k + 1)", s.firTable, Int(s.firN) * Int(s.firRES))
+            func pass(_ k: Int, _ s: borrowing SincResampler) {
+                body("sinc\(k)", nil, " firN \(s.firN) firRES \(s.firRES) cyclesPerSample \(s.cyclesPerSample)")
+                table("fir\(k)", s.firTable, Int(s.firN) * Int(s.firRES))
             }
+            pass(1, twoPassSincResampler.s1)
+            pass(2, twoPassSincResampler.s2)
         } else {
             body("zeroorder", nil, " cyclesPerSample \(zeroOrderResampler.cyclesPerSample)")
         }

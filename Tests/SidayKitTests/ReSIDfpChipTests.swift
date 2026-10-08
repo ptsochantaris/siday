@@ -226,7 +226,6 @@ private enum ReSIDfpReference {
 
     static func render(_ model: SIDModel, _ sampling: ReSIDfpSampling, chunk: Int = .max, bufferSize: Int = 512) -> (samples: [Int16], readBack: [UInt8]) {
         var sid = ReSIDfpChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: sampling)
-        defer { sid.deallocate() }
         return render(&sid, chunk: chunk, bufferSize: bufferSize)
     }
 }
@@ -257,7 +256,6 @@ private enum ReSIDfpReference {
     for (model, sampling, count, sampleDigest, readBackDigest) in ReSIDfpReference.expectedAsLibsidplayfp {
         // libsidplayfp gives the engine its CPU clock (PAL: 4433618.75 * 4 / 18) rounded to single precision.
         var sid = ReSIDfpChip(model: model, clockHz: Double(Float(4_433_618.75 * 4 / 18)), sampleRate: 48000, sampling: sampling)
-        defer { sid.deallocate() }
         // A front end creates three emulations; the two that are not used draw five dither values each.
         sid.advanceDither(by: 10)
         sid.setFilterEnabled(true)
@@ -280,7 +278,6 @@ private enum ReSIDfpReference {
 @Test func reSIDfpTablesMatchReference() {
     for (model, expected) in [(SIDModel.mos6581, ReSIDfpReference.tables6581), (.mos8580, ReSIDfpReference.tables8580)] {
         let sid = ReSIDfpChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: .resample)
-        defer { sid.deallocate() }
         var found: [(String, Int, UInt64)] = []
         sid.withInternalTables { name, bytes, _ in
             if let bytes { found.append((name, bytes.count, fnv1a(bytes))) }
@@ -314,7 +311,6 @@ private enum ReSIDfpReference {
 @Test func reSIDfpOscillatorAndEnvelopeReadBack() {
     for model in [SIDModel.mos6581, .mos8580] {
         var sid = ReSIDfpChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: .decimate)
-        defer { sid.deallocate() }
         // Voice 3: sawtooth at FREQ $1000 (the top 12 accumulator bits step once per cycle),
         // attack 0, sustain 15. Setting and clearing the test bit zeroes the accumulator.
         sid.write(0x0F, 0x10); sid.write(0x13, 0x00); sid.write(0x14, 0xF0)
@@ -344,7 +340,6 @@ private enum ReSIDfpReference {
 @Test func reSIDfpBusValueFades() {
     for (model, ttl) in [(SIDModel.mos6581, 0x1D00), (.mos8580, 0xA2000)] {
         var sid = ReSIDfpChip(model: model, clockHz: 985_248, sampleRate: 48000, sampling: .decimate)
-        defer { sid.deallocate() }
         let buffer = UnsafeMutablePointer<Int16>.allocate(capacity: 1024)
         defer { buffer.deallocate() }
         func run(_ sid: inout ReSIDfpChip, _ count: Int) {
@@ -380,7 +375,6 @@ private enum ReSIDfpReference {
 @Test func reSIDfpClockStopsWhenTheBufferIsFull() {
     for sampling in [ReSIDfpSampling.decimate, .resample] {
         var sid = ReSIDfpChip(model: .mos8580, clockHz: 985_248, sampleRate: 48000, sampling: sampling)
-        defer { sid.deallocate() }
         #expect(sid.samplingMethod == sampling)
         let buffer = UnsafeMutablePointer<Int16>.allocate(capacity: 64)
         defer { buffer.deallocate() }
@@ -407,11 +401,9 @@ private enum ReSIDfpReference {
     // reSIDfp's sinc resampler needs its FIR to fit a 2048-sample ring buffer (it asserts): at a PAL clock
     // that fails below about 90 Hz.
     let low = ReSIDfpChip(model: .mos6581, clockHz: 985_248, sampleRate: 40, sampling: .resample)
-    defer { low.deallocate() }
     #expect(low.samplingMethod == .decimate)
     for rate in [8000.0, 22050, 44100, 48000, 96000, 192_000] {
         let sid = ReSIDfpChip(model: .mos6581, clockHz: 985_248, sampleRate: rate, sampling: .resample)
-        defer { sid.deallocate() }
         #expect(sid.samplingMethod == .resample, "\(rate)")
     }
 }
@@ -420,7 +412,6 @@ private enum ReSIDfpReference {
     // Peak-to-peak output of a sawtooth on voice 1, after the DC step of switching the chip on has settled.
     func swing(muted: Bool) -> Int {
         var sid = ReSIDfpChip(model: .mos8580, clockHz: 985_248, sampleRate: 48000, sampling: .decimate)
-        defer { sid.deallocate() }
         let buffer = UnsafeMutablePointer<Int16>.allocate(capacity: 4096)
         defer { buffer.deallocate() }
         sid.setVoiceMuted(0, muted)

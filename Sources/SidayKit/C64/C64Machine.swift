@@ -88,12 +88,10 @@ final class C64Machine: MOS6510Bus {
 
     deinit {
         if let residfp {
-            residfp.pointee.deallocate()
             residfp.deinitialize(count: 1)
             residfp.deallocate()
         }
         if let resid {
-            resid.pointee.deallocate()
             resid.deinitialize(count: 1)
             resid.deallocate()
         }

@@ -20,7 +20,7 @@
 /// a low-pass filter on their way down to the host's rate, so that what the chip puts out above the
 /// range of hearing, and a square wave puts out a great deal, does not come back down as tones that
 /// were never played.
-struct STSoundChip {
+struct STSoundChip: ~Copyable {
     /// The clock the ST gives the chip.
     static let atariClockHz: UInt32 = 2_000_000
     /// The filter is kept in at most this many copies; see `kernel`.
@@ -143,7 +143,7 @@ struct STSoundChip {
         reset()
     }
 
-    func deallocate() {
+    deinit {
         mix.deallocate()
         envelopes.deallocate()
         history.deallocate()

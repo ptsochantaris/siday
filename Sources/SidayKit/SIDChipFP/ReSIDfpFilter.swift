@@ -363,7 +363,7 @@ extension ReSIDfpChip {
 
     /// The members Filter6581 adds to Filter. See Filter6581.h in reSIDfp for the description of the
     /// 6581 filter circuit, its DAC, its voltage controlled resistors and its op-amps.
-    struct Filter6581 {
+    struct Filter6581: ~Copyable {
         /// VCR + associated capacitor connected to highpass output.
         var hpIntegrator: Integrator6581
 
@@ -408,7 +408,7 @@ extension ReSIDfpChip {
             vcr_nVg = UnsafePointer(vcr_n_Ids_term)
         }
 
-        func deallocate() {
+        deinit {
             f0_dac.deallocate()
             vcr_n_Ids_term.deallocate()
         }
@@ -477,7 +477,7 @@ extension ReSIDfpChip {
     // MARK: - Filter.h / Filter.cpp
 
     /// SID filter base class
-    struct Filter {
+    struct Filter: ~Copyable {
         static func summerIdx(_ i: Int) -> Int { FilterModelConfig.summer_offset(i) }
         static func mixerIdx(_ i: Int) -> Int { FilterModelConfig.mixer_offset(i) }
 
@@ -595,16 +595,11 @@ extension ReSIDfpChip {
 
             // Filter6581::Filter6581() / Filter8580::Filter8580()
             if let fmc6581 {
-                filter6581.deallocate()
                 filter6581 = Filter6581(fmc6581, &rnd_index)
                 filter6581.setUCox(uCox, currFactorCoeff)
             } else if let fmc8580 {
                 filter8580 = Filter8580(fmc8580, &rnd_index)
             }
-        }
-
-        func deallocate() {
-            filter6581.deallocate()
         }
 
         // MARK: FilterModelConfig helper functions

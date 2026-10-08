@@ -7,7 +7,7 @@
 /// a number at a chosen fraction of the chip's clock and interrupt the processor each time they get
 /// there. Tunes hang their special effects on them. A fifth line, the one the STE's sample player
 /// pulls as it reaches the end of a sample, is treated as one more timer that counts a single event.
-struct MFP {
+struct MFP: ~Copyable {
     static let clockHz: UInt32 = 2_457_600
     /// What each setting of a timer divides the clock by; 0 is stopped.
     private static let prescale: [UInt32] = [0, 4, 10, 16, 50, 64, 100, 200]
@@ -81,7 +81,7 @@ struct MFP {
         reset()
     }
 
-    func deallocate() {
+    deinit {
         registers.deallocate()
     }
 

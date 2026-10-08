@@ -6,7 +6,7 @@
 /// The sample player the Atari STE added: it plays eight-bit samples straight out of memory, from one
 /// address to another, at one of four rates, once or round and round, with a volume set over a
 /// three-wire serial line. The two stereo channels are added into the one output here.
-struct STESound {
+struct STESound: ~Copyable {
     /// The fastest of its four rates; the others are a half, a quarter and an eighth of it.
     static let fullRate: UInt32 = 50066
 
@@ -31,7 +31,7 @@ struct STESound {
         reset()
     }
 
-    func deallocate() {
+    deinit {
         registers.deallocate()
     }
 

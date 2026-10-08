@@ -60,8 +60,8 @@ public enum SIDSampling: Sendable {
     case resampleFastMem
 }
 
-/// One SID chip. Owns unmanaged buffers: call `deallocate()` when finished.
-public struct SIDChip {
+/// One SID chip. It owns its buffers and frees them when it goes.
+public struct SIDChip: ~Copyable {
     var sid_model: SIDModel
     // reSID's voice[3].
     var voice0: Voice
@@ -183,10 +183,9 @@ public struct SIDChip {
     // ----------------------------------------------------------------------------
     // Destructor.
     // ----------------------------------------------------------------------------
-    public func deallocate() {
+    deinit {
         sample?.deallocate()
         fir?.deallocate()
-        filter.deallocate()
     }
 
     public var model: SIDModel { sid_model }

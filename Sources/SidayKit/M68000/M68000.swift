@@ -34,7 +34,7 @@ public enum M68000Stop: Equatable, Sendable {
     case stopped
 }
 
-public struct M68000<Bus: M68000Bus> {
+public struct M68000<Bus: M68000Bus>: ~Copyable {
     /// D0 to D7, then A0 to A7. A7 is the stack pointer of the mode the processor is in.
     public let registers: UnsafeMutablePointer<UInt32>
     public var pc: UInt32 = 0
@@ -61,7 +61,7 @@ public struct M68000<Bus: M68000Bus> {
         self.bus = bus
     }
 
-    public func deallocate() {
+    deinit {
         registers.deallocate()
     }
 

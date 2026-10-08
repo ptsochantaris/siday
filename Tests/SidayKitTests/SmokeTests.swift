@@ -12,7 +12,6 @@ import Testing
 
 @Test func ayChipProducesATone() {
     var chip = AYChip(type: .ay, clockHz: 1_773_400, sampleRate: 48000, stereo: .mono)
-    defer { chip.deallocate() }
     // Tone period 252 on channel A is 1773400 / 16 / 252 = 439.8 Hz.
     chip.write(0, 252); chip.write(1, 0); chip.write(7, 0x3E); chip.write(8, 15)
     var crossings = 0

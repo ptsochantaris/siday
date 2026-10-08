@@ -17,12 +17,6 @@ final class STHardware: M68000Bus {
         samples = STESound(hostRate: hostRate)
     }
 
-    deinit {
-        chip.deallocate()
-        timers.deallocate()
-        samples.deallocate()
-    }
-
     func reset() {
         chip.reset()
         timers.reset()
@@ -112,7 +106,6 @@ final class STMachine {
     }
 
     deinit {
-        cpu.deallocate()
         ram.deallocate()
     }
 

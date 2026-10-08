@@ -123,8 +123,7 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
     }
 
     deinit {
-        chips[0].deallocate()
-        chips[1].deallocate()
+        chips.deinitialize(count: 2)
         chips.deallocate()
         regs.deallocate()
     }

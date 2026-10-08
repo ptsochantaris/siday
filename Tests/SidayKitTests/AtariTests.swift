@@ -26,7 +26,6 @@ private func run(_ program: [UInt16], cycles: Int = 100_000) -> (stop: M68000Sto
     defer { memory.deallocate() }
     let bus = RecordingBus()
     var cpu = M68000(ram: memory, ramSize: size, bus: bus)
-    defer { cpu.deallocate() }
     cpu.write32(0, 0x8000)
     cpu.write32(4, 0x1000)
     for (index, word) in program.enumerated() { cpu.write16(0x1000 + UInt32(index) * 2, UInt32(word)) }
@@ -205,7 +204,6 @@ private func strength(_ samples: [Float], at hz: Double) -> Double {
     // hears, if it is let through, as a tone of 6.3 kHz that nobody played.
     func tone(filtered: Bool) -> [Float] {
         var chip = STSoundChip(hostRate: outputSampleRate)
-        defer { chip.deallocate() }
         for (register, value) in [(0, 9), (1, 0), (7, 0x3E), (8, 15)] as [(UInt8, UInt8)] {
             chip.writePort(0, register)
             chip.writePort(2, value)

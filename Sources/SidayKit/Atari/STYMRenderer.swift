@@ -174,11 +174,6 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
-    deinit {
-        chip.deallocate()
-        timers.deallocate()
-    }
-
     private func restart() {
         tick = 0
         wrapped = false

@@ -84,7 +84,6 @@ enum SIDTrace {
         let clock = ContinuousClock()
         let t0 = clock.now
         var sid = SIDChip(model: model, clockHz: clockHz, sampleRate: rate, sampling: sampling)
-        defer { sid.deallocate() }
         let t1 = clock.now
 
         if tables {

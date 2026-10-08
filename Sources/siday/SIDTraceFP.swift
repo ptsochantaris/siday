@@ -100,7 +100,6 @@ extension SIDTrace {
         let c0 = cpuSeconds()
         // libsidplayfp hands the engine the CPU clock as a float: Player::sidParams(), s->sampling((float)cpuFreq, ...).
         var sid = ReSIDfpChip(model: model, clockHz: lib ? Double(Float(clockHz)) : clockHz, sampleRate: rate, sampling: sampling)
-        defer { sid.deallocate() }
         if !lib {
             // sidfpref.cc --mode engine: setCombinedWaveforms before setSamplingParameters and reset (no effect on
             // the order of anything), then range and curves.
