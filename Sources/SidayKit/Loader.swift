@@ -3,7 +3,7 @@
 
 public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
-    case vtx, ym, ay, sid, sndh, mod
+    case vtx, ym, ay, sid, sndh, mod, xm
 
     /// The format a file name's extension stands for, in any case.
     public init?(fileExtension: String) {
@@ -44,7 +44,16 @@ public enum TuneLoader {
         case .sndh:
             return try SNDHRenderer(data, options: options)
         case .mod:
-            return try MODRenderer(data, options: options)
+            // A module of the Amiga's four channels is ProTracker's to play. One of more is a PC
+            // tracker's, and FastTracker 2 plays those.
+            do {
+                return try MODRenderer(data, options: options)
+            } catch let error as TuneError {
+                guard case .unsupported = error, let more = try? XMRenderer(data, options: options) else { throw error }
+                return more
+            }
+        case .xm:
+            return try XMRenderer(data, options: options)
         }
     }
 

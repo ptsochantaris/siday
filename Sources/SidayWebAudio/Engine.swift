@@ -64,7 +64,7 @@ final class WebPlayer {
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options)
             renderer = loaded
             layout = format == .sid || format == .sndh ? nil : options.stereo
-            ownStereo = format == .mod
+            ownStereo = format == .mod || format == .xm
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

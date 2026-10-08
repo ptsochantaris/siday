@@ -12,7 +12,7 @@ struct PlayerView {
         div(.class("page")) {
             header {
                 h1 { "siday" }
-                p(.class("tagline")) { "Chip music and modules from the ZX Spectrum, Amstrad CPC, Atari ST, Commodore 64 and Amiga, played in your browser." }
+                p(.class("tagline")) { "Chip music and modules from the ZX Spectrum, Amstrad CPC, Atari ST, Commodore 64, Amiga and PC, played in your browser." }
             }
 
             NowPlaying(player: player)

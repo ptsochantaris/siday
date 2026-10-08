@@ -2,9 +2,10 @@
 
 # siday
 
-A player of chiptunes and Amiga modules written entirely in Swift, in two forms: **a page that plays
-in your browser**, and a command-line player for macOS. Both are the same emulators underneath: of the
-sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the Commodore 64 and the Amiga.
+A player of chiptunes and tracker modules written entirely in Swift, in two forms: **a page that
+plays in your browser**, and a command-line player for macOS. Both are the same emulators underneath:
+of the sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the Commodore 64 and the Amiga,
+and of the trackers that played modules on them and on the PC.
 
 The name is the two families of sound chip it began with, SID and AY. How to pronounce it is left open.
 
@@ -29,13 +30,14 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo |
+| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels. Played by FastTracker 2's replayer and mixer |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
-A MOD file of more than four channels was made on a PC tracker and is not played yet, nor is one
-packed with XPK.
+A MOD file packed with XPK is not unpacked. An XM file written by a later tracker is played as
+FastTracker 2 would play it, which is not always what the tracker that wrote it meant.
 
 ## In a browser
 
@@ -264,6 +266,15 @@ a sample in place, because nearly every module that has it means something else 
 where it would play a row it has played before. `siday --raw file.raw tune.mod` writes the tune as
 pt2-clone writes one to a file, sixteen bits with its dither, and the two agree to the sample.
 
+An XM file, and a MOD file of more channels than the Amiga has, is played as FastTracker 2 played
+it: the replayer and the mixer are FastTracker 2.09's, by way of ft2play's port of them to C. The mixer
+works in whole numbers, with FastTracker's interpolation between one sample and the next and its
+ramping of volumes, both switched on as they were when the tracker was new, and it places each
+instrument between the speakers where the module says. FastTracker itself reads no more than 32
+channels and only an even number; files from later trackers have any number, and are played the same
+way. A tune ends where it would play a row it has played before. `siday --raw file.raw tune.xm` writes
+what ft2play writes to a file, and the two agree to the sample.
+
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
 gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
@@ -303,6 +314,9 @@ What it is made from:
   reading of modules are his too; the band-limited steps in Paula's output are by aciddose. ProTracker
   itself is by Lars Hamre, Anders Hamre, Sven Vahsen and Rune Johnsrud, after Karsten Obarski's
   Ultimate Soundtracker, where the module began.
+- [ft2play](https://github.com/8bitbubsy/ft2play), also by Olav Sørensen: FastTracker 2's replayer
+  and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
+  Huss and Magnus Högdahl, of Triton.
 - The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
   by Axe of Delight.
 - [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.
