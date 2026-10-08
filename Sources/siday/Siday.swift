@@ -11,12 +11,13 @@ extension AYChipType: ExpressibleByArgument {}
 extension SIDModelChoice: ExpressibleByArgument {}
 extension SIDEngineChoice: ExpressibleByArgument {}
 extension AmigaModel: ExpressibleByArgument {}
+extension ST3Card: ExpressibleByArgument {}
 
 @main
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes and MOD and XM modules from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes and MOD, XM and S3M modules from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -76,6 +77,9 @@ struct Siday: ParsableCommand {
 
     @Option(help: "How far apart a module's left and right are kept, in percent. 100 is the Amiga's own, which is harsh in headphones.")
     var amigaSeparation = 20.0
+
+    @Option(help: "The sound card an S3M file is played on: gus, or sb for a Sound Blaster Pro's eight bits. Default: the one the file was saved with.")
+    var s3mCard: ST3Card?
 
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
@@ -156,6 +160,7 @@ struct Siday: ParsableCommand {
         options.sidEngine = sidEngine
         options.amigaModel = amiga
         options.amigaSeparation = amigaSeparation / 100
+        options.s3mCard = s3mCard
         options.sidFilterCurve = sidFilterCurve
         return TuneFiles(options: options, songLengthsPath: songLengthsPath)
     }
@@ -263,6 +268,7 @@ struct Siday: ParsableCommand {
             }
             FileHandle.standardOutput.write(Data(text.utf8))
         } else if let raw {
+            ST3Player.repeatsReferenceSlips = ProcessInfo.processInfo.environment["SIDAY_REFERENCE_SLIPS"] != nil
             var renderer = try tuneFiles.load(scan.files[0])
             let frames = Int((maxTime.flatMap(parseTime) ?? 20) * Double(outputSampleRate))
             // A YM file played on a chip of another machine has no reference output; for the comparison

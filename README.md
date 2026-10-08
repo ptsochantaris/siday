@@ -30,13 +30,14 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo |
-| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels. Played by FastTracker 2's replayer and mixer |
+| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
-A MOD file packed with XPK is not unpacked. An XM file written by a later tracker is played as
+A MOD file packed with XPK is not unpacked. The AdLib (FM) channels of an S3M file are not played, only
+its samples. An XM file written by a later tracker is played as
 FastTracker 2 would play it, which is not always what the tracker that wrote it meant.
 
 ## In a browser
@@ -146,6 +147,7 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 | `--subsong n` / `--all-subsongs` | Start at song n / play every song of multi-song files |
 | `--chip ay\|ym`, `--clock Hz`, `--frame-rate Hz` | AY settings. Defaults: what the file says, otherwise an AY at 1773400 Hz and 50 Hz |
 | `--output mono\|abc\|acb\|plastic\|wood` | What the tune is heard through. Mono by default, because many AY tunes layer the chip's three channels into one sound; `abc` and `acb` spread them left, centre and right (a SID has a single output, so for a SID tune these are mono, and a module has a stereo of its own, which these leave as it is); `plastic` and `wood` are the speaker of an early-1980s television (see below), which is mono too |
+| `--s3m-card gus\|sb` | The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. Default: the one the file was saved with, where it says, and otherwise the GUS |
 | `--amiga-separation 0…100` | How far apart a module's left and right are kept, in percent (default 20). 100 is the Amiga's own hard left and right, which is harsh in headphones |
 | `--amiga a1200\|a500` | Which Amiga a module is heard on. The 1200 by default; the 500 has a low-pass filter at 4.4 kHz in the way, which is the darker sound much Amiga music was written on |
 | `--sid-model auto\|6581\|8580` | SID model (default: what the tune asks for) |
@@ -275,6 +277,19 @@ channels and only an even number; files from later trackers have any number, and
 way. A tune ends where it would play a row it has played before. `siday --raw file.raw tune.xm` writes
 what ft2play writes to a file, and the two agree to the sample.
 
+An S3M file is played as Scream Tracker 3 played it, and that depended on the sound card. With a
+Gravis Ultrasound the card did the mixing: the tracker told it, a tick at a time, what each voice was
+to play, and the card played them smoothly, each in its place between the speakers, sliding from one
+volume to the next. With a Sound Blaster Pro the tracker mixed for itself, into eight bits, with no
+smoothing, at 22 kHz in stereo with eight channels hard to each side. Both are here, by way of
+st3play's port of the tracker and its emulation of the cards. A file that Scream Tracker saved says
+which card it was saved with, and is played on that one; any other is played on the GUS, and
+`--s3m-card` asks for either. Scream Tracker's samples were eight bits and no longer than 64,000
+bytes; files from later trackers have sixteen-bit and longer ones, which are played as they stand.
+`siday --raw file.raw tune.s3m` writes what st3play writes to a file. The two agree to the sample when
+the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
+Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.
+
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
 gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
@@ -317,6 +332,9 @@ What it is made from:
 - [ft2play](https://github.com/8bitbubsy/ft2play), also by Olav Sørensen: FastTracker 2's replayer
   and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
   Huss and Magnus Högdahl, of Triton.
+- [st3play](https://github.com/8bitbubsy/st3play), also by Olav Sørensen: Scream Tracker 3's replayer,
+  its Gravis Ultrasound driver and Sound Blaster mixing, and the emulation of the GUS's sound chip.
+  Scream Tracker 3 is by Sami Tammilehto (Psi) of Future Crew.
 - The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
   by Axe of Delight.
 - [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.
