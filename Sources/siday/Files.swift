@@ -34,7 +34,45 @@ struct TuneFiles: Sendable {
         if format == .sid {
             options.songLengths = SongLengthFiles.find(explicitPath: songLengthsPath, near: url)
         }
+        if format == .rol {
+            options.adLibBanks = BankFiles.find(for: url)
+        }
         return try TuneLoader.load([UInt8](data), format: format, path: url.standardizedFileURL.path, options: options)
+    }
+}
+
+/// AdLib instrument banks on disk, for ROL files. Each folder is looked through once and each bank read once.
+enum BankFiles {
+    private static let folders = Mutex<[String: [String: URL]]>([:])
+    private static let banks = Mutex<[String: AdLibBank]>([:])
+
+    /// The banks beside a ROL file: one of the tune's own name, and then `STANDARD.BNK`, in capitals
+    /// or small letters.
+    static func find(for tune: URL) -> [AdLibBank] {
+        let folder = tune.standardizedFileURL.deletingLastPathComponent()
+        let beside = folders.withLock { known -> [String: URL] in
+            if let listed = known[folder.path] { return listed }
+            var listed: [String: URL] = [:]
+            for file in (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+                where file.pathExtension.lowercased() == "bnk" {
+                listed[file.lastPathComponent.lowercased()] = file
+            }
+            known[folder.path] = listed
+            return listed
+        }
+        let own = tune.deletingPathExtension().lastPathComponent.lowercased() + ".bnk"
+        var found: [AdLibBank] = []
+        for name in own == "standard.bnk" ? [own] : [own, "standard.bnk"] {
+            guard let file = beside[name] else { continue }
+            if let read = banks.withLock({ $0[file.path] }) {
+                found.append(read)
+            } else if let data = try? Data(contentsOf: file) {
+                let read = AdLibBank([UInt8](data))
+                banks.withLock { $0[file.path] = read }
+                found.append(read)
+            }
+        }
+        return found
     }
 }
 

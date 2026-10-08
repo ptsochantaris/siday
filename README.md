@@ -4,8 +4,8 @@
 
 A player of chiptunes and tracker modules written entirely in Swift, in two forms: **a page that
 plays in your browser**, and a command-line player for macOS. Both are the same emulators underneath:
-of the sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the Commodore 64 and the Amiga,
-and of the trackers that played modules on them and on the PC.
+of the sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the Commodore 64, the Amiga and
+the PC's AdLib and Sound Blaster cards, and of the trackers that played modules on the Amiga and the PC.
 
 The name is the two families of sound chip it began with, SID and AY. How to pronounce it is left open.
 
@@ -31,6 +31,7 @@ siday ~/Music/chiptunes --shuffle
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo |
 | PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
+| AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
@@ -39,7 +40,7 @@ SNDH files tried, a handful do not start; the reference player does not start th
 A MOD file packed with XPK is not unpacked. An XM file written by a later tracker is played as
 FastTracker 2 would play it, which is not always what the tracker that wrote it meant. An IT file
 packed with MMCMP is not unpacked, and a sample that ModPlug Tracker packed its own way (ADPCM) is
-silent.
+silent. A ROL file that names an instrument no bank has is played with that instrument silent.
 
 ## In a browser
 
@@ -109,7 +110,7 @@ the spectrum analyser are applied as it is played, so a television can be put in
 any moment. Mono and stereo are what the chip makes, so a change between them renders the song again,
 which takes a moment, and it goes on from where it was. `SidayWeb` is the page itself, written in
 [ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
-chosen files and the audio graph. All told it is about 1.2 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that.
+chosen files and the audio graph. All told it is about 1.5 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that and the AdLib instruments some 120 kB.
 
 With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
 what they depend on for the Mac, which takes minutes the first time and is of no use.
@@ -177,6 +178,7 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 - When a new release comes out, `swift Scripts/pack-songlengths.swift <its Songlengths.md5> <its
   number>` rebuilds the table in `Sources/SidayKit/SIDFile/SongLengthsData.swift`, and
   `SIDAY_SONGLENGTHS=<that file> swift test` checks every entry of it against the file.
+- A CMF or ROL file ends where its music does, with a second after it for the last notes to die away.
 - Only a tune that is still playing at that point is faded out, since it would go on repeating. One
   that has come to rest there has an ending of its own and simply stops. An AY file that asks for a
   particular fade gets that one.
@@ -344,6 +346,47 @@ where it2play reads past the end of its three. And where it2play would read soun
 sample, which a few files lead it to do, there is silence. The filter is the one place where the web
 player and the Mac's do not agree to the last bit: each asks its own maths library for a power of two.
 
+A CMF file is a tune for the FM chip alone: its instruments, each the handful of numbers the chip
+wants for one, and the music as MIDI. It was Creative's format, and what played it was SBFMDRV,
+the driver on the disk that came with a Sound Blaster. That driver is what is here, by way of fmdrv's
+port of it to C, and it is a small and particular MIDI player: nine voices, or six and the chip's five
+drums when the tune asks for them; a key's speed worked into the instrument's own level; four
+controllers of its own, one of them to move a channel's pitch by fractions of a semitone; and no
+bending of pitch as MIDI has it, which it passes over. What it did oddly is done oddly here, since the
+tunes were written to how it sounded. The tune's clock is the PC's timer, and the timer and the chip
+ran off the one crystal, so a tick is a whole number of twenty-fourths of one of the chip's samples
+and the two are kept in step exactly. `siday --raw file.raw tune.cmf` writes the chip's own samples,
+at its own 49,716 a second, and they agree to the sample with fmdrv playing on Nuked OPL3: on all
+932 files to hand, from end to end.
+
+A ROL file is a piano roll from AdLib's Visual Composer, the program that came with the AdLib card:
+nine voices, or six and the drums, each a list of notes and, beside it, the times at which its
+instrument, its volume and its pitch change. It is played by AdLib's own sound driver, as AdPlug has
+it from the code AdLib gave programmers. A ROL file holds no sounds. It names its instruments, eight
+letters at most, and the sounds were in a bank file beside it: `STANDARD.BNK`, which came with the
+program and which people added to and passed on, or a bank of the tune's own. So an instrument is
+looked for in three places, and the first to have it wins:
+
+1. a bank with the tune's name beside it (`TUNE.BNK` for `TUNE.ROL`);
+2. `STANDARD.BNK` beside it;
+3. the bank built into the player.
+
+The built-in bank is what lets a ROL file be played by itself, and it is all the browser has to go
+on. It has 9,683 instruments: AdLib's own 145; some 1,200 more from a dozen enlarged banks that
+travelled with collections of ROL files; and the rest from the bank of IMPlay, a later player of the
+same kind of music, for the sake of the names. Banks do not always agree about a name. Where they
+differ, AdLib's bank has it, and after that the sound that most banks give it.
+`swift Scripts/pack-bank.swift` makes the table from bank files. Of 1,509 ROL files tried, 1,479 find
+every instrument there and 30 are left with one, two or three that no bank to hand has, which are
+silent; the tune's detail says how many. `siday --raw file.raw tune.rol` writes the chip's own
+samples, as for a CMF file, and they agree to the sample with AdPlug's ROL player on Nuked OPL3 given
+the same bank, on every one of those files. (AdPlug refuses a ROL file that has no bank beside it,
+and wants one bank to have everything.) A beat is played as sixty ticks at most however many the file
+gives it, as AdLib's driver had it, and tunes with more were written to that.
+
+Both are heard as the card put them out: one channel, through the filter on the card's board that
+kept its output centred, and brought from the chip's rate to the player's through a windowed sinc.
+
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
 gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
@@ -357,7 +400,9 @@ bounds-checked, so a corrupt file plays wrongly or is skipped but does not crash
 
 ## Licence and credits
 
-GNU General Public License, version 2 or (at your option) any later version; see `LICENSE`.
+GNU General Public License, version 2 or (at your option) any later version; see `LICENSE`. One part,
+the driver for CMF files, comes from work under the Apache License 2.0, which goes with version 3 of
+the GPL and not with version 2: the player as a whole is passed on under version 3 or later.
 
 This project stands on other people's work, most of all Sergey Bulba's Ay_Emul, Dag Lem's reSID,
 libsidplayfp and its reSIDfp (Leandro Nini, Antti Lankila, Simon White, Dag Lem), Peter Sovietov's ayumi
@@ -395,6 +440,13 @@ What it is made from:
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.
+- [fmdrv](https://github.com/viiri/fmdrv) by Sergei "x0r" Kolzun: SBFMDRV, the driver that played CMF
+  files on a Sound Blaster, ported by him to C from the driver itself. The driver and the CMF format
+  are Creative's.
+- [AdPlug](https://github.com/adplug/adplug) by Simon Peter and others: its player of ROL files, by
+  OPLx, and AdLib's sound driver as OPLx, Stas'M and Jepael have it there from the code AdLib gave
+  programmers. Visual Composer, the ROL format and the first bank of instruments are AdLib's; the
+  instruments built into the player are theirs and those of the many people who added to that bank.
 - The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
   by Axe of Delight.
 - [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.

@@ -119,6 +119,9 @@ public struct LoadOptions: Sendable {
     /// The sound card an S3M file is played on; nil for the one the file was saved with, where it
     /// says, and otherwise the Gravis Ultrasound.
     public var s3mCard: ST3Card?
+    /// The instrument banks found for a ROL file, which has no sounds of its own: the one to be asked
+    /// first first. What none of them has is looked for among the instruments that come with the player.
+    public var adLibBanks: [AdLibBank] = []
 
     public init() {}
 }
