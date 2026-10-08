@@ -75,7 +75,8 @@ struct AYToneChannel {
     var panRight = 0.5
 }
 
-/// One chip. It owns its buffers and frees them when it goes, so there is only ever the one of it.
+/// One chip. Its tables and its filters' memory are part of it, some 26 KB in all, so it is not to be
+/// copied: it is made once, where it will stay, and worked on there.
 struct AYChip: ~Copyable {
     var a = AYToneChannel(), b = AYToneChannel(), c = AYToneChannel()
     var noisePeriod = 1
@@ -86,23 +87,22 @@ struct AYChip: ~Copyable {
     var envelopeShape = 0
     var envelopeSegment = 0
     var envelope = 0
-    private(set) var registers: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
-        = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    private(set) var registers = InlineArray<14, UInt8>(repeating: 0)
 
     private let actionBits = envelopeActionBits
-    private let dac: UnsafeMutablePointer<Double>
-    private let fir: UnsafeMutablePointer<Double> // all 192 coefficients; the first is zero
+    private let dac: InlineArray<32, Double>
+    private let fir: InlineArray<192, Double> // all 192 coefficients; the first is zero
     private var step: Double
     private var x = 0.0
     private var cl0 = 0.0, cl1 = 0.0, cl2 = 0.0, yl0 = 0.0, yl1 = 0.0, yl2 = 0.0, yl3 = 0.0
     private var cr0 = 0.0, cr1 = 0.0, cr2 = 0.0, yr0 = 0.0, yr1 = 0.0, yr2 = 0.0, yr3 = 0.0
-    private let firLeft: UnsafeMutablePointer<Double>
-    private let firRight: UnsafeMutablePointer<Double>
+    private var firLeft = InlineArray<384, Double>(repeating: 0)
+    private var firRight = InlineArray<384, Double>(repeating: 0)
     private var firIndex = 0
     private var firBase = 0
     private var inner = 0
-    private let dcLeft: UnsafeMutablePointer<Double>
-    private let dcRight: UnsafeMutablePointer<Double>
+    private var dcLeft = InlineArray<1024, Double>(repeating: 0)
+    private var dcRight = InlineArray<1024, Double>(repeating: 0)
     private var dcSumLeft = 0.0, dcSumRight = 0.0
     private var dcIndex = 0
     var removeDC = true
@@ -114,31 +114,12 @@ struct AYChip: ~Copyable {
     let innerRate: Double
 
     init(type: AYChipType, clockHz: Double, sampleRate: Int, stereo: StereoLayout) {
-        dac = .allocate(capacity: 32)
         let table = type == .ym ? ymDAC : ayDAC
-        for i in 0 ..< 32 { dac[i] = table[i] }
-        fir = .allocate(capacity: ayFIRSize)
-        for i in 0 ..< ayFIRSize { fir[i] = ayFIRHalf[i <= 96 ? i : ayFIRSize - i] }
-        firLeft = .allocate(capacity: ayFIRSize * 2)
-        firLeft.initialize(repeating: 0, count: ayFIRSize * 2)
-        firRight = .allocate(capacity: ayFIRSize * 2)
-        firRight.initialize(repeating: 0, count: ayFIRSize * 2)
-        dcLeft = .allocate(capacity: dcFilterSize)
-        dcLeft.initialize(repeating: 0, count: dcFilterSize)
-        dcRight = .allocate(capacity: dcFilterSize)
-        dcRight.initialize(repeating: 0, count: dcFilterSize)
+        dac = InlineArray { table[$0] }
+        fir = InlineArray { ayFIRHalf[$0 <= 96 ? $0 : ayFIRSize - $0] }
         innerRate = Double(sampleRate * ayDecimate)
         step = clockHz / (Double(sampleRate) * 8 * Double(ayDecimate))
         setStereo(stereo)
-    }
-
-    deinit {
-        dac.deallocate()
-        fir.deallocate()
-        firLeft.deallocate()
-        firRight.deallocate()
-        dcLeft.deallocate()
-        dcRight.deallocate()
     }
 
     private mutating func setStereo(_ layout: StereoLayout) {
@@ -164,14 +145,16 @@ struct AYChip: ~Copyable {
         a.tone = 0; b.tone = 0; c.tone = 0
     }
 
-    func read(_ reg: Int) -> UInt8 {
-        withUnsafeBytes(of: registers) { $0[reg & 15 < 14 ? reg & 15 : 0] }
+    // Inlined, like `tonePeriod` below: called out of line, a method that only reads the chip is
+    // handed a copy of all of it.
+    @inline(__always) func read(_ reg: Int) -> UInt8 {
+        registers[reg & 15 < 14 ? reg & 15 : 0]
     }
 
     mutating func write(_ reg: Int, _ value: UInt8) {
         let r = reg & 15
         guard r < 14 else { return }
-        withUnsafeMutableBytes(of: &registers) { $0[r] = value }
+        registers[r] = value
         let v = Int(value)
         switch r {
         case 0, 1: a.period = tonePeriod(0)
@@ -197,7 +180,7 @@ struct AYChip: ~Copyable {
         }
     }
 
-    private func tonePeriod(_ r: Int) -> Int {
+    @inline(__always) private func tonePeriod(_ r: Int) -> Int {
         let p = (Int(read(r)) | Int(read(r + 1)) << 8) & 0xFFF
         return p == 0 ? 1 : p
     }
@@ -255,7 +238,7 @@ struct AYChip: ~Copyable {
         let outA = (0 &- ((Self.tone(&a) | a.toneOff) & (n | a.noiseOff))) & (a.envelopeOn ? e : a.volume &* 2 &+ 1)
         let outB = (0 &- ((Self.tone(&b) | b.toneOff) & (n | b.noiseOff))) & (b.envelopeOn ? e : b.volume &* 2 &+ 1)
         let outC = (0 &- ((Self.tone(&c) | c.toneOff) & (n | c.noiseOff))) & (c.envelopeOn ? e : c.volume &* 2 &+ 1)
-        let levelA = dac[outA], levelB = dac[outB], levelC = dac[outC]
+        let levelA = dac[unchecked: outA], levelB = dac[unchecked: outB], levelC = dac[unchecked: outC]
         let left = levelA * a.panLeft + levelB * b.panLeft + levelC * c.panLeft
         if mono { return (left, left) }
         return (left, levelA * a.panRight + levelB * b.panRight + levelC * c.panRight)
@@ -286,8 +269,8 @@ struct AYChip: ~Copyable {
             }
         }
         let slot = firBase &+ (ayDecimate - 1 &- inner)
-        firLeft[slot] = (cl2 * x + cl1) * x + cl0 + extra
-        if !mono { firRight[slot] = (cr2 * x + cr1) * x + cr0 + extra }
+        firLeft[unchecked: slot] = (cl2 * x + cl1) * x + cl0 + extra
+        if !mono { firRight[unchecked: slot] = (cr2 * x + cr1) * x + cr0 + extra }
         inner &+= 1
         if inner == ayDecimate {
             inner = 0
@@ -296,43 +279,50 @@ struct AYChip: ~Copyable {
         return false
     }
 
-    @inline(__always) private func decimate(_ buf: UnsafeMutablePointer<Double>) -> Double {
+    /// The taps come as a span of the chip's own, and not as the array: an array handed over beside the
+    /// history it is used on is copied first, every time.
+    @inline(__always) private static func decimate(_ history: inout InlineArray<384, Double>, from base: Int, taps: RawSpan) -> Double {
         // Eight doubles at a time into two running sums, so the additions are sixteen short chains
         // side by side and not one long one.
-        let taps = UnsafeRawPointer(fir), input = UnsafeRawPointer(buf)
         let width = MemoryLayout<SIMD8<Double>>.size
+        let start = base &* MemoryLayout<Double>.size
         var even = SIMD8<Double>.zero, odd = SIMD8<Double>.zero
-        var offset = 0
-        while offset < ayFIRSize * MemoryLayout<Double>.size {
-            even += taps.loadUnaligned(fromByteOffset: offset, as: SIMD8<Double>.self)
-                * input.loadUnaligned(fromByteOffset: offset, as: SIMD8<Double>.self)
-            odd += taps.loadUnaligned(fromByteOffset: offset + width, as: SIMD8<Double>.self)
-                * input.loadUnaligned(fromByteOffset: offset + width, as: SIMD8<Double>.self)
-            offset += width * 2
+        do {
+            let input = history.span.bytes
+            var offset = 0
+            while offset < ayFIRSize * MemoryLayout<Double>.size {
+                even += taps.unsafeLoadUnaligned(fromUncheckedByteOffset: offset, as: SIMD8<Double>.self)
+                    * input.unsafeLoadUnaligned(fromUncheckedByteOffset: start &+ offset, as: SIMD8<Double>.self)
+                odd += taps.unsafeLoadUnaligned(fromUncheckedByteOffset: offset &+ width, as: SIMD8<Double>.self)
+                    * input.unsafeLoadUnaligned(fromUncheckedByteOffset: start &+ offset &+ width, as: SIMD8<Double>.self)
+                offset &+= width &* 2
+            }
         }
-        (buf + (ayFIRSize - ayDecimate)).update(from: buf, count: ayDecimate)
+        for i in 0 ..< ayDecimate {
+            history[unchecked: base &+ ayFIRSize &- ayDecimate &+ i] = history[unchecked: base &+ i]
+        }
         return (even + odd).sum()
     }
 
     /// Output of the sample completed by the last `innerStep`.
     @inline(__always) mutating func finishSample() -> (Double, Double) {
-        var left = decimate(firLeft + firBase)
+        var left = Self.decimate(&firLeft, from: firBase, taps: fir.span.bytes)
         if mono {
             if removeDC {
-                dcSumLeft += left - dcLeft[dcIndex]
-                dcLeft[dcIndex] = left
+                dcSumLeft += left - dcLeft[unchecked: dcIndex]
+                dcLeft[unchecked: dcIndex] = left
                 left -= dcSumLeft / Double(dcFilterSize)
                 dcIndex = (dcIndex + 1) & (dcFilterSize - 1)
             }
             return (left, left)
         }
-        var right = decimate(firRight + firBase)
+        var right = Self.decimate(&firRight, from: firBase, taps: fir.span.bytes)
         if removeDC {
-            dcSumLeft += left - dcLeft[dcIndex]
-            dcLeft[dcIndex] = left
+            dcSumLeft += left - dcLeft[unchecked: dcIndex]
+            dcLeft[unchecked: dcIndex] = left
             left -= dcSumLeft / Double(dcFilterSize)
-            dcSumRight += right - dcRight[dcIndex]
-            dcRight[dcIndex] = right
+            dcSumRight += right - dcRight[unchecked: dcIndex]
+            dcRight[unchecked: dcIndex] = right
             right -= dcSumRight / Double(dcFilterSize)
             dcIndex = (dcIndex + 1) & (dcFilterSize - 1)
         }

@@ -72,6 +72,8 @@ struct MFP: ~Copyable {
     }
 
     private let hostRate: UInt32
+    // Kept outside the chip, where the other chips have theirs inline: with these 256 bytes inside it,
+    // every tick of a timer, five to a sample, was checked for exclusive access (SNDH 5% slower).
     private let registers: UnsafeMutablePointer<UInt8>
     private var timers = (Timer(), Timer(), Timer(), Timer(), Timer())
 

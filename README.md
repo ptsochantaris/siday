@@ -108,7 +108,7 @@ what they depend on for the Mac, which takes minutes the first time and is of no
 
 ## On the command line
 
-`siday` is the player for the terminal, on macOS. To build it:
+`siday` is the player for the terminal, on macOS 26 or later. To build it:
 
 ```
 swift build -c release --product siday

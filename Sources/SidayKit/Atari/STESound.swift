@@ -11,7 +11,7 @@ struct STESound: ~Copyable {
     static let fullRate: UInt32 = 50066
 
     private let hostRate: UInt32
-    private let registers: UnsafeMutablePointer<UInt8>
+    private var registers = InlineArray<256, UInt8>(repeating: 0)
     private var position: UInt32 = 0
     private var end: UInt32 = 0
     private var innerClock: UInt32 = 0
@@ -27,16 +27,11 @@ struct STESound: ~Copyable {
 
     init(hostRate: Int) {
         self.hostRate = UInt32(hostRate)
-        registers = .allocate(capacity: 256)
         reset()
     }
 
-    deinit {
-        registers.deallocate()
-    }
-
     mutating func reset() {
-        registers.initialize(repeating: 0, count: 256)
+        registers = InlineArray(repeating: 0)
         position = 0
         innerClock = 0
         serialMask = 0

@@ -55,7 +55,7 @@ final class AYMachine: Z80Bus {
     private(set) var beeperOn = false
     private(set) var beeperChanges = 0
     /// Register values as a program reads them back, masked the way Ay_Emul stores them.
-    let registers: UnsafeMutablePointer<UInt8>
+    private(set) var registers = InlineArray<16, UInt8>(repeating: 0)
     let events: UnsafeMutablePointer<AYPortEvent>
     private let capacity: Int
     var eventCount = 0
@@ -66,13 +66,10 @@ final class AYMachine: Z80Bus {
         capacity = eventCapacity
         events = .allocate(capacity: eventCapacity)
         events.initialize(repeating: AYPortEvent(tstate: 0, register: 0, value: 0), count: eventCapacity)
-        registers = .allocate(capacity: 16)
-        registers.initialize(repeating: 0, count: 16)
     }
 
     deinit {
         events.deallocate()
-        registers.deallocate()
     }
 
     func reset() {
@@ -82,7 +79,7 @@ final class AYMachine: Z80Bus {
         cpcControl = 0
         beeperOn = false
         beeperChanges = 0
-        registers.update(repeating: 0, count: 16)
+        registers = InlineArray(repeating: 0)
         eventCount = 0
         frame = 0
     }

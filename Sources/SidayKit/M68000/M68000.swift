@@ -36,7 +36,7 @@ public enum M68000Stop: Equatable, Sendable {
 
 public struct M68000<Bus: M68000Bus>: ~Copyable {
     /// D0 to D7, then A0 to A7. A7 is the stack pointer of the mode the processor is in.
-    public let registers: UnsafeMutablePointer<UInt32>
+    public var registers = InlineArray<16, UInt32>(repeating: 0)
     public var pc: UInt32 = 0
     private var x = false, n = false, z = false, v = false, c = false
     private var supervisor = true
@@ -54,15 +54,9 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
 
     /// - Parameter ram: the memory at address 0, `ramSize` bytes of it. Everything above is the bus's.
     public init(ram: UnsafeMutablePointer<UInt8>, ramSize: Int, bus: Bus) {
-        registers = .allocate(capacity: 16)
-        registers.initialize(repeating: 0, count: 16)
         self.ram = ram
         self.ramSize = UInt32(ramSize)
         self.bus = bus
-    }
-
-    deinit {
-        registers.deallocate()
     }
 
     // MARK: Memory
@@ -186,7 +180,7 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
     /// Puts the processor as it is when the power comes on: every register empty. (The zero flag is
     /// set, which is how the reference player's processor starts, and a tune can tell.)
     public mutating func powerOn() {
-        registers.initialize(repeating: 0, count: 16)
+        registers = InlineArray(repeating: 0)
         otherStack = 0
         pc = 0
         supervisor = true

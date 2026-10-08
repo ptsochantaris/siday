@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "siday",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v26)],
     products: [
         .library(name: "SidayKit", targets: ["SidayKit"]),
         .executable(name: "siday", targets: ["siday"]),
