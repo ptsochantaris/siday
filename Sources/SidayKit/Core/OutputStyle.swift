@@ -8,9 +8,10 @@
 public enum OutputStyle: String, Sendable, CaseIterable {
     /// Both speakers the same. The usual choice: many AY tunes layer the chip's three channels into one sound.
     case mono
-    /// The AY chip's three channels spread across the stereo field: A left, B centre, C right.
+    /// Stereo. A module is heard in its own; the AY chip's three channels are spread across the
+    /// stereo field, A left, B centre, C right.
     case abc
-    /// The same with B and C changed over: A left, C centre, B right.
+    /// The same, with the AY chip's B and C changed over: A left, C centre, B right.
     case acb
     /// Through the speaker of a small early-1980s portable television in a plastic case.
     case plastic
@@ -40,8 +41,8 @@ public enum OutputStyle: String, Sendable, CaseIterable {
     public var title: String {
         switch self {
         case .mono: "Mono"
-        case .abc: "ABC stereo"
-        case .acb: "ACB stereo"
+        case .abc: "Stereo"
+        case .acb: "Stereo (ACB)"
         case .plastic: "Plastic TV"
         case .wood: "Wooden TV"
         }

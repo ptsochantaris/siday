@@ -10,12 +10,13 @@ extension OutputStyle: ExpressibleByArgument {}
 extension AYChipType: ExpressibleByArgument {}
 extension SIDModelChoice: ExpressibleByArgument {}
 extension SIDEngineChoice: ExpressibleByArgument {}
+extension AmigaModel: ExpressibleByArgument {}
 
 @main
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes and Amiga modules from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -69,6 +70,12 @@ struct Siday: ParsableCommand {
 
     @Option(help: "Where the 6581's filter sits, from 0 (bright) to 1 (dark); real chips varied. residfp only.")
     var sidFilterCurve = 0.5
+
+    @Option(help: "Which Amiga a module is heard on: a1200, or a500 with its muffling filter.")
+    var amiga: AmigaModel = .a1200
+
+    @Option(help: "How far apart a module's left and right are kept, in percent. 100 is the Amiga's own, which is harsh in headphones.")
+    var amigaSeparation = 20.0
 
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
@@ -147,6 +154,8 @@ struct Siday: ParsableCommand {
         options.frameHz = frameRate
         options.sidModel = sidModel
         options.sidEngine = sidEngine
+        options.amigaModel = amiga
+        options.amigaSeparation = amigaSeparation / 100
         options.sidFilterCurve = sidFilterCurve
         return TuneFiles(options: options, songLengthsPath: songLengthsPath)
     }
@@ -263,8 +272,10 @@ struct Siday: ParsableCommand {
                 renderer = atari
             }
             if let atari = renderer as? any ReferenceComparable {
-                // The machine's own sixteen-bit output, one channel, as the reference player writes it.
+                // The machine's own sixteen-bit output as the reference player writes it: one channel, or
+                // for a module two.
                 if let subsong { renderer.select(subsong: subsong - 1) }
+                print("length \(renderer.knownLength.map { Int(($0 * Double(outputSampleRate)).rounded()) } ?? -1)")
                 try atari.renderRaw(frames: frames).withUnsafeBytes { Data($0) }.write(to: URL(fileURLWithPath: raw))
                 return
             }

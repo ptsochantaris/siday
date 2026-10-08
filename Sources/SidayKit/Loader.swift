@@ -3,7 +3,7 @@
 
 public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
-    case vtx, ym, ay, sid, sndh
+    case vtx, ym, ay, sid, sndh, mod
 
     /// The format a file name's extension stands for, in any case.
     public init?(fileExtension: String) {
@@ -43,6 +43,8 @@ public enum TuneLoader {
             return try SIDRenderer(data, path: path, options: options)
         case .sndh:
             return try SNDHRenderer(data, options: options)
+        case .mod:
+            return try MODRenderer(data, options: options)
         }
     }
 

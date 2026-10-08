@@ -2,11 +2,11 @@
 
 # siday
 
-A chiptune player written entirely in Swift, in two forms: **a page that plays in your browser**, and
-a command-line player for macOS. Both are the same emulators underneath: of the sound chips of the
-ZX Spectrum, the Amstrad CPC, the Atari ST and the Commodore 64.
+A player of chiptunes and Amiga modules written entirely in Swift, in two forms: **a page that plays
+in your browser**, and a command-line player for macOS. Both are the same emulators underneath: of the
+sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the Commodore 64 and the Amiga.
 
-The name is the two families of sound chip it plays, SID and AY. How to pronounce it is left open.
+The name is the two families of sound chip it began with, SID and AY. How to pronounce it is left open.
 
 **In a browser:** open **[ptsochantaris.github.io/siday](https://ptsochantaris.github.io/siday/)** and
 drop tunes or a whole folder on the page. Nothing is uploaded: they are played where they are. See
@@ -28,11 +28,14 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum and Amstrad CPC program rips | AY (ZXAYEMUL), including beeper music |
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
+| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
+A MOD file of more than four channels was made on a PC tracker and is not played yet, nor is one
+packed with XPK.
 
 ## In a browser
 
@@ -48,8 +51,9 @@ to WebAssembly.
 - SID tunes know their lengths: those of the High Voltage SID Collection are built in.
 - The list shows every tune that was added, however many, and can be searched.
 - It has a volume of its own, apart from the computer's, which it remembers.
-- One list chooses what a tune is heard through: mono, the AY chip's channels spread in stereo, or
-  the speaker of an early-1980s television. It is remembered too.
+- One list chooses what a tune is heard through: mono, stereo (a module's own, or the AY chip's
+  channels spread out, one way round or the other), or the speaker of an early-1980s television. It
+  is remembered too.
 - The keys are the command-line player's.
 
 Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
@@ -139,7 +143,9 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 | `--max-time m:ss` | Cap on any tune |
 | `--subsong n` / `--all-subsongs` | Start at song n / play every song of multi-song files |
 | `--chip ay\|ym`, `--clock Hz`, `--frame-rate Hz` | AY settings. Defaults: what the file says, otherwise an AY at 1773400 Hz and 50 Hz |
-| `--output mono\|abc\|acb\|plastic\|wood` | What the tune is heard through. Mono by default, because many AY tunes layer the chip's three channels into one sound; `abc` and `acb` spread them left, centre and right (a SID has a single output, so for a SID tune these are mono); `plastic` and `wood` are the speaker of an early-1980s television (see below), which is mono too |
+| `--output mono\|abc\|acb\|plastic\|wood` | What the tune is heard through. Mono by default, because many AY tunes layer the chip's three channels into one sound; `abc` and `acb` spread them left, centre and right (a SID has a single output, so for a SID tune these are mono, and a module has a stereo of its own, which these leave as it is); `plastic` and `wood` are the speaker of an early-1980s television (see below), which is mono too |
+| `--amiga-separation 0…100` | How far apart a module's left and right are kept, in percent (default 20). 100 is the Amiga's own hard left and right, which is harsh in headphones |
+| `--amiga a1200\|a500` | Which Amiga a module is heard on. The 1200 by default; the 500 has a low-pass filter at 4.4 kHz in the way, which is the darker sound much Amiga music was written on |
 | `--sid-model auto\|6581\|8580` | SID model (default: what the tune asks for) |
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, bright to dark (default 0.5). Real chips varied this much; reSIDfp only |
@@ -242,6 +248,22 @@ out: the chip's 250,000 steps a second come down to the output's rate through a 
 not a plain average, which keeps out tones that were never played. `siday --raw file.raw tune.sndh`
 writes the plain average, which is what agrees with AtariAudio to the sample.
 
+A module is played as ProTracker played it. The replayer is ProTracker 2.3D's, by way of pt2-clone's
+port of it to C, and keeps ProTracker's mistakes, because tunes were written by ear against them. What
+it would have told the Amiga's sound chip it tells an emulation of that chip, Paula: four voices
+reading eight-bit samples out of memory, each at a rate of its own. Paula is run at 96,000 samples a
+second, with each step in her output replaced by one that holds nothing above the range of hearing,
+then through the filters the Amiga has on its way to the socket, and then halved. Two of the voices
+are wired to the left and two to the right with nothing in between. Through loudspeakers a room mixes
+the two; in headphones nothing does, and it is harsh. So a module in stereo (`--output abc` or `acb`,
+which are the same thing to a module) has its two sides brought most of the way together, to a fifth
+of the Amiga's separation, which is what pt2-clone does unless told otherwise;
+`--amiga-separation 100` gives the Amiga's own, and mono or a television brings them together entirely. Files from other trackers of the family have the few effects they meant differently turned
+into ProTracker's as they are read. One effect is left out, as it is in pt2-clone: E8x, which filters
+a sample in place, because nearly every module that has it means something else by it. A tune ends
+where it would play a row it has played before. `siday --raw file.raw tune.mod` writes the tune as
+pt2-clone writes one to a file, sixteen bits with its dither, and the two agree to the sample.
+
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
 gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
@@ -276,6 +298,11 @@ What it is made from:
   of YM files as the ST played them. The YM format is his too. The table of
   how the ST mixes its chip's three channels was measured on the machine by Paulo Simões. The SNDH
   format is the work of the [SNDH archive](https://sndh.atari.org/) and those who keep it.
+- [pt2-clone](https://github.com/8bitbubsy/pt2-clone) by Olav Sørensen (8bitbubsy): the Amiga as a
+  module needs it. The replayer is his C port of ProTracker 2.3D's, and Paula, her filters and the
+  reading of modules are his too; the band-limited steps in Paula's output are by aciddose. ProTracker
+  itself is by Lars Hamre, Anders Hamre, Sven Vahsen and Rune Johnsrud, after Karsten Obarski's
+  Ultimate Soundtracker, where the module began.
 - The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
   by Axe of Delight.
 - [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.

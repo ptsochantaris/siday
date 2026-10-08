@@ -3,8 +3,9 @@
 //
 // Derived from AtariAudio, Copyright (c) Arnaud Carré, used under the MIT licence (see THIRD-PARTY.md).
 
-/// A player whose output can be had exactly as the reference player (AtariAudio) makes it, sixteen
-/// bits and one channel, for comparing the two.
+/// A player whose output can be had exactly as the player it is ported from makes it, in sixteen bits,
+/// for comparing the two: one channel for the Atari ST (AtariAudio), left and right in turn for a
+/// module (pt2-clone).
 public protocol ReferenceComparable {
     func renderRaw(frames: Int) -> [Int16]
 }

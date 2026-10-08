@@ -111,6 +111,11 @@ public struct LoadOptions: Sendable {
     /// Run an AY file's songs silently to find the lengths the file does not give. Off saves the time when
     /// lengths are not wanted.
     public var findsMissingLengths = true
+    /// Which Amiga a module is heard on.
+    public var amigaModel: AmigaModel = .a1200
+    /// How far apart the Amiga's two sides are kept, from 0 (together) to 1 (the Amiga's own, with
+    /// nothing in between, which is hard on the ears in headphones).
+    public var amigaSeparation = 0.2
 
     public init() {}
 }

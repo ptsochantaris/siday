@@ -37,6 +37,8 @@ final class WebPlayer {
     /// an AY tune has three channels to place, a SID tune has a single output, and an Atari ST joins
     /// its three into one.
     private var layout: StereoLayout?
+    /// True for a tune whose stereo is its own (a module's), which the choice of output only keeps or folds.
+    private var ownStereo = false
     private let block = UnsafeMutablePointer<Float>.allocate(capacity: WebPlayer.blockFrames * 2)
     private var blockLength = 0
     private var blockCursor = 0
@@ -62,6 +64,7 @@ final class WebPlayer {
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options)
             renderer = loaded
             layout = format == .sid || format == .sndh ? nil : options.stereo
+            ownStereo = format == .mod
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {
@@ -100,7 +103,8 @@ final class WebPlayer {
     func setOutput(_ style: OutputStyle) -> Bool {
         if style.television != television?.set { television = style.television.map { Television($0) } }
         options.stereo = style.stereo
-        return layout.map { $0 != style.stereo } ?? false
+        // A module has a stereo of its own, which only mono does away with.
+        return layout.map { ownStereo ? ($0 == .mono) != (style.stereo == .mono) : $0 != style.stereo } ?? false
     }
 
     /// What is about to be presented does not follow from what was presented last: the song has

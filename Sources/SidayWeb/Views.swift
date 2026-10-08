@@ -12,7 +12,7 @@ struct PlayerView {
         div(.class("page")) {
             header {
                 h1 { "siday" }
-                p(.class("tagline")) { "Chip music from the ZX Spectrum, Amstrad CPC, Atari ST and Commodore 64, played in your browser." }
+                p(.class("tagline")) { "Chip music and modules from the ZX Spectrum, Amstrad CPC, Atari ST, Commodore 64 and Amiga, played in your browser." }
             }
 
             NowPlaying(player: player)
@@ -107,7 +107,7 @@ struct NowPlaying {
                 // together at the far end, apart from the buttons that move through the tunes.
                 select(
                     .class("output"), .custom(name: "aria-label", value: "Output"),
-                    .title("What the tune is heard through: stereo spreads an AY chip's three channels, and a television is an early-1980s set's speaker")
+                    .title("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out, and a television is an early-1980s set's speaker")
                 ) {
                     ForEach(OutputStyle.allCases, key: { $0.rawValue }) { style in
                         option(.value(style.rawValue)) { style.title }
