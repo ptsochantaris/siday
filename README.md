@@ -30,14 +30,16 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo |
-| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels |
+| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
 A MOD file packed with XPK is not unpacked. An XM file written by a later tracker is played as
-FastTracker 2 would play it, which is not always what the tracker that wrote it meant.
+FastTracker 2 would play it, which is not always what the tracker that wrote it meant. An IT file
+packed with MMCMP is not unpacked, and a sample that ModPlug Tracker packed its own way (ADPCM) is
+silent.
 
 ## In a browser
 
@@ -313,6 +315,35 @@ a note let go and struck again in one tick is heard to be. The samples of a tune
 loud as in any other tune: st3play turns them down by a third at the card's first note, to leave room
 for it.
 
+An IT file is played as Impulse Tracker 2 played it, by way of it2play's port of its replayer: 64
+channels, each of which can have many notes sounding at once, since an instrument says what becomes
+of its note when the next one comes (cut, left to play on, released or faded), up to 256 voices in
+all; envelopes for volume, place and pitch; and a resonant low-pass filter worked by an envelope or
+by the Zxx effect. Pitch slides are worked out in whole numbers, as Impulse Tracker did before its
+last version, which few people had. The sound is not from one of Impulse Tracker's own drivers,
+which were written for the sound cards of the 1990s and cannot play a stereo sample, but from the
+driver it2play adds to them: it mixes in floating point, reads samples through an eight-point
+windowed sinc, ramps volumes so that notes do not click, and gives the filter the wider range
+ModPlug Tracker gave it where a file asks for that. Compressed samples are unpacked.
+`siday --raw file.raw tune.it` writes what it2play writes to a file, and the two agree to the sample.
+Impulse Tracker has room for 100 samples, 100 instruments and 200 patterns, and it2play refuses a
+file with more. Later trackers wrote such files, and they are played: up to 253 samples, 254
+instruments and 254 patterns, which is as many as the format's single bytes can number. (Impulse
+Tracker uses the numbers just past its hundredth sample to mean a note sent out by MIDI; for a file
+with more samples those meanings are moved to the top of the range.) There is no reference to check
+these against, since it2play does not play them.
+
+Four other things are done differently. The filters start open, as they do in Impulse Tracker's drivers:
+it2play leaves it to a line of the tracker's MIDI settings to open them, and a file that brings
+settings of its own with that line blank is played with every filter shut, muffled from end to end
+(the environment variable `SIDAY_REFERENCE_SLIPS` repeats that, for comparing the two). A sample that
+is said to begin at the very end of the file has no sound, where it2play gives up on the whole file:
+that is how ModPlug Tracker wrote an empty sample, in one file of twenty-five. A sample whose own
+vibrato has the "ramp up" wave, which OpenMPT added and Impulse Tracker has not got, gets that wave,
+where it2play reads past the end of its three. And where it2play would read sound from outside a
+sample, which a few files lead it to do, there is silence. The filter is the one place where the web
+player and the Mac's do not agree to the last bit: each asks its own maths library for a power of two.
+
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
 gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
@@ -358,6 +389,9 @@ What it is made from:
 - [st3play](https://github.com/8bitbubsy/st3play), also by Olav Sørensen: Scream Tracker 3's replayer,
   its Gravis Ultrasound driver, Sound Blaster mixing and AdLib driver, and the emulation of the GUS's
   sound chip. Scream Tracker 3 is by Sami Tammilehto (Psi) of Future Crew.
+- [it2play](https://github.com/8bitbubsy/it2play), also by Olav Sørensen: Impulse Tracker 2's
+  replayer, ported by him from the tracker's own assembly, the reading of IT files, and the sound
+  driver, which is his own. Impulse Tracker is by Jeffrey Lim.
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.
