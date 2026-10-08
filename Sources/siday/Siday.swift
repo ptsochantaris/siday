@@ -403,7 +403,12 @@ struct Siday: ParsableCommand {
                     let renderer = try loader.load(url)
                     let session = TuneSession(renderer: renderer, policy: policy)
                     let length = renderer.knownLength == nil ? "  ?  " : formatTime(session.displayLength).leftPadded(to: 5)
-                    let songs = renderer.subsongCount > 1 ? " [\(renderer.subsongCount) songs]" : ""
+                    var songs = renderer.subsongCount > 1 ? " [\(renderer.subsongCount) songs]" : ""
+                    if renderer.subsongCount > 1, policy.allSubsongs {
+                        // Asked for every song: how long each is, where that is known.
+                        let lengths = renderer.songs.map { $0.length.map { formatTime($0) } ?? "?" }
+                        songs = " [\(renderer.subsongCount) songs: \(lengths.joined(separator: " "))]"
+                    }
                     let text = describe(renderer.info)
                     line = "\(renderer.info.format.padding(toLength: 4, withPad: " ", startingAt: 0)) \(length)  \(text.isEmpty ? "" : text + "  ")\(url.path)\(songs)"
                 } catch {

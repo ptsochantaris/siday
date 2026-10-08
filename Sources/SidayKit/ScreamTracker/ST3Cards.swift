@@ -60,7 +60,7 @@ final class ST3Cards {
     private let wide: Bool
     private let stereo: Bool
 
-    private let sinc: UnsafeMutablePointer<Float>
+    let sinc: UnsafeMutablePointer<Float>
     private let bufferL: UnsafeMutablePointer<Float>, bufferR: UnsafeMutablePointer<Float>
     private var resamplingFrac: UInt64 = 0
     private let resamplingDelta: UInt64

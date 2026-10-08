@@ -12,12 +12,19 @@
 /// in the middle.
 public final class XMRenderer: Renderer, ReferenceComparable {
     public private(set) var info: TuneInfo
-    public private(set) var knownLength: Double?
     public private(set) var loopCount = 0
+    public var subsongCount: Int { songList.count }
+    public private(set) var currentSubsong = 0
+    public var defaultSubsong: Int { ModuleSongs.first(of: songList.map { $0.empty }) }
+    public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length) } }
+    public var knownLength: Double? { songList[currentSubsong].length }
     public var endsByLooping: Bool { true }
     public var hasEnded: Bool { player.stopped }
 
     private let module: FT2Module
+    private let songList: [ModuleSongs.Song]
+    /// Which song first played each row. See `ModuleSongs`.
+    private let firstPlayedBy: UnsafeMutablePointer<UInt8>
     private let mono: Bool
     private var player: FT2Player
     private var tickFrames = 0, tickPosition = 0
@@ -36,24 +43,40 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         info.detail = "FastTracker 2, \(module.song.antChn) channels"
         self.info = info
 
-        // Once through in silence, to find how long the tune is.
-        player = FT2Player(module)
-        var frames = 0, ticks = 0
-        while ticks < Self.mostTicks, !player.stopped {
-            if !player.runSilentTick() { break }
-            frames += Int(player.speedVal)
-            ticks += 1
+        // Once through each of its songs in silence, to find how long it is.
+        let module = module
+        let firstPlayedBy = UnsafeMutablePointer<UInt8>.allocate(capacity: FT2Player.rowsInAll)
+        firstPlayedBy.initialize(repeating: ModuleSongs.unplayed, count: FT2Player.rowsInAll)
+        self.firstPlayedBy = firstPlayedBy
+        songList = ModuleSongs.find(places: Int(module.song.len), isPattern: { _ in true }) { start, number in
+            let player = FT2Player(module, position: start, firstPlayedBy: firstPlayedBy, songNumber: number)
+            var frames = 0, ticks = 0
+            while ticks < Self.mostTicks, !player.stopped {
+                if !player.runSilentTick() { break }
+                frames += Int(player.speedVal)
+                ticks += 1
+            }
+            let length = ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
+            return ModuleSongs.Pass(played: player.ordersPlayed, length: length, sounded: player.playedNote,
+                                    ledIntoEarlierSong: player.ledIntoEarlierSong)
         }
-        knownLength = ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
         player = FT2Player(module)
+        currentSubsong = defaultSubsong
+        restart()
     }
 
-    public func select(subsong _: Int) {
+    deinit {
+        firstPlayedBy.deallocate()
+    }
+
+    public func select(subsong: Int) {
+        currentSubsong = max(0, min(songList.count - 1, subsong))
         restart()
     }
 
     private func restart() {
-        player = FT2Player(module)
+        let song = songList[currentSubsong]
+        player = FT2Player(module, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
         tickFrames = 0
         tickPosition = 0
         loopCount = 0

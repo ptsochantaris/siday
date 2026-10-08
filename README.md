@@ -30,14 +30,13 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo |
-| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro |
+| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
-A MOD file packed with XPK is not unpacked. The AdLib (FM) channels of an S3M file are not played, only
-its samples. An XM file written by a later tracker is played as
+A MOD file packed with XPK is not unpacked. An XM file written by a later tracker is played as
 FastTracker 2 would play it, which is not always what the tracker that wrote it meant.
 
 ## In a browser
@@ -181,6 +180,14 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
   particular fade gets that one.
 - Any tune that falls silent for five seconds ends early.
 - Multi-song AY and SID files play the song the file names as its first; `+` and `-` move between songs.
+- A module can hold several songs too: a game's music was often one file with a tune for every level,
+  each ending in a jump back to its own start. Whatever the list of patterns holds that playing from
+  its top never reaches is played from there as another song, and so on until nothing is left. A
+  song is over when it comes round to itself or runs into one found before it. A piece that only
+  leads into an earlier song is not counted unless it is half a minute long, nor one with no note in
+  it or shorter than a second; where the first song is such a nothing, the first real one is played.
+  `+` and `-` move between them, and `--list --all-subsongs` shows how long each is. Some of what
+  turns up is not a song but patterns the composer left behind after the end of the list.
 
 ### Through a television
 
@@ -285,10 +292,26 @@ smoothing, at 22 kHz in stereo with eight channels hard to each side. Both are h
 st3play's port of the tracker and its emulation of the cards. A file that Scream Tracker saved says
 which card it was saved with, and is played on that one; any other is played on the GUS, and
 `--s3m-card` asks for either. Scream Tracker's samples were eight bits and no longer than 64,000
-bytes; files from later trackers have sixteen-bit and longer ones, which are played as they stand.
+bytes; files from later trackers have sixteen-bit and longer ones, which are played as they stand,
+and samples tuned higher than Scream Tracker had room to write down, which are played at the pitch
+they say and not at the highest Scream Tracker could have given them.
 `siday --raw file.raw tune.s3m` writes what st3play writes to a file. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.
+
+Nine of Scream Tracker's channels were not samples at all but voices of an AdLib card, the FM
+synthesiser most PCs had before they had anything better, and there are S3M files that use them,
+most of those with no samples at all. Scream Tracker's driver for the card is ported with the rest of it, and the
+card's chip is an emulation of the Yamaha OPL3, a port of Nuked OPL3, which was worked out from the
+chip's own ROMs and circuits. The OPL3 is the chip of the later Sound Blasters, and plays what was
+written for the AdLib's own OPL2 as that did; it is here whole, with its drums, its four-operator
+voices and its second set of registers, none of which Scream Tracker used. st3play has an OPL2 of
+its own, so for these files the check is in two parts: the chip against Nuked OPL3 itself on streams
+of register writes, and the tune against st3play with Nuked OPL3 put in place of its chip. Both agree
+to the sample. Writes reach the chip no faster than a PC could make them, two samples apart, so that
+a note let go and struck again in one tick is heard to be. The samples of a tune with FM in it are as
+loud as in any other tune: st3play turns them down by a third at the card's first note, to leave room
+for it.
 
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
@@ -333,8 +356,11 @@ What it is made from:
   and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
   Huss and Magnus Högdahl, of Triton.
 - [st3play](https://github.com/8bitbubsy/st3play), also by Olav Sørensen: Scream Tracker 3's replayer,
-  its Gravis Ultrasound driver and Sound Blaster mixing, and the emulation of the GUS's sound chip.
-  Scream Tracker 3 is by Sami Tammilehto (Psi) of Future Crew.
+  its Gravis Ultrasound driver, Sound Blaster mixing and AdLib driver, and the emulation of the GUS's
+  sound chip. Scream Tracker 3 is by Sami Tammilehto (Psi) of Future Crew.
+- [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
+  the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
+  chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.
 - The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
   by Axe of Delight.
 - [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.

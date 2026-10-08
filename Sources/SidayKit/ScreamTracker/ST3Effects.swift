@@ -169,6 +169,7 @@ extension ST3Player {
     }
 
     private func s_volslide(_ ch: ST3Channel) {
+        ch.addherzretrigvol = 1
         getLastNfo(ch)
         let infohi = Int(ch.info >> 4), infolo = Int(ch.info & 0x0F)
         var avol = Int(ch.avol)
@@ -359,7 +360,7 @@ extension ST3Player {
         case 0x2:
             // Meant to retune the note. In Scream Tracker 3.21 the note stays as it is, and only the
             // rate the channel reckons with is changed, which slides and later notes then go by.
-            ch.ac2spd = st3FineTuneAmiga[Int(value)]
+            ch.ac2spd = UInt32(st3FineTuneAmiga[Int(value)])
         case 0x3: ch.avibtretype = (ch.avibtretype & 0xF0) | ((ch.info << 1) & 0x0F)
         case 0x4: ch.avibtretype = ((ch.info << 5) & 0xF0) | (ch.avibtretype & 0x0F)
         case 0x8:

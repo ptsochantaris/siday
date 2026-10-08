@@ -14,7 +14,10 @@ final class ST3Channel {
     var avibtretype: UInt8 = 0, note: UInt8 = 0, ins: UInt8 = 0, vol: UInt8 = 0, cmd: UInt8 = 0, info: UInt8 = 0
     var lastins: UInt8 = 0, lastnote: UInt8 = 0, alastnfo: UInt8 = 0, alasteff: UInt8 = 0, alasteff1: UInt8 = 0
     var avibcnt: Int16 = 0, asldspd: Int16 = 0, aspd: Int16 = 0, aorgspd: Int16 = 0
-    var astartoffset: UInt16 = 0, astartoffset00: UInt16 = 0, ac2spd: UInt16 = 0
+    var astartoffset: UInt16 = 0, astartoffset00: UInt16 = 0
+    /// The rate its instrument plays C-4 at. Sixteen bits in Scream Tracker; trackers after it wrote
+    /// higher rates into S3M files, which are kept whole here.
+    var ac2spd: UInt32 = 0
     // For the mixer and the GUS.
     var amixtype: Int8 = 0, aguschannel: Int8 = 0
     var apanpos: UInt8 = 0
@@ -22,6 +25,10 @@ final class ST3Channel {
     var m_base = -1
     var m_vol: UInt8 = 0, m_oldvol: UInt8 = 0
     var m_pos: UInt32 = 0, m_poslow: UInt32 = 0, m_oldpos: UInt32 = 0, m_end: UInt32 = 0, m_loop: UInt32 = 0, m_speed: UInt32 = 0
+    // For the AdLib card: the instrument its voice was last given, whether its note is to be struck
+    // again and its level set again, and its pitch in hertz.
+    var lastadlins: UInt8 = 101, addherzretrig: UInt8 = 0, addherzretrigvol: UInt8 = 0
+    var addherzlo: UInt16 = 0, addherzhi: UInt16 = 0
 
     init(_ number: Int) {
         channelnum = UInt8(number)
@@ -55,6 +62,9 @@ public final class ST3Player {
     let card: ST3Card
     let zchn: [ST3Channel]
     let cards: ST3Cards
+    let adlib: ST3AdLib
+    /// True once the AdLib card has been given an instrument of its own: it is mixed in from then on.
+    private(set) var adlibused: Bool
 
     var oldstvib = false, fastvolslide = false, amigalimits = false, stereomode = false
     var np_patseg: [UInt8]?
@@ -74,12 +84,37 @@ public final class ST3Player {
     // Coming round: which rows have been played.
     private let visited: UnsafeMutablePointer<Bool>
     private(set) var cameRound = false
+    /// Which places in the list of patterns have been played, and whether a note has been.
+    private(set) var ordersPlayed = [Bool](repeating: false, count: 256)
+    private(set) var playedNote = false
+    /// Which of the file's songs first played each row, shared between them and not this player's
+    /// to free, and which song this is. See `ModuleSongs`.
+    private let firstPlayedBy: UnsafeMutablePointer<UInt8>?
+    private let songNumber: UInt8
+    private var metEarlierSong = false
+    /// True if this song went on into a row that a song before it played, other than by running off
+    /// the end of the list of patterns and starting at its top again.
+    private(set) var ledIntoEarlierSong = false
+    private var offTheEnd = false
+    /// How many rows the table of who played a row first has: 64 for each of 256 places.
+    static let rowsInAll = 256 * 64
     /// True for a module with no pattern to play.
     var silent: Bool { np_pat == 255 }
 
-    init(_ module: ST3Module, card: ST3Card) {
+    /// - Parameters:
+    ///   - order: where in the list of patterns to start.
+    ///   - adlib: whether the AdLib card is taken to be playing from the start, and not from its
+    ///     first note.
+    ///   - firstPlayedBy: for a file of several songs, which of them first played each row.
+    ///   - songNumber: which of them this is.
+    init(_ module: ST3Module, card: ST3Card, order: Int = 0, adlib: Bool = false, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil,
+         songNumber: UInt8 = 0) {
+        self.firstPlayedBy = firstPlayedBy
+        self.songNumber = songNumber
         self.module = module
         self.card = card
+        self.adlib = ST3AdLib(module: module)
+        adlibused = adlib
         zchn = (0 ..< Self.ACHANNELS).map { ST3Channel($0) }
         visited = .allocate(capacity: 256 * 64)
         visited.initialize(repeating: false, count: 256 * 64)
@@ -117,7 +152,7 @@ public final class ST3Player {
         for i in 0 ..< 32 where module.defaultpan[i] & 32 != 0 {
             zchn[i].apanpos = 0xF0 | (module.defaultpan[i] & 0xF) // the top part says the channel has a place set
         }
-        np_ord = 0
+        np_ord = Int16(max(0, min(ST3Module.mostOrders - 1, order)))
         _ = neworder()
         musiccount = 0
     }
@@ -147,9 +182,10 @@ public final class ST3Player {
 
     /// For a slide that goes by semitones: the rate of the note nearest a rate.
     func roundspd(_ ch: ST3Channel, _ spd: UInt16) -> UInt16 {
-        var newspd = UInt32(spd) &* UInt32(ch.ac2spd)
-        if newspd >> 16 >= Self.C2FREQ { return spd }
-        newspd /= Self.C2FREQ
+        // (The tests before the divisions are for what a sixteen-bit division cannot hold.)
+        let scaled = UInt64(spd) * UInt64(ch.ac2spd)
+        if scaled >> 16 >= UInt64(Self.C2FREQ) { return spd }
+        var newspd = UInt32(scaled) / Self.C2FREQ
 
         var octa: Int8 = 0
         var lastspd = UInt16(truncatingIfNeeded: (Int(st3NoteSpd[12]) + Int(st3NoteSpd[11])) >> 1)
@@ -171,15 +207,15 @@ public final class ST3Player {
             }
         }
         newspd = UInt32(stnote2herz(UInt8(truncatingIfNeeded: (Int(octa) << 4) | (Int(newnote) & 0x0F)))) &* Self.C2FREQ
-        if newspd >> 16 >= UInt32(ch.ac2spd) { return spd }
-        newspd /= UInt32(ch.ac2spd)
+        if newspd >> 16 >= ch.ac2spd { return spd }
+        newspd /= ch.ac2spd
         return UInt16(truncatingIfNeeded: newspd)
     }
 
     func scalec2spd(_ ch: ST3Channel, _ spd: UInt16) -> UInt16 {
         var tmpspd = UInt32(spd) &* Self.C2FREQ
-        if tmpspd >> 16 >= UInt32(ch.ac2spd) { return 32767 }
-        tmpspd /= UInt32(ch.ac2spd)
+        if tmpspd >> 16 >= ch.ac2spd { return 32767 }
+        tmpspd /= ch.ac2spd
         return UInt16(min(32767, tmpspd))
     }
 
@@ -197,6 +233,8 @@ public final class ST3Player {
         }
         if tmpspd == 0 {
             ch.m_speed = 0
+            ch.addherzretrig = 254
+            ch.addherzhi &= 32767
             return
         }
         if tmpspd < aspdmin {
@@ -215,6 +253,8 @@ public final class ST3Player {
                 ch.m_speed = (quotient << 16) | ((remainder << 16) / mixing)
             }
         }
+        ch.addherzhi = UInt16(truncatingIfNeeded: hz >> 16)
+        ch.addherzlo = UInt16(truncatingIfNeeded: hz)
     }
 
     func setvol(_ ch: ST3Channel) {
@@ -241,6 +281,7 @@ public final class ST3Player {
             if card == .gus { cards.gusUpdate(ch, stereo: stereomode) }
         }
         if card == .gus { cards.gusTrigger() }
+        if adlibused { adlib.updateadlib(zchn) }
     }
 
     func dorow() {
@@ -296,6 +337,7 @@ public final class ST3Player {
                 continue
             }
             if patt == 255 {
+                offTheEnd = true
                 np_ord = 0
                 if module.order[0] == 255 { return 0 }
                 continue
@@ -319,8 +361,17 @@ public final class ST3Player {
         if visited[at] {
             cameRound = true
             visited.update(repeating: false, count: 256 * 64)
+        } else if let firstPlayedBy, !metEarlierSong, firstPlayedBy[at] < songNumber {
+            // Into what a song before this one played: this one is over, the once.
+            cameRound = true
+            metEarlierSong = true
+            ledIntoEarlierSong = !offTheEnd
+            visited.update(repeating: false, count: 256 * 64)
         }
+        offTheEnd = false
         visited[at] = true
+        if let firstPlayedBy, firstPlayedBy[at] == ModuleSongs.unplayed { firstPlayedBy[at] = songNumber }
+        ordersPlayed[Int(np_ord) - 1] = true
     }
 
     /// A loop inside a pattern goes back: the rows it plays again have not been played for the last time.
@@ -415,6 +466,7 @@ public final class ST3Player {
         while true {
             let channel = getnote1()
             if channel == 255 { break }
+            if zchn[Int(channel) % Self.ACHANNELS].note < 254 { playedNote = true }
             donewnote(channel, false)
         }
     }
@@ -430,8 +482,67 @@ public final class ST3Player {
         }
         if ch.ins > 101 { ch.ins = 0 }
         if ch.vol != 255, ch.vol > 63 { ch.vol = 63 }
-        // Channels beyond the sixteenth are the AdLib card's, which is not played.
-        if ch.channelnum <= 15 { doamiga(ch) }
+        // The nine channels after the sixteenth are the AdLib card's voices. (Those after them were
+        // to be its drums, which Scream Tracker never played.)
+        if ch.channelnum <= 15 {
+            doamiga(ch)
+        } else if ch.channelnum <= 16 + 8 {
+            doadlib(ch, Int(ch.channelnum) - 16)
+        }
+    }
+
+    /// A new note, instrument or volume on a channel of the AdLib card's.
+    private func doadlib(_ ch: ST3Channel, _ adLibCh: Int) {
+        // (The player this is ported from takes the card to be playing from here on, whatever the
+        // channel is given: a sample will do, though the card cannot play one.)
+        if Self.repeatsReferenceSlips { adlibused = true }
+
+        if ch.ins != 0 {
+            ch.addherzretrigvol = 1 // for the instrument's own volume to be noticed
+            if ch.ins < ST3Module.mostInstruments {
+                var reloadIns = false
+                if ch.ins != ch.lastadlins {
+                    ch.lastadlins = ch.ins
+                    reloadIns = true
+                }
+                let ins = module.ins[Int(ch.ins) - 1]
+                if ins.type != 2 {
+                    ch.lastadlins = 0
+                    return
+                }
+                adlibused = true
+                // (Scream Tracker keeps sixteen bits of this.)
+                var c2spd = Self.repeatsReferenceSlips ? ins.c2spd & 0xFFFF : ins.c2spd
+                if c2spd < 1000 { c2spd = Self.C2FREQ }
+                ch.ac2spd = c2spd
+                ch.avol = Int8(bitPattern: ins.vol)
+                setvol(ch)
+                if reloadIns { adlib.adlibloadins(adLibCh, ins) }
+            }
+        }
+
+        if ch.note != 255 {
+            if ch.cmd != 7, ch.note != 254 { ch.addherzretrig = 1 } // struck again, unless it is sliding
+            ch.lastnote = ch.note
+            // Sliding to a note went wrong on this card in every Scream Tracker after 3.01, and
+            // OpenMPT, having found that out, has done the same since its version 1.31.
+            let brokenPortamentos = (module.cwtv > 0x1301 && module.cwtv <= 0x1320) || (module.cwtv >= 0x5131 && module.cwtv <= 0x5FFF)
+            let spd = Int16(bitPattern: scalec2spd(ch, stnote2herz(ch.note)))
+            if ch.cmd != 7 {
+                ch.aspd = spd
+                setspd(ch)
+                if !brokenPortamentos { ch.aorgspd = spd }
+            }
+            if brokenPortamentos { ch.aorgspd = spd }
+            ch.asldspd = spd
+        }
+
+        if ch.vol != 255 {
+            ch.avol = Int8(bitPattern: min(63, ch.vol))
+            ch.aorgvol = ch.avol
+            ch.addherzretrigvol = 1
+            setvol(ch)
+        }
     }
 
     /// A new note, instrument or volume on a channel of samples.
@@ -442,7 +553,7 @@ public final class ST3Player {
                 ch.lastins = ch.ins
                 let ins = module.ins[Int(ch.ins) - 1]
                 if ins.type == 1 {
-                    ch.ac2spd = UInt16(truncatingIfNeeded: ins.c2spd)
+                    ch.ac2spd = ins.c2spd
                     ch.avol = max(0, min(63, Int8(bitPattern: ins.vol)))
                     ch.aorgvol = ch.avol
                     setvol(ch)

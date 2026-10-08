@@ -52,12 +52,38 @@ final class FT2Player {
     private let visited: UnsafeMutablePointer<Bool>
     /// True when the tick just run began a row that has been played before.
     private(set) var cameRound = false
+    /// Which places in the list of patterns have been played, and whether a note has been.
+    private(set) var ordersPlayed = [Bool](repeating: false, count: 256)
+    var playedNote = false
+    /// Which of the file's songs first played each row, shared between them and not this player's
+    /// to free, and which song this is. See `ModuleSongs`.
+    private let firstPlayedBy: UnsafeMutablePointer<UInt8>?
+    private let songNumber: UInt8
+    private var metEarlierSong = false
+    /// True if this song went on into a row that a song before it played, other than by running off
+    /// the end of the list of patterns and starting again where the file says to.
+    private(set) var ledIntoEarlierSong = false
+    var offTheEnd = false
+    /// How many rows the table of who played a row first has: 256 for each of 256 places.
+    static let rowsInAll = 256 * 256
     /// True once the song has stopped itself, with a speed of nothing.
     var stopped: Bool { song.tempo == 0 }
 
-    init(_ module: FT2Module) {
+    /// - Parameters:
+    ///   - position: where in the list of patterns to start.
+    ///   - firstPlayedBy: for a file of several songs, which of them first played each row.
+    ///   - songNumber: which of them this is.
+    init(_ module: FT2Module, position: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0) {
+        self.firstPlayedBy = firstPlayedBy
+        self.songNumber = songNumber
         self.module = module
         song = module.song
+        if position > 0, position < Int(song.len) {
+            song.songPos = Int16(position)
+            song.pattNr = Int16(song.songTab[position & 0xFF])
+            song.pattLen = Int16(bitPattern: module.pattLens[Int(UInt8(truncatingIfNeeded: song.pattNr))])
+            song.pattPos = 0
+        }
         instr = module.instr
         linearFrqTab = module.linearFrqTab
         let placeholder = module.instr[0]!
@@ -111,8 +137,17 @@ final class FT2Player {
         if visited[at] {
             cameRound = true
             visited.update(repeating: false, count: 256 * 256)
+        } else if let firstPlayedBy, !metEarlierSong, firstPlayedBy[at] < songNumber {
+            // Into what a song before this one played: this one is over, the once.
+            cameRound = true
+            metEarlierSong = true
+            ledIntoEarlierSong = !offTheEnd
+            visited.update(repeating: false, count: 256 * 256)
         }
+        offTheEnd = false
         visited[at] = true
+        if let firstPlayedBy, firstPlayedBy[at] == ModuleSongs.unplayed { firstPlayedBy[at] = songNumber }
+        ordersPlayed[at >> 8] = true
     }
 
     /// A loop inside a pattern goes back: the rows it plays again have not been played for the last time.

@@ -10,7 +10,7 @@
 /// after it wrote S3M files with sixteen-bit samples and longer ones, so every sample is held here in
 /// sixteen bits, and a file with a long sample is marked as one Scream Tracker could not have made.
 final class ST3Module {
-    /// An instrument that is a sample. (The other kind, a voice of the AdLib card's, is not played.)
+    /// An instrument: a sample, or a voice of the AdLib card's.
     struct Instrument {
         var type: UInt8 = 0
         var length: UInt32 = 0, lbeg: UInt32 = 0, lend: UInt32 = 0
@@ -21,6 +21,8 @@ final class ST3Module {
         var lend512: UInt16 = 0
         /// Where its sample is in `samples`; -1 if it has none.
         var baseptr = -1
+        /// For a voice of the AdLib card's: the numbers that set up the card's chip for it.
+        var adlib = InlineArray<12, UInt8>(repeating: 0)
     }
 
     static let mostOrders = 256, mostInstruments = 99, mostPatterns = 100
@@ -44,8 +46,6 @@ final class ST3Module {
     let savedWithSoundBlaster: Bool
     /// True if some sample is longer than Scream Tracker allows, or of sixteen bits.
     let beyondScreamTracker: Bool
-    /// True if the file has instruments for the AdLib card, which are not played.
-    let hasAdLib: Bool
 
     deinit {
         samples.deallocate()
@@ -85,7 +85,8 @@ final class ST3Module {
         }
         if mastermul == 2 { mastermul = 0x20 }
         if mastermul == 2 + 16 { mastermul = 0x20 + 128 }
-        if ultraclick == 0 { ultraclick = 16 }
+        // (A GUS has no more than 32 voices; a file that asks for more is asking for nothing real.)
+        if ultraclick == 0 || ultraclick > 32 { ultraclick = 16 }
         self.flags = flags
         self.mastermul = mastermul
         self.ultraclick = ultraclick
@@ -102,12 +103,14 @@ final class ST3Module {
         }
 
         var offsets = [Int](repeating: 0, count: insnum)
-        var adlib = false, beyond = false
+        var beyond = false
         for i in 0 ..< insnum {
             let o = insoff[i] << 4
             guard o + 0x50 <= data.count else { continue }
             ins[i].type = f[o]
-            if ins[i].type >= 2, ins[i].type <= 7 { adlib = true }
+            if ins[i].type >= 2, ins[i].type <= 7 {
+                for k in 0 ..< 12 { ins[i].adlib[k] = f[o + 16 + k] }
+            }
             ins[i].length = UInt32(truncatingIfNeeded: f.u32le(o + 16))
             ins[i].lbeg = UInt32(truncatingIfNeeded: f.u32le(o + 20))
             ins[i].lend = UInt32(truncatingIfNeeded: f.u32le(o + 24))
@@ -120,7 +123,6 @@ final class ST3Module {
             offsets[i] = f.u16le(o + 14) == 0 ? 0 : Int(f.u16le(o + 14)) << 4 + Int(f[o + 13]) << 20
             if ins[i].type == 1, ins[i].length > 64000 || ins[i].flags & 4 != 0 { beyond = true }
         }
-        hasAdLib = adlib
         beyondScreamTracker = beyond
 
         for i in 0 ..< patnum where patoff[i] != 0 {
@@ -187,7 +189,10 @@ final class ST3Module {
             return
         }
         if ins[i].vol > 64 { ins[i].vol = 64 }
-        if ins[i].c2spd > 65535 { ins[i].c2spd = 65535 }
+        // Scream Tracker has sixteen bits for the rate a sample plays C-4 at. Trackers after it wrote
+        // higher ones, and a sample cut down to 65,535 is out of tune with the rest: a third of a
+        // semitone flat for one of 66,904. They are kept, but for a rate no file could mean.
+        if ins[i].c2spd > (ST3Player.repeatsReferenceSlips ? 65535 : 1 << 20) { ins[i].c2spd = ST3Player.repeatsReferenceSlips ? 65535 : 1 << 20 }
         if ins[i].lend == ins[i].lbeg { ins[i].flags &= 0xFE }
         if ins[i].lend < ins[i].lbeg { ins[i].lend = ins[i].lbeg + 1 }
         if ins[i].lbeg > ins[i].length { ins[i].lbeg = ins[i].length }

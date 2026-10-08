@@ -13,12 +13,19 @@
 /// ported from brings them by default, and all the way for mono.
 public final class MODRenderer: Renderer, ReferenceComparable {
     public private(set) var info: TuneInfo
-    public private(set) var knownLength: Double?
     public private(set) var loopCount = 0
+    public var subsongCount: Int { songList.count }
+    public private(set) var currentSubsong = 0
+    public var defaultSubsong: Int { ModuleSongs.first(of: songList.map { $0.empty }) }
+    public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length) } }
+    public var knownLength: Double? { songList[currentSubsong].length }
     public var endsByLooping: Bool { true }
     public var hasEnded: Bool { replayer.stopped }
 
     private let module: ProTrackerModule
+    private let songList: [ModuleSongs.Song]
+    /// Which song first played each row. See `ModuleSongs`.
+    private let firstPlayedBy: UnsafeMutablePointer<UInt8>
     private let model: AmigaModel
     /// How much of the difference between the two sides is kept, halved: none of it for mono.
     private let side: Float
@@ -55,31 +62,46 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         info.detail = module.channelCount == 4 ? module.kind.name : "\(module.kind.name), \(module.channelCount) channels"
         self.info = info
 
-        // Once through in silence, to find how long the tune is.
-        replayer = ProTrackerReplayer(module, model: model)
-        var frames = 0, ticks = 0
-        while ticks < Self.mostTicks {
-            let more = replayer.runTick()
-            frames += nextTickLength()
-            ticks += 1
-            if !more || replayer.stopped { break }
+        // Once through each of its songs in silence, to find how long it is.
+        let module = module, model = model
+        let firstPlayedBy = UnsafeMutablePointer<UInt8>.allocate(capacity: ProTrackerReplayer.rowsInAll)
+        firstPlayedBy.initialize(repeating: ModuleSongs.unplayed, count: ProTrackerReplayer.rowsInAll)
+        self.firstPlayedBy = firstPlayedBy
+        songList = ModuleSongs.find(places: module.songLength, isPattern: { _ in true }) { start, number in
+            module.restoreSamples()
+            var replayer = ProTrackerReplayer(module, model: model, position: start, firstPlayedBy: firstPlayedBy, songNumber: number)
+            var frames = 0, ticks = 0
+            var remainder: UInt64 = 0
+            while ticks < Self.mostTicks {
+                let more = replayer.runTick()
+                frames += Self.tickLength(tempo: replayer.tempo, &remainder)
+                ticks += 1
+                if !more || replayer.stopped { break }
+            }
+            let length = ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
+            return ModuleSongs.Pass(played: replayer.ordersPlayed, length: length, sounded: replayer.playedNote,
+                                    ledIntoEarlierSong: replayer.ledIntoEarlierSong)
         }
-        knownLength = ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
+        replayer = ProTrackerReplayer(module, model: model)
+        currentSubsong = defaultSubsong
         restart()
     }
 
     deinit {
         left.deallocate()
         right.deallocate()
+        firstPlayedBy.deallocate()
     }
 
-    public func select(subsong _: Int) {
+    public func select(subsong: Int) {
+        currentSubsong = max(0, min(songList.count - 1, subsong))
         restart()
     }
 
     private func restart() {
         module.restoreSamples()
-        replayer = ProTrackerReplayer(module, model: model)
+        let song = songList[currentSubsong]
+        replayer = ProTrackerReplayer(module, model: model, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0
@@ -91,8 +113,8 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     }
 
     /// How many samples the tick just run lasts, at the tempo it left.
-    private func nextTickLength() -> Int {
-        let exact = Double(outputSampleRate) / ProTrackerReplayer.ticksPerSecond(tempo: replayer.tempo)
+    private static func tickLength(tempo: Int, _ remainder: inout UInt64) -> Int {
+        let exact = Double(outputSampleRate) / ProTrackerReplayer.ticksPerSecond(tempo: tempo)
         let whole = exact.rounded(.towardZero)
         var frames = Int(whole)
         remainder += UInt64((exact - whole) * Double(Self.one))
@@ -106,7 +128,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// Runs the replayer for a tick, unless the tune has stopped it, and makes the sound of that tick.
     private func nextTick() {
         if !replayer.stopped, !replayer.runTick() { loopCount += 1 }
-        tickFrames = nextTickLength()
+        tickFrames = Self.tickLength(tempo: replayer.tempo, &remainder)
         tickPosition = 0
         replayer.paula.generate(left: left, right: right, count: tickFrames * 2)
         for i in 0 ..< tickFrames {

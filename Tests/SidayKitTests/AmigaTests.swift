@@ -222,3 +222,39 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     #expect(PowerPacker.unpack(Array(packed!.dropLast(8))) == nil || PowerPacker.unpack(Array(packed!.dropLast(8))) != plain)
     #expect(throws: TuneError.self) { try TuneLoader.load(Array("PP20".utf8) + [UInt8](repeating: 0xFF, count: 60), format: .mod) }
 }
+
+@Test func moduleWithMoreThanOneSongHasThemAll() throws {
+    // A pattern that stops the song halfway down, twice in the list: the second time is never
+    // reached from the first, and is a song of its own.
+    var file = module(notes: [(0, 0, note(period: 428)), (32, 0, [0, 0, 0x0F, 0])])
+    #expect(try TuneLoader.load(file, format: .mod).subsongCount == 1)
+    file[950] = 2 // the list is two long
+    let renderer = try TuneLoader.load(file, format: .mod)
+    #expect(renderer.subsongCount == 2)
+    #expect(abs(renderer.songs[0].length! - 3.86) < 0.02)
+    #expect(abs(renderer.songs[1].length! - 3.86) < 0.02)
+    renderer.select(subsong: 1)
+    #expect(renderer.currentSubsong == 1)
+    let sound = stereo(renderer, seconds: 5).left
+    #expect(abs(crossings(sound[4800 ..< 48000]) * 10 / 9 - 259) <= 2)
+    #expect(renderer.hasEnded)
+
+    // A place in the list that a jump passes over only leads back into the song, and is not one.
+    file = module(notes: [(0, 0, note(period: 428)), (63, 0, [0, 0, 0x0B, 0])])
+    file[950] = 2
+    #expect(try TuneLoader.load(file, format: .mod).subsongCount == 1)
+
+    // A first song that is nothing at all, a pattern that stops at once, with a second pattern after
+    // it that is something: the second is what is played unless the first is asked for.
+    let stop = module(notes: [(0, 0, [0, 0, 0x0F, 0])])
+    let tune = module(notes: [(0, 0, note(period: 428)), (32, 0, [0, 0, 0x0F, 0])])
+    file = Array(stop[..<1084]) + Array(stop[1084 ..< 2108]) + Array(tune[1084...])
+    file[950] = 2
+    file[952 + 1] = 1
+    let second = try TuneLoader.load(file, format: .mod)
+    #expect(second.subsongCount == 2)
+    #expect(second.defaultSubsong == 1)
+    #expect(second.currentSubsong == 1)
+    #expect(abs(second.knownLength! - 3.86) < 0.02)
+    #expect(stereo(second, seconds: 1).left[4800...].map(abs).max()! > 0.02)
+}

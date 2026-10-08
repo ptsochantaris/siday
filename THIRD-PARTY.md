@@ -205,8 +205,9 @@ Olav Sørensen's C port of the replayer of Scream Tracker 3.21, made from that t
 and C: the replayer (`ST3Player.swift`, `ST3Effects.swift`), the reading of S3M files
 (`ST3Module.swift`), Scream Tracker's driver for the Gravis Ultrasound with st3play's emulation of
 that card's sound chip, its mixing for the Sound Blaster Pro, and the windowed sinc that brings either
-card's rate to the player's (`ST3Cards.swift`, `ST3Tables.swift`). Its AdLib channels and its OPL2
-emulator are not ported.
+card's rate to the player's (`ST3Cards.swift`, `ST3Tables.swift`), and Scream Tracker's driver for
+the AdLib card (`ST3AdLib.swift`). st3play's own OPL2 emulator is not ported: the AdLib card's chip
+here is Nuked OPL3, below.
 
 ```
 BSD 3-Clause License
@@ -239,6 +240,22 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## Nuked OPL3 — the FM chip of the AdLib and Sound Blaster cards
+
+`Sources/SidayKit/OPL` is a Swift port of Nuked OPL3 1.8, an emulator of the Yamaha YMF262 (OPL3),
+which also plays what was written for the YM3812 (OPL2). The port leaves out the original's own
+resampling and its optional stereo extension, and adds one shortcut that changes no number: the
+operators of the chip's second register set are not worked through until something is written there.
+
+- Copyright (C) 2013-2020 Nuke.YKT
+- Its thanks: the MAME Development Team (Jarek Burczynski, Tatsuyuki Satoh) for feedback and rhythm
+  part calculation information; forums.submarine.org.uk (carbon14, opl3) for tremolo and phase
+  generator calculation information; OPLx decapsulated (Matthew Gambrell, Olli Niemitalo) for the
+  OPL2 ROMs; siliconpr0n.org (John McMaster, digshadow) for YMF262 and VRC VII decaps and die shots
+- GNU Lesser General Public License, version 2.1 or later. As its section 3 allows, the port is
+  distributed under the GNU General Public License, version 2 or later, with the rest of this project
+- Source: https://github.com/nukeykt/Nuked-OPL3
 
 ## Ice 2.4 — unpacking SNDH files
 

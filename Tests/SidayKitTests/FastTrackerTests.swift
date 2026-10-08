@@ -162,3 +162,20 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     _ = stereo(try TuneLoader.load(xm(settings: [233: 1, 225: 200]), format: .xm), seconds: 1)
     _ = stereo(try TuneLoader.load(xm(notes: [0x9B, 49, 1, 21, 200, 0x80], settings: [233: 3, 225: 255]), format: .xm), seconds: 1)
 }
+
+@Test func xmWithMoreThanOneSongHasThemAll() throws {
+    // A pattern of 32 rows that stops the song on its last, twice in the list: the second time is
+    // never reached from the first, and is a song of its own.
+    let rows: [UInt8] = [0x83, 49, 1, 0x80] + [UInt8](repeating: 0x80, count: 30 * 2) + [0x98, 0x0F, 0, 0x80]
+    var file = xm(pattern: (32, rows))
+    #expect(try TuneLoader.load(file, format: .xm).subsongCount == 1)
+    file[64] = 2 // the list is two long
+    let renderer = try TuneLoader.load(file, format: .xm)
+    #expect(renderer.subsongCount == 2)
+    #expect(abs(renderer.songs[1].length! - renderer.songs[0].length!) < 0.001)
+    renderer.select(subsong: 1)
+    #expect(renderer.currentSubsong == 1)
+    let sound = stereo(renderer, seconds: 5).left
+    #expect(abs(crossings(sound[4800 ..< 48000]) * 10 / 9 - 261) <= 2)
+    #expect(renderer.hasEnded)
+}

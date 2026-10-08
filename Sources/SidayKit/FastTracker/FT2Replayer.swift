@@ -1168,7 +1168,10 @@ extension FT2Player {
             song.pBreakPos = 0
             song.posJumpFlag = false
             song.songPos &+= 1
-            if song.songPos >= Int16(bitPattern: song.len) { song.songPos = Int16(bitPattern: song.repS) }
+            if song.songPos >= Int16(bitPattern: song.len) {
+                song.songPos = Int16(bitPattern: song.repS)
+                offTheEnd = true
+            }
             song.pattNr = Int16(song.songTab[Int(UInt8(truncatingIfNeeded: song.songPos))])
             song.pattLen = Int16(bitPattern: module.pattLens[Int(UInt8(truncatingIfNeeded: song.pattNr))])
         }
@@ -1189,6 +1192,7 @@ extension FT2Player {
             let first = Int(song.pattPos) * Int(song.antChn)
             for i in 0 ..< Int(song.antChn) {
                 let note = row.map { first + i < $0.count ? $0[first + i] : FT2Note() } ?? FT2Note()
+                if note.ton >= 1, note.ton <= 96 { playedNote = true }
                 getNewNote(stm[i], note)
                 fixaEnvelopeVibrato(stm[i])
             }

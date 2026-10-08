@@ -99,8 +99,28 @@ struct ProTrackerReplayer: ~Copyable {
     private var wrapped = false
     /// True once the tune has told the tracker to stop (a speed of nothing).
     private(set) var stopped = false
+    /// Which places in the list of patterns have been played, and whether a note has been.
+    private(set) var ordersPlayed = [Bool](repeating: false, count: 128)
+    private(set) var playedNote = false
+    /// Which of the file's songs first played each row, shared between them and not this replayer's
+    /// to free, and which song this is. See `ModuleSongs`.
+    private let firstPlayedBy: UnsafeMutablePointer<UInt8>?
+    private let songNumber: UInt8
+    private var metEarlierSong = false
+    /// True if this song went on into a row that a song before it played, other than by running off
+    /// the end of the list of patterns.
+    private(set) var ledIntoEarlierSong = false
+    /// How many rows the table of who played a row first has.
+    static let rowsInAll = 128 * ProTrackerModule.rows
 
-    init(_ module: ProTrackerModule, model: AmigaModel) {
+    /// - Parameters:
+    ///   - position: where in the list of patterns to start.
+    ///   - firstPlayedBy: for a file of several songs, which of them first played each row.
+    ///   - songNumber: which of them this is.
+    init(_ module: ProTrackerModule, model: AmigaModel, position start: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil,
+         songNumber: UInt8 = 0) {
+        self.firstPlayedBy = firstPlayedBy
+        self.songNumber = songNumber
         self.module = module
         paula = Paula(rate: Double(outputSampleRate * 2), model: model, memory: UnsafePointer(module.memory),
                       size: ProTrackerModule.memorySize, silence: ProTrackerModule.silence)
@@ -110,7 +130,9 @@ struct ProTrackerReplayer: ~Copyable {
         visited.initialize(repeating: false, count: 128 * ProTrackerModule.rows)
         setTempo(125)
         setTempo(module.initialTempo)
-        pattern = Int8(truncatingIfNeeded: module.orders[0])
+        position = Int16(max(0, min(module.songLength - 1, start)))
+        pattern = Int8(truncatingIfNeeded: module.orders[Int(position)])
+        if pattern > Int8(ProTrackerModule.mostPatterns - 1) { pattern = Int8(ProTrackerModule.mostPatterns - 1) }
         tick = speed - 1
     }
 
@@ -488,6 +510,7 @@ struct ProTrackerReplayer: ~Copyable {
         if channels[c].note == 0, channels[c].command == 0 { paula.setPeriod(c, UInt16(bitPattern: channels[c].period)) }
 
         let note = module.note(pattern: Int(pattern), row: Int(row), channel: c)
+        if note.period != 0 { playedNote = true }
         channels[c].note = Int16(bitPattern: note.period)
         channels[c].command = UInt16(note.command) << 8 | UInt16(note.parameter)
 
@@ -567,7 +590,12 @@ struct ProTrackerReplayer: ~Copyable {
         if newRow {
             if patternDelayLeft == 0 {
                 starting = 0
-                if position >= 0, row >= 0 { visited[Int(position) * ProTrackerModule.rows + Int(row)] = true }
+                if position >= 0, row >= 0 {
+                    let at = Int(position) * ProTrackerModule.rows + Int(row)
+                    visited[at] = true
+                    if let firstPlayedBy, firstPlayedBy[at] == ModuleSongs.unplayed { firstPlayedBy[at] = songNumber }
+                    ordersPlayed[Int(position)] = true
+                }
                 for c in 0 ..< 4 {
                     playVoice(c)
                     paula.setVolume(c, UInt16(truncatingIfNeeded: Int(channels[c].volume)))
@@ -610,7 +638,14 @@ struct ProTrackerReplayer: ~Copyable {
 
         // The last tick of a row: is the row that comes next one that has been played?
         if patternDelayLeft == 0, tick == speed - 1 {
-            let seen = position >= 0 && row >= 0 && visited[Int(position) * ProTrackerModule.rows + Int(row)]
+            var seen = position >= 0 && row >= 0 && visited[Int(position) * ProTrackerModule.rows + Int(row)]
+            if !seen, !wrapped, !metEarlierSong, position >= 0, row >= 0, let firstPlayedBy,
+               firstPlayedBy[Int(position) * ProTrackerModule.rows + Int(row)] < songNumber {
+                // Into what a song before this one played: this one is over, the once.
+                seen = true
+                metEarlierSong = true
+                ledIntoEarlierSong = true
+            }
             if seen || wrapped {
                 wrapped = false
                 visited.update(repeating: false, count: 128 * ProTrackerModule.rows)
