@@ -56,7 +56,7 @@ to WebAssembly.
 - Press anywhere on the time bar to move there, in either direction.
 - SID tunes know their lengths: those of the High Voltage SID Collection are built in.
 - The list shows every tune that was added, however many, and can be searched. The cross at the end
-  of a row takes that tune out of the list.
+  of a row takes that tune out of the list, and "Remove all" empties it.
 - It has a volume of its own, apart from the computer's, which it remembers.
 - One list chooses what a tune is heard through: mono, stereo (a module's own, or the AY chip's
   channels spread out, one way round or the other), or the speaker of an early-1980s television. It

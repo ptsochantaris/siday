@@ -552,6 +552,9 @@ Object.assign(globalThis, {
   sidayRemove(index) {
     remove(index);
   },
+  sidayRemoveAll() {
+    tunes.length = 0;
+  },
   sidayStop() {
     stop();
   },

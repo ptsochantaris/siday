@@ -183,6 +183,29 @@ final class Player {
         }
     }
 
+    /// Empties the list. Nothing plays after that until tunes are added again.
+    func removeAll() {
+        guard !files.isEmpty else { return }
+        files = []
+        searchable = []
+        order = []
+        failures = 0
+        // (Which also finds nothing, and puts the list back at its top.)
+        search = ""
+        current = nil
+        tuneFile = nil
+        tune = nil
+        problem = nil
+        finished = false
+        paused = false
+        position = 0
+        rendered = 0
+        lights = []
+        rest()
+        try? sidayRemoveAll()
+        try? sidayStop()
+    }
+
     /// Works out which tunes the search finds.
     private func find() {
         found = needle.isEmpty ? nil : files.indices.filter { contains(searchable[$0], needle) }

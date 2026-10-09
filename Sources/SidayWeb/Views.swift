@@ -33,7 +33,10 @@ struct PlayerView {
                 p {
                     "Plays "
                     TuneFormat.allCases.map { $0.rawValue.uppercased() }.joined(separator: ", ")
-                    " files. SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first."
+                    " files."
+                }
+                p {
+                    "SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first."
                 }
                 p {
                     "siday is free software, written in Swift. "
@@ -66,7 +69,6 @@ struct NowPlaying {
                         .filter { !$0.isEmpty }.joined(separator: " · ")
                 }
                 Analyser(bars: player.bars, caps: player.caps)
-                Lights(levels: player.lights)
                 div(.class("time")) {
                     span { formatTime(player.position) }
                     // Pressing the bar moves to that place in the song. Behind the part played is the
@@ -120,6 +122,10 @@ struct NowPlaying {
                 }
                 input(.type(.range), .min(0), .max(100), .class("volume"), .custom(name: "aria-label", value: "Volume"), .title("The player's own volume"))
                     .bindValue(#Binding(player.volume))
+            }
+
+            if !player.lights.isEmpty {
+                Lights(levels: player.lights)
             }
         }
     }
@@ -255,6 +261,9 @@ struct Playlist {
                 if player.found != nil {
                     span(.class("hint")) { "\(player.listed) found" }
                 }
+                // All of them, whatever is being searched for.
+                button(.title("Take every tune out of the list")) { "Remove all" }
+                    .onClick { player.removeAll() }
             }
             // Every tune has its place in the list, which is as tall as all of them, but only the rows
             // that can be seen are there: the rest is empty space, filled in as it is scrolled to.

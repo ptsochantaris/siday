@@ -58,6 +58,10 @@ func sidayPause(_ paused: Bool) throws(JSException)
 @JSFunction(from: .global)
 func sidayRemove(_ index: Int) throws(JSException)
 
+/// Every file has been taken out of the list.
+@JSFunction(from: .global)
+func sidayRemoveAll() throws(JSException)
+
 /// Nothing is to be played: the sound stops, and the song that was playing is let go.
 @JSFunction(from: .global)
 func sidayStop() throws(JSException)
