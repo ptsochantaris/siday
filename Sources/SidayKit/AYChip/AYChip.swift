@@ -69,6 +69,8 @@ struct AYToneChannel {
     var tone = 0
     var toneOff = 0
     var noiseOff = 0
+    /// For the lights: the places in the DAC table the channel has been at of late, a bit for each.
+    var levelsSeen: UInt32 = 0
     var envelopeOn = false
     var volume = 0
     var panLeft = 0.5
@@ -238,10 +240,29 @@ struct AYChip: ~Copyable {
         let outA = (0 &- ((Self.tone(&a) | a.toneOff) & (n | a.noiseOff))) & (a.envelopeOn ? e : a.volume &* 2 &+ 1)
         let outB = (0 &- ((Self.tone(&b) | b.toneOff) & (n | b.noiseOff))) & (b.envelopeOn ? e : b.volume &* 2 &+ 1)
         let outC = (0 &- ((Self.tone(&c) | c.toneOff) & (n | c.noiseOff))) & (c.envelopeOn ? e : c.volume &* 2 &+ 1)
+        a.levelsSeen |= 1 &<< UInt32(truncatingIfNeeded: outA)
+        b.levelsSeen |= 1 &<< UInt32(truncatingIfNeeded: outB)
+        c.levelsSeen |= 1 &<< UInt32(truncatingIfNeeded: outC)
         let levelA = dac[unchecked: outA], levelB = dac[unchecked: outB], levelC = dac[unchecked: outC]
         let left = levelA * a.panLeft + levelB * b.panLeft + levelC * c.panLeft
         if mono { return (left, left) }
         return (left, levelA * a.panRight + levelB * b.panRight + levelC * c.panRight)
+    }
+
+    /// How far each channel has swung since this was last asked, where 1 is from silence to full volume.
+    mutating func takeLevels(into levels: UnsafeMutablePointer<Float>) {
+        func level(_ ch: inout AYToneChannel) -> Float {
+            var seen = ch.levelsSeen
+            ch.levelsSeen = 0
+            // A tone of a period under six is above 18 kHz, and is not heard as a tone: tunes use one
+            // to hold a channel open while they play samples on its volume. Its silences do not count.
+            if ch.period < 6, ch.toneOff == 0, ch.noiseOff != 0 { seen &= ~1 }
+            guard seen != 0 else { return 0 }
+            return Float(dac[31 - seen.leadingZeroBitCount] - dac[seen.trailingZeroBitCount])
+        }
+        levels[0] = level(&a)
+        levels[1] = level(&b)
+        levels[2] = level(&c)
     }
 
     /// Advances one oversampled step. `extra` is added to both channels before decimation (beeper).

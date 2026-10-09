@@ -97,6 +97,13 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
         }
     }
 
+    /// The chip's nine voices. Where a tune has drums, they are the last three.
+    var channelCount: Int { 9 }
+
+    func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        card.takeLevels(into: levels)
+    }
+
     /// The tune from its start as the chip makes it: its own samples at its own rate, one channel,
     /// to the end of the tune or `frames` of them. For comparing with a reference player.
     func renderRaw(frames: Int) -> [Int16] {

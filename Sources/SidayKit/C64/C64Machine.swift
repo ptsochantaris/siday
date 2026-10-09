@@ -49,6 +49,12 @@ final class C64Machine: MOS6510Bus {
     private let residfp: UnsafeMutablePointer<ReSIDfpChip>?
     private let resid: UnsafeMutablePointer<SIDChip>?
     private var sidClock = 0
+    /// For the lights: what was last written to each of the SID's registers, the most each voice's
+    /// envelope has been of late, and how the volume has been moved about.
+    private var sidWritten = [UInt8](repeating: 0, count: 0x20)
+    private var voicePeaks: (UInt8, UInt8, UInt8) = (0, 0, 0)
+    private var volumeSwing = Swing<UInt8>(from: 0, to: 15)
+    private var volumeMoves = 0
     private let samples: UnsafeMutablePointer<Int16>
     private let sampleCapacity = 16384
     private(set) var sampleCount = 0
@@ -166,6 +172,10 @@ final class C64Machine: MOS6510Bus {
         residfp?.pointee.reset()
         resid?.pointee.reset()
         sidClock = 0
+        for register in sidWritten.indices { sidWritten[register] = 0 }
+        voicePeaks = (0, 0, 0)
+        volumeSwing.clear()
+        volumeMoves = 0
         sampleCount = 0
         writeLog = writeLog == nil ? nil : []
 
@@ -271,6 +281,51 @@ final class C64Machine: MOS6510Bus {
             if pending == before { break }
         }
         sidClock = clock - pending
+        noteVoices()
+    }
+
+    /// True if a voice is making a sound that its envelope is the measure of: it has a waveform, its
+    /// oscillator is running and fast enough to hear, and it is not switched out of the mix.
+    private func sounds(_ voice: Int) -> Bool {
+        let at = voice * 7
+        let control = sidWritten[at + 4]
+        guard control & 0xF0 != 0, control & 0x08 == 0, sidWritten[at + 1] != 0 else { return false }
+        if control & 0xF0 == 0x40 {
+            // A pulse of no width, or of all of it, is a steady level.
+            let width = Int(sidWritten[at + 2]) | Int(sidWritten[at + 3] & 0x0F) << 8
+            if width == 0 || width == 0xFFF { return false }
+        }
+        return voice != 2 || sidWritten[0x18] & 0x80 == 0 || sidWritten[0x17] & 0x04 != 0
+    }
+
+    /// Looks at the three envelopes, which is done whenever the SID is brought up to date: at every
+    /// write to it, and some hundreds of times a second besides.
+    private func noteVoices() {
+        var levels: (UInt8, UInt8, UInt8) = (0, 0, 0)
+        if let residfp {
+            levels = (residfp.pointee.voice0.envelopeGenerator.envelope_counter, residfp.pointee.voice1.envelopeGenerator.envelope_counter,
+                      residfp.pointee.voice2.envelopeGenerator.envelope_counter)
+        } else if let resid {
+            levels = (UInt8(truncatingIfNeeded: resid.pointee.voice0.envelope.envelope_counter),
+                      UInt8(truncatingIfNeeded: resid.pointee.voice1.envelope.envelope_counter),
+                      UInt8(truncatingIfNeeded: resid.pointee.voice2.envelope.envelope_counter))
+        }
+        if levels.0 > voicePeaks.0, sounds(0) { voicePeaks.0 = levels.0 }
+        if levels.1 > voicePeaks.1, sounds(1) { voicePeaks.1 = levels.1 }
+        if levels.2 > voicePeaks.2, sounds(2) { voicePeaks.2 = levels.2 }
+    }
+
+    /// How loud the three voices have been since this was last asked, each by its envelope; and, fourth,
+    /// the samples a tune plays by moving the volume about, which is what that does to the SID's output.
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) {
+        levels[0] = Float(voicePeaks.0) / 255
+        levels[1] = Float(voicePeaks.1) / 255
+        levels[2] = Float(voicePeaks.2) / 255
+        // A tune that only sets its volume, or fades it, moves it once in a while. Samples move it all the time.
+        levels[3] = volumeMoves > 3 && volumeSwing.moved ? Float(volumeSwing.high - volumeSwing.low) / 15 : 0
+        voicePeaks = (0, 0, 0)
+        volumeSwing.clear()
+        volumeMoves = 0
     }
 
     /// Moves up to `count` samples out, as stereo floats.
@@ -389,6 +444,11 @@ final class C64Machine: MOS6510Bus {
             let r = a & 0x1F
             residfp?.pointee.write(r, value)
             resid?.pointee.write(r, value)
+            if r == 0x18 {
+                if value & 0x0F != sidWritten[r] & 0x0F { volumeMoves += 1 }
+                volumeSwing.note(value & 0x0F)
+            }
+            sidWritten[r] = value
             if r <= 0x18 { writeLog?.append((clock, UInt8(r), value)) }
         case 0x8 ... 0xB:
             colorRAM[a & 0x3FF] = value & 0x0F

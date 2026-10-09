@@ -24,6 +24,7 @@ struct STESound: ~Copyable {
     private var pairing = false
     private var pair: Int32 = 0
     private var level: Int16 = 0
+    private var swing = Swing<Int16>(from: -32768, to: 32767)
 
     init(hostRate: Int) {
         self.hostRate = UInt32(hostRate)
@@ -161,6 +162,13 @@ struct STESound: ~Copyable {
             position &+= stereo ? 2 : 1
             innerClock -= hostRate
         }
+        swing.note(level)
         return level
+    }
+
+    /// How far the samples have swung since this was last asked, where 1 is as far as they can.
+    mutating func takeLevel() -> Float {
+        defer { swing.clear() }
+        return swing.moved ? min(1, (Float(swing.high) - Float(swing.low)) / 32768) : 0
     }
 }

@@ -111,6 +111,10 @@ final class IT2Mixer {
     private(set) var MixGain: Float = 32768.0
     private let fMixBuffer: UnsafeMutablePointer<Float>
     private var fLastClickRemovalLeft: Float = 0, fLastClickRemovalRight: Float = 0, fPrngStateL: Float = 0, fPrngStateR: Float = 0
+    /// For the lights: how loud each of the 64 channels was in the tick last mixed, and the lowest
+    /// and highest the voice being mixed has had its sample.
+    var levels = TickLevels(voices: 64)
+    private var swing = Swing<Float>(from: -4, to: 4)
 
     // The filter's tables.
     private let QualityFactorTable: UnsafeMutablePointer<Float>
@@ -383,9 +387,23 @@ final class IT2Mixer {
             fLastClickRemovalRight = right
         }
 
+        if !silent {
+            for channel in 0 ..< 64 { levels.now[channel] = 0 }
+        }
+        defer { if !silent { levels.tickMade() } }
+
         for i in 0 ..< MAX_SLAVE_CHANNELS {
             let sc = sChn + i
             if sc.pointee.Flags & SF_CHAN_ON == 0 || sc.pointee.Smp == midiVoiceSample { continue }
+            swing.clear()
+            // A channel is the loudest of its voices: its note, and those before it still dying away.
+            defer {
+                if swing.moved {
+                    let channel = Int(sc.pointee.HostChnNum & 63)
+                    let level = min(1, (swing.high - swing.low) * 0.5 * Float(sc.pointee.FinalVol32768) * (1.0 / 32768.0))
+                    if level > levels.now[channel] { levels.now[channel] = level }
+                }
+            }
 
             if sc.pointee.Flags & SF_NOTE_STOP != 0 { // the note is cut: it is ramped out over this tick
                 sc.pointee.Flags &= ~SF_CHAN_ON
@@ -998,6 +1016,7 @@ final class IT2Mixer {
         var fOldSamples = sc.pointee.fOldSamples
         var fLastLeftValue = fLastLeftValue, fLastRightValue = fLastRightValue
 
+        var low = Float.greatestFiniteMagnitude, high = -Float.greatestFiniteMagnitude
         var fMixBufPtr = fMixBuffer
         var todo = NumSamples
         while todo > 0 {
@@ -1029,6 +1048,9 @@ final class IT2Mixer {
                 }
             }
 
+            if fSample < low { low = fSample }
+            if fSample > high { high = fSample }
+
             if surround {
                 // Surround is the same on both sides, one of them upside down, at the left's volume.
                 fLastLeftValue = fSample * fCurrVolL
@@ -1059,6 +1081,10 @@ final class IT2Mixer {
         }
 
         if surround { fLastRightValue = stereo ? -fLastRightValue : -fLastLeftValue }
+        if low <= high {
+            swing.note(max(-4, low))
+            swing.note(min(4, high))
+        }
 
         sc.pointee.SamplingPosition = SamplingPosition
         sc.pointee.Frac64 = Frac64

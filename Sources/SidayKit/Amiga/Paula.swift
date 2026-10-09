@@ -48,6 +48,8 @@ struct Paula: ~Copyable {
         var stepIndex = 0, stepsLeft = 0
         var steps = InlineArray<32, Float>(repeating: 0)
         var lastLevel: Float = 0
+        /// For the lights: the lowest and highest the level has been, of late.
+        var swing = Swing<Float>(from: -2, to: 2)
 
         /// Paula takes up a new period only as she finishes counting the old one.
         @inline(__always) mutating func refetchPeriod() {
@@ -76,6 +78,7 @@ struct Paula: ~Copyable {
             }
 
             level = Float(data.0) * storedVolume
+            swing.note(level)
             if level != lastLevel {
                 if stepDelta > stepPhase {
                     addStep(at: stepPhase / stepDelta, of: lastLevel - level, table)
@@ -276,6 +279,15 @@ struct Paula: ~Copyable {
     mutating func setLightFilter(_ on: Bool) {
         if on != lightFilter { light.clear() }
         lightFilter = on
+    }
+
+    /// How far each voice has swung since this was last asked, where 1 is as far as a voice at full
+    /// volume can.
+    mutating func takeLevels(into levels: inout [Float]) {
+        for voice in 0 ..< 4 {
+            levels[voice] = voices[voice].swing.moved ? min(1, (voices[voice].swing.high - voices[voice].swing.low) * 0.5) : 0
+            voices[voice].swing.clear()
+        }
     }
 
     // MARK: Sound

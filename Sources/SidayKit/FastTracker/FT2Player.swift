@@ -48,6 +48,11 @@ final class FT2Player {
     private var chnReloc: [Int]
     /// A tick of sound, left and right in turn, at 256 times the size it goes out at.
     let mixBuffer: UnsafeMutablePointer<Int32>
+    /// For the lights: how loud each channel was in the tick last made.
+    var levels: TickLevels
+    /// The lowest and highest the voice being mixed has had its sample, and the most its volume has been.
+    private var swing = Swing<Int32>(from: -65536, to: 65536)
+    private var loudest: Float = 0
 
     private let visited: UnsafeMutablePointer<Bool>
     /// True when the tick just run began a row that has been played before.
@@ -90,6 +95,7 @@ final class FT2Player {
         let channels = max(1, Int(module.song.antChn))
         stm = (0 ..< channels).map { FT2Channel(nr: $0, instrument: placeholder) }
         chnReloc = (0 ..< channels).map { $0 + $0 }
+        levels = TickLevels(voices: channels)
 
         let rate = Double(Self.rate)
         frequenceDivFactor = UInt32((65536.0 * 1712.0 / rate * 8363.0).rounded())
@@ -271,7 +277,17 @@ final class FT2Player {
         mix_UpdateChannelVolPanFrq()
         let count = Int(speedVal)
         mixBuffer.update(repeating: 0, count: count * 2)
-        for i in 0 ..< Int(song.antChn) * 2 { mix(CI + i, speedVal) }
+        // A voice at its loudest, in the mixer's numbers, whichever side it is on.
+        let full = Float(255 * CDA_Amp) * 4096
+        for i in 0 ..< Int(song.antChn) * 2 {
+            swing.clear()
+            loudest = 0
+            mix(CI + i, speedVal)
+            // A channel is the louder of its two voices: the note, and the one before it dying away.
+            let level = swing.moved ? min(1, Float(swing.high - swing.low) * (0.5 / 32768.0) * loudest / full) : 0
+            if i & 1 == 0 || level > levels.now[i >> 1] { levels.now[i >> 1] = level }
+        }
+        levels.tickMade()
         return count
     }
 
@@ -362,6 +378,8 @@ final class FT2Player {
             let ipValH = Int(frq >> 16)
             let ipValL = (UInt32(bitPattern: frq & 0xFFFF) << 16) &+ 8
 
+            var low = Int32.max, high = Int32.min
+            let volumeBefore = Float(lVol) * Float(lVol) + Float(rVol) * Float(rVol)
             var n = samplesToMix
             while n > 0 {
                 let sample = Int32(smpPtr[0]) << shift
@@ -372,6 +390,8 @@ final class FT2Player {
                 pos &+= pos
                 sample2 &+= sample2
                 sample2 &+= sample
+                if sample2 < low { low = sample2 }
+                if sample2 > high { high = sample2 }
                 sample2 <<= 28 - 16
                 audioMix[0] &+= Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(lVol)) >> 32)
                 audioMix[1] &+= Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(rVol)) >> 32)
@@ -382,6 +402,11 @@ final class FT2Player {
                 lVol &+= lVolIP
                 rVol &+= rVolIP
                 n -= 1
+            }
+            if low <= high {
+                swing.note(low)
+                swing.note(high)
+                loudest = max(loudest, max(volumeBefore, Float(lVol) * Float(lVol) + Float(rVol) * Float(rVol)).squareRoot())
             }
 
             if backwards, reverse != nil {

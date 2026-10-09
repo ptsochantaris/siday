@@ -78,6 +78,8 @@ struct STSoundChip: ~Copyable {
     private var historySum: Int32 = 0
     private var insideTimer = false
     private var edgeNeedsReset: (Bool, Bool, Bool) = (false, false, false)
+    /// For the lights: the levels each channel has been at of late, a bit for each of the thirty-two.
+    private var levelsSeen: (UInt32, UInt32, UInt32) = (0, 0, 0)
 
     /// - Parameter clockHz: the chip's clock. The ST's unless the tune was recorded on something else.
     init(hostRate: Int, clockHz: UInt32 = STSoundChip.atariClockHz) {
@@ -160,6 +162,7 @@ struct STSoundChip: ~Copyable {
         toneEdges = 0x1F | 0x1F << 5
         insideTimer = false
         edgeNeedsReset = (false, false, false)
+        levelsSeen = (0, 0, 0)
         noiseShift = 1
         noiseHalf = 0
         noiseCounter = 0
@@ -281,7 +284,30 @@ struct STSoundChip: ~Copyable {
         levels |= (b & 0x10 != 0 ? envelopeLevel : b << 1 | 1) << 5
         levels |= (c & 0x10 != 0 ? envelopeLevel : c << 1 | 1) << 10
         levels &= voices
+        levelsSeen.0 |= 1 &<< (levels & 0x1F)
+        levelsSeen.1 |= 1 &<< ((levels >> 5) & 0x1F)
+        levelsSeen.2 |= 1 &<< ((levels >> 10) & 0x1F)
         return Int32(mix[Int(levels & 0x7FFF)])
+    }
+
+    /// How far each channel has swung since this was last asked, where 1 is from silence to full
+    /// volume: each as it would be if the other two were silent.
+    mutating func takeLevels(into levels: UnsafeMutablePointer<Float>) {
+        func level(_ seen: UInt32, _ period: UInt32, _ channel: Int) -> Float {
+            let shift = channel * 5
+            var seen = seen
+            // A tone of a period under six is above 20 kHz, and is not heard as a tone: it is how a tune
+            // holds a channel open to play a level by hand. Its silences do not count.
+            if period < 6, toneMask >> UInt32(shift) & 1 == 0, noiseMask >> UInt32(shift) & 1 != 0 { seen &= ~1 }
+            guard seen != 0 else { return 0 }
+            let full = Float(mix[31 << shift]) - Float(mix[0])
+            let high = 31 - seen.leadingZeroBitCount, low = seen.trailingZeroBitCount
+            return full > 0 ? (Float(mix[high << shift]) - Float(mix[low << shift])) / full : 0
+        }
+        levels[0] = level(levelsSeen.0, tonePeriod.0, 0)
+        levels[1] = level(levelsSeen.1, tonePeriod.1, 1)
+        levels[2] = level(levelsSeen.2, tonePeriod.2, 2)
+        levelsSeen = (0, 0, 0)
     }
 
     /// The level stripped of whatever it has been sitting at for the last twentieth of a second: the

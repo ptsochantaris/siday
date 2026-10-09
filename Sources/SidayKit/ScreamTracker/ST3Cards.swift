@@ -23,6 +23,10 @@ final class ST3Cards {
         var LOff: UInt16 = 0, ROff: UInt16 = 0
         var SVRI: UInt16 = 0, SVLI: UInt16 = 0, SVSI: UInt16 = 0, SVEI: UInt16 = 0
         var SFCI: UInt16 = 1 << 9
+        /// For the lights: the channel the voice was last given to, and the lowest and highest its
+        /// sample has been of late.
+        var owner = -1
+        var low: Int32 = .max, high: Int32 = .min
     }
 
     /// What of a channel the Sound Blaster's mixer needs, kept apart from the channel while it mixes.
@@ -31,6 +35,8 @@ final class ST3Cards {
         var pos: UInt32 = 0, poslow: UInt32 = 0, end: UInt32 = 0, loop: UInt32 = 0, speed: UInt32 = 0
         var vol: UInt8 = 0
         var mixtype: Int8 = 0
+        /// For the lights: the lowest and highest the voice has been in this tick.
+        var low: Int32 = .max, high: Int32 = .min
     }
 
     private static let gusVolTable: [UInt16] = [
@@ -291,6 +297,7 @@ final class ST3Cards {
         voiceused[Int(voicetry)] = 1
         ch.aguschannel = Int8(voicetry)
         select(Int(voicetry))
+        voices[gv].owner = Int(ch.channelnum)
         if ch.m_end == 0 {
             voiceused[Int(ch.aguschannel)] = -1
             ch.aguschannel = -1
@@ -350,6 +357,8 @@ final class ST3Cards {
                     let smp = Int32(Int16(truncatingIfNeeded: first &+ (((second &- first) &* Int32(Int16(bitPattern: v.pointee.SA_frac))) >> 9)))
                     // The card's volumes are logarithms: a part that doubles, and a part that scales.
                     let vol = Int32(v.pointee.SVLI >> 3)
+                    if smp < v.pointee.low { v.pointee.low = smp }
+                    if smp > v.pointee.high { v.pointee.high = smp }
                     let volL = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.LOff))))
                     let volR = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.ROff))))
                     left &+= (smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))
@@ -388,7 +397,10 @@ final class ST3Cards {
             if ch.pointee.speed == 0 || ch.pointee.pos == 0xFFFF_FFFF || ch.pointee.base < 0 || ch.pointee.pos >= ch.pointee.end { continue }
             let at = ch.pointee.base &+ Int(truncatingIfNeeded: ch.pointee.pos)
             let byte = at >= 0 && at < samplesCount ? Int(samples[at] >> 8) : 0
-            let smp = UInt16(truncatingIfNeeded: (byte * Int(Self.xvol[min(64, Int(ch.pointee.vol))])) >> 8)
+            let level = (byte * Int(Self.xvol[min(64, Int(ch.pointee.vol))])) >> 8
+            let smp = UInt16(truncatingIfNeeded: level)
+            if level < Int(ch.pointee.low) { ch.pointee.low = Int32(level) }
+            if level > Int(ch.pointee.high) { ch.pointee.high = Int32(level) }
             if stereo {
                 let mixtype = ch.pointee.mixtype
                 if mixtype == 0 || mixtype == 2 {
@@ -417,6 +429,35 @@ final class ST3Cards {
             }
         }
         return (Float(postTable[Int(left & 2047)]) * (1.0 / 128.0), Float(postTable[Int(right & 2047)]) * (1.0 / 128.0))
+    }
+
+    /// How loud each of the card's sixteen channels was in the samples made since this was last asked.
+    func takeLevels(into levels: inout [Float]) {
+        for channel in 0 ..< 16 { levels[channel] = 0 }
+        switch card {
+        case .gus:
+            // The card's volumes are logarithms; this is what one comes to, as a part of the loudest.
+            func gain(_ volume: Int32) -> Float {
+                Float(256 + (volume & 0xFF)) * Float(1 << min(15, Int(volume >> 8)))
+            }
+            let full = gain(Int32(Self.gusVolTable[63] >> 4))
+            for i in 0 ..< activeVoices {
+                let v = voices + i
+                if v.pointee.high > v.pointee.low, v.pointee.owner >= 0, v.pointee.owner < 16 {
+                    // (The volume is where it has got to: a voice that is sliding away has all but gone.)
+                    let level = min(1, Float(v.pointee.high - v.pointee.low) * (1.0 / 65536.0) * gain(Int32(v.pointee.SVLI >> 3)) / full)
+                    // A channel is the loudest of its voices: the note, and the one before it sliding away.
+                    if level > levels[v.pointee.owner] { levels[v.pointee.owner] = level }
+                }
+                v.pointee.low = .max
+                v.pointee.high = .min
+            }
+        case .sb:
+            // (Each voice's swing starts afresh when the channels are next read.)
+            for i in 0 ..< 16 where sbVoices[i].high > sbVoices[i].low {
+                levels[i] = min(1, Float(sbVoices[i].high - sbVoices[i].low) / 254)
+            }
+        }
     }
 
     /// Makes `count` samples at the player's rate. For a Sound Blaster the channels are read first and

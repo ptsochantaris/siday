@@ -49,6 +49,10 @@ final class WebPlayer {
     private var spectrum = SpectrumAnalyzer()
     /// The analyser's bars and then their caps, each as a byte from 0 to 255.
     private(set) var bars: [UInt8] = []
+    /// A light for each voice of the tune: how bright each has been in the sound made since the lights
+    /// were last taken, from 0 to 255; and what was handed over the last time they were.
+    private var lights: [UInt8] = []
+    private(set) var lightsTaken: [UInt8] = []
 
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     func load(_ data: [UInt8], name: String) -> Bool {
@@ -81,6 +85,8 @@ final class WebPlayer {
         let song = min(max(0, subsong), renderer.subsongCount - 1)
         if renderer.subsongCount > 1 || song != renderer.currentSubsong { renderer.select(subsong: song) }
         session = TuneSession(renderer: renderer, policy: policy)
+        lights = [UInt8](repeating: 0, count: renderer.channelCount)
+        lightsTaken = lights
         settle()
         blockLength = 0
         blockCursor = 0
@@ -130,6 +136,9 @@ final class WebPlayer {
                 guard let session, !session.finished else { break }
                 blockLength = session.render(into: block, frames: Self.blockFrames)
                 blockCursor = 0
+                for (voice, level) in session.channelLevels.enumerated() where voice < lights.count {
+                    lights[voice] = max(lights[voice], UInt8(ChannelLight.brightness(of: level) * 255))
+                }
                 if blockLength == 0 { break }
             }
             let count = min(Self.quantumFrames - filled, blockLength - blockCursor)
@@ -148,6 +157,17 @@ final class WebPlayer {
         spectrum.analyse()
         bars = (spectrum.levels + spectrum.caps).map { UInt8(max(0, min(255, $0 * 255))) }
     }
+
+    /// Hands over the lights for the sound made since they were last taken, in `lightsTaken`.
+    func takeLights() {
+        for voice in lights.indices {
+            lightsTaken[voice] = lights[voice]
+            lights[voice] = 0
+        }
+    }
+
+    /// How many of the lights are always shown: the rest are for voices a tune may never use.
+    var lightsAlwaysShown: Int { min(lights.count, renderer?.channelsAlwaysShown ?? 0) }
 
     var subsongCount: Int { renderer?.subsongCount ?? 0 }
     var subsong: Int { renderer?.currentSubsong ?? 0 }
@@ -275,6 +295,26 @@ public func sidaySpectrum() -> UnsafePointer<UInt8>? {
 public func sidaySpectrumBands() -> Int32 {
     Int32(player.bars.count / 2)
 }
+
+/// A light for each voice of the tune, for the sound rendered since this was last called: each a byte
+/// from 0, dark, to 255. There are `siday_lights_count` of them; nil if there are none.
+@_expose(wasm, "siday_lights")
+@_cdecl("siday_lights")
+public func sidayLights() -> UnsafePointer<UInt8>? {
+    player.takeLights()
+    return player.lightsTaken.withUnsafeBufferPointer { $0.baseAddress }
+}
+
+/// How many voices the loaded tune has lights for: an AY chip's three channels, a module's tracks.
+@_expose(wasm, "siday_lights_count")
+@_cdecl("siday_lights_count")
+public func sidayLightsCount() -> Int32 { Int32(player.lightsTaken.count) }
+
+/// How many of them, the first, every tune of the kind has. The rest are for voices a tune may never
+/// use (a beeper, the samples played on a SID's volume), and are worth showing once they have lit.
+@_expose(wasm, "siday_lights_always")
+@_cdecl("siday_lights_always")
+public func sidayLightsAlways() -> Int32 { Int32(player.lightsAlwaysShown) }
 
 @_expose(wasm, "siday_text")
 @_cdecl("siday_text")

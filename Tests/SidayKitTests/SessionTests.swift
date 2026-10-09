@@ -14,6 +14,9 @@ private final class Tune: Renderer {
     private(set) var loopCount = 0
     private let sounding: [ClosedRange<Double>]
     private var frame = 0
+    /// It has one voice, which is as loud as it can be while it sounds.
+    let channelCount = 1
+    private var sounded = false
 
     /// - Parameters:
     ///   - sounding: when it sounds, in seconds.
@@ -38,9 +41,17 @@ private final class Tune: Renderer {
             let value = Self.sample(self, frame)
             buffer[i * 2] = value
             buffer[i * 2 + 1] = value
+            if value != 0 { sounded = true }
             frame += 1
             if endsByLooping, let knownLength, frame % Int(knownLength * 48000) == 0 { loopCount += 1 }
         }
+    }
+}
+
+extension Tune {
+    func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        levels[0] = sounded ? 1 : 0
+        sounded = false
     }
 }
 
@@ -115,4 +126,27 @@ private func faithful(_ sound: [Float], to tune: Tune, until seconds: Double) ->
     policy.maxTime = 16
     result = played(Tune(sounding: [0 ... 10, 18 ... 40], length: 40, goesRound: true), policy: policy)
     #expect(result.session.end == .silent)
+}
+
+@Test func voiceLevelsKeepStepWithTheSoundThroughAPause() {
+    // The silence of a pause is found by playing on past it, and the voices' levels are asked for as
+    // that is done: they are to be given out with the sound they belong to, and not before.
+    let tune = Tune(sounding: [0 ... 10, 18 ... 40], length: 40, goesRound: true)
+    let session = TuneSession(renderer: tune, policy: PlaybackPolicy())
+    var block = [Float](repeating: 0, count: 2000)
+    var lit = 0, dark = 0, litInSilence = 0, darkInSound = 0
+    while !session.finished, session.elapsed < 39 {
+        let made = block.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 1000) }
+        let sounds = (0 ..< made).contains { block[$0 * 2] != 0 }
+        let level = session.channelLevels[0]
+        if level > 0 { lit += 1 } else { dark += 1 }
+        if level > 0, !sounds { litInSilence += 1 }
+        if level == 0, sounds { darkInSound += 1 }
+    }
+    #expect(darkInSound == 0)
+    // (The block the sound came back in is 4,096 frames, and begins with the last of the silence.)
+    #expect(litInSilence <= 5)
+    // Ten seconds of sound, eight of silence and twenty-one of sound, in blocks of a 48th of a second.
+    #expect(abs(lit - 31 * 48) <= 6)
+    #expect(abs(dark - 8 * 48) <= 6)
 }

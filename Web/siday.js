@@ -277,7 +277,9 @@ function heard(message) {
         if (message.serial !== serial || silenced) return;
         shownPosition = message.position;
         shownFor = asked;
-        listeners?.progress(message.position, Array.from(message.bars, (bar) => bar / 255));
+        // (One list and not two: handed two, the Swift side gets them the wrong way round.)
+        const lights = message.lights ?? [];
+        listeners?.progress(message.position, Array.from([...message.bars, ...lights], (level) => level / 255), lights.length);
       }, seconds * 1000);
       break;
     }
@@ -386,6 +388,19 @@ function pause(paused) {
   } else {
     void context?.resume();
   }
+}
+
+/// A tune is taken out of the list. Those after it move up a place, here as on the Swift side.
+function remove(index) {
+  tunes.splice(index, 1);
+}
+
+/// Nothing is to be played: the tune that was playing has been taken out of the list, and there is
+/// none after it. The sound stops as it does for a pause, and the engine lets the song go.
+function stop() {
+  asked++;
+  pause(true);
+  void sound?.then(({ engine }) => engine.postMessage({ type: "stop" }));
 }
 
 // A file chooser of each kind, kept out of sight and clicked on the listener's behalf.
@@ -533,6 +548,12 @@ Object.assign(globalThis, {
   },
   sidayPause(paused) {
     pause(paused);
+  },
+  sidayRemove(index) {
+    remove(index);
+  },
+  sidayStop() {
+    stop();
   },
   sidaySeek(seconds) {
     void seek(seconds);

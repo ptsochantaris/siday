@@ -187,6 +187,12 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
         untilNextFrame = countdown
     }
 
+    public var channelCount: Int { chipCount * 3 }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        for chip in 0 ..< chipCount { chips[chip].takeLevels(into: levels + chip * 3) }
+    }
+
     public func dumpFrames(maxFrames: Int) -> [[UInt8]] {
         restart()
         var out: [[UInt8]] = []

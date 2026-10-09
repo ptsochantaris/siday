@@ -156,6 +156,14 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         }
     }
 
+    /// The SID's three voices, and the samples some tunes play on its volume.
+    public var channelCount: Int { 4 }
+    public var channelsAlwaysShown: Int { 3 }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        machine.takeLevels(into: levels)
+    }
+
     /// The first value read from each I/O or ROM address during the first `seconds`.
     public func dumpHardwareReads(seconds: Double) -> [(UInt16, UInt8)] {
         machine.hardwareReads = [:]

@@ -274,3 +274,18 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     #expect(abs(second.knownLength! - 3.86) < 0.02)
     #expect(stereo(second, seconds: 1).left[4800...].map(abs).max()! > 0.02)
 }
+
+@Test func moduleVoicesAreMeasuredApart() throws {
+    // A note on the second channel and nothing on the others.
+    let renderer = try MODRenderer(module(notes: [(row: 0, channel: 1, bytes: note(period: 428))]), options: LoadOptions())
+    #expect(renderer.channelCount == 4)
+    #expect(renderer.channelsAlwaysShown == 4)
+    var sound = [Float](repeating: 0, count: 4800 * 2)
+    var levels = [Float](repeating: -1, count: 4)
+    sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 4800) }
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    #expect(levels[0] == 0)
+    #expect(levels[1] > 0.3)
+    #expect(levels[2] == 0)
+    #expect(levels[3] == 0)
+}

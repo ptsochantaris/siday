@@ -54,6 +54,12 @@ final class Player {
     /// (Twenty-four of each: what the audio side sends. Until it does, the bars are there and flat.)
     private(set) var bars = [Double](repeating: 0, count: 24)
     private(set) var caps = [Double](repeating: 0, count: 24)
+    /// A light for each voice of the tune: how bright each is, 0 to 1. A light comes on at once and
+    /// goes out over a moment, as a lamp does. (As many as the audio side sends: none, for a tune
+    /// whose voices cannot be told apart.)
+    private(set) var lights: [Double] = []
+    /// How fast a light goes out, in brightnesses a second: from full to dark in about a seventh of one.
+    private static let lightFall = 6.5
     /// What tunes are heard through: at first, what they were heard through on the last visit.
     private(set) var output = (try? sidayRememberedOutput()).flatMap { OutputStyle(rawValue: $0) } ?? .mono
     private(set) var shuffled = false
@@ -97,11 +103,16 @@ final class Player {
             },
             { [self] names in add(names.split(separator: "\n").map { String($0) }) },
             { [self] plays, text, songs, song, length in loaded(plays, text, songs, song, length) },
-            { [self] seconds, heights in
+            { [self] seconds, heights, lightCount in
+                // (A move to another place in the song is no time at all, and neither is a long wait.)
+                let fall = Self.lightFall * max(0, min(0.1, seconds - position))
                 position = seconds
-                let count = heights.count / 2
+                let lightCount = max(0, min(heights.count, lightCount))
+                let count = (heights.count - lightCount) / 2
                 bars = Array(heights[..<count])
-                caps = Array(heights[count...])
+                caps = Array(heights[count ..< count * 2])
+                let levels = Array(heights[(heights.count - lightCount)...])
+                lights = levels.count == lights.count ? levels.indices.map { max(levels[$0], lights[$0] - fall) } : levels
             },
             { [self] seconds, length in
                 rendered = seconds
@@ -132,6 +143,44 @@ final class Player {
         find()
         if shuffled { order[max(1, orderPlace + 1)...].shuffle() }
         if current == nil || finished { play(order[first == 0 ? 0 : min(orderPlace + 1, order.count - 1)]) }
+    }
+
+    /// The file at a place in the list, or nothing if the list is not that long. (A row can be drawn
+    /// once more, for the place it had, after a tune has been taken out and the list is shorter.)
+    func file(at index: Int) -> String {
+        files.indices.contains(index) ? files[index] : ""
+    }
+
+    /// Takes a tune out of the list. If it is the one playing, the next one plays; if there is no next
+    /// one, nothing does.
+    func remove(_ index: Int) {
+        guard files.indices.contains(index) else { return }
+        let wasCurrent = index == current
+        let place = order.firstIndex(of: index) ?? 0
+        files.remove(at: index)
+        searchable.remove(at: index)
+        // The order is of places in the list, and those after the one that has gone are each one less.
+        order = order.filter { $0 != index }.map { $0 > index ? $0 - 1 : $0 }
+        try? sidayRemove(index)
+        find()
+        if let playing = current, playing > index { current = playing - 1 }
+        if let described = tuneFile, described > index { tuneFile = described - 1 }
+        guard wasCurrent else { return }
+        current = nil
+        tuneFile = nil
+        if place < order.count {
+            play(order[place])
+        } else {
+            tune = nil
+            problem = nil
+            finished = false
+            paused = false
+            position = 0
+            rendered = 0
+            lights = []
+            rest()
+            try? sidayStop()
+        }
     }
 
     /// Works out which tunes the search finds.
@@ -205,6 +254,7 @@ final class Player {
         } else {
             tune = nil
             tuneFile = nil
+            lights = []
         }
         current = index
         problem = nil
@@ -305,10 +355,11 @@ final class Player {
         try? sidayPause(paused)
     }
 
-    /// Nothing is sounding: the analyser's bars drop.
+    /// Nothing is sounding: the analyser's bars drop, and the lights go out.
     private func rest() {
         bars = bars.map { _ in 0 }
         caps = caps.map { _ in 0 }
+        lights = lights.map { _ in 0 }
     }
 
     /// Changes what tunes are heard through.

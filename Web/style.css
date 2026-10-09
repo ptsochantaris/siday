@@ -195,6 +195,50 @@ footer {
   height: 2px;
 }
 
+/* A light for each voice of the tune: a round red lamp, with a glow over it that is brighter and wider
+   the louder the voice. Each has a place of its own, of which the lamp is the middle half, so that
+   the lamps stand well apart; many voices make for narrower places, and so for smaller lamps. */
+
+.lights {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 36px;
+}
+
+.light {
+  position: relative;
+  flex: 0 1 36px;
+  min-width: 0;
+  aspect-ratio: 1;
+}
+
+.light::before {
+  content: "";
+  position: absolute;
+  inset: 25%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #6a1c16, #3a0d0a 55%, #220807);
+  box-shadow: 0 0 0 1px #0c0d10;
+}
+
+.light .glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* The lamp, to 32%, and then the light it throws on what is around it, which is brightest at the
+     lamp's edge and falls away quickly at first and then slowly, as light does: an even band of it
+     would be a ring painted round the lamp. */
+  background: radial-gradient(
+    circle,
+    #ff5236 0%, #ff2414 20%, #f01006 32%,
+    rgb(255 34 20 / 0.62) 37%, rgb(255 34 20 / 0.38) 42%, rgb(255 34 20 / 0.22) 48%,
+    rgb(255 34 20 / 0.12) 54%, rgb(255 34 20 / 0.05) 61%, rgb(255 34 20 / 0) 70%
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
 .fill {
   height: 100%;
   background: var(--accent);
@@ -275,6 +319,44 @@ ul {
   height: 28px;
   box-sizing: border-box;
   white-space: nowrap;
+}
+
+/* A row is what is pressed to play the tune, and a cross to take it out of the list, which shows while
+   the pointer is on the row (or always, where there is no pointer to be on it). */
+.rows li {
+  align-items: center;
+}
+
+.rows .pick {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex: 1;
+  min-width: 0;
+}
+
+.rows .remove {
+  visibility: hidden;
+  border: none;
+  background: none;
+  color: var(--dim);
+  padding: 0 4px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.rows li:hover .remove, .rows .remove:focus-visible {
+  visibility: visible;
+}
+
+.rows .remove:hover {
+  color: var(--accent);
+}
+
+@media (hover: none) {
+  .rows .remove {
+    visibility: visible;
+  }
 }
 
 /* What siday.js has to say about the sound's journey to the ears, when asked with ?timing. */

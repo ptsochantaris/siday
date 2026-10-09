@@ -97,6 +97,8 @@ struct OPL3Chip: ~Copyable {
     private var eg_timer: UInt64 = 0
     private var eg_timerrem: UInt8 = 0, eg_state: UInt8 = 0, eg_add: UInt8 = 0, eg_timer_lo: UInt8 = 0
     private var newm: UInt8 = 0, nts: UInt8 = 0, rhy: UInt8 = 0
+    /// For the lights: the lowest and highest each channel has been, of late.
+    private var lows = InlineArray<18, Int16>(repeating: .max), highs = InlineArray<18, Int16>(repeating: .min)
     private var vibpos: UInt8 = 0, vibshift: UInt8 = 1
     private var tremolopos: UInt8 = 0, tremoloshift: UInt8 = 4
     private var noise: UInt32 = 1
@@ -621,6 +623,9 @@ struct OPL3Chip: ~Copyable {
             let accm = UInt16(truncatingIfNeeded: Int32(out.0.pointee) + Int32(out.1.pointee) + Int32(out.2.pointee) + Int32(out.3.pointee))
             mix0 += Int32(Int16(bitPattern: accm & channel.pointee.cha))
             mix1 += Int32(Int16(bitPattern: accm & channel.pointee.chc))
+            let level = Int16(bitPattern: accm)
+            if level < lows[unchecked: ii] { lows[unchecked: ii] = level }
+            if level > highs[unchecked: ii] { highs[unchecked: ii] = level }
         }
         mixbuff.0 = mix0
         mixbuff.2 = mix1
@@ -692,6 +697,18 @@ struct OPL3Chip: ~Copyable {
     @inline(__always) mutating func OPL3_Generate() -> (left: Int16, right: Int16) {
         let samples = OPL3_Generate4Ch()
         return (samples.0, samples.1)
+    }
+
+    /// How far each of the first `count` channels has swung since this was last asked, where 1 is half
+    /// as far as one operator at full level goes: tunes keep well below that, to leave room for nine
+    /// voices. (In the rhythm mode the last three channels are the drums.)
+    mutating func takeLevels(into levels: UnsafeMutablePointer<Float>, count: Int) {
+        for channel in 0 ..< min(18, count) {
+            let low = lows[channel], high = highs[channel]
+            levels[channel] = high > low ? min(1, Float(Int32(high) - Int32(low)) / 4084) : 0
+            lows[channel] = .max
+            highs[channel] = .min
+        }
     }
 
     // MARK: Registers

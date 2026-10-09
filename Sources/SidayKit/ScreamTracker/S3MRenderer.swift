@@ -43,6 +43,12 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     private var player: ST3Player
     private let left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>
     private var tickFrames = 0, tickPosition = 0
+    /// For the lights: the player's channels that the file's patterns use, in the patterns' order (the
+    /// first sixteen are the sound card's and the nine after them the AdLib's), how loud each was in
+    /// the tick last made, and room for the levels of them all.
+    private let lights: [Int]
+    private var levels: TickLevels
+    private var channelLevels = [Float](repeating: 0, count: 25)
     /// The part of a sample that ticks are over by, in 2^-32s, carried from tick to tick.
     private var remainder: UInt64 = 0
     private var started = false
@@ -65,6 +71,30 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         mono = options.stereo == .mono
         left = .allocate(capacity: Self.tickSpace)
         right = .allocate(capacity: Self.tickSpace)
+
+        // The channels that some pattern has a note or an instrument on. Scream Tracker gives a new
+        // tune sixteen, and most tunes leave some of them empty.
+        var used = [Bool](repeating: false, count: 32)
+        for case let pattern? in module.patp {
+            var at = 0
+            while at < pattern.count {
+                let what = pattern[at]
+                at += 1
+                if what & 0x20 != 0 {
+                    if at + 1 < pattern.count, pattern[at] < 254 || pattern[at + 1] != 0 { used[Int(what & 0x1F)] = true }
+                    at += 2
+                }
+                if what & 0x40 != 0 { at += 1 }
+                if what & 0x80 != 0 { at += 2 }
+            }
+        }
+        var lights: [Int] = []
+        for place in 0 ..< min(32, module.channel.count) where used[place] && module.channel[place] & 128 == 0 {
+            let channel = Int(module.channel[place]) % ST3Player.ACHANNELS
+            if channel <= 24, !lights.contains(channel) { lights.append(channel) }
+        }
+        self.lights = lights
+        levels = TickLevels(voices: lights.count)
 
         // Once through each of its songs in silence, to find how long it is and whether the AdLib
         // card is in it.
@@ -120,6 +150,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
                            firstPlayedBy: firstPlayedBy, songNumber: song.number)
         tickFrames = 0
         tickPosition = 0
+        levels.clear()
         remainder = 0
         loopCount = 0
         started = false
@@ -147,6 +178,16 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         tickPosition = 0
         player.cards.render(left: left, right: right, count: tickFrames, channels: player.zchn)
         if player.adlibused { player.adlib.render(left: left, right: right, count: tickFrames, sinc: player.cards.sinc) }
+        player.cards.takeLevels(into: &channelLevels)
+        player.adlib.takeLevels(into: &channelLevels)
+        for light in lights.indices { levels.now[light] = channelLevels[lights[light]] }
+        levels.tickMade()
+    }
+
+    public var channelCount: Int { lights.count }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        self.levels.take(into: levels)
     }
 
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {

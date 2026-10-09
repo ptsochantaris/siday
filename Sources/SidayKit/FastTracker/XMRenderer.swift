@@ -118,6 +118,12 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         }
     }
 
+    public var channelCount: Int { Int(module.song.antChn) }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        player.levels.take(into: levels)
+    }
+
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and
     /// right in turn, clipped where it is too loud for them. For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {

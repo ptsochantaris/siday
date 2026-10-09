@@ -91,6 +91,14 @@ public final class SNDHRenderer: Renderer {
         }
     }
 
+    /// The sound chip's three channels, and the samples an STE can play beside them.
+    public var channelCount: Int { 4 }
+    public var channelsAlwaysShown: Int { 3 }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        machine.takeLevels(into: levels)
+    }
+
     /// The machine's output as it comes, for the next `frames` samples: for comparing with other players.
     public func renderRaw(frames: Int) -> [Int16] {
         var output: [Int16] = []

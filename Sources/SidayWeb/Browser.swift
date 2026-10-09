@@ -16,8 +16,10 @@ import JavaScriptKit
 ///     details one to a line (format, title, author, detail, then for a tune of several songs a line
 ///     for each: its length in milliseconds if known, a tab, its name if it has one) or the reason it
 ///     does not, how many songs it has, which one is playing, and its length in seconds.
-///   - progress: where the playing song has got to, in seconds, and the spectrum analyser's bars: the
-///     height of each, low notes to high, and then the height of each bar's cap, all from 0 to 1.
+///   - progress: where the playing song has got to, in seconds; then, in one list, the spectrum
+///     analyser's bars (the height of each, low notes to high, and then the height of each bar's cap)
+///     and a light for each of the tune's voices that has one (how bright it is), all from 0 to 1;
+///     and how many of the list's last numbers are the lights.
 ///   - rendered: how much of the playing song is ready to be moved about in, in seconds from its start;
 ///     and the song's length, when the file did not give one and the song, now rendered to its end,
 ///     has turned out shorter than the time it was allowed (0 at any other time).
@@ -33,7 +35,7 @@ func sidayListen(
     _ accepts: @escaping (String) -> Bool,
     _ added: @escaping (String) -> Void,
     _ loaded: @escaping (Bool, String, Int, Int, Double) -> Void,
-    _ progress: @escaping (Double, [Double]) -> Void,
+    _ progress: @escaping (Double, [Double], Int) -> Void,
     _ rendered: @escaping (Double, Double) -> Void,
     _ ended: @escaping () -> Void,
     _ held: @escaping () -> Void,
@@ -51,6 +53,14 @@ func sidayPlay(_ index: Int, _ subsong: Int) throws(JSException)
 
 @JSFunction(from: .global)
 func sidayPause(_ paused: Bool) throws(JSException)
+
+/// A file has been taken out of the list: the one at this place in it. Those after it move up one.
+@JSFunction(from: .global)
+func sidayRemove(_ index: Int) throws(JSException)
+
+/// Nothing is to be played: the sound stops, and the song that was playing is let go.
+@JSFunction(from: .global)
+func sidayStop() throws(JSException)
 
 /// Moves to another place in the song that is playing, in seconds from its start. If that much of
 /// the song is not ready yet, the sound waits until it is.

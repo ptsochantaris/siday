@@ -17,7 +17,8 @@
 // catch-up afterwards, and everything after it is then heard late.
 
 /// Frames in a chunk: eight of the module's 128-frame blocks, 21 ms. Each chunk sent carries the
-/// position it reaches and the spectrum analyser's bars, so the page is told of both about 47 times a second.
+/// position it reaches, the spectrum analyser's bars and the lights of the tune's voices, so the page is
+/// told of them all about 47 times a second.
 const blocksPerChunk = 8;
 const chunkFrames = blocksPerChunk * 128;
 const sampleRate = 48000;
@@ -37,9 +38,16 @@ let tune = 0;
 /// The file it came from, and the song of it that was asked for: { name, bytes, subsong }. Kept in
 /// case the song has to be rendered again.
 let file;
-/// The song as far as it has been rendered: { samples, position, last } for each chunk, in order,
-/// the sound as the chip made it. The last chunk of the song is marked.
+/// The song as far as it has been rendered: { samples, position, last, lights } for each chunk, in
+/// order, the sound as the chip made it and how bright the light of each of its voices is for it. The
+/// last chunk of the song is marked.
 let kept = [];
+/// Which of the tune's voices have a light on the page. Some voices are ones a tune may never use (a
+/// ZX Spectrum's beeper, the samples played on a SID's volume), and get a light once they have been
+/// heard in the song as far as it is rendered, which is well ahead of what is playing.
+let shown = [];
+/// How bright a light has to have been for its voice to count as heard, of 255.
+const heard = 24;
 /// True when there is no more of the song to render.
 let complete = true;
 /// The song's length in seconds, once all of it is rendered, if that is how it was found out: the
@@ -82,6 +90,8 @@ function load() {
   found = 0;
   complete = !plays;
   reported = 0;
+  const always = plays ? core.siday_lights_always() : 0;
+  shown = Array.from({ length: plays ? core.siday_lights_count() : 0 }, (_, voice) => voice < always);
   return plays;
 }
 
@@ -114,7 +124,11 @@ function render() {
     // What is left of the chunk after the tune's end stays silent.
     if (last) break;
   }
-  kept.push({ samples, position: core.siday_position(), last });
+  // Asked for first, as below.
+  const taken = core.siday_lights();
+  const lights = new Uint8Array(core.memory.buffer, taken, shown.length).slice();
+  for (let voice = 0; voice < lights.length; voice++) if (lights[voice] >= heard) shown[voice] = true;
+  kept.push({ samples, position: core.siday_position(), last, lights });
   if (last) finish();
 }
 
@@ -149,7 +163,8 @@ function send() {
     // Asked for first: working the bars out can make the module's memory grow, and so move.
     const spectrum = core.siday_spectrum();
     const bars = new Uint8Array(core.memory.buffer, spectrum, core.siday_spectrum_bands() * 2).slice();
-    output.postMessage({ type: "chunk", serial, samples, position: chunk.position, bars, last: chunk.last }, [samples.buffer]);
+    const lights = chunk.lights.filter((_, voice) => shown[voice]);
+    output.postMessage({ type: "chunk", serial, samples, position: chunk.position, bars, lights, last: chunk.last }, [samples.buffer]);
     waiting++;
     if (chunk.last) sending = false;
   }
@@ -247,6 +262,13 @@ self.onmessage = async (event) => {
       if (!file || !load()) break;
       sendFrom(message.position, message.serial);
       start();
+      break;
+    case "stop":
+      // The tune has been taken out of the list, and nothing follows it: the song is let go.
+      file = undefined;
+      kept = [];
+      complete = true;
+      sending = false;
       break;
     case "songlengths":
       withBytes(message.bytes, (data, length) => core.siday_set_songlengths(data, length));

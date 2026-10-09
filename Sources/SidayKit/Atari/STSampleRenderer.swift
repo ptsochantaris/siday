@@ -59,6 +59,8 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
     private let rateShift: UInt32
     private let samplesPerTick: Int
     private var voices = [Voice](repeating: Voice(), count: 8)
+    /// For the lights: how far each voice has swung of late, or the one sample of a digi-mix.
+    private var swings = [Swing<Int32>](repeating: Swing(from: -32768, to: 32767), count: 8)
     private var tick = 0
     private var wrapped = false
     private var untilTick = 0
@@ -217,6 +219,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             }
             pieceClock -= hostRate
         }
+        swings[0].note(Int32(sample) << 7)
         return Int16(sample) << 7
     }
 
@@ -265,7 +268,9 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
                 continue
             }
             let sample = samples[voices[index].sample]
-            output += Int32(Int8(bitPattern: byte(sample.start + voices[index].position) ^ 0x80)) * voices[index].volume
+            let level = Int32(Int8(bitPattern: byte(sample.start + voices[index].position) ^ 0x80)) * voices[index].volume
+            swings[index].note(level)
+            output += level
             voices[index].innerClock &+= voices[index].rate
             while voices[index].innerClock >= hostRate {
                 voices[index].position += 1
@@ -304,6 +309,17 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             let sample = Float(nextSample()) * gain
             buffer[frame * 2] = sample
             buffer[frame * 2 + 1] = sample
+        }
+    }
+
+    public var channelCount: Int { kind == .mix ? 1 : min(8, voiceCount) }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        // A voice at full volume goes 8,192 either side of nothing, and a digi-mix twice as far.
+        let full: Float = kind == .mix ? 32768 : 16384
+        for voice in 0 ..< channelCount {
+            levels[voice] = swings[voice].moved ? min(1, Float(swings[voice].high - swings[voice].low) / full) : 0
+            swings[voice].clear()
         }
     }
 

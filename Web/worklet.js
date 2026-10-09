@@ -9,7 +9,7 @@
 class SidayOutput extends AudioWorkletProcessor {
   constructor() {
     super();
-    /// Chunks waiting to be played, in order: { samples, position, bars, last }.
+    /// Chunks waiting to be played, in order: { samples, position, bars, lights, last }.
     this.queue = [];
     /// How far into the first of them playing has got, in frames.
     this.offset = 0;
@@ -64,9 +64,9 @@ class SidayOutput extends AudioWorkletProcessor {
       if (!chunk) return true;
 
       // The page hears of each chunk as it begins to play: where the song has got to, and the
-      // spectrum analyser's bars for it.
+      // spectrum analyser's bars and the voices' lights for it.
       if (this.offset === 0) {
-        this.port.postMessage({ type: "progress", serial: this.serial, position: chunk.position, bars: chunk.bars });
+        this.port.postMessage({ type: "progress", serial: this.serial, position: chunk.position, bars: chunk.bars, lights: chunk.lights });
       }
       // 1 throughout, or a ramp down to silence or up from it across this block.
       const from = this.audible ? 1 : 0, to = this.paused ? 0 : 1;

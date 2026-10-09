@@ -54,6 +54,16 @@ public protocol Renderer: AnyObject {
     var hasEnded: Bool { get }
     /// Renders `frames` stereo frames (2 × frames floats).
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int)
+    /// How many voices the tune is made of, for showing how loud each is: a chip's channels, a
+    /// module's tracks. None, for a tune that cannot say.
+    var channelCount: Int { get }
+    /// How many of them, the first, are there in every tune of the kind. The rest are ones a tune may
+    /// never use (a ZX Spectrum's beeper, the samples played on a SID's volume), and are worth showing
+    /// only once they have been heard.
+    var channelsAlwaysShown: Int { get }
+    /// How loud each voice has been in the sound rendered since this was last asked: `channelCount`
+    /// numbers, each from 0 to 1, where 1 is as loud as such a voice can be. See `ChannelLight`.
+    func takeChannelLevels(into levels: UnsafeMutablePointer<Float>)
 }
 
 public extension Renderer {
@@ -66,6 +76,9 @@ public extension Renderer {
     var hasEnded: Bool { false }
     var loopCount: Int { 0 }
     var endsByLooping: Bool { false }
+    var channelCount: Int { 0 }
+    var channelsAlwaysShown: Int { channelCount }
+    func takeChannelLevels(into _: UnsafeMutablePointer<Float>) {}
 }
 
 public enum TuneError: Error, CustomStringConvertible {

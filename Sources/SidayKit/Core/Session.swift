@@ -56,10 +56,17 @@ public final class TuneSession {
     private var soundAhead: UnsafeMutablePointer<Float>?
     private var soundAheadFrames = 0, soundAheadGiven = 0
     public private(set) var end = EndReason.playing
+    /// How loud each of the tune's voices was in the frames last rendered: `renderer.channelCount` of
+    /// them, each from 0 to 1. See `Renderer.takeChannelLevels`.
+    public private(set) var channelLevels: [Float]
+    /// The same for the block in which the sound came back after a silence, kept with it.
+    private var levelsAhead: [Float]
 
     public init(renderer: any Renderer, policy: PlaybackPolicy) {
         self.renderer = renderer
         self.policy = policy
+        channelLevels = [Float](repeating: 0, count: renderer.channelCount)
+        levelsAhead = channelLevels
     }
 
     deinit {
@@ -100,6 +107,7 @@ public final class TuneSession {
     /// that, and then the tune itself.
     private func next(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
         var done = 0
+        for voice in channelLevels.indices { channelLevels[voice] = 0 }
         if silenceAhead > 0 {
             done = min(frames, silenceAhead)
             buffer.update(repeating: 0, count: done * 2)
@@ -110,8 +118,23 @@ public final class TuneSession {
             (buffer + done * 2).update(from: soundAhead + soundAheadGiven * 2, count: count * 2)
             soundAheadGiven += count
             done += count
+            for voice in channelLevels.indices { channelLevels[voice] = levelsAhead[voice] }
         }
-        if done < frames { renderer.render(into: buffer + done * 2, frames: frames - done) }
+        if done < frames {
+            renderer.render(into: buffer + done * 2, frames: frames - done)
+            takeLevels(into: &channelLevels, over: done > 0)
+        }
+    }
+
+    /// Asks the renderer how loud its voices have been. Where some of the frames these are for came
+    /// from somewhere else, each voice keeps the louder of what it has and what the renderer says.
+    private func takeLevels(into levels: inout [Float], over: Bool = false) {
+        guard !levels.isEmpty else { return }
+        withUnsafeTemporaryAllocation(of: Float.self, capacity: levels.count) { taken in
+            guard let taken = taken.baseAddress else { return }
+            renderer.takeChannelLevels(into: taken)
+            for voice in levels.indices where !over || taken[voice] > levels[voice] { levels[voice] = taken[voice] }
+        }
     }
 
     /// Plays a tune that has fallen silent on, unheard, to find whether it is a pause or the end.
@@ -128,6 +151,7 @@ public final class TuneSession {
         var ahead = 0
         while Double(ahead) / rate < Self.longestPause, Double(framesRendered + ahead) / rate < over {
             renderer.render(into: block, frames: Self.aheadFrames)
+            takeLevels(into: &levelsAhead)
             // Sound from after the place where the tune goes round is the tune beginning again.
             if renderer.hasEnded || renderer.loopCount >= max(1, policy.loops) { return false }
             if Self.swing(block, frames: Self.aheadFrames) >= 0.0005 {
@@ -202,6 +226,9 @@ public final class TuneSession {
                 buffer[i * 2] *= gain
                 buffer[i * 2 + 1] *= gain
             }
+            // The lights fade with the sound.
+            let gain = max(0, 1 - Float(framesRendered - fadeStart) / Float(fadeFrames))
+            for voice in channelLevels.indices { channelLevels[voice] *= gain }
         }
         framesRendered += produced
         if endsAfterBlock, !finished { end = .completed }

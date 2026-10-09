@@ -66,6 +66,7 @@ struct NowPlaying {
                         .filter { !$0.isEmpty }.joined(separator: " · ")
                 }
                 Analyser(bars: player.bars, caps: player.caps)
+                Lights(levels: player.lights)
                 div(.class("time")) {
                     span { formatTime(player.position) }
                     // Pressing the bar moves to that place in the song. Behind the part played is the
@@ -149,6 +150,36 @@ struct Analyser {
 
     private func hundredths(_ value: Double) -> Double {
         Double(Int(max(0, min(1, value)) * 100)) / 100
+    }
+}
+
+/// A row of lights, one for each voice of the tune: a chip's channels, a module's tracks. Each is the
+/// lamp of an early-1980s tape recorder's recording level: the louder its voice, the brighter it
+/// glows, and the wider.
+@View
+struct Lights {
+    var levels: [Double]
+
+    var body: some View {
+        div(.class("lights")) {
+            ForEach(Array(levels.indices), key: { String($0) }) { index in
+                div(.class("light")) {
+                    div(.class("glow"), .style(["opacity": "\(glow(levels[index]))", "transform": "scale(\(size(levels[index])))"])) {}
+                }
+            }
+        }
+    }
+
+    /// A lamp at half its level is well under half as bright, so that a loud voice stands out from a
+    /// quiet one and a note is seen to die away.
+    private func glow(_ level: Double) -> Double {
+        let level = max(0, min(1, level))
+        return Double(Int(level * level.squareRoot() * 100)) / 100
+    }
+
+    /// The glow is as wide as the lamp when it is faint, and nearly twice that at its brightest.
+    private func size(_ level: Double) -> Double {
+        Double(Int((0.5 + 0.5 * max(0, min(1, level))) * 100)) / 100
     }
 }
 
@@ -246,18 +277,24 @@ struct Row {
     var index: Int
 
     var body: some View {
+        // The cross is beside what is pressed to play the tune and not inside it, so that pressing the
+        // one is not also pressing the other.
         li(.class(index == player.current ? "current" : "")) {
-            span(.class("name")) { lastComponent(player.files[index]) }
-            span(.class("folder")) { folder(player.files[index]) }
+            div(.class("pick")) {
+                span(.class("name")) { lastComponent(player.file(at: index)) }
+                span(.class("folder")) { folder(player.file(at: index)) }
+            }
+            .onClick { player.play(index) }
+            button(.class("remove"), .title("Take out of the list"), .custom(name: "aria-label", value: "Take out of the list")) { "×" }
+                .onClick { player.remove(index) }
         }
-        .onClick { player.play(index) }
     }
 }
 
 // MARK: Text
 
 private func fileName(_ player: Player) -> String {
-    player.current.map { lastComponent(player.files[$0]) } ?? ""
+    player.current.map { lastComponent(player.file(at: $0)) } ?? ""
 }
 
 private func lastComponent(_ path: String) -> String {

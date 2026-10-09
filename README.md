@@ -51,10 +51,12 @@ to WebAssembly.
 - Drop tunes or a whole folder on it, or choose them, and it plays them. Nothing is uploaded: the
   files are read where they are and never leave your computer.
 - A tune with several songs lists them, by name where the file names them, and plays them in turn.
-- A spectrum analyser follows what is being heard.
+- A spectrum analyser follows what is being heard, and under it is a light for each voice of the
+  tune, which glows as bright as that voice is loud.
 - Press anywhere on the time bar to move there, in either direction.
 - SID tunes know their lengths: those of the High Voltage SID Collection are built in.
-- The list shows every tune that was added, however many, and can be searched.
+- The list shows every tune that was added, however many, and can be searched. The cross at the end
+  of a row takes that tune out of the list.
 - It has a volume of its own, apart from the computer's, which it remembers.
 - One list chooses what a tune is heard through: mono, stereo (a module's own, or the AY chip's
   channels spread out, one way round or the other), or the speaker of an early-1980s television. It
@@ -66,7 +68,20 @@ over. A song is rendered to its end as soon as it starts, far faster than it pla
 shades in behind as it goes: anywhere in the shaded part is reached at once, and a place beyond it
 as soon as the rendering gets there.
 
-The spectrum analyser is held back by as long as the browser says the sound takes to be heard, which
+The lights are the lamps of an early-1980s tape recorder's recording level, one for each voice: an AY
+chip's three channels (six for two chips), a SID's three voices, the Atari's three, each channel of a
+module, each of the FM chip's nine voices. What a light shows is its voice by itself, measured where
+the sound is made, before the voices are mixed: how far the voice swings, in decibels, over the last
+fiftieth of a second. (A SID's voices are the exception: they go by their envelopes, since the chip
+mixes them before there is anything to measure.) A module shows the channels its patterns use. Some
+voices are ones a tune may never use, and get a light only once they are heard: the ZX Spectrum's
+beeper, the samples a SID tune plays on the volume, the samples of an Atari STE; and since many
+Spectrum tunes are for the beeper alone, an AY file's three channels too. Measuring costs nothing
+that can be heard and little that can be timed: the sound is the same to the sample, and rendering
+is slower by nothing for a SID tune, a thirtieth for a Spectrum's and at most a seventh for a module's,
+which is rendered some hundreds of times faster than it plays.
+
+The spectrum analyser and the lights are held back by as long as the browser says the sound takes to be heard, which
 with wireless headphones is a sixth of a second or more. When the sound is sent somewhere else while
 the page is open, headphones put on or taken off, the page makes its audio output afresh and carries
 on from where it was. Adding `?timing` to the page's address shows what the browser is reporting.

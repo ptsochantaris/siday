@@ -216,6 +216,8 @@ public final class AYFileRenderer: Renderer {
     private var position = 0.0
     private var eventIndex = 0
     private var beeperLevel = 0.0
+    /// How many times the beeper has gone in or out since the lights were last told.
+    private var beeperMoves = 0
 
     public private(set) var info: TuneInfo
     public private(set) var currentSubsong = 0
@@ -466,6 +468,7 @@ public final class AYFileRenderer: Renderer {
         var frameLength = Double(frameTStates)
         var step = tstatesPerStep
         var beeper = beeperLevel
+        var moves = 0
         var next = eventIndex
         var count = machine.eventCount
         var nextTime = next < count ? Double(events[next].tstate) : .infinity
@@ -488,6 +491,7 @@ public final class AYFileRenderer: Renderer {
                     let event = events[next]
                     if event.register == AYPortEvent.beeper {
                         beeper = event.value != 0 ? -ayFileBeeperLevel : 0
+                        moves &+= 1
                     } else {
                         chip.pointee.write(Int(event.register), event.value)
                     }
@@ -504,6 +508,19 @@ public final class AYFileRenderer: Renderer {
         self.position = position
         eventIndex = next
         beeperLevel = beeper
+        beeperMoves += moves
+    }
+
+    /// The chip's three channels and the beeper. A tune rarely uses all four, and which it uses is
+    /// only known from its playing, so each is shown once it is heard.
+    public var channelCount: Int { 4 }
+    public var channelsAlwaysShown: Int { 0 }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        chip.pointee.takeLevels(into: levels)
+        // The beeper is in or out, with nothing between: it is sounding if it is moving.
+        levels[3] = beeperMoves > 1 ? 1 : beeperMoves == 1 ? 0.5 : 0
+        beeperMoves = 0
     }
 
     /// Restarts the current song and runs it for `frames` frames without sound, returning every AY

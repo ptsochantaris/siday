@@ -193,6 +193,12 @@ final class STMachine {
         return runTimers() ? output : 0
     }
 
+    /// How loud the sound chip's three channels and the STE's samples have been since this was last asked.
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) {
+        hardware.chip.takeLevels(into: levels)
+        levels[3] = hardware.samples.takeLevel()
+    }
+
     /// Moves the timers on by a sample and runs the interrupt code of any that come due. False if some
     /// of that code did not come back.
     @inline(__always) private func runTimers() -> Bool {

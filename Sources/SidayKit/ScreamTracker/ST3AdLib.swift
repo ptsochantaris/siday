@@ -151,6 +151,15 @@ final class ST3AdLib {
         }
     }
 
+    /// How loud each of the card's nine voices was in the samples made since this was last asked:
+    /// they are the channels from the sixteenth on.
+    func takeLevels(into levels: inout [Float]) {
+        levels.withUnsafeMutableBufferPointer { levels in
+            guard let first = levels.baseAddress, levels.count >= 25 else { return }
+            chip.pointee.takeLevels(into: first + 16, count: 9)
+        }
+    }
+
     /// Adds `count` samples of the card to what the sound card has made, which is first made quieter
     /// to leave room for it.
     func render(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int, sinc: UnsafePointer<Float>) {

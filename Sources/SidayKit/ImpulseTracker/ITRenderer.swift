@@ -28,6 +28,8 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     private var player: IT2Player
     private var tickFrames = 0, tickPosition = 0
     private var started = false
+    /// For the lights: which of the 64 channels some pattern has a note on, in order.
+    private let lights: [Int]
 
     /// A tune that has not come round after this many ticks is taken not to.
     private static let mostTicks = 50 * 60 * 120
@@ -37,6 +39,33 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     public init(_ data: [UInt8], options: LoadOptions) throws {
         module = try IT2Module(data)
         mono = options.stereo == .mono
+
+        // The channels that some pattern has a note or an instrument on, and that are not switched off.
+        var used = [Bool](repeating: false, count: 64)
+        for index in 0 ..< module.patternLimit where module.hasPattern(index) {
+            let pattern = module.pattern(index)
+            var masks = [UInt8](repeating: 0, count: 64)
+            var at = 0, row = 0
+            while row < Int(pattern.rows), at < pattern.data.count {
+                let what = pattern.data[at]
+                at += 1
+                if what == 0 {
+                    row += 1
+                    continue
+                }
+                let channel = (Int(what & 0x7F) - 1) & 63
+                if what & 0x80 != 0, at < pattern.data.count {
+                    masks[channel] = pattern.data[at]
+                    at += 1
+                }
+                // A note or an instrument, given here or said to be the same as last time.
+                if masks[channel] & 0x33 != 0 { used[channel] = true }
+                at += (masks[channel] & 1 != 0 ? 1 : 0) + (masks[channel] & 2 != 0 ? 1 : 0) + (masks[channel] & 4 != 0 ? 1 : 0)
+                    + (masks[channel] & 8 != 0 ? 2 : 0)
+            }
+        }
+        let places = module.ChnlPan
+        lights = (0 ..< 64).filter { used[$0] && places[$0] & 128 == 0 }
 
         var info = TuneInfo(format: "IT")
         info.title = module.title
@@ -92,6 +121,17 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         started = true
         tickFrames = player.mixer.mixTick()
         tickPosition = 0
+    }
+
+    public var channelCount: Int { lights.count }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        // The mixer has all 64 channels; the ones in use are picked out of them.
+        withUnsafeTemporaryAllocation(of: Float.self, capacity: 64) { all in
+            guard let all = all.baseAddress else { return }
+            player.mixer.levels.take(into: all)
+            for light in lights.indices { levels[light] = all[lights[light]] }
+        }
     }
 
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {

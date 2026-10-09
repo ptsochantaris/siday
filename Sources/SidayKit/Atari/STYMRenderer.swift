@@ -369,6 +369,12 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
         }
     }
 
+    public var channelCount: Int { 3 }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        chip.takeLevels(into: levels)
+    }
+
     public func renderRaw(frames: Int) -> [Int16] {
         var output: [Int16] = []
         output.reserveCapacity(frames)

@@ -33,6 +33,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// One tick of sound: made at twice the rate, then brought down where it lies.
     private let left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>
     private var tickFrames = 0, tickPosition = 0
+    private var levels = TickLevels(voices: 4)
     private var down = (HalfBand(), HalfBand())
     /// The part of a sample that ticks of a tempo are over by, in 2^-52s, carried from tick to tick.
     private var remainder: UInt64 = 0
@@ -108,6 +109,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0
+        levels.clear()
         remainder = 0
         loopCount = 0
         seed = 0x1234_5000
@@ -134,6 +136,8 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         tickFrames = Self.tickLength(tempo: replayer.tempo, &remainder)
         tickPosition = 0
         replayer.paula.generate(left: left, right: right, count: tickFrames * 2)
+        replayer.paula.takeLevels(into: &levels.now)
+        levels.tickMade()
         for i in 0 ..< tickFrames {
             left[i] = down.0.step(left[i * 2], left[i * 2 + 1])
             right[i] = down.1.step(right[i * 2], right[i * 2 + 1])
@@ -154,6 +158,13 @@ public final class MODRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+    }
+
+    /// Paula's four voices.
+    public var channelCount: Int { 4 }
+
+    public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
+        self.levels.take(into: levels)
     }
 
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and
