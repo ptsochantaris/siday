@@ -45,11 +45,25 @@ public final class TuneSession {
     private static let restAtEnd = 0.2
     /// A fade stops early once the tune has been quiet for this long.
     private static let quietDuringFade = 0.5
+    /// A tune that has been silent for this long is looked into, to see whether it is over.
+    private static let silenceToHaveBegun = 5.0, silenceNeverToHaveBegun = 10.0
+    /// How far on a silent tune is played, unheard, to find whether its sound comes back.
+    private static let longestPause = 60.0
+    private static let aheadFrames = 4096
+    /// What was found when a silent tune was played on: so much more silence, which is still to be
+    /// given out, and then the block in which the sound came back, of which so much has been given.
+    private var silenceAhead = 0
+    private var soundAhead: UnsafeMutablePointer<Float>?
+    private var soundAheadFrames = 0, soundAheadGiven = 0
     public private(set) var end = EndReason.playing
 
     public init(renderer: any Renderer, policy: PlaybackPolicy) {
         self.renderer = renderer
         self.policy = policy
+    }
+
+    deinit {
+        soundAhead?.deallocate()
     }
 
     public var finished: Bool { end != .playing }
@@ -71,18 +85,69 @@ public final class TuneSession {
         fadeFrames = max(1, Int(seconds * Double(outputSampleRate)))
     }
 
-    /// Renders up to `frames` frames; returns how many were produced (0 once finished).
-    public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) -> Int {
-        guard !finished else { return 0 }
-        renderer.render(into: buffer, frames: frames)
-
+    /// How far apart the lowest and the highest of some samples are.
+    private static func swing(_ buffer: UnsafeMutablePointer<Float>, frames: Int) -> Float {
         var low = Float.greatestFiniteMagnitude, high = -Float.greatestFiniteMagnitude
         for i in 0 ..< frames * 2 {
             let v = buffer[i]
             if v < low { low = v }
             if v > high { high = v }
         }
-        if high - low < 0.0005 {
+        return high - low
+    }
+
+    /// The tune's next frames: what was found by playing on through a silence, while there is any of
+    /// that, and then the tune itself.
+    private func next(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
+        var done = 0
+        if silenceAhead > 0 {
+            done = min(frames, silenceAhead)
+            buffer.update(repeating: 0, count: done * 2)
+            silenceAhead -= done
+        }
+        if done < frames, soundAheadGiven < soundAheadFrames, let soundAhead {
+            let count = min(frames - done, soundAheadFrames - soundAheadGiven)
+            (buffer + done * 2).update(from: soundAhead + soundAheadGiven * 2, count: count * 2)
+            soundAheadGiven += count
+            done += count
+        }
+        if done < frames { renderer.render(into: buffer + done * 2, frames: frames - done) }
+    }
+
+    /// Plays a tune that has fallen silent on, unheard, to find whether it is a pause or the end.
+    /// - Returns: true if the sound comes back within `longestPause` and before the tune is over.
+    ///   The silence up to there and the block the sound came back in are then kept, to be given out
+    ///   as the tune's next frames.
+    private func soundComesBack() -> Bool {
+        let rate = Double(outputSampleRate)
+        var over = renderer.knownLength.map { renderer.endsByLooping ? $0 * Double(max(1, policy.loops)) : $0 } ?? policy.defaultTime
+        if let cap = policy.maxTime { over = min(over, cap) }
+        let block = soundAhead ?? .allocate(capacity: Self.aheadFrames * 2)
+        soundAhead = block
+
+        var ahead = 0
+        while Double(ahead) / rate < Self.longestPause, Double(framesRendered + ahead) / rate < over {
+            renderer.render(into: block, frames: Self.aheadFrames)
+            // Sound from after the place where the tune goes round is the tune beginning again.
+            if renderer.hasEnded || renderer.loopCount >= max(1, policy.loops) { return false }
+            if Self.swing(block, frames: Self.aheadFrames) >= 0.0005 {
+                silenceAhead = ahead
+                soundAheadFrames = Self.aheadFrames
+                soundAheadGiven = 0
+                return true
+            }
+            ahead += Self.aheadFrames
+        }
+        return false
+    }
+
+    /// Renders up to `frames` frames; returns how many were produced (0 once finished).
+    public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) -> Int {
+        guard !finished else { return 0 }
+        next(into: buffer, frames: frames)
+
+        let swing = Self.swing(buffer, frames: frames)
+        if swing < 0.0005 {
             silentFrames += frames
         } else {
             heardSound = true
@@ -90,8 +155,8 @@ public final class TuneSession {
         }
         // Quiet relative to the tune itself, so a decayed last note or a chip's idle hum counts as rest.
         let quietBefore = quietFrames
-        loudest = max(loudest, high - low)
-        quietFrames = high - low < max(0.0005, loudest * 0.02) ? quietFrames + frames : 0
+        loudest = max(loudest, swing)
+        quietFrames = swing < max(0.0005, loudest * 0.02) ? quietFrames + frames : 0
 
         let rate = Double(outputSampleRate)
         let t = Double(framesRendered) / rate
@@ -141,12 +206,12 @@ public final class TuneSession {
         framesRendered += produced
         if endsAfterBlock, !finished { end = .completed }
 
-        if !finished {
-            if heardSound, Double(silentFrames) / rate >= 5 {
-                end = .silent
-            } else if !heardSound, Double(silentFrames) / rate >= 10 {
-                end = .neverSounded
-            }
+        // A tune that has fallen silent may be over, or may be pausing: it is played on to find out.
+        // (While what that found is still being given out, there is nothing more to find.)
+        if !finished, silenceAhead == 0, soundAheadGiven == soundAheadFrames, fadeStart < 0,
+           Double(silentFrames) / rate >= (heardSound ? Self.silenceToHaveBegun : Self.silenceNeverToHaveBegun),
+           !soundComesBack() {
+            end = heardSound ? .silent : .neverSounded
         }
         return produced
     }

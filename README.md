@@ -182,14 +182,20 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 - Only a tune that is still playing at that point is faded out, since it would go on repeating. One
   that has come to rest there has an ending of its own and simply stops. An AY file that asks for a
   particular fade gets that one.
-- Any tune that falls silent for five seconds ends early.
+- A tune that falls silent for five seconds is played on, unheard, to see whether the sound comes
+  back. If it does within a minute, and before the tune is over, that was a pause, and it is played
+  as it is written, however long: a tune made to go with a demo's pictures may wait half a minute
+  between its parts. If it does not, the tune ends there. A tune that begins with ten seconds of
+  silence is looked into the same way.
 - Multi-song AY and SID files play the song the file names as its first; `+` and `-` move between songs.
 - A module can hold several songs too: a game's music was often one file with a tune for every level,
   each ending in a jump back to its own start. Whatever the list of patterns holds that playing from
   its top never reaches is played from there as another song, and so on until nothing is left. A
-  song is over when it comes round to itself or runs into one found before it. A piece that only
-  leads into an earlier song is not counted unless it is half a minute long, nor one with no note in
-  it or shorter than a second; where the first song is such a nothing, the first real one is played.
+  song is over when it comes round to where it has itself been. It may get there by way of a song
+  found before it: another beginning for a tune goes on as the tune does. A piece that only leads
+  into an earlier song is not counted unless it is half a minute long before it gets there, nor one
+  with no note in it or shorter than a second; where the first song is such a nothing, the first
+  real one is played.
   `+` and `-` move between them, and `--list --all-subsongs` shows how long each is. Some of what
   turns up is not a song but patterns the composer left behind after the end of the list.
 

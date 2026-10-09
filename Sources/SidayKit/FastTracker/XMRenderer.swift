@@ -51,14 +51,17 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         songList = ModuleSongs.find(places: Int(module.song.len), isPattern: { _ in true }) { start, number in
             let player = FT2Player(module, position: start, firstPlayedBy: firstPlayedBy, songNumber: number)
             var frames = 0, ticks = 0
+            var watch = ModuleSongs.Watch()
             while ticks < Self.mostTicks, !player.stopped {
-                if !player.runSilentTick() { break }
+                let more = player.runSilentTick()
+                if watch.tick(frames: frames, playedNote: player.playedNote, ledIntoEarlierSong: player.ledIntoEarlierSong) { break }
+                if !more { break }
                 frames += Int(player.speedVal)
                 ticks += 1
             }
             let length = ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
-            return ModuleSongs.Pass(played: player.ordersPlayed, length: length, sounded: player.playedNote,
-                                    ledIntoEarlierSong: player.ledIntoEarlierSong)
+            return ModuleSongs.Pass(played: player.ordersPlayed, length: length, sounded: watch.sounded(player.playedNote),
+                                    leadIn: watch.leadIn)
         }
         player = FT2Player(module)
         currentSubsong = defaultSubsong

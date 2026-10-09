@@ -362,11 +362,16 @@ public final class ST3Player {
             cameRound = true
             visited.update(repeating: false, count: 256 * 64)
         } else if let firstPlayedBy, !metEarlierSong, firstPlayedBy[at] < songNumber {
-            // Into what a song before this one played: this one is over, the once.
-            cameRound = true
             metEarlierSong = true
-            ledIntoEarlierSong = !offTheEnd
-            visited.update(repeating: false, count: 256 * 64)
+            if offTheEnd {
+                // Off the end of the list and round to its top, which a song before this one played:
+                // this one is over.
+                cameRound = true
+                visited.update(repeating: false, count: 256 * 64)
+            } else {
+                // On into what a song before this one played, which from here is part of this one.
+                ledIntoEarlierSong = true
+            }
         }
         offTheEnd = false
         visited[at] = true

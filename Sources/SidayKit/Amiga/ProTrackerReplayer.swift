@@ -638,11 +638,10 @@ struct ProTrackerReplayer: ~Copyable {
 
         // The last tick of a row: is the row that comes next one that has been played?
         if patternDelayLeft == 0, tick == speed - 1 {
-            var seen = position >= 0 && row >= 0 && visited[Int(position) * ProTrackerModule.rows + Int(row)]
+            let seen = position >= 0 && row >= 0 && visited[Int(position) * ProTrackerModule.rows + Int(row)]
             if !seen, !wrapped, !metEarlierSong, position >= 0, row >= 0, let firstPlayedBy,
                firstPlayedBy[Int(position) * ProTrackerModule.rows + Int(row)] < songNumber {
-                // Into what a song before this one played: this one is over, the once.
-                seen = true
+                // On into what a song before this one played, which from here is part of this one.
                 metEarlierSong = true
                 ledIntoEarlierSong = true
             }

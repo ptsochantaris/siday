@@ -51,15 +51,17 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         songList = ModuleSongs.find(places: 256, isPattern: { Int(module.Orders[$0]) < module.patternLimit }) { start, number in
             let player = IT2Player(module, order: start, firstPlayedBy: firstPlayedBy, songNumber: number)
             var frames = 0, ticks = 0
+            var watch = ModuleSongs.Watch()
             while ticks < Self.mostTicks {
                 player.Update()
+                if watch.tick(frames: frames, playedNote: player.playedNote, ledIntoEarlierSong: player.ledIntoEarlierSong) { break }
                 if player.cameRound, ticks > 0 { break }
                 frames += player.mixer.skipTick()
                 ticks += 1
             }
             let length = ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
-            return ModuleSongs.Pass(played: player.ordersPlayed, length: length, sounded: player.playedNote,
-                                    ledIntoEarlierSong: player.ledIntoEarlierSong)
+            return ModuleSongs.Pass(played: player.ordersPlayed, length: length, sounded: watch.sounded(player.playedNote),
+                                    leadIn: watch.leadIn)
         }
         player = IT2Player(module)
         currentSubsong = defaultSubsong

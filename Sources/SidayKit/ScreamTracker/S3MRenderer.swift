@@ -77,9 +77,11 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
             let player = ST3Player(module, card: card, order: start, firstPlayedBy: firstPlayedBy, songNumber: number)
             var frames = 0, ticks = 0
             var remainder: UInt64 = 0
+            var watch = ModuleSongs.Watch()
             if !player.silent {
                 while ticks < Self.mostTicks {
                     player.tick()
+                    if watch.tick(frames: frames, playedNote: player.playedNote, ledIntoEarlierSong: player.ledIntoEarlierSong) { break }
                     if player.cameRound, ticks > 0 { break }
                     frames += Self.tickLength(player, &remainder)
                     ticks += 1
@@ -87,8 +89,8 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
             }
             adLib[start] = player.adlibused
             let length = ticks > 0 && ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
-            return ModuleSongs.Pass(played: player.ordersPlayed, length: length, sounded: player.playedNote,
-                                    ledIntoEarlierSong: player.ledIntoEarlierSong)
+            return ModuleSongs.Pass(played: player.ordersPlayed, length: length, sounded: watch.sounded(player.playedNote),
+                                    leadIn: watch.leadIn)
         }
         songList = found.map { Song(start: $0.start, number: $0.number, length: $0.length, empty: $0.empty, adLib: adLib[$0.start]) }
         player = ST3Player(module, card: card)

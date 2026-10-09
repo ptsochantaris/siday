@@ -10,16 +10,18 @@
 /// that playing from the top never reaches is looked at too: playing is started at the first place
 /// not yet played, and whatever is reached from there is the next song, until no place is left.
 ///
-/// A song is over when it comes round to a row it has played, or runs into a row that a song before
-/// it played: a pattern nothing leads to, left behind after the end of the list, is then a song of
-/// its own length and not that pattern with the whole of the first song after it. For that the songs
-/// share a table of which of them played each row first (`unplayed` for none yet), which the players
-/// fill in as they go.
+/// A song is over when it comes round to a row it has itself played. It may get there by way of a
+/// song found before it: another way into a tune, which then goes on as that tune does, is a song
+/// from its own beginning to where it has been before. (Running off the end of the list is an end
+/// too, though the tracker would go on from the top.) So that a song can tell when it has gone on
+/// into an earlier one, the songs share a table of which of them played each row first (`unplayed`
+/// for none yet), which the players fill in as they go.
 ///
 /// A song found that way is kept only if a note is played in it and it lasts a second or more:
 /// patterns left empty, and ends of lists that only jump away, are not songs. Nor is a short piece
 /// that only leads into a song already found, which is what a place in the list that a jump passes
-/// over looks like: it is kept only if it is half a minute or more of music before it gets there.
+/// over looks like, or a pattern left behind after the end: it is kept only if it is half a minute
+/// or more of music before it gets there.
 enum ModuleSongs {
     /// In the table of who played a row first: nobody yet.
     static let unplayed: UInt8 = 255
@@ -41,18 +43,45 @@ enum ModuleSongs {
         /// Which places in the list were played.
         var played: [Bool]
         var length: Double?
-        /// True if a note was played.
+        /// True if a note was played: before it went on into an earlier song, if it did.
         var sounded: Bool
-        /// True if it ended by going on into a row that a song before it played, and not by coming
-        /// round to itself, stopping, or running off the end of the list.
-        var ledIntoEarlierSong: Bool
+        /// How long it had been playing, in seconds, when it went on into a row that a song before
+        /// it played; nil if it never did.
+        var leadIn: Double?
+    }
+
+    /// Kept by a pass as it goes, for the two things about a song that are to be known as of the
+    /// moment it goes on into an earlier one.
+    struct Watch {
+        private(set) var leadIn: Double?
+        private var soundedBefore = false, soundedAtLeadIn = false
+
+        /// To be told after each tick of the pass.
+        /// - Parameters:
+        ///   - frames: how long the pass had been playing before that tick, in samples.
+        ///   - playedNote: whether a note has been played so far.
+        ///   - ledIntoEarlierSong: whether the song has gone on into an earlier one.
+        /// - Returns: true if the pass need go no further: this is too short a way into an earlier
+        ///   song to be a song.
+        mutating func tick(frames: Int, playedNote: Bool, ledIntoEarlierSong: Bool) -> Bool {
+            if ledIntoEarlierSong, leadIn == nil {
+                leadIn = Double(frames) / Double(outputSampleRate)
+                soundedAtLeadIn = soundedBefore
+                return leadIn! < ModuleSongs.leadIn
+            }
+            soundedBefore = playedNote
+            return false
+        }
+
+        /// Whether a note was played: before the song went on into an earlier one, if it did.
+        func sounded(_ playedNote: Bool) -> Bool { leadIn == nil ? playedNote : soundedAtLeadIn }
     }
 
     /// No file means more songs than this; one that seems to is a list of odds and ends.
     static let most = 32
     private static let mostPasses = 64
     /// How long a piece that leads into an earlier song has to be, in seconds, to count as a song.
-    private static let leadIn = 30.0
+    static let leadIn = 30.0
 
     /// - Parameters:
     ///   - places: how long the list of patterns is.
@@ -72,7 +101,7 @@ enum ModuleSongs {
             passes += 1
             for i in 0 ..< min(places, found.played.count) where found.played[i] { played[i] = true }
             if start < places { played[start] = true }
-            let longEnough = (found.length ?? leadIn) >= (found.ledIntoEarlierSong ? leadIn : 1)
+            let longEnough = found.leadIn.map { $0 >= leadIn } ?? true
             let something = found.sounded && (found.length ?? 1) >= 1
             if songs.isEmpty || (something && longEnough) {
                 songs.append(Song(start: start, number: UInt8(passes - 1), length: found.length, empty: !something))

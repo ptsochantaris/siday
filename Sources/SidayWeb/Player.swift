@@ -244,8 +244,9 @@ final class Player {
         tune = Tune(format: line(0), title: line(1), author: line(2), detail: line(3), songs: list, song: song, length: length)
     }
 
-    /// The playing song had no length in its file and was given the usual time; rendered to its end, it
-    /// has turned out shorter. That is its length, here and in the list of songs.
+    /// The playing song had no length in its file and was given the usual time, or had one and fell
+    /// silent for good before it; rendered to its end, it has turned out shorter. That is its length,
+    /// here and in the list of songs.
     private func measured(_ length: Double) {
         guard let song = tune?.song else { return }
         tune?.length = length

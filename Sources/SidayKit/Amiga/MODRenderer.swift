@@ -72,15 +72,18 @@ public final class MODRenderer: Renderer, ReferenceComparable {
             var replayer = ProTrackerReplayer(module, model: model, position: start, firstPlayedBy: firstPlayedBy, songNumber: number)
             var frames = 0, ticks = 0
             var remainder: UInt64 = 0
+            var watch = ModuleSongs.Watch()
             while ticks < Self.mostTicks {
                 let more = replayer.runTick()
                 frames += Self.tickLength(tempo: replayer.tempo, &remainder)
                 ticks += 1
+                // (The replayer looks ahead: it says so on the last tick before the earlier song's row.)
+                if watch.tick(frames: frames, playedNote: replayer.playedNote, ledIntoEarlierSong: replayer.ledIntoEarlierSong) { break }
                 if !more || replayer.stopped { break }
             }
             let length = ticks < Self.mostTicks ? Double(frames) / Double(outputSampleRate) : nil
-            return ModuleSongs.Pass(played: replayer.ordersPlayed, length: length, sounded: replayer.playedNote,
-                                    ledIntoEarlierSong: replayer.ledIntoEarlierSong)
+            return ModuleSongs.Pass(played: replayer.ordersPlayed, length: length, sounded: watch.sounded(replayer.playedNote),
+                                    leadIn: watch.leadIn)
         }
         replayer = ProTrackerReplayer(module, model: model)
         currentSubsong = defaultSubsong

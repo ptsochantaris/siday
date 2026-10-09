@@ -1241,11 +1241,16 @@ final class IT2Player {
             cameRound = true
             visited.update(repeating: false, count: Self.rowsInAll)
         } else if let firstPlayedBy, !metEarlierSong, firstPlayedBy[at] < songNumber {
-            // Into what a song before this one played: this one is over, the once.
-            cameRound = true
             metEarlierSong = true
-            ledIntoEarlierSong = !offTheEnd
-            visited.update(repeating: false, count: Self.rowsInAll)
+            if offTheEnd {
+                // Off the end of the list and round to its top, which a song before this one played:
+                // this one is over.
+                cameRound = true
+                visited.update(repeating: false, count: Self.rowsInAll)
+            } else {
+                // On into what a song before this one played, which from here is part of this one.
+                ledIntoEarlierSong = true
+            }
         }
         visited[at] = true
         if let firstPlayedBy, firstPlayedBy[at] == ModuleSongs.unplayed { firstPlayedBy[at] = songNumber }

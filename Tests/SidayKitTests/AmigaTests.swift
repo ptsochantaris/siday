@@ -244,6 +244,22 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     file[950] = 2
     #expect(try TuneLoader.load(file, format: .mod).subsongCount == 1)
 
+    // But one that is half a minute of music before it gets there is another way into the song, and
+    // goes on as the song does until it comes to where it has itself been. Here a pattern played
+    // slowly, 39.18 seconds of it, jumps to the first, which is 7.68 and goes round.
+    let slow = module(notes: [(0, 0, note(period: 428)), (0, 1, [0, 0, 0x0F, 0x1F]), (63, 0, [0, 0, 0x0B, 0]), (63, 1, [0, 0, 0x0F, 6])])
+    file = Array(file[..<2108]) + Array(slow[1084...])
+    file[952 + 1] = 1
+    let both = try TuneLoader.load(file, format: .mod)
+    #expect(both.subsongCount == 2)
+    #expect(abs(both.songs[0].length! - 7.68) < 0.02)
+    #expect(abs(both.songs[1].length! - 46.86) < 0.05)
+    both.select(subsong: 1)
+    _ = stereo(both, seconds: 46)
+    #expect(both.loopCount == 0)
+    _ = stereo(both, seconds: 2)
+    #expect(both.loopCount == 1)
+
     // A first song that is nothing at all, a pattern that stops at once, with a second pattern after
     // it that is something: the second is what is played unless the first is asked for.
     let stop = module(notes: [(0, 0, [0, 0, 0x0F, 0])])

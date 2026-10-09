@@ -43,7 +43,8 @@ let kept = [];
 /// True when there is no more of the song to render.
 let complete = true;
 /// The song's length in seconds, once all of it is rendered, if that is how it was found out: the
-/// file did not say, and the song came to an end before the time it was allowed. Otherwise 0.
+/// file did not say, and the song came to an end before the time it was allowed; or the file did
+/// say, and the song fell silent for good before then. Otherwise 0.
 let found = 0;
 /// Silence left at the end of a song that ended by falling silent, in seconds.
 const rest = 1;
@@ -129,9 +130,10 @@ function finish() {
     kept[kept.length - 1].last = true;
   }
   // Where the file gave no length the page was told the time the tune would be allowed. If the tune
-  // did not need it all, its real length is the sound it made.
+  // did not need it all, its real length is the sound it made. So it is for a tune whose length is
+  // known but which fell silent before it: a module with nothing but empty rows before it goes round.
   const length = end - silence;
-  found = core.siday_length_known() === 0 && length > 0 && length < core.siday_length() ? length : 0;
+  found = (core.siday_length_known() === 0 || silence > 0) && length > 0 && length < core.siday_length() ? length : 0;
 }
 
 /// Sends chunks until enough are waiting to be played, or there are no more to send yet.
