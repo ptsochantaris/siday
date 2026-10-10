@@ -319,10 +319,26 @@ private func flameHeight(_ visualiser: Visualiser) -> Int {
     guard let pixels = visualiser.pixels else { return 0 }
     var tallest = 0
     for row in 0 ..< visualiser.height {
-        let burning = (0 ..< visualiser.width).contains { pixels[(row * visualiser.width + $0) * 4] > 110 }
+        let burning = (0 ..< visualiser.width).contains { column in
+            let at = (row * visualiser.width + column) * 4
+            return max(pixels[at], pixels[at + 1], pixels[at + 2]) > 110
+        }
         if burning { tallest = max(tallest, visualiser.height - row) }
     }
     return tallest
+}
+
+/// How wide the lamp is that stands in the middle of a picture of one voice, in dots, and the
+/// colour of the middle of it. (The lamps stand four fifths of the way down.)
+private func lamp(_ visualiser: Visualiser) -> (width: Int, red: Int, green: Int, blue: Int) {
+    guard let pixels = visualiser.pixels else { return (0, 0, 0, 0) }
+    let row = visualiser.height * 4 / 5
+    let width = (0 ..< visualiser.width).count { column in
+        let at = (row * visualiser.width + column) * 4
+        return max(pixels[at], pixels[at + 1], pixels[at + 2]) > 150
+    }
+    let middle = (row * visualiser.width + visualiser.width / 2) * 4
+    return (width, Int(pixels[middle]), Int(pixels[middle + 1]), Int(pixels[middle + 2]))
 }
 
 @Test func flameBurnsTallerForALouderVoice() {
@@ -333,8 +349,20 @@ private func flameHeight(_ visualiser: Visualiser) -> Int {
         return flameHeight(visualiser)
     }
     let quiet = height(level: 0.35), loud = height(level: 1)
-    #expect(quiet > 4)
+    #expect(quiet > 20)
     #expect(loud > quiet + 12)
+}
+
+@Test func flameLampIsAsLargeAsItsVoiceIsLoud() {
+    func width(level: Float) -> Int {
+        let visualiser = Visualiser(mode: .flame)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 3, levels: [level], pitches: [60])
+        return lamp(visualiser).width
+    }
+    let silent = width(level: 0), quiet = width(level: 0.35), middling = width(level: 0.7), loud = width(level: 1)
+    #expect(silent == 0)
+    #expect(quiet > 4 && quiet < middling - 5 && middling < loud - 5)
 }
 
 @Test func flameStandsWhereItsVoiceIs() {
@@ -347,8 +375,8 @@ private func flameHeight(_ visualiser: Visualiser) -> Int {
         watch(visualiser, seconds: 5, levels: levels, pitches: [60, 60, 60])
         guard let pixels = visualiser.pixels else { return -1 }
         var total = 0.0, weighted = 0.0
-        for row in 0 ..< 90 {
-            for column in 0 ..< 160 where pixels[(row * 160 + column) * 4] > 110 {
+        for row in 0 ..< 100 {
+            for column in 0 ..< 160 where max(pixels[(row * 160 + column) * 4], pixels[(row * 160 + column) * 4 + 1]) > 110 {
                 total += 1
                 weighted += Double(column)
             }
@@ -356,36 +384,93 @@ private func flameHeight(_ visualiser: Visualiser) -> Int {
         return total > 0 ? weighted / total : -1
     }
     let first = place(of: 0), second = place(of: 1), third = place(of: 2)
-    #expect(first > 0 && first < second - 25 && second < third - 25)
+    #expect(abs(first - 160 / 6) < 3 && abs(second - 80) < 3 && abs(third - 160 * 5 / 6) < 3)
 }
 
-@Test func flameDiesDownToItsEmbers() {
+@Test func flameGoesOutWithItsVoices() {
     let visualiser = Visualiser(mode: .flame)
     visualiser.resize(width: 160, height: 100)
     watch(visualiser, seconds: 5, levels: [1, 1], pitches: [50, 70])
-    #expect(flameHeight(visualiser) > 30)
-    // The voices fall silent, and in a while there is nothing but the glow along the bottom.
-    watch(visualiser, from: 5, seconds: 20, levels: [0, 0], pitches: [0, 0])
-    #expect(flameHeight(visualiser) < 12)
+    #expect(flameHeight(visualiser) > 40)
+    // The voices fall silent: the lamps go, and what was burning rises away.
+    watch(visualiser, from: 5, seconds: 8, levels: [0, 0], pitches: [0, 0])
+    #expect(flameHeight(visualiser) == 0)
 }
 
-@Test func flameThrowsSparksForAVoiceWithNoPitch() {
-    /// The brightest the hearth is above its embers, a moment after a drum is struck or is not.
-    func brightest(struck: Bool) -> Int {
+@Test func flameLampIsTheColourOfItsNote() {
+    /// The colour of the lamp of a voice playing a note, in a tune that goes from 40 to 90.
+    func colour(of pitch: Float) -> (width: Int, red: Int, green: Int, blue: Int) {
         let visualiser = Visualiser(mode: .flame)
         visualiser.resize(width: 160, height: 100)
-        watch(visualiser, seconds: 2, levels: [0], pitches: [0])
-        var most = 0
-        for frame in 0 ..< 8 {
-            visualiser.hear(levels: [struck ? 1 : 0], pitches: [0], struck: [struck && frame == 0])
-            visualiser.paint(at: 2 + Double(frame) / 30)
-            guard let pixels = visualiser.pixels else { continue }
-            for row in 40 ..< 92 {
-                for column in 0 ..< 160 { most = max(most, Int(pixels[(row * 160 + column) * 4])) }
-            }
-        }
-        return most
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        watch(visualiser, from: 0.2, seconds: 0.1, levels: [1], pitches: [pitch])
+        return lamp(visualiser)
     }
-    let quiet = brightest(struck: false), sparked = brightest(struck: true)
-    #expect(sparked > quiet + 40)
+    // As the analyser's bars are: red at the bottom, green in the middle, violet at the top. And
+    // the lamp is the note's colour as soon as the note is heard.
+    let low = colour(of: 40), middle = colour(of: 65), high = colour(of: 90)
+    #expect(low.red > 200 && low.red > low.green + 80 && low.red > low.blue + 120)
+    #expect(middle.green > 200 && middle.green > middle.red + 120 && middle.green > middle.blue + 80)
+    #expect(high.blue > 200 && high.blue > high.red + 20 && high.blue > high.green + 120)
+}
+
+@Test func flameColoursAreFurtherApartInTheMiddleOfTheTune() {
+    /// How unlike the lamps of two notes are, in a tune that goes from 40 to 90: how far apart
+    /// they are in red, green and blue together.
+    func unlikeness(_ one: Float, _ other: Float) -> Int {
+        let first = colour(of: one), second = colour(of: other)
+        return abs(first.red - second.red) + abs(first.green - second.green) + abs(first.blue - second.blue)
+    }
+    func colour(of pitch: Float) -> (width: Int, red: Int, green: Int, blue: Int) {
+        let visualiser = Visualiser(mode: .flame)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        watch(visualiser, from: 0.2, seconds: 0.1, levels: [1], pitches: [pitch])
+        return lamp(visualiser)
+    }
+    // The lowest few notes are all the one red, and a few notes apart in the middle are not at
+    // all the same colour.
+    #expect(unlikeness(40, 43) < 6)
+    #expect(unlikeness(60, 63) > 40)
+}
+
+@Test func flameReachesTheTopOfThePicture() {
+    let visualiser = Visualiser(mode: .flame)
+    visualiser.resize(width: 160, height: 100)
+    watch(visualiser, seconds: 8, levels: [1], pitches: [60])
+    #expect(flameHeight(visualiser) > 95)
+}
+
+@Test func flameLampIsPaleForAVoiceWithNoPitch() {
+    let visualiser = Visualiser(mode: .flame)
+    visualiser.resize(width: 160, height: 100)
+    watch(visualiser, seconds: 1, levels: [1], pitches: [0])
+    let drum = lamp(visualiser)
+    #expect(drum.width > 8)
+    #expect(drum.red > 120 && abs(drum.red - drum.green) < 30 && abs(drum.red - drum.blue) < 30)
+    // A note that is dying away is still its own colour, though no pitch is heard with it.
+    watch(visualiser, from: 1, seconds: 1, levels: [1], pitches: [50])
+    let note = lamp(visualiser)
+    visualiser.hear(levels: [0.8], pitches: [0], struck: [false])
+    visualiser.paint(at: 2.01)
+    let dying = lamp(visualiser)
+    #expect(abs(dying.red - note.red) < 12 && abs(dying.green - note.green) < 12 && abs(dying.blue - note.blue) < 12)
+}
+
+@Test func flameAnswersToItsVoiceWithoutWaiting() {
+    // A lamp is as large as its voice is loud, and gets there in a fraction of a second, both ways:
+    // it is not something that is merely on while there is sound.
+    let visualiser = Visualiser(mode: .flame)
+    visualiser.resize(width: 160, height: 100)
+    watch(visualiser, seconds: 4, levels: [0.5], pitches: [60])
+    let steady = lamp(visualiser).width
+    // The voice comes in at its loudest, with a note struck.
+    watch(visualiser, from: 4, seconds: 0.1, levels: [1], pitches: [60], strike: true)
+    #expect(lamp(visualiser).width > steady + 6)
+    // And drops back to less than it was.
+    watch(visualiser, from: 4.1, seconds: 0.5, levels: [0.25], pitches: [60])
+    let fallen = lamp(visualiser).width
+    #expect(fallen > 2 && fallen < steady - 4)
 }

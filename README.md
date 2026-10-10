@@ -98,11 +98,12 @@ curtain of light drawn at the right of a night sky, higher for a higher note, th
 left. The pond is water at night, seen from above: a note being struck is a drop falling into it, low
 notes to the left and high ones to the right, and its rings spread and cross and come back off the
 banks; a held note keeps the water trembling, and each voice leaves its colour in it. The water is
-real in a small way, a grid of heights moved on by the rule that makes a wave. The flame is a fire in
-a dark hearth: each voice is a flame in its own place on a bed of embers, taller and hotter the
-louder it is and leaning with its note, in a colour of its own; where flames meet they burn towards
-white, and a drum throws sparks. It is made the oldest way there is, the heat at each place being
-the mean of the heat below it, less a little. It is meant to be calm.
+real in a small way, a grid of heights moved on by the rule that makes a wave. The flame is a row
+of lamps on fire: each voice is a round lamp, in a row like the player's lights, as large as the
+voice is loud and the colour of its note, by the colours of the analyser's bars: red for the lowest
+the tune plays, round to violet for the highest, and pale for a drum. Flames rise from each lamp in
+its colour, so a note that has ended is still to be seen above the next. They are made the oldest
+way there is, the heat at each place being the mean of the heat below it, less a little. It is meant to be calm.
 Nothing in it changes at once: a voice is followed a little behind, so the loudest note there is
 brightens the picture over several frames and not in one; the kind of picture never changes of its
 own accord; and its colours change when "shuffle colours" is pressed, over a few seconds, or, in all
