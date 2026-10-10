@@ -17,6 +17,8 @@ public enum AmigaModel: String, Sendable, CaseIterable {
 /// samples out of memory at a rate of their own, two of them wired to the left and two to the right.
 ///
 /// It runs at twice the rate the player wants, and its output is brought down afterwards (`HalfBand`).
+/// (But for an AHX tune written out for comparison: the player that is compared with runs its Paula
+/// at the rate of its output, with nothing after her, and so is this one run then.)
 /// A voice's output is a staircase, a level held from one sample to the next, and a staircase holds
 /// tones far above what can be heard; so wherever a voice steps, a band-limited step is laid over the
 /// output in place of the instant one.
@@ -312,12 +314,7 @@ struct Paula: ~Copyable {
     /// A voice at full volume swings one either side of nothing, and each side has two of them.
     mutating func generate(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
         guard count > 0 else { return }
-        left.update(repeating: 0, count: count)
-        right.update(repeating: 0, count: count)
-        voices[0].mix(into: left, count: count, memory, memorySize, table)
-        voices[1].mix(into: right, count: count, memory, memorySize, table)
-        voices[2].mix(into: right, count: count, memory, memorySize, table)
-        voices[3].mix(into: left, count: count, memory, memorySize, table)
+        generateUnfiltered(left: left, right: right, count: count)
 
         for i in 0 ..< count {
             var l = left[i], r = right[i]
@@ -327,6 +324,18 @@ struct Paula: ~Copyable {
             left[i] = l
             right[i] = r
         }
+    }
+
+    /// Makes `count` samples as they leave the chip, with none of what the Amiga's board puts between
+    /// it and the socket.
+    mutating func generateUnfiltered(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
+        guard count > 0 else { return }
+        left.update(repeating: 0, count: count)
+        right.update(repeating: 0, count: count)
+        voices[0].mix(into: left, count: count, memory, memorySize, table)
+        voices[1].mix(into: right, count: count, memory, memorySize, table)
+        voices[2].mix(into: right, count: count, memory, memorySize, table)
+        voices[3].mix(into: left, count: count, memory, memorySize, table)
     }
 }
 

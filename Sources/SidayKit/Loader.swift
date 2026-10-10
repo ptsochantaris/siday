@@ -3,7 +3,7 @@
 
 public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
-    case vtx, ym, ay, sid, sndh, mod, xm, s3m, it, cmf, rol
+    case vtx, ym, ay, sid, sndh, mod, ahx, xm, s3m, it, cmf, rol
 
     /// The format a file name's extension stands for, in any case.
     public init?(fileExtension: String) {
@@ -52,6 +52,8 @@ public enum TuneLoader {
                 guard case .unsupported = error, let more = try? XMRenderer(data, options: options) else { throw error }
                 return more
             }
+        case .ahx:
+            return try AHXRenderer(data, options: options)
         case .xm:
             return try XMRenderer(data, options: options)
         case .s3m:

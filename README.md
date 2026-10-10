@@ -29,7 +29,7 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum and Amstrad CPC program rips | AY (ZXAYEMUL), including beeper music |
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
-| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo |
+| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip |
 | PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
 | AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player |
 
@@ -37,7 +37,8 @@ Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer 
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
-A MOD file packed with XPK is not unpacked. An XM file written by a later tracker is played as
+A MOD file packed with XPK is not unpacked. A HivelyTracker file (HVL), which is AHX grown to sixteen
+channels, is not played. An XM file written by a later tracker is played as
 FastTracker 2 would play it, which is not always what the tracker that wrote it meant. An IT file
 packed with MMCMP is not unpacked, and a sample that ModPlug Tracker packed its own way (ADPCM) is
 silent. A ROL file that names an instrument no bank has is played with that instrument silent.
@@ -82,8 +83,8 @@ or a slider, with what it does to be read by resting the pointer on it: how many
 repeats is played and how long its fade is, the time given to a tune of unknown length and the
 longest any tune may play; the AY chip's make, its clock, how often the tune's player is run, and which way round its
 three channels go in stereo (the command line's `abc` and `acb`, which the page's list of outputs has as one "Stereo"); the
-SID's model, its emulation and where the 6581's filter sits; which Amiga a MOD is heard on and how
-far apart its two sides are, and the sound card of an S3M. One that has been changed is marked with
+SID's model, its emulation and where the 6581's filter sits; which Amiga a MOD or an AHX is heard on
+and how far apart its two sides are, and the sound card of an S3M. One that has been changed is marked with
 a dot. A change is heard at once: the song that is playing is rendered again as it is now to be,
 when the setting has anything to do with it, and goes on from where it was. Two settings are the
 page's own, and are about a file with several songs. Its songs can all be played in turn, which is
@@ -274,6 +275,9 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
   real one is played.
   `+` and `-` move between them, and `--list --all-subsongs` shows how long each is. Some of what
   turns up is not a song but patterns the composer left behind after the end of the list.
+- An AHX file says itself where each of its songs starts, and those are its songs, but for any that
+  start where an earlier one has played through: those are ways into it and not songs. One is over
+  when it comes round to a row it has played, or stops itself.
 
 ### Through a television
 
@@ -360,6 +364,27 @@ into ProTracker's as they are read. One effect is left out, as it is in pt2-clon
 a sample in place, because nearly every module that has it means something else by it. A tune ends
 where it would play a row it has played before. `siday --raw file.raw tune.mod` writes the tune as
 pt2-clone writes one to a file, sixteen bits with its dither, and the two agree to the sample.
+
+An AHX file is played as AHX played it. AHX is a tracker for the Amiga with no samples. An instrument
+is a few numbers: an envelope, a vibrato, and a short list of things to do as its note goes on, which
+is where it says what wave it is (a triangle, a sawtooth, a square of some width, or noise) and can
+change it, play notes of its own, slide, and set the square's width or the filter sweeping. From those
+the tracker makes the sound as it plays: each of Paula's four voices goes round a buffer of 640
+bytes, and fifty times a second, or a hundred or more if the file asks, whatever wave a voice is to
+have next is copied into its buffer. The filter is not a filter at work on the sound. The tracker
+works out its waves when it starts, and with them 62 more sets of the same waves, each already put
+through a low-pass or a high-pass filter set a little differently, and an instrument that sweeps its
+filter is choosing from one moment to the next which set to copy from. All of that is here as the
+tracker did it, in whole numbers, by way of ahx2play's port of the replayer of AHX 2.3d-sp3 to C, and
+with its mistakes: a note moved below the lowest there is takes its pitch from what the Amiga had in
+memory before its table of pitches, and a list told to wait 128 ticks between its entries does not
+wait at all, which there are tunes that count on. Paula is the one MOD files are played on, with the
+same two Amigas to hear her through and her two sides brought together in the same way. A file says
+where each of its songs starts; a song ends where it would play a row it has played before, or where
+it stops itself. `siday --raw file.raw tune.ahx` writes what ahx2play writes to a file, which is
+Paula at the rate of the output with nothing after her, at ahx2play's loudness and with its dither,
+and the two agree to the sample: on a quarter of an hour of each of the 858 files tried, and on
+three minutes of every other song in them.
 
 An XM file, and a MOD file of more channels than the Amiga has, is played as FastTracker 2 played
 it: the replayer and the mixer are FastTracker 2.09's, by way of ft2play's port of them to C. The mixer
@@ -510,6 +535,9 @@ What it is made from:
   reading of modules are his too; the band-limited steps in Paula's output are by aciddose. ProTracker
   itself is by Lars Hamre, Anders Hamre, Sven Vahsen and Rune Johnsrud, after Karsten Obarski's
   Ultimate Soundtracker, where the module began.
+- [ahx2play](https://github.com/8bitbubsy/ahx2play), also by Olav Sørensen: AHX's replayer and the
+  making of its waves, ported by him from the tracker's own source. AHX is by Martin Wodok (Dexter)
+  and Manfred Linzner (Pink) of Abyss.
 - [ft2play](https://github.com/8bitbubsy/ft2play), also by Olav Sørensen: FastTracker 2's replayer
   and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
   Huss and Magnus Högdahl, of Triton.

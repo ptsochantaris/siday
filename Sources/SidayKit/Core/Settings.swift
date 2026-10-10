@@ -135,9 +135,9 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .sidFilter:
             "Where the 6581's filter sits. No two of the real chips were alike in this, and they differed by as much as this goes. It is something only reSIDfp has."
         case .amiga:
-            "Which Amiga a MOD file is heard on. The 500 has a filter in the way that takes off the top of the sound, above 4.4 kHz: the darker sound that much Amiga music was written on."
+            "Which Amiga a MOD or an AHX file is heard on. The 500 has a filter in the way that takes off the top of the sound, above 4.4 kHz: the darker sound that much Amiga music was written on."
         case .amigaSeparation:
-            "How far apart a MOD file's left and right are kept. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
+            "How far apart a MOD or an AHX file's left and right are kept. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
         case .s3mCard:
             "The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. A file says which it was saved with; one that does not is given the Ultrasound."
         }
@@ -233,11 +233,11 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .loops, .fade, .defaultTime, .maxTime: true
         case .chip, .clock, .frameRate:
             switch format {
-            case .sid, .sndh, .mod, .xm, .s3m, .it, .cmf, .rol: false
+            case .sid, .sndh, .mod, .ahx, .xm, .s3m, .it, .cmf, .rol: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid
-        case .amiga, .amigaSeparation: format == .mod
+        case .amiga, .amigaSeparation: format == .mod || format == .ahx
         case .s3mCard: format == .s3m
         }
     }
