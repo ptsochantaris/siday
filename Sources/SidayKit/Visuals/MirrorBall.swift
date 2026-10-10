@@ -52,11 +52,13 @@ final class MirrorBall: VisualScene {
         let shape = Float(width) / Float(height)
         let rings = Self.rings
 
-        // The light each ring of mirrors has to throw: a little white always, so that the room is
-        // never dark, and each voice's light on the rings about its own height. The voices are
-        // spread from near the top of the wall to near the bottom, and each reaches far enough
-        // either way to meet its neighbours, so that with few voices the wall is still filled.
-        var thrown = [(Float, Float, Float)](repeating: (0.09, 0.09, 0.105), count: rings)
+        // The light each ring of mirrors has to throw: each voice's light on the rings about its
+        // own height, and a little white where there is none of that, so that the room is never
+        // dark. The voices are spread from near the top of the wall to near the bottom, and each
+        // reaches far enough either way to meet its neighbours, so that with few voices the wall is
+        // still filled.
+        var coloured = [(Float, Float, Float)](repeating: (0, 0, 0), count: rings)
+        var shares = [Float](repeating: 0, count: rings)
         let highest = Float(rings) - 1.8, lowest: Float = 0.8
         let apart = count > 1 ? (highest - lowest) / Float(count - 1) : 0
         let reaching = max(1.7, apart * 0.8)
@@ -69,18 +71,27 @@ final class MirrorBall: VisualScene {
             }
             let level = calm[index]
             guard level > 0.02 else { continue }
-            let power = level * level.squareRoot() * (1 + 0.3 * voice.kick)
+            // (A voice at half its loudest throws a good deal less than half the light, so that a
+            // loud voice stands out; but not so little that most of a tune is dim.)
+            let power = 1.3 * level * (0.4 + 0.6 * level) * (1 + 0.3 * voice.kick)
             // A voice with no pitch, a drum or a hiss, has no colour to speak of: its light is all but white.
-            let colour = VisualLook.rgb(hue: frame.look.hue + hues[index], saturation: voice.pitched ? 0.85 : 0.2, value: voice.pitched ? 1 : 0.7)
+            let colour = VisualLook.rgb(hue: frame.look.hue + hues[index], saturation: voice.pitched ? 0.92 : 0.2, value: voice.pitched ? 1 : 0.7)
             let place = count > 1 ? highest - apart * Float(index) : (highest + lowest) / 2
             for ring in 0 ..< rings {
                 let away = abs(Float(ring) - place)
                 guard away < reaching else { continue }
                 let share = (1 - away / reaching) * (1 - away / reaching) * power
-                thrown[ring].0 += colour.0 * share
-                thrown[ring].1 += colour.1 * share
-                thrown[ring].2 += colour.2 * share
+                coloured[ring].0 += colour.0 * share
+                coloured[ring].1 += colour.1 * share
+                coloured[ring].2 += colour.2 * share
+                shares[ring] += share
             }
+        }
+        // The white gives way to the colours as they come: white light on top of a colour is only
+        // a paler colour.
+        let thrown = (0 ..< rings).map { ring -> (Float, Float, Float) in
+            let white = max(0, 1 - 5 * shares[ring])
+            return (coloured[ring].0 + 0.09 * white, coloured[ring].1 + 0.09 * white, coloured[ring].2 + 0.105 * white)
         }
 
         let turn = frame.time * (2 * Float.pi / Self.turning)
@@ -168,26 +179,32 @@ final class MirrorBall: VisualScene {
                     let silver = (0.05 + 0.4 * lit * (0.55 + 0.45 * own)) * gap + glint * 0.5
                     let tint = 0.55 * (0.35 + 0.65 * own) * gap
                     let at = light + (row * width + column) * 3
-                    at[0] = silver + (thrown[ring].0 - 0.09) * tint
-                    at[1] = silver + (thrown[ring].1 - 0.09) * tint
-                    at[2] = silver * 1.04 + (thrown[ring].2 - 0.105) * tint
+                    at[0] = silver + coloured[ring].0 * tint
+                    at[1] = silver + coloured[ring].1 * tint
+                    at[2] = silver * 1.04 + coloured[ring].2 * tint
                 }
             }
         }
 
-        // The room: all but dark, a little less so towards the floor.
+        // The light squeezed into what a screen can show. All three colours are squeezed alike, by
+        // the most there is of any of them, and so stay the colour they were: squeezed each by
+        // itself, a colour is paler the brighter it is. Only light well past what one voice throws,
+        // which is where several fall together, is let go towards white. And the room: all but
+        // dark, a little less so towards the floor.
         var pixel = frame.pixels
         var at = 0
         for row in 0 ..< height {
             let low = Float(row) / Float(height)
-            let room = 0.012 + 0.02 * low
+            let room = (0.012 + 0.02 * low) * 1.7
             for _ in 0 ..< width {
-                let r = 1 - expf(-(light[at] + room) * 1.7)
-                let g = 1 - expf(-(light[at + 1] + room) * 1.7)
-                let b = 1 - expf(-(light[at + 2] + room * 1.3) * 1.7)
-                pixel[0] = UInt8(max(0, min(255, r * 255)))
-                pixel[1] = UInt8(max(0, min(255, g * 255)))
-                pixel[2] = UInt8(max(0, min(255, b * 255)))
+                let most = max(light[at], light[at + 1], light[at + 2])
+                let shown = 1 - expf(-most * 1.7)
+                let squeezed = most > 0.0001 ? shown / most : 1.7
+                let pale = min(0.5, max(0, most - 1.8) * 0.35)
+                let r = light[at] * squeezed, g = light[at + 1] * squeezed, b = light[at + 2] * squeezed
+                pixel[0] = UInt8(max(0, min(255, (r + (shown - r) * pale + room) * 255)))
+                pixel[1] = UInt8(max(0, min(255, (g + (shown - g) * pale + room) * 255)))
+                pixel[2] = UInt8(max(0, min(255, (b + (shown - b) * pale + room * 1.3) * 255)))
                 pixel[3] = 255
                 pixel += 4
                 at += 3

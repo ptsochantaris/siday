@@ -203,8 +203,10 @@ private func copy(_ visualiser: Visualiser) -> [UInt8] {
     for row in 0 ..< 100 { #expect(abs(after[row] - never[row]) <= 160 * 3, "row \(row)") }
 }
 
-/// The coloured light on a mirror ball's wall, leaving out the ball itself and the white it always
-/// throws: the row it is balanced about, and its colour as parts of red, green and blue that add up to 1.
+/// The coloured light on a mirror ball's wall, leaving out the ball itself and the white it throws:
+/// the row it is balanced about, and its colour as parts of red, green and blue that add up to 1.
+/// (The colour is of what is left of each dot when the white in it is taken away, so that it is
+/// the same for a paler light of the same colour.)
 private func wallLight(_ visualiser: Visualiser, rows: Range<Int> = 0 ..< 100) -> (row: Double, colour: [Double]) {
     guard let pixels = visualiser.pixels else { return (-1, [0, 0, 0]) }
     var total = 0.0, weighted = 0.0
@@ -217,7 +219,7 @@ private func wallLight(_ visualiser: Visualiser, rows: Range<Int> = 0 ..< 100) -
             guard strength > 40 else { continue }
             total += strength
             weighted += strength * Double(row)
-            for part in 0 ..< 3 { sums[part] += parts[part] }
+            for part in 0 ..< 3 { sums[part] += parts[part] - (parts.min() ?? 0) }
         }
     }
     let all = sums.reduce(0, +)
