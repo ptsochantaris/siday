@@ -203,62 +203,112 @@ private func copy(_ visualiser: Visualiser) -> [UInt8] {
     for row in 0 ..< 100 { #expect(abs(after[row] - never[row]) <= 160 * 3, "row \(row)") }
 }
 
-@Test func mirrorBallLightsAHigherRowForAHigherNote() {
-    /// The row the coloured light is balanced about: the dots that are plainly one colour and not
-    /// the white the ball always throws.
-    func height(of pitch: Float) -> Double {
+/// The coloured light on a mirror ball's wall, leaving out the ball itself and the white it always
+/// throws: the row it is balanced about, and its colour as parts of red, green and blue that add up to 1.
+private func wallLight(_ visualiser: Visualiser, rows: Range<Int> = 0 ..< 100) -> (row: Double, colour: [Double]) {
+    guard let pixels = visualiser.pixels else { return (-1, [0, 0, 0]) }
+    var total = 0.0, weighted = 0.0
+    var sums = [0.0, 0.0, 0.0]
+    for row in rows {
+        for column in 0 ..< visualiser.width where row >= 32 || column < 64 || column >= 96 {
+            let at = (row * visualiser.width + column) * 4
+            let parts = [Double(pixels[at]), Double(pixels[at + 1]), Double(pixels[at + 2])]
+            let strength = (parts.max() ?? 0) - (parts.min() ?? 0)
+            guard strength > 40 else { continue }
+            total += strength
+            weighted += strength * Double(row)
+            for part in 0 ..< 3 { sums[part] += parts[part] }
+        }
+    }
+    let all = sums.reduce(0, +)
+    return (total > 0 ? weighted / total : -1, all > 0 ? sums.map { $0 / all } : [0, 0, 0])
+}
+
+@Test func mirrorBallGivesEachVoiceAHeightOfItsOwn() {
+    // Three voices, of which one plays: the first is at the top of the wall and the last at the
+    // bottom, whatever note it is.
+    func row(of voice: Int, pitch: Float) -> Double {
         let visualiser = Visualiser(mode: .ball)
+        visualiser.resize(width: 160, height: 100)
+        var levels: [Float] = [0, 0, 0], pitches = levels
+        levels[voice] = 1
+        pitches[voice] = pitch
+        watch(visualiser, seconds: 4, levels: levels, pitches: pitches)
+        return wallLight(visualiser).row
+    }
+    let top = row(of: 0, pitch: 40), middle = row(of: 1, pitch: 40), bottom = row(of: 2, pitch: 40)
+    #expect(top > 0 && top < middle - 10 && middle < bottom - 10)
+    #expect(abs(row(of: 0, pitch: 90) - top) < 4)
+}
+
+@Test func mirrorBallColoursALightByItsNote() {
+    /// The colours of the top of the wall and the bottom, with a voice at each playing a note.
+    func colours(_ upper: Float, _ lower: Float) -> (top: [Double], bottom: [Double]) {
+        let visualiser = Visualiser(mode: .ball)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 4, levels: [1, 1], pitches: [upper, lower])
+        return (wallLight(visualiser, rows: 0 ..< 30).colour, wallLight(visualiser, rows: 70 ..< 100).colour)
+    }
+    func difference(_ a: [Double], _ b: [Double]) -> Double { zip(a, b).reduce(0) { $0 + abs($1.0 - $1.1) } }
+    // The same note an octave apart is the same colour, in different voices at different heights.
+    let octave = colours(72, 60)
+    #expect(octave.top.reduce(0, +) > 0.99 && octave.bottom.reduce(0, +) > 0.99)
+    #expect(difference(octave.top, octave.bottom) < 0.1)
+    // Notes half an octave apart are across the colour wheel from one another.
+    let tritone = colours(66, 60)
+    #expect(difference(tritone.top, tritone.bottom) > 0.5)
+    // And the note is what matters, not the voice: the same two notes the other way up.
+    let swapped = colours(60, 66)
+    #expect(difference(swapped.top, tritone.bottom) < 0.1)
+}
+
+@Test func pondTakesItsDropsWhereTheNotesAre() {
+    /// The column the colour in the water is balanced about, after some notes struck at one pitch.
+    func place(of pitch: Float) -> Double {
+        let visualiser = Visualiser(mode: .pond)
         visualiser.resize(width: 160, height: 100)
         watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
         watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
-        watch(visualiser, from: 0.2, seconds: 4, levels: [1], pitches: [pitch])
+        for note in 0 ..< 6 { watch(visualiser, from: 0.2 + Double(note) * 0.5, seconds: 0.5, levels: [1], pitches: [pitch], strike: true) }
         guard let pixels = visualiser.pixels else { return -1 }
         var total = 0.0, weighted = 0.0
         for row in 0 ..< 100 {
-            // (Not the ball itself, which shows every colour it throws.)
-            for column in 0 ..< 160 where row >= 32 || column < 64 || column >= 96 {
+            for column in 0 ..< 160 {
                 let at = (row * 160 + column) * 4
-                let colours = [Int(pixels[at]), Int(pixels[at + 1]), Int(pixels[at + 2])]
-                let strength = Double((colours.max() ?? 0) - (colours.min() ?? 0))
-                guard strength > 40 else { continue }
+                let strength = Double(max(pixels[at], pixels[at + 1], pixels[at + 2]))
+                guard strength > 110 else { continue }
                 total += strength
-                weighted += strength * Double(row)
+                weighted += strength * Double(column)
             }
         }
         return total > 0 ? weighted / total : -1
     }
-    let low = height(of: 40), high = height(of: 90)
-    #expect(low > 0 && high > 0)
-    #expect(high < low - 20)
+    // Low notes fall to the left and high ones to the right.
+    let low = place(of: 40), high = place(of: 90)
+    #expect(low > 0 && low < 60)
+    #expect(high > 100)
 }
 
-@Test func mirrorBallGivesEachVoiceAColourOfItsOwn() {
-    // Two voices that are next to one another among sixteen, one high and one low: their rows of
-    // light are plainly different colours, and not two shades of one.
-    let visualiser = Visualiser(mode: .ball)
-    visualiser.resize(width: 160, height: 100)
-    var levels = [Float](repeating: 0, count: 16), pitches = levels
-    levels[4] = 1
-    levels[5] = 1
-    pitches[4] = 84
-    pitches[5] = 48
-    watch(visualiser, seconds: 4, levels: levels, pitches: pitches)
-    guard let pixels = visualiser.pixels else { return }
-    /// The colour of the coloured light in some rows, as parts of its red, green and blue that add up to 1.
-    func colour(rows: Range<Int>) -> [Double] {
-        var sums = [0.0, 0.0, 0.0]
-        for row in rows {
-            for column in 0 ..< 160 where row >= 32 || column < 64 || column >= 96 {
-                let at = (row * 160 + column) * 4
-                let parts = [Double(pixels[at]), Double(pixels[at + 1]), Double(pixels[at + 2])]
-                guard (parts.max() ?? 0) - (parts.min() ?? 0) > 40 else { continue }
-                for part in 0 ..< 3 { sums[part] += parts[part] }
-            }
+@Test func pondComesToRest() {
+    // Rings spread, cross and come back off the banks, and then the water is still again: as still
+    // as if nothing had fallen in it.
+    func water(disturbed: Bool) -> [UInt8] {
+        let visualiser = Visualiser(mode: .pond)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.2, levels: [0, 0], pitches: [40, 90])
+        if disturbed {
+            for note in 0 ..< 8 { watch(visualiser, from: 0.2 + Double(note) * 0.25, seconds: 0.25, levels: [1, 1], pitches: [50, 0], strike: true) }
+        } else {
+            watch(visualiser, from: 0.2, seconds: 2, levels: [0, 0], pitches: [0, 0])
         }
-        let total = sums.reduce(0, +)
-        return total > 0 ? sums.map { $0 / total } : [0, 0, 0]
+        if disturbed {
+            // (It is disturbed, at this point.)
+            let picture = copy(visualiser)
+            #expect(picture.contains { $0 > 120 && $0 < 255 })
+        }
+        watch(visualiser, from: 2.2, seconds: 60, levels: [0, 0], pitches: [0, 0])
+        return copy(visualiser)
     }
-    let high = colour(rows: 0 ..< 40), low = colour(rows: 60 ..< 100)
-    #expect(high.reduce(0, +) > 0.99 && low.reduce(0, +) > 0.99)
-    #expect(zip(high, low).reduce(0) { $0 + abs($1.0 - $1.1) } > 0.4)
+    let after = water(disturbed: true), never = water(disturbed: false)
+    #expect(zip(after, never).allSatisfy { abs(Int($0) - Int($1)) <= 3 })
 }

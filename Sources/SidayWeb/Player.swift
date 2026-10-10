@@ -77,9 +77,11 @@ final class Player {
     private static let lightFall = 6.5
     /// The picture to listen by, which is painted from what the voices are doing: see `Visualiser`.
     /// It is not part of what the page is drawn from, and is painted for each frame of the screen.
-    private let visualiser = Visualiser()
-    /// The kind of picture it is: at first, the kind it was on the last visit.
-    private(set) var picture = (try? sidayRememberedPicture()).flatMap { Visualiser.Mode(rawValue: $0) } ?? .lava
+    private let visualiser = Visualiser(mode: Player.rememberedPicture)
+    /// The kind of picture it is: at first, the kind it was on the last visit. (The picture starts as
+    /// that kind, in that kind's own colours, and does not come to them from another's.)
+    private(set) var picture = Player.rememberedPicture
+    private static let rememberedPicture = (try? sidayRememberedPicture()).flatMap { Visualiser.Mode(rawValue: $0) } ?? .lava
     /// What tunes are heard through: at first, what they were heard through on the last visit.
     private(set) var output = (try? sidayRememberedOutput()).flatMap { OutputStyle(rawValue: $0) } ?? .mono
     private(set) var shuffled = false
@@ -162,7 +164,6 @@ final class Player {
                 if let pixels = visualiser.pixels { try? sidayPaint(Int(bitPattern: pixels), visualiser.width, visualiser.height) }
             }
         )
-        visualiser.mode = picture
         tellOutput()
     }
 

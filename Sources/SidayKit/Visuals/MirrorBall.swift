@@ -2,27 +2,21 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 /// A mirror ball, turning slowly at the top of a dark room and throwing its spots of light across
-/// the wall behind it. The spots lie in rows, one for each ring of mirrors on the ball, and a voice
-/// lights the row at the height of its note, in its own colour: a tune going up the scale moves its
-/// light up the wall. A voice with no pitch, a drum or a hiss, lifts the whole room a little.
+/// the wall behind it. The spots lie in rows, one for each ring of mirrors on the ball. Each voice
+/// has a height on the wall that is its own, the first voice at the top, and lights the rows about
+/// it; and the colour of its light is the note it is playing. Where the lights of two voices fall on
+/// the same row their colours add, towards white.
 ///
 /// The wall is flat and faces the ball, so a spot is where a line from the ball's middle meets it:
 /// spots in the middle of the wall are round and bright and move slowly, and those far out to the
 /// sides are long, dim and quick, as they are in a real room.
 final class MirrorBall: VisualScene {
-    /// Every colour at once: this is a dance floor. Each voice has a colour of its own, a good way
-    /// round the wheel from the voice before it and from the one before that, so that whichever
-    /// voices are playing, their lights are plainly different colours. (How far the colours are
-    /// spread, which the other pictures go by, means nothing here.)
+    /// A note's colour is its place in the octave, as a place on the colour wheel: the twelve notes
+    /// are the wheel once round, and a note is the same colour in every octave. Which note is which
+    /// colour is where the wheel starts, which is all of the look that means anything here.
     let look = VisualLook(hue: 0.62, spread: 1)
-    /// And the colours go round the wheel together by themselves, once in seven minutes.
+    /// And that goes round by itself, once in seven minutes.
     let drift: Float = 1.0 / 420
-
-    /// The colour of a voice: each is 0.618 of the way round the wheel from the last, which never
-    /// comes back to where it has been.
-    private static func colour(of voice: Int, in look: VisualLook, saturation: Float) -> (Float, Float, Float) {
-        VisualLook.rgb(hue: look.hue + Float(voice) * 0.618034, saturation: saturation, value: 1)
-    }
 
     private static let rings = 10, mirrors = 20
     /// Seconds for the ball to turn once.
@@ -34,6 +28,9 @@ final class MirrorBall: VisualScene {
     /// How loud each voice is, followed more slowly than the lamp follows it: a wall of lights that
     /// came on all at once would be a flash.
     private var calm: [Float] = []
+    /// The colour each voice's light is, as a place on the wheel: it follows the voice's note round
+    /// the wheel, the short way, and takes a moment over it.
+    private var hues: [Float] = []
 
     /// A number from 0 to 1 that is always the same for the same two numbers.
     private static func chance(_ a: Int, _ b: Int) -> Float {
@@ -45,37 +42,43 @@ final class MirrorBall: VisualScene {
         let width = frame.width, height = frame.height
         if light.count != width * height * 3 { light = [Float](repeating: 0, count: width * height * 3) }
         let count = frame.voices.count
-        if calm.count != count { calm = [Float](repeating: 0, count: count) }
+        if calm.count != count {
+            calm = [Float](repeating: 0, count: count)
+            hues = [Float](repeating: 0, count: count)
+        }
         let shape = Float(width) / Float(height)
         let rings = Self.rings
 
         // The light each ring of mirrors has to throw: a little white always, so that the room is
-        // never dark, and each voice's colour on the rings about its note.
+        // never dark, and each voice's light on the rings about its own height. The voices are
+        // spread from near the top of the wall to near the bottom, and each reaches far enough
+        // either way to meet its neighbours, so that with few voices the wall is still filled.
         var thrown = [(Float, Float, Float)](repeating: (0.09, 0.09, 0.105), count: rings)
+        let highest = Float(rings) - 1.8, lowest: Float = 0.8
+        let apart = count > 1 ? (highest - lowest) / Float(count - 1) : 0
+        let reaching = max(1.7, apart * 0.8)
         for index in 0 ..< count {
             let voice = frame.voices[index]
             calm[index] += (voice.level - calm[index]) * (1 - expf(-frame.elapsed / (voice.level > calm[index] ? 0.14 : 0.5)))
+            if voice.pitched {
+                var turn = voice.pitch / 12 - hues[index]
+                turn -= turn.rounded()
+                hues[index] += turn * (1 - expf(-frame.elapsed / 0.25))
+                hues[index] -= hues[index].rounded(.down)
+            }
             let level = calm[index]
             guard level > 0.02 else { continue }
             let power = level * level.squareRoot() * (1 + 0.3 * voice.kick)
-            if voice.pitched {
-                let colour = Self.colour(of: index, in: frame.look, saturation: 0.85)
-                let place = frame.height(of: voice.pitch) * Float(rings - 1)
-                for ring in 0 ..< rings {
-                    let away = abs(Float(ring) - place)
-                    guard away < 1.7 else { continue }
-                    let share = (1 - away / 1.7) * (1 - away / 1.7) * power
-                    thrown[ring].0 += colour.0 * share
-                    thrown[ring].1 += colour.1 * share
-                    thrown[ring].2 += colour.2 * share
-                }
-            } else {
-                let colour = Self.colour(of: index, in: frame.look, saturation: 0.35)
-                for ring in 0 ..< rings {
-                    thrown[ring].0 += colour.0 * power * 0.1
-                    thrown[ring].1 += colour.1 * power * 0.1
-                    thrown[ring].2 += colour.2 * power * 0.1
-                }
+            // A voice with no pitch, a drum or a hiss, has no colour to speak of: its light is all but white.
+            let colour = VisualLook.rgb(hue: frame.look.hue + hues[index], saturation: voice.pitched ? 0.85 : 0.2, value: voice.pitched ? 1 : 0.7)
+            let place = count > 1 ? highest - apart * Float(index) : (highest + lowest) / 2
+            for ring in 0 ..< rings {
+                let away = abs(Float(ring) - place)
+                guard away < reaching else { continue }
+                let share = (1 - away / reaching) * (1 - away / reaching) * power
+                thrown[ring].0 += colour.0 * share
+                thrown[ring].1 += colour.1 * share
+                thrown[ring].2 += colour.2 * share
             }
         }
 
