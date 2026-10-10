@@ -312,3 +312,80 @@ private func wallLight(_ visualiser: Visualiser, rows: Range<Int> = 0 ..< 100) -
     let after = water(disturbed: true), never = water(disturbed: false)
     #expect(zip(after, never).allSatisfy { abs(Int($0) - Int($1)) <= 3 })
 }
+
+/// How tall the fire is: how many rows of the picture, from the bottom, have something burning in
+/// them (a dot plainly brighter than the hearth).
+private func flameHeight(_ visualiser: Visualiser) -> Int {
+    guard let pixels = visualiser.pixels else { return 0 }
+    var tallest = 0
+    for row in 0 ..< visualiser.height {
+        let burning = (0 ..< visualiser.width).contains { pixels[(row * visualiser.width + $0) * 4] > 110 }
+        if burning { tallest = max(tallest, visualiser.height - row) }
+    }
+    return tallest
+}
+
+@Test func flameBurnsTallerForALouderVoice() {
+    func height(level: Float) -> Int {
+        let visualiser = Visualiser(mode: .flame)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 6, levels: [level], pitches: [60])
+        return flameHeight(visualiser)
+    }
+    let quiet = height(level: 0.35), loud = height(level: 1)
+    #expect(quiet > 4)
+    #expect(loud > quiet + 12)
+}
+
+@Test func flameStandsWhereItsVoiceIs() {
+    /// The column the fire's light is balanced about, with one voice of three burning.
+    func place(of voice: Int) -> Double {
+        let visualiser = Visualiser(mode: .flame)
+        visualiser.resize(width: 160, height: 100)
+        var levels: [Float] = [0, 0, 0]
+        levels[voice] = 1
+        watch(visualiser, seconds: 5, levels: levels, pitches: [60, 60, 60])
+        guard let pixels = visualiser.pixels else { return -1 }
+        var total = 0.0, weighted = 0.0
+        for row in 0 ..< 90 {
+            for column in 0 ..< 160 where pixels[(row * 160 + column) * 4] > 110 {
+                total += 1
+                weighted += Double(column)
+            }
+        }
+        return total > 0 ? weighted / total : -1
+    }
+    let first = place(of: 0), second = place(of: 1), third = place(of: 2)
+    #expect(first > 0 && first < second - 25 && second < third - 25)
+}
+
+@Test func flameDiesDownToItsEmbers() {
+    let visualiser = Visualiser(mode: .flame)
+    visualiser.resize(width: 160, height: 100)
+    watch(visualiser, seconds: 5, levels: [1, 1], pitches: [50, 70])
+    #expect(flameHeight(visualiser) > 30)
+    // The voices fall silent, and in a while there is nothing but the glow along the bottom.
+    watch(visualiser, from: 5, seconds: 20, levels: [0, 0], pitches: [0, 0])
+    #expect(flameHeight(visualiser) < 12)
+}
+
+@Test func flameThrowsSparksForAVoiceWithNoPitch() {
+    /// The brightest the hearth is above its embers, a moment after a drum is struck or is not.
+    func brightest(struck: Bool) -> Int {
+        let visualiser = Visualiser(mode: .flame)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 2, levels: [0], pitches: [0])
+        var most = 0
+        for frame in 0 ..< 8 {
+            visualiser.hear(levels: [struck ? 1 : 0], pitches: [0], struck: [struck && frame == 0])
+            visualiser.paint(at: 2 + Double(frame) / 30)
+            guard let pixels = visualiser.pixels else { continue }
+            for row in 40 ..< 92 {
+                for column in 0 ..< 160 { most = max(most, Int(pixels[(row * 160 + column) * 4])) }
+            }
+        }
+        return most
+    }
+    let quiet = brightest(struck: false), sparked = brightest(struck: true)
+    #expect(sparked > quiet + 40)
+}

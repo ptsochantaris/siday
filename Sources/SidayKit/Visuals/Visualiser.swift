@@ -84,7 +84,7 @@ protocol VisualScene: AnyObject {
 public final class Visualiser {
     /// The kinds of picture there are.
     public enum Mode: String, CaseIterable, Sendable {
-        case lava, ball, aurora, pond
+        case lava, ball, aurora, pond, flame
 
         public var title: String {
             switch self {
@@ -92,6 +92,7 @@ public final class Visualiser {
             case .ball: "Mirror ball"
             case .aurora: "Aurora"
             case .pond: "Pond"
+            case .flame: "Flame"
             }
         }
     }
@@ -134,6 +135,7 @@ public final class Visualiser {
         case .ball: MirrorBall()
         case .aurora: Aurora()
         case .pond: Pond()
+        case .flame: Flame()
         }
     }
 
