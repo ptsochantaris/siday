@@ -202,3 +202,63 @@ private func copy(_ visualiser: Visualiser) -> [UInt8] {
     let after = sky(sounding: true), never = sky(sounding: false)
     for row in 0 ..< 100 { #expect(abs(after[row] - never[row]) <= 160 * 3, "row \(row)") }
 }
+
+@Test func mirrorBallLightsAHigherRowForAHigherNote() {
+    /// The row the coloured light is balanced about: the dots that are plainly one colour and not
+    /// the white the ball always throws.
+    func height(of pitch: Float) -> Double {
+        let visualiser = Visualiser(mode: .ball)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        watch(visualiser, from: 0.2, seconds: 4, levels: [1], pitches: [pitch])
+        guard let pixels = visualiser.pixels else { return -1 }
+        var total = 0.0, weighted = 0.0
+        for row in 0 ..< 100 {
+            // (Not the ball itself, which shows every colour it throws.)
+            for column in 0 ..< 160 where row >= 32 || column < 64 || column >= 96 {
+                let at = (row * 160 + column) * 4
+                let colours = [Int(pixels[at]), Int(pixels[at + 1]), Int(pixels[at + 2])]
+                let strength = Double((colours.max() ?? 0) - (colours.min() ?? 0))
+                guard strength > 40 else { continue }
+                total += strength
+                weighted += strength * Double(row)
+            }
+        }
+        return total > 0 ? weighted / total : -1
+    }
+    let low = height(of: 40), high = height(of: 90)
+    #expect(low > 0 && high > 0)
+    #expect(high < low - 20)
+}
+
+@Test func mirrorBallGivesEachVoiceAColourOfItsOwn() {
+    // Two voices that are next to one another among sixteen, one high and one low: their rows of
+    // light are plainly different colours, and not two shades of one.
+    let visualiser = Visualiser(mode: .ball)
+    visualiser.resize(width: 160, height: 100)
+    var levels = [Float](repeating: 0, count: 16), pitches = levels
+    levels[4] = 1
+    levels[5] = 1
+    pitches[4] = 84
+    pitches[5] = 48
+    watch(visualiser, seconds: 4, levels: levels, pitches: pitches)
+    guard let pixels = visualiser.pixels else { return }
+    /// The colour of the coloured light in some rows, as parts of its red, green and blue that add up to 1.
+    func colour(rows: Range<Int>) -> [Double] {
+        var sums = [0.0, 0.0, 0.0]
+        for row in rows {
+            for column in 0 ..< 160 where row >= 32 || column < 64 || column >= 96 {
+                let at = (row * 160 + column) * 4
+                let parts = [Double(pixels[at]), Double(pixels[at + 1]), Double(pixels[at + 2])]
+                guard (parts.max() ?? 0) - (parts.min() ?? 0) > 40 else { continue }
+                for part in 0 ..< 3 { sums[part] += parts[part] }
+            }
+        }
+        let total = sums.reduce(0, +)
+        return total > 0 ? sums.map { $0 / total } : [0, 0, 0]
+    }
+    let high = colour(rows: 0 ..< 40), low = colour(rows: 60 ..< 100)
+    #expect(high.reduce(0, +) > 0.99 && low.reduce(0, +) > 0.99)
+    #expect(zip(high, low).reduce(0) { $0 + abs($1.0 - $1.1) } > 0.4)
+}
