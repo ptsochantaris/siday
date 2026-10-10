@@ -83,6 +83,7 @@ struct STSoundChip: ~Copyable {
     /// Where each channel's volume stood when its notes were last asked for, and whether an envelope
     /// that plays once has been started since.
     private var levelWas: (UInt32, UInt32, UInt32) = (0, 0, 0)
+    private var levelRose = (false, false, false)
     private var envelopeStruck = false
 
     /// - Parameter clockHz: the chip's clock. The ST's unless the tune was recorded on something else.
@@ -168,6 +169,7 @@ struct STSoundChip: ~Copyable {
         edgeNeedsReset = (false, false, false)
         levelsSeen = (0, 0, 0)
         levelWas = (0, 0, 0)
+        levelRose = (false, false, false)
         envelopeStruck = false
         noiseShift = 1
         noiseHalf = 0
@@ -326,7 +328,7 @@ struct STSoundChip: ~Copyable {
         let envelopeSteps: UInt32 = shape == 8 || shape == 12 ? 32 : shape == 10 || shape == 14 ? 64 : 0
         let retriggered = envelopeStruck
         envelopeStruck = false
-        func read(_ channel: Int, _ period: UInt32, _ was: UInt32) -> (Float, Bool, UInt32) {
+        func read(_ channel: Int, _ period: UInt32, _ was: UInt32, _ rose: Bool) -> (Float, Bool, UInt32) {
             let volume = stored(8 + channel)
             let usesEnvelope = volume & 0x10 != 0
             let level: UInt32 = usesEnvelope ? 31 : volume & 0x0F > 0 ? (volume & 0x0F) << 1 | 1 : 0
@@ -340,9 +342,11 @@ struct STSoundChip: ~Copyable {
             }
             // (A level that is being set by hand jumps about all the time, and none of it is notes.)
             let byHand = toneMask >> UInt32(channel * 5) & 1 == 0 && period < 6
-            return (pitch, !byHand && (level >= was + 5 || (retriggered && usesEnvelope)), level)
+            return (pitch, !byHand && (level >= was + 5 || (level == was + 4 && !rose) || (retriggered && usesEnvelope)), level)
         }
-        let a = read(0, tonePeriod.0, levelWas.0), b = read(1, tonePeriod.1, levelWas.1), c = read(2, tonePeriod.2, levelWas.2)
+        let a = read(0, tonePeriod.0, levelWas.0, levelRose.0), b = read(1, tonePeriod.1, levelWas.1, levelRose.1)
+        let c = read(2, tonePeriod.2, levelWas.2, levelRose.2)
+        levelRose = (a.2 > levelWas.0, b.2 > levelWas.1, c.2 > levelWas.2)
         (pitches[0], struck[0]) = (a.0, a.1)
         (pitches[1], struck[1]) = (b.0, b.1)
         (pitches[2], struck[2]) = (c.0, c.1)

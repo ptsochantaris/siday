@@ -72,7 +72,9 @@ struct AYToneChannel {
     /// For the lights: the places in the DAC table the channel has been at of late, a bit for each.
     var levelsSeen: UInt32 = 0
     /// Where its volume stood when its notes were last asked for: a jump up from there is a note.
+    /// And whether it had risen to there from where it stood the time before.
     var levelWas = 0
+    var levelRose = false
     var envelopeOn = false
     var volume = 0
     var panLeft = 0.5
@@ -277,6 +279,9 @@ struct AYChip: ~Copyable {
     /// A channel's pitch is its tone's; or, with no tone, the pitch of an envelope that goes round,
     /// which is how this chip is made to play a bass. The chip has no way to start a note, so a note
     /// is taken to be struck when a channel's volume jumps up, or an envelope that plays once starts.
+    /// A jump is three of the chip's sixteen volumes or more; or two, which is all the accent some
+    /// tunes give a note, where the volume was not already on its way up: a note that is faded in
+    /// two volumes at a time is one note.
     mutating func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
         let clockHz = clockHz, envelopePeriod = envelopePeriod
         // Shapes 8 and 12 go round every 32 steps, and 10 and 14 there and back in 64.
@@ -293,7 +298,8 @@ struct AYChip: ~Copyable {
                     pitch = ChannelPitch.note(ofHz: clockHz / Double(8 * envelopeSteps * envelopePeriod))
                 }
             }
-            let hit = level >= ch.levelWas + 5 || (retriggered && ch.envelopeOn)
+            let hit = level >= ch.levelWas + 5 || (level == ch.levelWas + 4 && !ch.levelRose) || (retriggered && ch.envelopeOn)
+            ch.levelRose = level > ch.levelWas
             ch.levelWas = level
             return (pitch, hit)
         }

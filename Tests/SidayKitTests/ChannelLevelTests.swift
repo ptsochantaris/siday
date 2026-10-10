@@ -132,6 +132,25 @@ import Testing
     chip.write(8, 15)
     notes(&chip)
     #expect(struck[0])
+    // Two volumes up from where it has fallen to is a note as well: some tunes give one no more.
+    chip.write(8, 13)
+    notes(&chip)
+    #expect(!struck[0])
+    chip.write(8, 15)
+    notes(&chip)
+    #expect(struck[0])
+    // One volume up is not. Nor are two when the volume was already rising: that is a note fading in.
+    chip.write(8, 10)
+    notes(&chip)
+    chip.write(8, 11)
+    notes(&chip)
+    #expect(!struck[0])
+    chip.write(8, 13)
+    notes(&chip)
+    #expect(!struck[0])
+    chip.write(8, 15)
+    notes(&chip)
+    #expect(!struck[0])
 
     // Noise alone has no pitch.
     chip.write(7, 0b110_111)
