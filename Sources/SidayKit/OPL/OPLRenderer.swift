@@ -104,6 +104,10 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
         card.takeLevels(into: levels)
     }
 
+    func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        card.takeNotes(pitches: pitches, struck: struck)
+    }
+
     /// The tune from its start as the chip makes it: its own samples at its own rate, one channel,
     /// to the end of the tune or `frames` of them. For comparing with a reference player.
     func renderRaw(frames: Int) -> [Int16] {

@@ -16,7 +16,8 @@ private final class Tune: Renderer {
     private var frame = 0
     /// It has one voice, which is as loud as it can be while it sounds.
     let channelCount = 1
-    private var sounded = false
+    fileprivate var sounded = false
+    fileprivate var soundedForNotes = false, wasSounding = false
 
     /// - Parameters:
     ///   - sounding: when it sounds, in seconds.
@@ -51,7 +52,16 @@ private final class Tune: Renderer {
 extension Tune {
     func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         levels[0] = sounded ? 1 : 0
+        soundedForNotes = soundedForNotes || sounded
         sounded = false
+    }
+
+    /// The A above middle C while it sounds, struck where it starts to.
+    func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        pitches[0] = soundedForNotes ? 69 : 0
+        struck[0] = soundedForNotes && !wasSounding
+        wasSounding = soundedForNotes
+        soundedForNotes = false
     }
 }
 
@@ -135,6 +145,7 @@ private func faithful(_ sound: [Float], to tune: Tune, until seconds: Double) ->
     let session = TuneSession(renderer: tune, policy: PlaybackPolicy())
     var block = [Float](repeating: 0, count: 2000)
     var lit = 0, dark = 0, litInSilence = 0, darkInSound = 0
+    var struck = 0, pitchedInSilence = 0, unpitchedInSound = 0
     while !session.finished, session.elapsed < 39 {
         let made = block.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 1000) }
         let sounds = (0 ..< made).contains { block[$0 * 2] != 0 }
@@ -142,7 +153,14 @@ private func faithful(_ sound: [Float], to tune: Tune, until seconds: Double) ->
         if level > 0 { lit += 1 } else { dark += 1 }
         if level > 0, !sounds { litInSilence += 1 }
         if level == 0, sounds { darkInSound += 1 }
+        if session.channelStruck[0] { struck += 1 }
+        if session.channelPitches[0] > 0, !sounds { pitchedInSilence += 1 }
+        if session.channelPitches[0] == 0, sounds { unpitchedInSound += 1 }
     }
+    // Its notes come with its sound too: one struck at the start and one where the sound comes back.
+    #expect(struck == 2)
+    #expect(unpitchedInSound == 0)
+    #expect(pitchedInSilence <= 5)
     #expect(darkInSound == 0)
     // (The block the sound came back in is 4,096 frames, and begins with the last of the silence.)
     #expect(litInSilence <= 5)

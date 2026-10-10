@@ -64,6 +64,9 @@ public protocol Renderer: AnyObject {
     /// How loud each voice has been in the sound rendered since this was last asked: `channelCount`
     /// numbers, each from 0 to 1, where 1 is as loud as such a voice can be. See `ChannelLight`.
     func takeChannelLevels(into levels: UnsafeMutablePointer<Float>)
+    /// What each voice is playing: its pitch now (see `ChannelPitch`; nought for a voice with none),
+    /// and whether a note has been started on it since this was last asked. `channelCount` of each.
+    func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>)
 }
 
 public extension Renderer {
@@ -79,6 +82,12 @@ public extension Renderer {
     var channelCount: Int { 0 }
     var channelsAlwaysShown: Int { channelCount }
     func takeChannelLevels(into _: UnsafeMutablePointer<Float>) {}
+    func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        for voice in 0 ..< channelCount {
+            pitches[voice] = 0
+            struck[voice] = false
+        }
+    }
 }
 
 public enum TuneError: Error, CustomStringConvertible {

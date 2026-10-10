@@ -28,6 +28,8 @@ final class ST3Channel {
     // For the AdLib card: the instrument its voice was last given, whether its note is to be struck
     // again and its level set again, and its pitch in hertz.
     var lastadlins: UInt8 = 101, addherzretrig: UInt8 = 0, addherzretrigvol: UInt8 = 0
+    /// For the lights and their like: true if a note has been started on the channel since it was last asked.
+    var struck = false
     var addherzlo: UInt16 = 0, addherzhi: UInt16 = 0
 
     init(_ number: Int) {
@@ -527,7 +529,10 @@ public final class ST3Player {
         }
 
         if ch.note != 255 {
-            if ch.cmd != 7, ch.note != 254 { ch.addherzretrig = 1 } // struck again, unless it is sliding
+            if ch.cmd != 7, ch.note != 254 { // struck again, unless it is sliding
+                ch.addherzretrig = 1
+                ch.struck = true
+            }
             ch.lastnote = ch.note
             // Sliding to a note went wrong on this card in every Scream Tracker after 3.01, and
             // OpenMPT, having found that out, has done the same since its version 1.31.
@@ -621,6 +626,7 @@ public final class ST3Player {
             } else {
                 let sliding = ch.cmd == 7 || ch.cmd == 12 // G or L
                 if !sliding {
+                    ch.struck = true
                     ch.m_pos = UInt32(ch.astartoffset)
                     ch.m_poslow = 0
                     ch.m_oldpos = 0x1234_5678 // which makes a GUS start the note afresh

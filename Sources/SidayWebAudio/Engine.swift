@@ -49,10 +49,15 @@ final class WebPlayer {
     private var spectrum = SpectrumAnalyzer()
     /// The analyser's bars and then their caps, each as a byte from 0 to 255.
     private(set) var bars: [UInt8] = []
-    /// A light for each voice of the tune: how bright each has been in the sound made since the lights
-    /// were last taken, from 0 to 255; and what was handed over the last time they were.
+    /// What is known of each voice of the tune for the sound made since this was last taken: how
+    /// bright its light has been, from 0 to 255; its pitch, in half semitones (120 is middle C), or 0
+    /// for none; and 1 if a note was started on it. And what was handed over the last time they were
+    /// taken: all the lights, then all the pitches, then all the marks.
     private var lights: [UInt8] = []
-    private(set) var lightsTaken: [UInt8] = []
+    private var pitches: [UInt8] = []
+    private var struck: [UInt8] = []
+    private(set) var voicesTaken: [UInt8] = []
+    var voiceCount: Int { lights.count }
 
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     func load(_ data: [UInt8], name: String) -> Bool {
@@ -86,7 +91,9 @@ final class WebPlayer {
         if renderer.subsongCount > 1 || song != renderer.currentSubsong { renderer.select(subsong: song) }
         session = TuneSession(renderer: renderer, policy: policy)
         lights = [UInt8](repeating: 0, count: renderer.channelCount)
-        lightsTaken = lights
+        pitches = lights
+        struck = lights
+        voicesTaken = lights + lights + lights
         settle()
         blockLength = 0
         blockCursor = 0
@@ -136,8 +143,11 @@ final class WebPlayer {
                 guard let session, !session.finished else { break }
                 blockLength = session.render(into: block, frames: Self.blockFrames)
                 blockCursor = 0
-                for (voice, level) in session.channelLevels.enumerated() where voice < lights.count {
-                    lights[voice] = max(lights[voice], UInt8(ChannelLight.brightness(of: level) * 255))
+                for voice in 0 ..< min(lights.count, session.channelLevels.count) {
+                    lights[voice] = max(lights[voice], UInt8(ChannelLight.brightness(of: session.channelLevels[voice]) * 255))
+                    let pitch = session.channelPitches[voice]
+                    if pitch > 0 { pitches[voice] = UInt8(max(1, min(255, (pitch * 2).rounded()))) }
+                    if session.channelStruck[voice] { struck[voice] = 1 }
                 }
                 if blockLength == 0 { break }
             }
@@ -158,11 +168,16 @@ final class WebPlayer {
         bars = (spectrum.levels + spectrum.caps).map { UInt8(max(0, min(255, $0 * 255))) }
     }
 
-    /// Hands over the lights for the sound made since they were last taken, in `lightsTaken`.
-    func takeLights() {
-        for voice in lights.indices {
-            lightsTaken[voice] = lights[voice]
+    /// Hands over what is known of the voices for the sound made since they were last taken, in `voicesTaken`.
+    func takeVoices() {
+        let count = lights.count
+        for voice in 0 ..< count {
+            voicesTaken[voice] = lights[voice]
+            voicesTaken[count + voice] = pitches[voice]
+            voicesTaken[count * 2 + voice] = struck[voice]
             lights[voice] = 0
+            pitches[voice] = 0
+            struck[voice] = 0
         }
     }
 
@@ -296,19 +311,21 @@ public func sidaySpectrumBands() -> Int32 {
     Int32(player.bars.count / 2)
 }
 
-/// A light for each voice of the tune, for the sound rendered since this was last called: each a byte
-/// from 0, dark, to 255. There are `siday_lights_count` of them; nil if there are none.
+/// What is known of each voice of the tune, for the sound rendered since this was last called. There
+/// are `siday_lights_count` voices, and three bytes for each, kept as three rows: first a light for
+/// each voice, from 0, dark, to 255; then each voice's pitch in half semitones, 120 being middle C,
+/// or 0 for a voice with none; then 1 for each voice a note was started on. Nil if there are no voices.
 @_expose(wasm, "siday_lights")
 @_cdecl("siday_lights")
 public func sidayLights() -> UnsafePointer<UInt8>? {
-    player.takeLights()
-    return player.lightsTaken.withUnsafeBufferPointer { $0.baseAddress }
+    player.takeVoices()
+    return player.voicesTaken.withUnsafeBufferPointer { $0.baseAddress }
 }
 
 /// How many voices the loaded tune has lights for: an AY chip's three channels, a module's tracks.
 @_expose(wasm, "siday_lights_count")
 @_cdecl("siday_lights_count")
-public func sidayLightsCount() -> Int32 { Int32(player.lightsTaken.count) }
+public func sidayLightsCount() -> Int32 { Int32(player.voiceCount) }
 
 /// How many of them, the first, every tune of the kind has. The rest are for voices a tune may never
 /// use (a beeper, the samples played on a SID's volume), and are worth showing once they have lit.

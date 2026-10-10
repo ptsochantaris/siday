@@ -80,6 +80,10 @@ struct STSoundChip: ~Copyable {
     private var edgeNeedsReset: (Bool, Bool, Bool) = (false, false, false)
     /// For the lights: the levels each channel has been at of late, a bit for each of the thirty-two.
     private var levelsSeen: (UInt32, UInt32, UInt32) = (0, 0, 0)
+    /// Where each channel's volume stood when its notes were last asked for, and whether an envelope
+    /// that plays once has been started since.
+    private var levelWas: (UInt32, UInt32, UInt32) = (0, 0, 0)
+    private var envelopeStruck = false
 
     /// - Parameter clockHz: the chip's clock. The ST's unless the tune was recorded on something else.
     init(hostRate: Int, clockHz: UInt32 = STSoundChip.atariClockHz) {
@@ -163,6 +167,8 @@ struct STSoundChip: ~Copyable {
         insideTimer = false
         edgeNeedsReset = (false, false, false)
         levelsSeen = (0, 0, 0)
+        levelWas = (0, 0, 0)
+        envelopeStruck = false
         noiseShift = 1
         noiseHalf = 0
         noiseCounter = 0
@@ -231,6 +237,8 @@ struct STSoundChip: ~Copyable {
         case 11, 12:
             envelopePeriod = stored(12) << 8 | stored(11)
         case 13:
+            // (The shapes that go round are tones in themselves, and not the striking of a note.)
+            if !(masked >= 8 && masked & 1 == 0) { envelopeStruck = true }
             envelope = Self.shapeOfRegister[Int(stored(13))] * 128
             envelopePosition = -64
             envelopeCounter = 0
@@ -308,6 +316,37 @@ struct STSoundChip: ~Copyable {
         levels[1] = level(levelsSeen.1, tonePeriod.1, 1)
         levels[2] = level(levelsSeen.2, tonePeriod.2, 2)
         levelsSeen = (0, 0, 0)
+    }
+
+    /// Each channel's pitch now, and whether a note has been struck on it since this was last asked:
+    /// as `AYChip` tells them, this being the same chip. A channel whose level is being set by hand
+    /// from a timer, with its tone held open, has no pitch that the chip knows of.
+    mutating func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        let shape = stored(13)
+        let envelopeSteps: UInt32 = shape == 8 || shape == 12 ? 32 : shape == 10 || shape == 14 ? 64 : 0
+        let retriggered = envelopeStruck
+        envelopeStruck = false
+        func read(_ channel: Int, _ period: UInt32, _ was: UInt32) -> (Float, Bool, UInt32) {
+            let volume = stored(8 + channel)
+            let usesEnvelope = volume & 0x10 != 0
+            let level: UInt32 = usesEnvelope ? 31 : volume & 0x0F > 0 ? (volume & 0x0F) << 1 | 1 : 0
+            var pitch: Float = 0
+            if level > 0 {
+                if toneMask >> UInt32(channel * 5) & 1 == 0, period >= 6 {
+                    pitch = ChannelPitch.note(ofHz: Double(stepRate) / Double(2 * period))
+                } else if usesEnvelope, envelopeSteps > 0, envelopePeriod > 0 {
+                    pitch = ChannelPitch.note(ofHz: Double(stepRate) / Double(envelopeSteps * envelopePeriod))
+                }
+            }
+            // (A level that is being set by hand jumps about all the time, and none of it is notes.)
+            let byHand = toneMask >> UInt32(channel * 5) & 1 == 0 && period < 6
+            return (pitch, !byHand && (level >= was + 5 || (retriggered && usesEnvelope)), level)
+        }
+        let a = read(0, tonePeriod.0, levelWas.0), b = read(1, tonePeriod.1, levelWas.1), c = read(2, tonePeriod.2, levelWas.2)
+        (pitches[0], struck[0]) = (a.0, a.1)
+        (pitches[1], struck[1]) = (b.0, b.1)
+        (pitches[2], struck[2]) = (c.0, c.1)
+        levelWas = (a.2, b.2, c.2)
     }
 
     /// The level stripped of whatever it has been sitting at for the last twentieth of a second: the

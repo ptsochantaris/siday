@@ -375,6 +375,10 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
         chip.takeLevels(into: levels)
     }
 
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        chip.takeNotes(pitches: pitches, struck: struck)
+    }
+
     public func renderRaw(frames: Int) -> [Int16] {
         var output: [Int16] = []
         output.reserveCapacity(frames)

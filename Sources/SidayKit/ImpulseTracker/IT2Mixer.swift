@@ -114,6 +114,8 @@ final class IT2Mixer {
     /// For the lights: how loud each of the 64 channels was in the tick last mixed, and the lowest
     /// and highest the voice being mixed has had its sample.
     var levels = TickLevels(voices: 64)
+    /// And what each is playing.
+    var notes = TickNotes(voices: 64)
     private var swing = Swing<Float>(from: -4, to: 4)
 
     // The filter's tables.
@@ -388,7 +390,10 @@ final class IT2Mixer {
         }
 
         if !silent {
-            for channel in 0 ..< 64 { levels.now[channel] = 0 }
+            for channel in 0 ..< 64 {
+                levels.now[channel] = 0
+                notes.pitches[channel] = 0
+            }
         }
         defer { if !silent { levels.tickMade() } }
 
@@ -396,6 +401,15 @@ final class IT2Mixer {
             let sc = sChn + i
             if sc.pointee.Flags & SF_CHAN_ON == 0 || sc.pointee.Smp == midiVoiceSample { continue }
             swing.clear()
+            if !silent {
+                // A note is struck where a voice is new; a channel's pitch is that of the voice it
+                // still has hold of, and not of the ones it has let go to die away.
+                let channel = Int(sc.pointee.HostChnNum & 63)
+                if sc.pointee.Flags & SF_NEW_NOTE != 0 { notes.struck[channel] = true }
+                if sc.pointee.HostChnNum & CHN_DISOWNED == 0, sc.pointee.Frequency > 0 {
+                    notes.pitches[channel] = ChannelPitch.note(ofRate: Double(sc.pointee.Frequency))
+                }
+            }
             // A channel is the loudest of its voices: its note, and those before it still dying away.
             defer {
                 if swing.moved {

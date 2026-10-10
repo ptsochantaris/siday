@@ -34,6 +34,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     private let left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>
     private var tickFrames = 0, tickPosition = 0
     private var levels = TickLevels(voices: 4)
+    private var notes = TickNotes(voices: 4)
     private var down = (HalfBand(), HalfBand())
     /// The part of a sample that ticks of a tempo are over by, in 2^-52s, carried from tick to tick.
     private var remainder: UInt64 = 0
@@ -110,6 +111,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         tickFrames = 0
         tickPosition = 0
         levels.clear()
+        notes.clear()
         remainder = 0
         loopCount = 0
         seed = 0x1234_5000
@@ -138,6 +140,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         replayer.paula.generate(left: left, right: right, count: tickFrames * 2)
         replayer.paula.takeLevels(into: &levels.now)
         levels.tickMade()
+        replayer.paula.takeNotes(into: &notes)
         for i in 0 ..< tickFrames {
             left[i] = down.0.step(left[i * 2], left[i * 2 + 1])
             right[i] = down.1.step(right[i * 2], right[i * 2 + 1])
@@ -165,6 +168,10 @@ public final class MODRenderer: Renderer, ReferenceComparable {
 
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         self.levels.take(into: levels)
+    }
+
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        notes.take(pitches: pitches, struck: struck)
     }
 
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and

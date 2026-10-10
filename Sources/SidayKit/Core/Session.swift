@@ -59,14 +59,24 @@ public final class TuneSession {
     /// How loud each of the tune's voices was in the frames last rendered: `renderer.channelCount` of
     /// them, each from 0 to 1. See `Renderer.takeChannelLevels`.
     public private(set) var channelLevels: [Float]
+    /// What each voice was playing in those frames: its pitch, and whether a note was started on it.
+    /// See `Renderer.takeChannelNotes`.
+    public private(set) var channelPitches: [Float]
+    public private(set) var channelStruck: [Bool]
     /// The same for the block in which the sound came back after a silence, kept with it.
     private var levelsAhead: [Float]
+    private var pitchesAhead: [Float]
+    private var struckAhead: [Bool]
 
     public init(renderer: any Renderer, policy: PlaybackPolicy) {
         self.renderer = renderer
         self.policy = policy
         channelLevels = [Float](repeating: 0, count: renderer.channelCount)
         levelsAhead = channelLevels
+        channelPitches = channelLevels
+        pitchesAhead = channelLevels
+        channelStruck = [Bool](repeating: false, count: renderer.channelCount)
+        struckAhead = channelStruck
     }
 
     deinit {
@@ -107,7 +117,11 @@ public final class TuneSession {
     /// that, and then the tune itself.
     private func next(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
         var done = 0
-        for voice in channelLevels.indices { channelLevels[voice] = 0 }
+        for voice in channelLevels.indices {
+            channelLevels[voice] = 0
+            channelPitches[voice] = 0
+            channelStruck[voice] = false
+        }
         if silenceAhead > 0 {
             done = min(frames, silenceAhead)
             buffer.update(repeating: 0, count: done * 2)
@@ -118,22 +132,37 @@ public final class TuneSession {
             (buffer + done * 2).update(from: soundAhead + soundAheadGiven * 2, count: count * 2)
             soundAheadGiven += count
             done += count
-            for voice in channelLevels.indices { channelLevels[voice] = levelsAhead[voice] }
+            for voice in channelLevels.indices {
+                channelLevels[voice] = levelsAhead[voice]
+                channelPitches[voice] = pitchesAhead[voice]
+                channelStruck[voice] = struckAhead[voice]
+                // (A note is struck once, though the block it was struck in may be given out in parts.)
+                struckAhead[voice] = false
+            }
         }
         if done < frames {
             renderer.render(into: buffer + done * 2, frames: frames - done)
-            takeLevels(into: &channelLevels, over: done > 0)
+            takeVoices(levels: &channelLevels, pitches: &channelPitches, struck: &channelStruck, over: done > 0)
         }
     }
 
-    /// Asks the renderer how loud its voices have been. Where some of the frames these are for came
-    /// from somewhere else, each voice keeps the louder of what it has and what the renderer says.
-    private func takeLevels(into levels: inout [Float], over: Bool = false) {
-        guard !levels.isEmpty else { return }
-        withUnsafeTemporaryAllocation(of: Float.self, capacity: levels.count) { taken in
-            guard let taken = taken.baseAddress else { return }
-            renderer.takeChannelLevels(into: taken)
-            for voice in levels.indices where !over || taken[voice] > levels[voice] { levels[voice] = taken[voice] }
+    /// Asks the renderer how loud its voices have been and what they are playing. Where some of the
+    /// frames these are for came from somewhere else, each voice keeps the louder of what it has and
+    /// what the renderer says, the later pitch, and a note struck in either.
+    private func takeVoices(levels: inout [Float], pitches: inout [Float], struck: inout [Bool], over: Bool = false) {
+        let count = levels.count
+        guard count > 0 else { return }
+        withUnsafeTemporaryAllocation(of: Float.self, capacity: count * 2) { numbers in
+            withUnsafeTemporaryAllocation(of: Bool.self, capacity: count) { marks in
+                guard let taken = numbers.baseAddress, let marks = marks.baseAddress else { return }
+                renderer.takeChannelLevels(into: taken)
+                renderer.takeChannelNotes(pitches: taken + count, struck: marks)
+                for voice in 0 ..< count {
+                    if !over || taken[voice] > levels[voice] { levels[voice] = taken[voice] }
+                    if !over || taken[count + voice] > 0 { pitches[voice] = taken[count + voice] }
+                    struck[voice] = marks[voice] || (over && struck[voice])
+                }
+            }
         }
     }
 
@@ -151,7 +180,7 @@ public final class TuneSession {
         var ahead = 0
         while Double(ahead) / rate < Self.longestPause, Double(framesRendered + ahead) / rate < over {
             renderer.render(into: block, frames: Self.aheadFrames)
-            takeLevels(into: &levelsAhead)
+            takeVoices(levels: &levelsAhead, pitches: &pitchesAhead, struck: &struckAhead)
             // Sound from after the place where the tune goes round is the tune beginning again.
             if renderer.hasEnded || renderer.loopCount >= max(1, policy.loops) { return false }
             if Self.swing(block, frames: Self.aheadFrames) >= 0.0005 {

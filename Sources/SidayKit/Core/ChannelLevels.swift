@@ -68,6 +68,51 @@ struct TickLevels {
     }
 }
 
+/// The notes of the voices of a player that makes its sound a tick at a time: the pitch each voice
+/// has now, and whether a note has been started on it since the notes were last taken. The player
+/// sets a pitch as it changes, and marks a voice struck; taking them clears the marks.
+struct TickNotes {
+    var pitches: [Float]
+    var struck: [Bool]
+
+    init(voices: Int) {
+        pitches = [Float](repeating: 0, count: voices)
+        struck = [Bool](repeating: false, count: voices)
+    }
+
+    mutating func clear() {
+        for voice in pitches.indices {
+            pitches[voice] = 0
+            struck[voice] = false
+        }
+    }
+
+    mutating func take(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        for voice in self.pitches.indices {
+            pitches[voice] = self.pitches[voice]
+            struck[voice] = self.struck[voice]
+            self.struck[voice] = false
+        }
+    }
+}
+
+/// A voice's pitch as a number: twelve to the octave, 60 for middle C and 69 for the A above it, with
+/// fractions for what lies between notes. Nought is no pitch at all: noise, or nothing.
+public enum ChannelPitch {
+    /// The pitch of a tone of so many cycles a second.
+    public static func note(ofHz hz: Double) -> Float {
+        guard hz > 1 else { return 0 }
+        return Float(max(1, min(135, 69 + 12 * log(hz / 440) / log(2))))
+    }
+
+    /// The pitch a tracker means by playing a sample at so many samples a second. What is heard
+    /// depends on the sample, but the trackers agree that 8,363 a second is middle C.
+    public static func note(ofRate rate: Double) -> Float {
+        guard rate > 1 else { return 0 }
+        return Float(max(1, min(135, 60 + 12 * log(rate / 8363) / log(2))))
+    }
+}
+
 public enum ChannelLight {
     /// The quietest level that shows at all, in decibels below the loudest a voice can be. An AY
     /// chip's fifteen volumes are 3 dB apart, so its quietest is about here.

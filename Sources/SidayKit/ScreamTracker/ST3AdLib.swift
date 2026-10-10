@@ -160,6 +160,17 @@ final class ST3AdLib {
         }
     }
 
+    /// The pitch each of the nine voices is set to: they are the channels from the sixteenth on.
+    func takePitches(into pitches: inout [Float]) {
+        pitches.withUnsafeMutableBufferPointer { pitches in
+            guard let first = pitches.baseAddress, pitches.count >= 25 else { return }
+            withUnsafeTemporaryAllocation(of: Bool.self, capacity: 9) { struck in
+                guard let struck = struck.baseAddress else { return }
+                chip.pointee.takeNotes(pitches: first + 16, struck: struck, count: 9)
+            }
+        }
+    }
+
     /// Adds `count` samples of the card to what the sound card has made, which is first made quieter
     /// to leave room for it.
     func render(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int, sinc: UnsafePointer<Float>) {

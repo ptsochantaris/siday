@@ -278,8 +278,8 @@ function heard(message) {
         shownPosition = message.position;
         shownFor = asked;
         // (One list and not two: handed two, the Swift side gets them the wrong way round.)
-        const lights = message.lights ?? [];
-        listeners?.progress(message.position, Array.from([...message.bars, ...lights], (level) => level / 255), lights.length);
+        const voices = message.voices ?? [];
+        listeners?.progress(message.position, [...message.bars, ...voices], voices.length / 3);
       }, seconds * 1000);
       break;
     }
@@ -535,10 +535,62 @@ window.addEventListener("resize", () => {
   if (list) listMoved(list);
 });
 
+// The picture to listen by. The Swift side paints it; it is asked to once for each frame the screen
+// draws, while the picture is on the page and the page can be seen, and told how big a space the
+// picture has, which only the browser knows.
+function drawn(now) {
+  requestAnimationFrame(drawn);
+  const canvas = document.querySelector("canvas.picture");
+  if (canvas && !document.hidden) listeners?.frame(now / 1000, canvas.clientWidth, canvas.clientHeight);
+}
+requestAnimationFrame(drawn);
+
+/// Fills the screen with the picture and its few controls, or puts them back in the page.
+function fillScreen() {
+  const panel = document.querySelector(".visual");
+  if (document.fullscreenElement ?? document.webkitFullscreenElement) {
+    (document.exitFullscreen ?? document.webkitExitFullscreen)?.call(document);
+  } else if (panel) {
+    (panel.requestFullscreen ?? panel.webkitRequestFullscreen)?.call(panel);
+  }
+}
+
+// While the picture fills the screen, its controls and the pointer go out of sight when the pointer
+// has been still for a few seconds, and come back when it moves.
+let stillness;
+function stirred() {
+  delete document.documentElement.dataset.still;
+  clearTimeout(stillness);
+  stillness = setTimeout(() => (document.documentElement.dataset.still = ""), 2500);
+}
+document.addEventListener("pointermove", stirred);
+document.addEventListener("pointerdown", stirred);
+document.addEventListener("fullscreenchange", stirred);
+
 // What the Swift side calls.
 Object.assign(globalThis, {
-  sidayListen(accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled) {
-    listeners = { accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled };
+  sidayListen(accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame) {
+    listeners = { accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame };
+  },
+  sidayPaint(address, width, height) {
+    const canvas = document.querySelector("canvas.picture");
+    if (!canvas || !pageMemory) return;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    // The picture is shown from where the Swift side painted it, with no copy made on the way here.
+    const dots = new Uint8ClampedArray(pageMemory.buffer, address, width * height * 4);
+    canvas.getContext("2d").putImageData(new ImageData(dots, width, height), 0, 0);
+  },
+  sidayFillScreen() {
+    fillScreen();
+  },
+  sidayPicture(name) {
+    keep("siday.picture", name);
+  },
+  sidayRememberedPicture() {
+    return kept("siday.picture") ?? "";
   },
   sidayChoose(folder) {
     (folder ? choosers.folder : choosers.files).click();
@@ -580,10 +632,11 @@ Object.assign(globalThis, {
     scroll(10);
   },
   sidayHidden(names) {
-    keep("siday.hidden", names);
+    keep("siday.away", names);
   },
   sidayRememberedHidden() {
-    return kept("siday.hidden") ?? "";
+    // The picture to listen by is away until it is asked for.
+    return kept("siday.away") ?? "picture";
   },
   sidayOutput(name, place) {
     style = place;

@@ -218,6 +218,10 @@ public final class AYFileRenderer: Renderer {
     private var beeperLevel = 0.0
     /// How many times the beeper has gone in or out since the lights were last told.
     private var beeperMoves = 0
+    /// The same since its notes were last asked for, how many frames that is, and whether it was
+    /// sounding then.
+    private var beeperEdges = 0, framesOfEdges = 0
+    private var beeperWasSounding = false
 
     public private(set) var info: TuneInfo
     public private(set) var currentSubsong = 0
@@ -509,6 +513,20 @@ public final class AYFileRenderer: Renderer {
         eventIndex = next
         beeperLevel = beeper
         beeperMoves += moves
+        beeperEdges += moves
+        framesOfEdges += frames
+    }
+
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        chip.pointee.takeNotes(pitches: pitches, struck: struck)
+        // A beeper that goes in and out so many times a second is a tone of half as many cycles. (Tunes
+        // that make chords of it go in and out a great deal more, and the pitch means less.)
+        let sounding = beeperEdges >= 4 && framesOfEdges > 0
+        pitches[3] = sounding ? ChannelPitch.note(ofHz: Double(beeperEdges) * 0.5 * Double(outputSampleRate) / Double(framesOfEdges)) : 0
+        struck[3] = sounding && !beeperWasSounding
+        beeperWasSounding = sounding
+        beeperEdges = 0
+        framesOfEdges = 0
     }
 
     /// The chip's three channels and the beeper. A tune rarely uses all four, and which it uses is

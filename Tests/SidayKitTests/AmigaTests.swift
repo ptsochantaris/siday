@@ -289,3 +289,27 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     #expect(levels[2] == 0)
     #expect(levels[3] == 0)
 }
+
+@Test func moduleVoicesTellTheirNotes() throws {
+    // Period 428 is 8,287 bytes a second, which is all but the 8,363 that trackers call middle C.
+    let renderer = try MODRenderer(module(notes: [(row: 0, channel: 2, bytes: note(period: 428)), (row: 8, channel: 2, bytes: note(period: 214))]),
+                                   options: LoadOptions())
+    var sound = [Float](repeating: 0, count: 4800 * 2)
+    var pitches = [Float](repeating: -1, count: 4)
+    var struck = [Bool](repeating: false, count: 4)
+    func notes() {
+        sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 4800) }
+        pitches.withUnsafeMutableBufferPointer { p in struck.withUnsafeMutableBufferPointer { s in renderer.takeChannelNotes(pitches: p.baseAddress!, struck: s.baseAddress!) } }
+    }
+    notes()
+    #expect(abs(pitches[2] - 59.84) < 0.05)
+    #expect(struck[2])
+    #expect(pitches[0] == 0 && !struck[0])
+    // A tenth of a second on, the note is still sounding and has not been struck again.
+    notes()
+    #expect(abs(pitches[2] - 59.84) < 0.05)
+    #expect(!struck[2])
+    // Row 8 comes at 0.96 s, with the octave above.
+    for _ in 0 ..< 8 { notes() }
+    #expect(abs(pitches[2] - 71.84) < 0.05)
+}

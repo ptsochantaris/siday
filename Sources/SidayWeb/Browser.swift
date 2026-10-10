@@ -16,10 +16,11 @@ import JavaScriptKit
 ///     details one to a line (format, title, author, detail, then for a tune of several songs a line
 ///     for each: its length in milliseconds if known, a tab, its name if it has one) or the reason it
 ///     does not, how many songs it has, which one is playing, and its length in seconds.
-///   - progress: where the playing song has got to, in seconds; then, in one list, the spectrum
-///     analyser's bars (the height of each, low notes to high, and then the height of each bar's cap)
-///     and a light for each of the tune's voices that has one (how bright it is), all from 0 to 1;
-///     and how many of the list's last numbers are the lights.
+///   - progress: where the playing song has got to, in seconds; then, in one list of numbers from 0
+///     to 255, the spectrum analyser's bars (the height of each, low notes to high, and then the
+///     height of each bar's cap) and what the tune's voices are doing, in three rows: a light for each
+///     voice that has one (how bright it is), each one's pitch in half semitones (120 is middle C; 0
+///     for none), and 1 for each that a note has just been started on; and how many voices there are.
 ///   - rendered: how much of the playing song is ready to be moved about in, in seconds from its start;
 ///     and the song's length, when the file did not give one and the song, now rendered to its end,
 ///     has turned out shorter than the time it was allowed (0 at any other time).
@@ -30,6 +31,9 @@ import JavaScriptKit
 ///     to 1, or a negative number when it has left; and whether the bar was pressed there.
 ///   - scrolled: the list of tunes (the element of class "rows") has been scrolled, or has changed
 ///     size: how far down it is, and how much of it can be seen, both in pixels.
+///   - frame: the screen is about to be drawn, and the picture to listen by (the canvas of class
+///     "picture") is on the page: the time in seconds, by a clock that only goes forward, and how
+///     wide and tall the picture's space is, in points. What is to be shown is given to `sidayPaint`.
 @JSFunction(from: .global)
 func sidayListen(
     _ accepts: @escaping (String) -> Bool,
@@ -40,8 +44,26 @@ func sidayListen(
     _ ended: @escaping () -> Void,
     _ held: @escaping () -> Void,
     _ pointed: @escaping (Double, Bool) -> Void,
-    _ scrolled: @escaping (Double, Double) -> Void
+    _ scrolled: @escaping (Double, Double) -> Void,
+    _ frame: @escaping (Double, Double, Double) -> Void
 ) throws(JSException)
+
+/// Shows a picture in the canvas of class "picture": so many dots across and down, four bytes a dot
+/// (red, green, blue and 255), in rows from the top, at an address in this module's own memory.
+@JSFunction(from: .global)
+func sidayPaint(_ address: Int, _ width: Int, _ height: Int) throws(JSException)
+
+/// Fills the screen with the picture to listen by, or, if it is filling it, puts it back in the page.
+@JSFunction(from: .global)
+func sidayFillScreen() throws(JSException)
+
+/// The kind of picture to listen by, by its name. It is remembered from one visit to the next.
+@JSFunction(from: .global)
+func sidayPicture(_ name: String) throws(JSException)
+
+/// The kind of picture remembered from the last visit; empty if there was none.
+@JSFunction(from: .global)
+func sidayRememberedPicture() throws(JSException) -> String
 
 /// Opens the browser's file chooser, for files or for a whole folder.
 @JSFunction(from: .global)
@@ -101,7 +123,7 @@ func sidayOutput(_ name: String, _ place: Int) throws(JSException)
 func sidayHidden(_ names: String) throws(JSException)
 
 /// The parts of the page that were put away on the last visit, as `sidayHidden` was given them;
-/// empty if none were.
+/// empty if none were. On a first visit, it is the parts that are away until they are asked for.
 @JSFunction(from: .global)
 func sidayRememberedHidden() throws(JSException) -> String
 

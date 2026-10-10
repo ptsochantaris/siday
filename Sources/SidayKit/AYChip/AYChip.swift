@@ -71,6 +71,8 @@ struct AYToneChannel {
     var noiseOff = 0
     /// For the lights: the places in the DAC table the channel has been at of late, a bit for each.
     var levelsSeen: UInt32 = 0
+    /// Where its volume stood when its notes were last asked for: a jump up from there is a note.
+    var levelWas = 0
     var envelopeOn = false
     var volume = 0
     var panLeft = 0.5
@@ -114,12 +116,16 @@ struct AYChip: ~Copyable {
 
     /// Oversampled steps per second: writes can be timed to this resolution.
     let innerRate: Double
+    private let clockHz: Double
+    /// True if an envelope that plays once has been started since the notes were last asked for.
+    private var envelopeStruck = false
 
     init(type: AYChipType, clockHz: Double, sampleRate: Int, stereo: StereoLayout) {
         let table = type == .ym ? ymDAC : ayDAC
         dac = InlineArray { table[$0] }
         fir = InlineArray { ayFIRHalf[$0 <= 96 ? $0 : ayFIRSize - $0] }
         innerRate = Double(sampleRate * ayDecimate)
+        self.clockHz = clockHz
         step = clockHz / (Double(sampleRate) * 8 * Double(ayDecimate))
         setStereo(stereo)
     }
@@ -176,6 +182,8 @@ struct AYChip: ~Copyable {
             envelopePeriod = p == 0 ? 1 : p
         default: // 13
             envelopeShape = v & 15
+            // (The shapes that go round are tones in themselves, and not the striking of a note.)
+            if !(envelopeShape >= 8 && envelopeShape & 1 == 0) { envelopeStruck = true }
             envelopeCounter = 0
             envelopeSegment = 0
             resetSegment()
@@ -263,6 +271,35 @@ struct AYChip: ~Copyable {
         levels[0] = level(&a)
         levels[1] = level(&b)
         levels[2] = level(&c)
+    }
+
+    /// Each channel's pitch now, and whether a note has been struck on it since this was last asked.
+    /// A channel's pitch is its tone's; or, with no tone, the pitch of an envelope that goes round,
+    /// which is how this chip is made to play a bass. The chip has no way to start a note, so a note
+    /// is taken to be struck when a channel's volume jumps up, or an envelope that plays once starts.
+    mutating func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        let clockHz = clockHz, envelopePeriod = envelopePeriod
+        // Shapes 8 and 12 go round every 32 steps, and 10 and 14 there and back in 64.
+        let envelopeSteps = envelopeShape == 8 || envelopeShape == 12 ? 32 : envelopeShape == 10 || envelopeShape == 14 ? 64 : 0
+        let retriggered = envelopeStruck
+        envelopeStruck = false
+        func read(_ ch: inout AYToneChannel) -> (Float, Bool) {
+            let level = ch.envelopeOn ? 31 : ch.volume > 0 ? ch.volume &* 2 &+ 1 : 0
+            var pitch: Float = 0
+            if level > 0 {
+                if ch.toneOff == 0, ch.period >= 6 {
+                    pitch = ChannelPitch.note(ofHz: clockHz / Double(16 * ch.period))
+                } else if ch.envelopeOn, envelopeSteps > 0 {
+                    pitch = ChannelPitch.note(ofHz: clockHz / Double(8 * envelopeSteps * envelopePeriod))
+                }
+            }
+            let hit = level >= ch.levelWas + 5 || (retriggered && ch.envelopeOn)
+            ch.levelWas = level
+            return (pitch, hit)
+        }
+        (pitches[0], struck[0]) = read(&a)
+        (pitches[1], struck[1]) = read(&b)
+        (pitches[2], struck[2]) = read(&c)
     }
 
     /// Advances one oversampled step. `extra` is added to both channels before decimation (beeper).

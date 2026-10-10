@@ -99,6 +99,10 @@ public final class SNDHRenderer: Renderer {
         machine.takeLevels(into: levels)
     }
 
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        machine.takeNotes(pitches: pitches, struck: struck)
+    }
+
     /// The machine's output as it comes, for the next `frames` samples: for comparing with other players.
     public func renderRaw(frames: Int) -> [Int16] {
         var output: [Int16] = []

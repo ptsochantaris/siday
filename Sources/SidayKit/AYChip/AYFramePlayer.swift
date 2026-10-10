@@ -193,6 +193,10 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
         for chip in 0 ..< chipCount { chips[chip].takeLevels(into: levels + chip * 3) }
     }
 
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        for chip in 0 ..< chipCount { chips[chip].takeNotes(pitches: pitches + chip * 3, struck: struck + chip * 3) }
+    }
+
     public func dumpFrames(maxFrames: Int) -> [[UInt8]] {
         restart()
         var out: [[UInt8]] = []

@@ -124,6 +124,10 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         player.levels.take(into: levels)
     }
 
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        player.notes.take(pitches: pitches, struck: struck)
+    }
+
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and
     /// right in turn, clipped where it is too loud for them. For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {

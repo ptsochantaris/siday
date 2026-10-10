@@ -125,6 +125,19 @@ public final class ITRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { lights.count }
 
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        withUnsafeTemporaryAllocation(of: Float.self, capacity: 64) { allPitches in
+            withUnsafeTemporaryAllocation(of: Bool.self, capacity: 64) { allStruck in
+                guard let allPitches = allPitches.baseAddress, let allStruck = allStruck.baseAddress else { return }
+                player.mixer.notes.take(pitches: allPitches, struck: allStruck)
+                for light in lights.indices {
+                    pitches[light] = allPitches[lights[light]]
+                    struck[light] = allStruck[lights[light]]
+                }
+            }
+        }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         // The mixer has all 64 channels; the ones in use are picked out of them.
         withUnsafeTemporaryAllocation(of: Float.self, capacity: 64) { all in

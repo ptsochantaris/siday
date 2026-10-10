@@ -18,3 +18,6 @@
 @_extern(c, "hypot") func hypot(_ x: Double, _ y: Double) -> Double
 @_extern(c, "ceil") func ceil(_ x: Double) -> Double
 @_extern(c, "floor") func floor(_ x: Double) -> Double
+@_extern(c, "sinf") func sinf(_ x: Float) -> Float
+@_extern(c, "cosf") func cosf(_ x: Float) -> Float
+@_extern(c, "expf") func expf(_ x: Float) -> Float

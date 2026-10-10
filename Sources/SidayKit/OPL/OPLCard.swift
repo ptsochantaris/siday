@@ -102,6 +102,11 @@ final class OPLCard {
         chip.pointee.takeLevels(into: levels, count: 9)
     }
 
+    /// What each of them is playing.
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        chip.pointee.takeNotes(pitches: pitches, struck: struck, count: 9)
+    }
+
     /// One sample as the chip makes it, at the chip's own rate and before anything else is done to
     /// it: for comparing with a reference player.
     func raw() -> Int16 {

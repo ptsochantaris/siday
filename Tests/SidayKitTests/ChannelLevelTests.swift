@@ -94,3 +94,61 @@ import Testing
     #expect(take(&levels) == [0.2, 0.7])
     #expect(take(&levels) == [0, 0])
 }
+
+@Test func pitchIsCountedInSemitones() {
+    #expect(ChannelPitch.note(ofHz: 440) == 69)
+    #expect(abs(ChannelPitch.note(ofHz: 261.63) - 60) < 0.01)
+    #expect(ChannelPitch.note(ofHz: 880) == 81)
+    #expect(ChannelPitch.note(ofHz: 0) == 0)
+    // A sample at the rate trackers call middle C, and an octave above it.
+    #expect(ChannelPitch.note(ofRate: 8363) == 60)
+    #expect(ChannelPitch.note(ofRate: 16726) == 72)
+}
+
+@Test func ayChannelsTellTheirNotes() {
+    var chip = AYChip(type: .ay, clockHz: 1_773_400, sampleRate: 48000, stereo: .mono)
+    var pitches = [Float](repeating: -1, count: 3)
+    var struck = [Bool](repeating: false, count: 3)
+    func notes(_ chip: inout AYChip) {
+        for _ in 0 ..< 500 { _ = chip.sample() }
+        pitches.withUnsafeMutableBufferPointer { p in struck.withUnsafeMutableBufferPointer { s in chip.takeNotes(pitches: p.baseAddress!, struck: s.baseAddress!) } }
+    }
+
+    // A tone of period 252 on the first channel is 1,773,400 / (16 x 252) = 440 Hz: the A, 69.
+    chip.write(7, 0b111_110)
+    chip.write(0, 252)
+    chip.write(8, 15)
+    notes(&chip)
+    #expect(abs(pitches[0] - 69) < 0.05)
+    #expect(struck[0])
+    // The others are silent, and have neither a pitch nor a note.
+    #expect(pitches[1] == 0 && !struck[1])
+    // The note goes on: it is not struck again, and not by its volume falling away.
+    chip.write(8, 12)
+    notes(&chip)
+    #expect(abs(pitches[0] - 69) < 0.05)
+    #expect(!struck[0])
+    // Until the volume jumps back up.
+    chip.write(8, 15)
+    notes(&chip)
+    #expect(struck[0])
+
+    // Noise alone has no pitch.
+    chip.write(7, 0b110_111)
+    notes(&chip)
+    #expect(pitches[0] == 0)
+
+    // With neither tone nor noise but an envelope that goes round, the envelope is the tone: a
+    // sawtooth of period 10 is 1,773,400 / (256 x 10) = 693 Hz, a little under the F at 77.
+    chip.write(7, 0b111_111)
+    chip.write(11, 10)
+    chip.write(13, 8)
+    chip.write(8, 16)
+    notes(&chip)
+    #expect(abs(pitches[0] - 76.86) < 0.05)
+    // An envelope that plays once, started, is a note struck.
+    chip.write(13, 0)
+    notes(&chip)
+    #expect(struck[0])
+    #expect(pitches[0] == 0)
+}

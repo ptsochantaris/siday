@@ -99,6 +99,9 @@ struct OPL3Chip: ~Copyable {
     private var newm: UInt8 = 0, nts: UInt8 = 0, rhy: UInt8 = 0
     /// For the lights: the lowest and highest each channel has been, of late.
     private var lows = InlineArray<18, Int16>(repeating: .max), highs = InlineArray<18, Int16>(repeating: .min)
+    /// The channels whose keys are down, a bit for each, and those whose keys have gone down (or, in
+    /// the rhythm mode, whose drums have been struck) since the notes were last asked for.
+    private var keysDown: UInt32 = 0, keysStruck: UInt32 = 0
     private var vibpos: UInt8 = 0, vibshift: UInt8 = 1
     private var tremolopos: UInt8 = 0, tremoloshift: UInt8 = 4
     private var noise: UInt32 = 1
@@ -711,6 +714,19 @@ struct OPL3Chip: ~Copyable {
         }
     }
 
+    /// What each of the first `count` channels is playing: the pitch it is set to, and whether its key
+    /// has gone down since this was last asked. In the rhythm mode the last two channels are drums
+    /// with no pitch to speak of.
+    mutating func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>, count: Int) {
+        for index in 0 ..< min(18, count) {
+            let number = Double(channel[index].f_num), block = Int(channel[index].block)
+            let drum = rhy & 0x20 != 0 && (index == 7 || index == 8)
+            pitches[index] = number > 0 && !drum ? ChannelPitch.note(ofHz: number * Self.rate / Double(1 << (20 - block))) : 0
+            struck[index] = keysStruck & (1 << UInt32(index)) != 0
+        }
+        keysStruck = 0
+    }
+
     // MARK: Registers
 
     /// Sets a register, at once. The register's number is nine bits: the ninth chooses the second of
@@ -745,10 +761,25 @@ struct OPL3Chip: ~Copyable {
             if regm & 0x0F < 9 { OPL3_ChannelWriteA0(channel + 9 * high + (regm & 0x0F), v) }
         case 0xB0:
             if regm == 0xBD, high == 0 {
+                if v & 0x20 != 0 {
+                    // The bass drum is the seventh channel, the snare and hi-hat the eighth, the
+                    // tom-tom and cymbal the ninth.
+                    let struck = v & ~rhy & 0x1F
+                    if struck & 0x10 != 0 { keysStruck |= 1 << 6 }
+                    if struck & 0x09 != 0 { keysStruck |= 1 << 7 }
+                    if struck & 0x06 != 0 { keysStruck |= 1 << 8 }
+                }
                 tremoloshift = (((v >> 7) ^ 1) << 1) + 2
                 vibshift = ((v >> 6) & 0x01) ^ 1
                 OPL3_ChannelUpdateRhythm(v)
             } else if regm & 0x0F < 9 {
+                let key = UInt32(1) << UInt32(9 * high + (regm & 0x0F))
+                if v & 0x20 == 0 {
+                    keysDown &= ~key
+                } else if keysDown & key == 0 {
+                    keysDown |= key
+                    keysStruck |= key
+                }
                 OPL3_ChannelWriteB0(channel + 9 * high + (regm & 0x0F), v)
                 OPL3_ChannelKey(channel + 9 * high + (regm & 0x0F), v & 0x20 != 0)
             }

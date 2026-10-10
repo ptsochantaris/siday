@@ -50,6 +50,8 @@ final class FT2Player {
     let mixBuffer: UnsafeMutablePointer<Int32>
     /// For the lights: how loud each channel was in the tick last made.
     var levels: TickLevels
+    /// And what each is playing.
+    var notes: TickNotes
     /// The lowest and highest the voice being mixed has had its sample, and the most its volume has been.
     private var swing = Swing<Int32>(from: -65536, to: 65536)
     private var loudest: Float = 0
@@ -96,6 +98,7 @@ final class FT2Player {
         stm = (0 ..< channels).map { FT2Channel(nr: $0, instrument: placeholder) }
         chnReloc = (0 ..< channels).map { $0 + $0 }
         levels = TickLevels(voices: channels)
+        notes = TickNotes(voices: channels)
 
         let rate = Double(Self.rate)
         frequenceDivFactor = UInt32((65536.0 * 1712.0 / rate * 8363.0).rounded())
@@ -228,6 +231,7 @@ final class FT2Player {
         v.pointee.SBase = UnsafeRawPointer(s.pek)
         v.pointee.sixteen = sample16Bit
         v.pointee.SType = type
+        notes.struck[nr] = true
     }
 
     private func mix_UpdateChannelVolPanFrq() {
@@ -288,6 +292,12 @@ final class FT2Player {
             if i & 1 == 0 || level > levels.now[i >> 1] { levels.now[i >> 1] = level }
         }
         levels.tickMade()
+        for i in 0 ..< Int(song.antChn) {
+            // The channel's own voice, and not the one a note before it is dying away on.
+            let v = CI + chnReloc[i]
+            let playing = v.pointee.SType & SType_Off == 0 && v.pointee.SBase != nil && v.pointee.SFrq > 0
+            notes.pitches[i] = playing ? ChannelPitch.note(ofRate: Double(v.pointee.SFrq) * Double(Self.rate) / 65536) : 0
+        }
         return count
     }
 

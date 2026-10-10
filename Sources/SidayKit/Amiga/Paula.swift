@@ -50,6 +50,9 @@ struct Paula: ~Copyable {
         var lastLevel: Float = 0
         /// For the lights: the lowest and highest the level has been, of late.
         var swing = Swing<Float>(from: -2, to: 2)
+        /// The period it was last given, and whether it has been started since its notes were asked for.
+        var period = 0
+        var struck = false
 
         /// Paula takes up a new period only as she finishes counting the old one.
         @inline(__always) mutating func refetchPeriod() {
@@ -239,6 +242,7 @@ struct Paula: ~Copyable {
         // A period of nothing is the longest there is, and one too short is as short as Paula can go.
         let real = period == 0 ? 65536 : max(Self.shortestPeriod, Int(period))
         voices[voice].storedDelta = periodToDelta / Float(real)
+        voices[voice].period = real
         if voices[voice].stepDelta == 0 { voices[voice].stepDelta = voices[voice].delta }
     }
 
@@ -268,6 +272,7 @@ struct Paula: ~Copyable {
             voices[voice].refetchPeriod()
             voices[voice].phase = 0
             voices[voice].active = true
+            voices[voice].struck = true
         }
     }
 
@@ -287,6 +292,17 @@ struct Paula: ~Copyable {
         for voice in 0 ..< 4 {
             levels[voice] = voices[voice].swing.moved ? min(1, (voices[voice].swing.high - voices[voice].swing.low) * 0.5) : 0
             voices[voice].swing.clear()
+        }
+    }
+
+    /// What each voice is playing: the pitch its period stands for, and whether it has been started
+    /// since this was last asked.
+    mutating func takeNotes(into notes: inout TickNotes) {
+        for voice in 0 ..< 4 {
+            let playing = voices[voice].active && voices[voice].period > 0
+            notes.pitches[voice] = playing ? ChannelPitch.note(ofRate: Self.clockHz / Double(voices[voice].period)) : 0
+            if voices[voice].struck { notes.struck[voice] = true }
+            voices[voice].struck = false
         }
     }
 

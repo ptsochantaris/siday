@@ -199,6 +199,13 @@ final class STMachine {
         levels[3] = hardware.samples.takeLevel()
     }
 
+    /// What the sound chip's three channels are playing. The STE's samples have no pitch to tell.
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        hardware.chip.takeNotes(pitches: pitches, struck: struck)
+        pitches[3] = 0
+        struck[3] = false
+    }
+
     /// Moves the timers on by a sample and runs the interrupt code of any that come due. False if some
     /// of that code did not come back.
     @inline(__always) private func runTimers() -> Bool {

@@ -55,6 +55,9 @@ final class C64Machine: MOS6510Bus {
     private var voicePeaks: (UInt8, UInt8, UInt8) = (0, 0, 0)
     private var volumeSwing = Swing<UInt8>(from: 0, to: 15)
     private var volumeMoves = 0
+    /// The voices whose gates have been opened since the notes were last asked for.
+    private var gatesOpened: (Bool, Bool, Bool) = (false, false, false)
+    private let sidClockHz: Double
     private let samples: UnsafeMutablePointer<Int16>
     private let sampleCapacity = 16384
     private(set) var sampleCount = 0
@@ -66,6 +69,7 @@ final class C64Machine: MOS6510Bus {
     var hardwareReads: [UInt16: UInt8]?
 
     init(clockHz: Double, ntsc: Bool, model: SIDModel, engine: SIDEngineChoice = .residfp, filterCurve: Double = 0.5) {
+        sidClockHz = clockHz
         ram = .allocate(capacity: 65536)
         kernal = .allocate(capacity: 8192)
         colorRAM = .allocate(capacity: 1024)
@@ -173,6 +177,7 @@ final class C64Machine: MOS6510Bus {
         resid?.pointee.reset()
         sidClock = 0
         for register in sidWritten.indices { sidWritten[register] = 0 }
+        gatesOpened = (false, false, false)
         voicePeaks = (0, 0, 0)
         volumeSwing.clear()
         volumeMoves = 0
@@ -315,6 +320,24 @@ final class C64Machine: MOS6510Bus {
         if levels.2 > voicePeaks.2, sounds(2) { voicePeaks.2 = levels.2 }
     }
 
+    /// What the three voices are playing: the pitch each oscillator is set to, unless it is making
+    /// noise alone, and whether its gate has been opened since this was last asked. The samples played
+    /// on the volume have no pitch to tell.
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        for voice in 0 ..< 3 {
+            let at = voice * 7
+            let frequency = Double(Int(sidWritten[at]) | Int(sidWritten[at + 1]) << 8)
+            let pitched = sounds(voice) && sidWritten[at + 4] & 0xF0 != 0x80
+            pitches[voice] = pitched ? ChannelPitch.note(ofHz: frequency * sidClockHz / 16_777_216) : 0
+        }
+        struck[0] = gatesOpened.0
+        struck[1] = gatesOpened.1
+        struck[2] = gatesOpened.2
+        gatesOpened = (false, false, false)
+        pitches[3] = 0
+        struck[3] = false
+    }
+
     /// How loud the three voices have been since this was last asked, each by its envelope; and, fourth,
     /// the samples a tune plays by moving the volume about, which is what that does to the SID's output.
     func takeLevels(into levels: UnsafeMutablePointer<Float>) {
@@ -447,6 +470,14 @@ final class C64Machine: MOS6510Bus {
             if r == 0x18 {
                 if value & 0x0F != sidWritten[r] & 0x0F { volumeMoves += 1 }
                 volumeSwing.note(value & 0x0F)
+            } else if value & 1 != 0, sidWritten[r] & 1 == 0 {
+                // A gate opening is a note being struck.
+                switch r {
+                case 0x04: gatesOpened.0 = true
+                case 0x0B: gatesOpened.1 = true
+                case 0x12: gatesOpened.2 = true
+                default: break
+                }
             }
             sidWritten[r] = value
             if r <= 0x18 { writeLog?.append((clock, UInt8(r), value)) }

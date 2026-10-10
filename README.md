@@ -61,9 +61,11 @@ to WebAssembly.
 - One list chooses what a tune is heard through: mono, stereo (a module's own, or the AY chip's
   channels spread out, one way round or the other), or the speaker of an early-1980s television. It
   is remembered too.
-- Three small buttons in the player's corner put the spectrum analyser, the lights and the list of
-  tunes away and bring them back, for as much or as little to look at as is wanted. That is
-  remembered as well.
+- Small buttons in the player's corner put the spectrum analyser, the lights and the list of tunes
+  away and bring them back, for as much or as little to look at as is wanted. That is remembered as
+  well.
+- A fourth of them brings out a picture to listen by: a lava lamp, or an aurora. It is away until it
+  is asked for.
 - The keys are the command-line player's.
 
 Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
@@ -83,6 +85,20 @@ Spectrum tunes are for the beeper alone, an AY file's three channels too. Measur
 that can be heard and little that can be timed: the sound is the same to the sample, and rendering
 is slower by nothing for a SID tune, a thirtieth for a Spectrum's and at most a seventh for a module's,
 which is rendered some hundreds of times faster than it plays.
+
+The picture to listen by is for watching while a tune plays, and is made from what the tune's voices
+are doing and not from the sound they add up to: how loud each is, the pitch it is at, and the notes
+it starts, all of which the player knows because it is playing them. In the lava lamp each voice is a
+blob of wax, which swells as the voice gets louder, floats higher the higher its note, and sinks back
+into the pool when it falls silent. In the aurora each voice is a curtain of light drawn at the right
+of a night sky, higher for a higher note, that drifts away to the left. It is meant to be calm.
+Nothing in it changes at once: a voice is followed a little behind, so the loudest note there is
+brightens the picture over several frames and not in one; the kind of picture never changes of its
+own accord; and its colours change when "shuffle colours" is pressed, over a few seconds, or, in the
+lava lamp, by themselves and too slowly to see: once round the colour wheel in five minutes. It can fill the screen (the button, or `f`), where its controls and the pointer go out of
+sight when the pointer is left still. The picture is painted in Swift like everything else, a small
+one of some 370 dots by 210 that the browser stretches, which is what makes it soft; a frame takes
+about a millisecond.
 
 The spectrum analyser and the lights are held back by as long as the browser says the sound takes to be heard, which
 with wireless headphones is a sixth of a second or more. When the sound is sent somewhere else while

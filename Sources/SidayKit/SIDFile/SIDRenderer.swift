@@ -164,6 +164,10 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         machine.takeLevels(into: levels)
     }
 
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        machine.takeNotes(pitches: pitches, struck: struck)
+    }
+
     /// The first value read from each I/O or ROM address during the first `seconds`.
     public func dumpHardwareReads(seconds: Double) -> [(UInt16, UInt8)] {
         machine.hardwareReads = [:]

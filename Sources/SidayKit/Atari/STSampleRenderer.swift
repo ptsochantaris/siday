@@ -61,6 +61,8 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
     private var voices = [Voice](repeating: Voice(), count: 8)
     /// For the lights: how far each voice has swung of late, or the one sample of a digi-mix.
     private var swings = [Swing<Int32>](repeating: Swing(from: -32768, to: 32767), count: 8)
+    /// The voices that have been given a new note since the notes were last asked for.
+    private var struckVoices = [Bool](repeating: false, count: 8)
     private var tick = 0
     private var wrapped = false
     private var untilTick = 0
@@ -247,6 +249,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             voices[index].volume = Int32(control & 63) * 64 / 63
             if sample != 0xFF {
                 // A new note.
+                if index < 8 { struckVoices[index] = true }
                 voices[index].sample = Int(sample)
                 voices[index].position = 0
                 voices[index].running = true
@@ -313,6 +316,15 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
     }
 
     public var channelCount: Int { kind == .mix ? 1 : min(8, voiceCount) }
+
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        for voice in 0 ..< channelCount {
+            // (A digi-mix is one recording, and has no notes.)
+            pitches[voice] = kind == .tracker && voices[voice].running ? ChannelPitch.note(ofRate: Double(voices[voice].rate)) : 0
+            struck[voice] = struckVoices[voice]
+            struckVoices[voice] = false
+        }
+    }
 
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         // A voice at full volume goes 8,192 either side of nothing, and a digi-mix twice as far.

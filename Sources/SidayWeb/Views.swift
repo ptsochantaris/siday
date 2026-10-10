@@ -17,6 +17,10 @@ struct PlayerView {
 
             NowPlaying(player: player)
 
+            if player.isShowing(.picture) {
+                Picture(player: player)
+            }
+
             div(.class("add")) {
                 button { "Add files…" }.onClick { try? sidayChoose(false) }
                 button { "Add a folder…" }.onClick { try? sidayChoose(true) }
@@ -29,7 +33,7 @@ struct PlayerView {
             }
 
             footer {
-                p { "Keys: space pause · n or → next · p or ← previous · + and − song" }
+                p { "Keys: space pause · n or → next · p or ← previous · + and − song · f picture on the whole screen" }
                 p {
                     "Plays "
                     TuneFormat.allCases.map { $0.rawValue.uppercased() }.joined(separator: ", ")
@@ -152,6 +156,35 @@ struct Shown {
                 ) {}
                     .attributes(.disabled, when: !player.has(part))
                     .onClick { player.toggle(part) }
+            }
+        }
+    }
+}
+
+/// The picture to listen by, and under it what kind of picture it is, a button for other colours, and
+/// one to fill the screen with it. The picture itself is painted elsewhere, many times a second: see
+/// `Visualiser`, and `frame` in Browser.swift.
+@View
+struct Picture {
+    var player: Player
+
+    var body: some View {
+        section(.class("visual")) {
+            canvas(.class("picture")) {}
+            div(.class("bar")) {
+                select(.custom(name: "aria-label", value: "Picture"), .title("The kind of picture")) {
+                    ForEach(Visualiser.Mode.allCases, key: { $0.rawValue }) { mode in
+                        option(.value(mode.rawValue)) { mode.title }
+                            .attributes(.selected, when: mode == player.picture)
+                    }
+                }
+                .onInput { event in
+                    if let mode = event.targetValue.flatMap({ Visualiser.Mode(rawValue: $0) }) { player.show(mode) }
+                }
+                button(.title("Other colours, come by chance")) { "shuffle colours" }
+                    .onClick { player.shuffleColours() }
+                button(.class("whole"), .title("Fill the screen with it, or put it back (f)")) { "full screen" }
+                    .onClick { try? sidayFillScreen() }
             }
         }
     }

@@ -27,13 +27,14 @@ struct Tune {
 
 /// A part of the page that the listener can put away, and bring back.
 enum Part: String, CaseIterable {
-    case analyser, lights, list
+    case analyser, lights, picture, list
 
     /// What its button says it is.
     var title: String {
         switch self {
         case .analyser: "Spectrum analyser"
         case .lights: "A light for each voice"
+        case .picture: "A picture to listen by"
         case .list: "List of tunes"
         }
     }
@@ -74,6 +75,11 @@ final class Player {
     private(set) var lights: [Double] = []
     /// How fast a light goes out, in brightnesses a second: from full to dark in about a seventh of one.
     private static let lightFall = 6.5
+    /// The picture to listen by, which is painted from what the voices are doing: see `Visualiser`.
+    /// It is not part of what the page is drawn from, and is painted for each frame of the screen.
+    private let visualiser = Visualiser()
+    /// The kind of picture it is: at first, the kind it was on the last visit.
+    private(set) var picture = (try? sidayRememberedPicture()).flatMap { Visualiser.Mode(rawValue: $0) } ?? .lava
     /// What tunes are heard through: at first, what they were heard through on the last visit.
     private(set) var output = (try? sidayRememberedOutput()).flatMap { OutputStyle(rawValue: $0) } ?? .mono
     private(set) var shuffled = false
@@ -119,16 +125,21 @@ final class Player {
             },
             { [self] names in add(names.split(separator: "\n").map { String($0) }) },
             { [self] plays, text, songs, song, length in loaded(plays, text, songs, song, length) },
-            { [self] seconds, heights, lightCount in
+            { [self] seconds, numbers, voices in
                 // (A move to another place in the song is no time at all, and neither is a long wait.)
                 let fall = Self.lightFall * max(0, min(0.1, seconds - position))
                 position = seconds
-                let lightCount = max(0, min(heights.count, lightCount))
-                let count = (heights.count - lightCount) / 2
-                bars = Array(heights[..<count])
-                caps = Array(heights[count ..< count * 2])
-                let levels = Array(heights[(heights.count - lightCount)...])
+                let voices = max(0, min(numbers.count / 3, voices))
+                let count = (numbers.count - voices * 3) / 2
+                bars = numbers[..<count].map { $0 / 255 }
+                caps = numbers[count ..< count * 2].map { $0 / 255 }
+                let levels = numbers[(count * 2) ..< (count * 2 + voices)].map { $0 / 255 }
                 lights = levels.count == lights.count ? levels.indices.map { max(levels[$0], lights[$0] - fall) } : levels
+                // The picture is told all of it: how loud each voice is, its pitch, which comes in
+                // half semitones, and whether a note has just been struck.
+                visualiser.hear(levels: levels.map { Float($0) },
+                                pitches: numbers[(count * 2 + voices) ..< (count * 2 + voices * 2)].map { Float($0) / 2 },
+                                struck: numbers[(count * 2 + voices * 2) ..< (count * 2 + voices * 3)].map { $0 != 0 })
             },
             { [self] seconds, length in
                 rendered = seconds
@@ -143,8 +154,15 @@ final class Player {
             { [self] top, height in
                 if top != listTop { listTop = top }
                 if height > 0, height != listHeight { listHeight = height }
+            },
+            { [self] seconds, width, height in
+                let size = Visualiser.size(for: width, height)
+                visualiser.resize(width: size.width, height: size.height)
+                visualiser.paint(at: seconds)
+                if let pixels = visualiser.pixels { try? sidayPaint(Int(bitPattern: pixels), visualiser.width, visualiser.height) }
             }
         )
+        visualiser.mode = picture
         tellOutput()
     }
 
@@ -294,6 +312,7 @@ final class Player {
             tune = nil
             tuneFile = nil
             lights = []
+            visualiser.newTune()
         }
         current = index
         problem = nil
@@ -399,6 +418,20 @@ final class Player {
         bars = bars.map { _ in 0 }
         caps = caps.map { _ in 0 }
         lights = lights.map { _ in 0 }
+        visualiser.rest()
+    }
+
+    /// Changes the kind of picture to listen by.
+    func show(_ mode: Visualiser.Mode) {
+        guard mode != picture else { return }
+        picture = mode
+        visualiser.mode = mode
+        try? sidayPicture(mode.rawValue)
+    }
+
+    /// Other colours for the picture, come by chance.
+    func shuffleColours() {
+        visualiser.shuffle()
     }
 
     /// Changes what tunes are heard through.
@@ -421,7 +454,7 @@ final class Player {
     /// more than one, for the list. (The moment between one tune and the next counts as a tune.)
     func has(_ part: Part) -> Bool {
         switch part {
-        case .analyser, .lights: current != nil && problem == nil
+        case .analyser, .lights, .picture: current != nil && problem == nil
         case .list: files.count > 1
         }
     }
@@ -462,6 +495,7 @@ final class Player {
         case "p", "P", "ArrowLeft": previous()
         case "+", "=", "ArrowUp": song(1)
         case "-", "_", "ArrowDown": song(-1)
+        case "f", "F": if isShowing(.picture) { try? sidayFillScreen() }
         default: break
         }
     }

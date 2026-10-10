@@ -49,6 +49,8 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     private let lights: [Int]
     private var levels: TickLevels
     private var channelLevels = [Float](repeating: 0, count: 25)
+    private var notes: TickNotes
+    private var channelPitches = [Float](repeating: 0, count: 25)
     /// The part of a sample that ticks are over by, in 2^-32s, carried from tick to tick.
     private var remainder: UInt64 = 0
     private var started = false
@@ -95,6 +97,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         }
         self.lights = lights
         levels = TickLevels(voices: lights.count)
+        notes = TickNotes(voices: lights.count)
 
         // Once through each of its songs in silence, to find how long it is and whether the AdLib
         // card is in it.
@@ -151,6 +154,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         tickFrames = 0
         tickPosition = 0
         levels.clear()
+        notes.clear()
         remainder = 0
         loopCount = 0
         started = false
@@ -182,6 +186,23 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         player.adlib.takeLevels(into: &channelLevels)
         for light in lights.indices { levels.now[light] = channelLevels[lights[light]] }
         levels.tickMade()
+        // A channel of samples is at the pitch of its period, which is a fourteen-millionth of a
+        // second for each sample; the AdLib's voices are at whatever the chip has been told.
+        player.adlib.takePitches(into: &channelPitches)
+        for light in lights.indices {
+            let ch = player.zchn[lights[light]]
+            if lights[light] < 16 {
+                notes.pitches[light] = ch.aspd > 0 && ch.m_speed != 0 ? ChannelPitch.note(ofRate: 14_317_056 / Double(ch.aspd)) : 0
+            } else {
+                notes.pitches[light] = channelPitches[lights[light]]
+            }
+            if ch.struck { notes.struck[light] = true }
+            ch.struck = false
+        }
+    }
+
+    public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        notes.take(pitches: pitches, struck: struck)
     }
 
     public var channelCount: Int { lights.count }
