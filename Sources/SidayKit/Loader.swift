@@ -3,7 +3,7 @@
 
 public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
-    case vtx, ym, ay, sid, sndh, mod, ahx, xm, s3m, it, cmf, rol
+    case vtx, ym, ay, sid, sndh, mod, ahx, hvl, xm, s3m, it, cmf, rol
 
     /// The format a file name's extension stands for, in any case.
     public init?(fileExtension: String) {
@@ -52,7 +52,12 @@ public enum TuneLoader {
                 guard case .unsupported = error, let more = try? XMRenderer(data, options: options) else { throw error }
                 return more
             }
-        case .ahx:
+        case .ahx, .hvl:
+            // HivelyTracker reads both its own files and AHX's, so a file of either may be found
+            // under the other's name. Each says which it is in its first three letters.
+            if data.starts(with: [0x48, 0x56, 0x4C]) || (format == .hvl && !data.starts(with: [0x54, 0x48, 0x58])) {
+                return try HVLRenderer(data, options: options)
+            }
             return try AHXRenderer(data, options: options)
         case .xm:
             return try XMRenderer(data, options: options)

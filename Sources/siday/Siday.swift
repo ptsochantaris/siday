@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, AHX, XM, S3M and IT modules and CMF and ROL tunes for the AdLib from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, AHX, HVL, XM, S3M and IT modules and CMF and ROL tunes for the AdLib from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -276,6 +276,13 @@ struct Siday: ParsableCommand {
             if !(renderer is any ReferenceComparable), scan.files[0].pathExtension.lowercased() == "ym",
                let atari = STYMRenderer([UInt8](try Data(contentsOf: scan.files[0])), always: true) {
                 renderer = atari
+            }
+            // HivelyTracker's replayer plays AHX files too. To compare this player's port of it with
+            // it on those, an AHX file is played as that replayer plays one, with the Amiga's two
+            // sides as far apart as the variable says, from 0 (together) to 4.
+            if let apart = ProcessInfo.processInfo.environment["SIDAY_AHX_AS_HIVELY"].flatMap({ Int($0) }),
+               scan.files[0].pathExtension.lowercased() == "ahx" {
+                renderer = try HVLRenderer([UInt8](try Data(contentsOf: scan.files[0])), options: tuneFiles.options, ahxStereo: apart)
             }
             if let atari = renderer as? any ReferenceComparable {
                 // The machine's own sixteen-bit output as the reference player writes it: one channel, or

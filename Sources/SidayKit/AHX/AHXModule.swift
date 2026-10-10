@@ -83,7 +83,7 @@ final class AHXModule {
     init(_ data: [UInt8]) throws {
         let file = ByteReader(data)
         if file[0] == 0x48, file[1] == 0x56, file[2] == 0x4C { // "HVL"
-            throw TuneError.unsupported("a HivelyTracker module, which is not played so far")
+            throw TuneError.unsupported("a HivelyTracker module, which is not an AHX one")
         }
         guard data.count >= 14, file[0] == 0x54, file[1] == 0x48, file[2] == 0x58 else { // "THX"
             throw TuneError.malformed("not an AHX module")

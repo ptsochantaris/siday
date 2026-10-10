@@ -82,8 +82,8 @@ import Testing
 
 @Test func aSettingOnlyMeansMakingATuneAgainIfItHasToDoWithIt() {
     #expect(Setting.sidModel.changes(.sid) && !Setting.sidModel.changes(.pt3) && !Setting.sidModel.changes(.mod))
-    #expect(Setting.clock.changes(.pt3) && Setting.clock.changes(.ay) && Setting.clock.changes(.ym) && !Setting.clock.changes(.sid) && !Setting.clock.changes(.sndh))
-    #expect(Setting.amiga.changes(.mod) && Setting.amiga.changes(.ahx) && Setting.amigaSeparation.changes(.ahx) && !Setting.amiga.changes(.xm))
+    #expect(Setting.clock.changes(.pt3) && Setting.clock.changes(.ay) && Setting.clock.changes(.ym) && !Setting.clock.changes(.sid) && !Setting.clock.changes(.sndh) && !Setting.clock.changes(.hvl))
+    #expect(Setting.amiga.changes(.mod) && Setting.amiga.changes(.ahx) && Setting.amigaSeparation.changes(.ahx) && !Setting.amiga.changes(.xm) && !Setting.amiga.changes(.hvl))
     #expect(Setting.s3mCard.changes(.s3m) && !Setting.s3mCard.changes(.it))
     #expect(Setting.loops.changes(.sid) && Setting.fade.changes(.mod))
     #expect(!Setting.songs.changes(.sid) && !Setting.shortestSong.changes(.sid))

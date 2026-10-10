@@ -29,7 +29,7 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum and Amstrad CPC program rips | AY (ZXAYEMUL), including beeper music |
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
-| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip |
+| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer |
 | PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
 | AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player |
 
@@ -37,8 +37,7 @@ Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer 
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
-A MOD file packed with XPK is not unpacked. A HivelyTracker file (HVL), which is AHX grown to sixteen
-channels, is not played. An XM file written by a later tracker is played as
+A MOD file packed with XPK is not unpacked. An XM file written by a later tracker is played as
 FastTracker 2 would play it, which is not always what the tracker that wrote it meant. An IT file
 packed with MMCMP is not unpacked, and a sample that ModPlug Tracker packed its own way (ADPCM) is
 silent. A ROL file that names an instrument no bank has is played with that instrument silent.
@@ -277,7 +276,7 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
   turns up is not a song but patterns the composer left behind after the end of the list.
 - An AHX file says itself where each of its songs starts, and those are its songs, but for any that
   start where an earlier one has played through: those are ways into it and not songs. One is over
-  when it comes round to a row it has played, or stops itself.
+  when it comes round to a row it has played, or stops itself. A HivelyTracker file is the same.
 
 ### Through a television
 
@@ -385,6 +384,36 @@ it stops itself. `siday --raw file.raw tune.ahx` writes what ahx2play writes to 
 Paula at the rate of the output with nothing after her, at ahx2play's loudness and with its dither,
 and the two agree to the sample: on a quarter of an hour of each of the 858 files tried, and on
 three minutes of every other song in them.
+
+A HivelyTracker file is played as HivelyTracker plays it. HivelyTracker is AHX carried on, by other
+hands and off the Amiga: the same instruments and the same waves, to the byte, but as many as sixteen
+voices where the Amiga had four, two commands on every row of a track where AHX had one, and more for
+an instrument's list to do. Each voice has a place between the speakers, which the file sets for all
+of them at once (from all in the middle to the Amiga's hard left and right), a track can move, and
+an instrument can move for the length of a note. And an instrument can have its wave multiplied by a
+second one, a triangle or a sawtooth at a pitch of its own, which is ring modulation. There is no
+Amiga under it. The tracker mixes its voices itself, at 48,000 samples a second, each going round
+its buffer of 640 bytes a byte at a time with nothing between one byte and the next and nothing
+after, and that is what is heard here: the replayer and the mixer are those of HivelyTracker 1.9, as
+they are in the players that come with the tracker, and the settings for the Amiga do not touch
+them. A file says how loud it is to be mixed, and where that is more than sixteen bits can hold it
+is clipped, as those players clip it. (The tracker itself lets it go round instead, so that its
+composer hears that it is too loud.) The voices are where the file puts them unless the sound is
+asked for in mono, which is the two sides together. A file's songs and their ends are found as an
+AHX file's are.
+
+`siday --raw file.raw tune.hvl` writes what the replayer makes, sixteen bits a side, and the two
+agree to the sample: on a quarter of an hour of each of the 34 files tried, and on a minute of each of
+1,800 songs in files made up at random to do everything the format can, which those 34 between them
+do not. The same replayer plays AHX files, and with the variable `SIDAY_AHX_AS_HIVELY` set (to how
+far apart the Amiga's two sides are to be, from 0 to 4) `--raw` plays an AHX file through it and not
+through AHX's own: that way the two agree on three minutes of every song of the 858 AHX files as
+well. (The `hvl2wav` that comes with the tracker is not what is compared with. It still has an older
+replayer, from before the filtered waves and the noise were made to be AHX's own, and sounds a
+little different.) What the replayer leaves to chance is settled here: a jump past the end of the
+list of positions goes to its top, a track or a row the file does not have is empty, a note above
+the five octaves there are has no pitch to slide from, and a wave other than the four there are is
+silence.
 
 An XM file, and a MOD file of more channels than the Amiga has, is played as FastTracker 2 played
 it: the replayer and the mixer are FastTracker 2.09's, by way of ft2play's port of them to C. The mixer
@@ -538,6 +567,9 @@ What it is made from:
 - [ahx2play](https://github.com/8bitbubsy/ahx2play), also by Olav Sørensen: AHX's replayer and the
   making of its waves, ported by him from the tracker's own source. AHX is by Martin Wodok (Dexter)
   and Manfred Linzner (Pink) of Abyss.
+- [HivelyTracker](https://github.com/pete-gordon/hivelytracker) by Pete Gordon (Xeron of IRIS): its
+  replayer and mixer, and the HVL format. The replayer began as his port of AHX's, and others have
+  mended it since, kode54 and passing_by among them.
 - [ft2play](https://github.com/8bitbubsy/ft2play), also by Olav Sørensen: FastTracker 2's replayer
   and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
   Huss and Magnus Högdahl, of Triton.
