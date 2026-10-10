@@ -1,0 +1,698 @@
+/* Copyright (C) 2026 Paul Tsochantaris. SPDX-License-Identifier: GPL-2.0-or-later */
+
+:root {
+  color-scheme: dark;
+  --paper: #14161a;
+  --panel: #1d2026;
+  --line: #2e333c;
+  --ink: #e6e3da;
+  --dim: #8d919a;
+  --accent: #f2b84b;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 15px;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+p {
+  margin: 0;
+}
+
+.tagline, .hint, .detail, footer {
+  color: var(--dim);
+}
+
+footer {
+  font-size: 0.82rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.now, .list {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The buttons in the player's top corner that put parts of the page away and bring them back: a
+   small picture each, of bars, of lamps and of a list, in the colour of the button's text, which is
+   the accent while the part is showing. Whatever comes first in the player keeps clear of them. */
+
+.now {
+  position: relative;
+}
+
+.views {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.views + * {
+  padding-right: 184px;
+}
+
+button.view {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+button.view::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  background: currentColor;
+  -webkit-mask: var(--picture) center / contain no-repeat;
+  mask: var(--picture) center / contain no-repeat;
+}
+
+button.view.analyser {
+  --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='8' width='3.4' height='7'/%3E%3Crect x='6.3' y='2' width='3.4' height='13'/%3E%3Crect x='11.6' y='5' width='3.4' height='10'/%3E%3C/svg%3E");
+}
+
+button.view.lights {
+  --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='2.6' cy='8' r='2.3'/%3E%3Ccircle cx='8' cy='8' r='2.3'/%3E%3Ccircle cx='13.4' cy='8' r='2.3'/%3E%3C/svg%3E");
+}
+
+button.view.picture {
+  --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='5.6' cy='10' r='4.6'/%3E%3Ccircle cx='11.6' cy='4.8' r='3'/%3E%3C/svg%3E");
+}
+
+button.view.list {
+  --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='2.5' width='14' height='2.2'/%3E%3Crect x='1' y='6.9' width='14' height='2.2'/%3E%3Crect x='1' y='11.3' width='14' height='2.2'/%3E%3C/svg%3E");
+}
+
+button.view.settings {
+  --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black'%3E%3Ccircle cx='8' cy='8' r='6.1' stroke-width='2.6' stroke-dasharray='2.4 2.39' transform='rotate(-14 8 8)'/%3E%3Ccircle cx='8' cy='8' r='4.1' stroke-width='2.4'/%3E%3C/svg%3E");
+}
+
+button.view.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* With nothing for its part to show, a button is faint and is not to be pressed. */
+button.view:disabled {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--line);
+}
+
+.what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.format {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 0.8rem;
+}
+
+.title {
+  font-size: 1.2rem;
+}
+
+.author {
+  color: var(--dim);
+}
+
+.problem {
+  color: #e8836b;
+}
+
+.time {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The time bar, with room above and below it to press: a bar this thin is hard to hit. */
+.seek {
+  position: relative;
+  flex: 1;
+  padding: 9px 0;
+  cursor: pointer;
+}
+
+.seek .bar {
+  position: relative;
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.seek:hover .bar {
+  height: 8px;
+  margin: -1px 0;
+}
+
+.seek .bar div {
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+/* How much of the song is ready to be moved to. */
+.seek .ready {
+  background: var(--dim);
+  opacity: 0.35;
+}
+
+/* The listener has moved past what is ready, and the sound is waiting for it. */
+.seek .fill.waiting {
+  animation: waiting 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes waiting {
+  to { opacity: 0.35; }
+}
+
+/* Where the pointer is: a line down through the bar, and the time it stands for above it. */
+.seek .pointer {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.seek .pointer span {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* The spectrum analyser: bars scaled from the bottom, with the gaps of a row of lights drawn over them. */
+
+.analyser {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  height: 72px;
+}
+
+.analyser::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to top, transparent 0 5px, var(--panel) 5px 7px);
+  pointer-events: none;
+}
+
+.band {
+  position: relative;
+  flex: 1;
+}
+
+.band .bar {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  opacity: 0.9;
+}
+
+.band .cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+/* The picture to listen by: a small picture stretched to fit its space, which softens it, with its
+   few controls under it. It can fill the screen, and there the controls lie over its foot, and go
+   out of sight with the pointer when the pointer has been still a while. */
+
+.visual {
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.visual canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.visual .bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel);
+}
+
+.visual .bar .whole {
+  margin-left: auto;
+}
+
+.visual:fullscreen {
+  border: none;
+  border-radius: 0;
+}
+
+.visual:fullscreen canvas {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.visual:fullscreen .bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgb(0 0 0 / 0.55);
+  transition: opacity 0.6s;
+}
+
+html[data-still] .visual:fullscreen .bar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+html[data-still] .visual:fullscreen {
+  cursor: none;
+}
+
+/* The settings: groups of them, each setting a line with what it is on the left and what it is set
+   to on the right. What a setting does is its tooltip. One that is not as it comes is marked. */
+
+.settings {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings .group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings h2 {
+  margin: 0 0 2px;
+  font-size: 0.82rem;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  cursor: help;
+}
+
+.setting .name {
+  flex: 1 1 12em;
+}
+
+.setting.changed .name::after {
+  content: " •";
+  color: var(--accent);
+}
+
+.setting select {
+  flex: 0 1 19em;
+  min-width: 0;
+}
+
+.setting .scale {
+  flex: 0 1 19em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting .scale input {
+  flex: 1;
+  min-width: 4em;
+  accent-color: var(--accent);
+}
+
+.setting .end {
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+
+.settings .bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.settings .bar .hint {
+  font-size: 0.82rem;
+  flex: 1 1 16em;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A song that is passed over when a tune's songs are played in turn. */
+.songs .passed {
+  opacity: 0.5;
+}
+
+/* A light for each voice of the tune: a round red lamp, with a glow over it that is brighter and wider
+   the louder the voice. Each has a place of its own, of which the lamp is the middle half, so that
+   the lamps stand well apart; many voices make for narrower places, and so for smaller lamps. */
+
+.lights {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 36px;
+}
+
+.light {
+  position: relative;
+  flex: 0 1 36px;
+  min-width: 0;
+  aspect-ratio: 1;
+}
+
+.light::before {
+  content: "";
+  position: absolute;
+  inset: 25%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #6a1c16, #3a0d0a 55%, #220807);
+  box-shadow: 0 0 0 1px #0c0d10;
+}
+
+.light .glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* The lamp, to 32%, and then the light it throws on what is around it, which is brightest at the
+     lamp's edge and falls away quickly at first and then slowly, as light does: an even band of it
+     would be a ring painted round the lamp. */
+  background: radial-gradient(
+    circle,
+    #ff5236 0%, #ff2414 20%, #f01006 32%,
+    rgb(255 34 20 / 0.62) 37%, rgb(255 34 20 / 0.38) 42%, rgb(255 34 20 / 0.22) 48%,
+    rgb(255 34 20 / 0.12) 54%, rgb(255 34 20 / 0.05) 61%, rgb(255 34 20 / 0) 70%
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.controls, .add, .search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover, select:hover {
+  border-color: var(--dim);
+}
+
+select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+
+button.main {
+  min-width: 3.4em;
+}
+
+button.toggle.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="search"] {
+  font: inherit;
+  flex: 1;
+  min-width: 12em;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+/* What the list says while there is nothing in it. */
+.list .empty {
+  color: var(--dim);
+  padding: 18px 4px;
+  text-align: center;
+}
+
+/* The list of tunes: a window on to a list as tall as all of them, of which only the rows in view are
+   there. Every row is the same height, which Player.rowHeight has too. */
+.rows {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.rows ul {
+  max-height: none;
+  overflow: visible;
+}
+
+.rows li {
+  height: 28px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+/* A row is what is pressed to play the tune, and a cross to take it out of the list, which shows while
+   the pointer is on the row (or always, where there is no pointer to be on it). */
+.rows li {
+  align-items: center;
+}
+
+.rows .pick {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex: 1;
+  min-width: 0;
+}
+
+.rows .remove {
+  visibility: hidden;
+  border: none;
+  background: none;
+  color: var(--dim);
+  padding: 0 4px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.rows li:hover .remove, .rows .remove:focus-visible {
+  visibility: visible;
+}
+
+.rows .remove:hover {
+  color: var(--accent);
+}
+
+@media (hover: none) {
+  .rows .remove {
+    visibility: visible;
+  }
+}
+
+/* What siday.js has to say about the sound's journey to the ears, when asked with ?timing. */
+body[data-timing]::after {
+  content: attr(data-timing);
+  display: block;
+  max-width: 760px;
+  margin: -24px auto 0;
+  padding: 0 16px 28px;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+
+/* What the tune is heard through, and the player's own volume: the two together at the far end. */
+.output {
+  margin-left: auto;
+}
+
+.volume {
+  width: 110px;
+  accent-color: var(--accent);
+}
+
+a {
+  color: var(--ink);
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+li:hover {
+  background: var(--paper);
+}
+
+li.current {
+  color: var(--accent);
+}
+
+/* The songs of the tune that is playing. */
+
+ul.songs {
+  max-height: 13.5em;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
+}
+
+.songs .number {
+  color: var(--dim);
+  min-width: 1.6em;
+  text-align: right;
+}
+
+.songs .length {
+  color: var(--dim);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.songs.numbered {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button.song {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 9px;
+}
+
+button.song .length {
+  margin-left: 0;
+  font-size: 0.8rem;
+}
+
+button.song.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder {
+  color: var(--dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: auto;
+  max-width: 50%;
+}
