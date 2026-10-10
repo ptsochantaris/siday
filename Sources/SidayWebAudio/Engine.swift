@@ -22,14 +22,17 @@ final class WebPlayer {
     /// What is handed out at a time: the size of block a browser's audio thread works in.
     static let quantumFrames = 128
 
-    var options = LoadOptions()
-    /// Every song of a tune is played, from the first: the page lists them, and goes on to the next
-    /// when one ends.
-    var policy: PlaybackPolicy = {
-        var policy = PlaybackPolicy()
-        policy.allSubsongs = true
-        return policy
-    }()
+    private(set) var options = LoadOptions()
+    /// How long tunes are played, and which song of a file is the first: the page lists a file's
+    /// songs, and goes on to the next when one ends.
+    private var policy = PlaybackPolicy()
+    /// The listener's settings, as last given (see `Setting`): they are what `options` and `policy`
+    /// are made from, apart from what the tune is heard through and the song lengths.
+    private var settings = Setting.standards
+    /// The kind of tune that is loaded.
+    private var format: TuneFormat?
+    /// What tunes are heard through.
+    private var style = OutputStyle.mono
     private var renderer: (any Renderer)?
     private var session: TuneSession?
     private var television: Television?
@@ -64,6 +67,7 @@ final class WebPlayer {
         renderer = nil
         session = nil
         layout = nil
+        format = nil
         let fileExtension = name.split(separator: ".").count > 1 ? String(name.split(separator: ".").last ?? "") : ""
         guard let format = TuneFormat(fileExtension: fileExtension) else {
             text = Array("unknown file type .\(fileExtension)".utf8)
@@ -72,6 +76,7 @@ final class WebPlayer {
         do {
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options)
             renderer = loaded
+            self.format = format
             layout = format == .sid || format == .sndh || format == .cmf || format == .rol ? nil : options.stereo
             ownStereo = format == .mod || format == .xm || format == .s3m || format == .it
             select(policy.firstSubsong(of: loaded))
@@ -111,13 +116,42 @@ final class WebPlayer {
         text = Array(lines.joined(separator: "\n").utf8)
     }
 
+    init() {
+        Setting.apply(settings, to: &options, &policy)
+    }
+
+    /// HVSC's own list of song lengths, to be asked before the lengths that are built in; nil for none.
+    func setSongLengths(_ database: SongLengthDatabase?) {
+        options.songLengths = database
+    }
+
+    /// Changes the listener's settings: a value for each, in the order of `Setting`'s cases. Returns
+    /// true if the tune that is loaded has to be loaded again to be heard as they now are.
+    func setSettings(_ values: [Double]) -> Bool {
+        let before = settings
+        settings = Setting.allCases.map { $0.settled($0.rawValue < values.count ? values[$0.rawValue] : $0.standard) }
+        Setting.apply(settings, to: &options, &policy)
+        let placedOtherwise = placeChannels()
+        guard let format, renderer != nil else { return false }
+        return placedOtherwise || Setting.allCases.contains { settings[$0.rawValue] != before[$0.rawValue] && $0.changes(format) }
+    }
+
     /// Changes what tunes are heard through. Returns true if the tune that is loaded has to be loaded
     /// again to be heard that way: its channels were placed otherwise when it was rendered.
     func setOutput(_ style: OutputStyle) -> Bool {
         if style.television != television?.set { television = style.television.map { Television($0) } }
-        options.stereo = style.stereo
+        self.style = style
+        return placeChannels()
+    }
+
+    /// Works out how a tune's channels are to be placed, from what tunes are heard through and from
+    /// the settings, which say which way round stereo is. Returns true if the tune that is loaded
+    /// had its channels placed otherwise.
+    private func placeChannels() -> Bool {
+        let stereo = Setting.stereo(for: style, settings)
+        options.stereo = stereo
         // A module has a stereo of its own, which only mono does away with.
-        return layout.map { ownStereo ? ($0 == .mono) != (style.stereo == .mono) : $0 != style.stereo } ?? false
+        return layout.map { ownStereo ? ($0 == .mono) != (stereo == .mono) : $0 != stereo } ?? false
     }
 
     /// What is about to be presented does not follow from what was presented last: the song has
@@ -245,7 +279,7 @@ public func sidayLoad(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: Uns
 @_cdecl("siday_set_songlengths")
 public func sidaySetSongLengths(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
     let database = SongLengthDatabase(Array(UnsafeBufferPointer(start: data, count: Int(length))))
-    player.options.songLengths = database.isEmpty ? nil : database
+    player.setSongLengths(database.isEmpty ? nil : database)
     return database.isEmpty ? 0 : 1
 }
 
@@ -253,6 +287,15 @@ public func sidaySetSongLengths(_ data: UnsafePointer<UInt8>, _ length: Int32) -
 @_cdecl("siday_select")
 public func sidaySelect(_ subsong: Int32) {
     player.select(Int(subsong))
+}
+
+/// The listener's settings: `count` numbers at `values`, one for each of SidayKit's settings in the
+/// order it lists them. Returns 1 if the tune that is loaded has to be loaded again (`siday_load`) to
+/// be heard as they now are: a setting has changed that has to do with a tune of its kind.
+@_expose(wasm, "siday_set_settings")
+@_cdecl("siday_set_settings")
+public func sidaySetSettings(_ values: UnsafePointer<Double>, _ count: Int32) -> Int32 {
+    player.setSettings(Array(UnsafeBufferPointer(start: values, count: Int(count)))) ? 1 : 0
 }
 
 /// What tunes are heard through: an output style, by its place in the order SidayKit lists them.

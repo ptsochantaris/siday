@@ -11,12 +11,15 @@
 /// spots in the middle of the wall are round and bright and move slowly, and those far out to the
 /// sides are long, dim and quick, as they are in a real room.
 final class MirrorBall: VisualScene {
-    /// A note's colour is its place in the octave, as a place on the colour wheel: the twelve notes
-    /// are the wheel once round, and a note is the same colour in every octave. Which note is which
-    /// colour is where the wheel starts, which is all of the look that means anything here.
-    let look = VisualLook(hue: 0.62, spread: 1)
+    /// A note's colour is how high it is among the notes the tune plays, as the colours of the
+    /// analyser's bars are: to begin with, red for the lowest, round the wheel to violet for the
+    /// highest. Which colours those are is where on the wheel the stretch lies, which is all of the
+    /// look that means anything here.
+    let look = VisualLook(hue: 145.0 / 360, spread: 1)
     /// And that goes round by itself, once in seven minutes.
     let drift: Float = 1.0 / 420
+    /// How much of the wheel lies between the lowest note and the highest.
+    private static let stretch: Float = 290.0 / 360
 
     private static let rings = 10, mirrors = 20
     /// Seconds for the ball to turn once.
@@ -28,8 +31,8 @@ final class MirrorBall: VisualScene {
     /// How loud each voice is, followed more slowly than the lamp follows it: a wall of lights that
     /// came on all at once would be a flash.
     private var calm: [Float] = []
-    /// The colour each voice's light is, as a place on the wheel: it follows the voice's note round
-    /// the wheel, the short way, and takes a moment over it.
+    /// The colour each voice's light is, as a place on the wheel from the middle of the stretch: it
+    /// follows the voice's note, and takes a moment over it.
     private var hues: [Float] = []
 
     /// A number from 0 to 1 that is always the same for the same two numbers.
@@ -61,10 +64,8 @@ final class MirrorBall: VisualScene {
             let voice = frame.voices[index]
             calm[index] += (voice.level - calm[index]) * (1 - expf(-frame.elapsed / (voice.level > calm[index] ? 0.14 : 0.5)))
             if voice.pitched {
-                var turn = voice.pitch / 12 - hues[index]
-                turn -= turn.rounded()
-                hues[index] += turn * (1 - expf(-frame.elapsed / 0.25))
-                hues[index] -= hues[index].rounded(.down)
+                let wanted = Self.stretch * (frame.place(of: voice.pitch) - 0.5)
+                hues[index] += (wanted - hues[index]) * (1 - expf(-frame.elapsed / 0.25))
             }
             let level = calm[index]
             guard level > 0.02 else { continue }

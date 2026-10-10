@@ -250,16 +250,21 @@ private func wallLight(_ visualiser: Visualiser, rows: Range<Int> = 0 ..< 100) -
         return (wallLight(visualiser, rows: 0 ..< 30).colour, wallLight(visualiser, rows: 70 ..< 100).colour)
     }
     func difference(_ a: [Double], _ b: [Double]) -> Double { zip(a, b).reduce(0) { $0 + abs($1.0 - $1.1) } }
-    // The same note an octave apart is the same colour, in different voices at different heights.
+    // The same note is the same colour, in different voices at different heights.
+    let same = colours(60, 60)
+    #expect(same.top.reduce(0, +) > 0.99 && same.bottom.reduce(0, +) > 0.99)
+    #expect(difference(same.top, same.bottom) < 0.1)
+    // A note is coloured by how high it is, and an octave is a long way.
     let octave = colours(72, 60)
-    #expect(octave.top.reduce(0, +) > 0.99 && octave.bottom.reduce(0, +) > 0.99)
-    #expect(difference(octave.top, octave.bottom) < 0.1)
-    // Notes half an octave apart are across the colour wheel from one another.
-    let tritone = colours(66, 60)
-    #expect(difference(tritone.top, tritone.bottom) > 0.5)
+    #expect(difference(octave.top, octave.bottom) > 0.5)
     // And the note is what matters, not the voice: the same two notes the other way up.
-    let swapped = colours(60, 66)
-    #expect(difference(swapped.top, tritone.bottom) < 0.1)
+    let swapped = colours(60, 72)
+    #expect(difference(swapped.top, octave.bottom) < 0.1)
+    // The lowest notes a tune plays are all one colour, so that those between are further apart.
+    let lowest = colours(48, 50)
+    #expect(difference(lowest.top, lowest.bottom) < 0.05)
+    let between = colours(63, 66)
+    #expect(difference(between.top, between.bottom) > 0.2)
 }
 
 @Test func pondTakesItsDropsWhereTheNotesAre() {
@@ -315,17 +320,23 @@ private func wallLight(_ visualiser: Visualiser, rows: Range<Int> = 0 ..< 100) -
 
 /// How tall the fire is: how many rows of the picture, from the bottom, have something burning in
 /// them (a dot plainly brighter than the hearth).
-private func flameHeight(_ visualiser: Visualiser) -> Int {
+private enum FlameEnd { case top, bottom }
+
+/// With `from: .bottom`, it is the lowest row with something burning in it instead, counted from the top.
+private func flameHeight(_ visualiser: Visualiser, from end: FlameEnd = .top) -> Int {
     guard let pixels = visualiser.pixels else { return 0 }
-    var tallest = 0
+    var tallest = 0, lowest = 0
     for row in 0 ..< visualiser.height {
         let burning = (0 ..< visualiser.width).contains { column in
             let at = (row * visualiser.width + column) * 4
             return max(pixels[at], pixels[at + 1], pixels[at + 2]) > 110
         }
-        if burning { tallest = max(tallest, visualiser.height - row) }
+        if burning {
+            tallest = max(tallest, visualiser.height - row)
+            lowest = row + 1
+        }
     }
-    return tallest
+    return end == .top ? tallest : lowest
 }
 
 /// How wide the lamp is that stands in the middle of a picture of one voice, in dots, and the
@@ -363,6 +374,20 @@ private func lamp(_ visualiser: Visualiser) -> (width: Int, red: Int, green: Int
     let silent = width(level: 0), quiet = width(level: 0.35), middling = width(level: 0.7), loud = width(level: 1)
     #expect(silent == 0)
     #expect(quiet > 4 && quiet < middling - 5 && middling < loud - 5)
+}
+
+@Test func flameLampsStandLowerTheSmallerTheyAre() {
+    /// How many rows at the foot of the picture have nothing lit in them, with so many voices at their loudest.
+    func floor(voices: Int) -> Int {
+        let visualiser = Visualiser(mode: .flame)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 3, levels: [Float](repeating: 1, count: voices), pitches: [Float](repeating: 60, count: voices))
+        return visualiser.height - flameHeight(visualiser, from: .bottom)
+    }
+    // Many voices make small lamps, which are not left standing as high as a few large ones are.
+    let few = floor(voices: 3), many = floor(voices: 16)
+    #expect(few >= 5 && few <= 12)
+    #expect(many >= 1 && many < few - 3)
 }
 
 @Test func flameStandsWhereItsVoiceIs() {

@@ -50,28 +50,48 @@ to WebAssembly.
 
 - Drop tunes or a whole folder on it, or choose them, and it plays them. Nothing is uploaded: the
   files are read where they are and never leave your computer.
-- A tune with several songs lists them, by name where the file names them, and plays them in turn.
+- A tune with several songs lists them, by name where the file names them, and plays them in turn,
+  passing over those of a few seconds: the sound effects and jingles many files keep beside their
+  music, which are still there in the list to be pressed.
 - A spectrum analyser follows what is being heard, and under it is a light for each voice of the
   tune, which glows as bright as that voice is loud.
 - Press anywhere on the time bar to move there, in either direction.
 - SID tunes know their lengths: those of the High Voltage SID Collection are built in.
 - The list shows every tune that was added, however many, and can be searched. The cross at the end
-  of a row takes that tune out of the list, and "Remove all" empties it.
+  of a row takes that tune out of the list, and "Remove all" empties it. The buttons that add files
+  or a folder are at its foot, and while it is empty it says how tunes are added.
 - It has a volume of its own, apart from the computer's, which it remembers.
 - One list chooses what a tune is heard through: mono, stereo (a module's own, or the AY chip's
-  channels spread out, one way round or the other), or the speaker of an early-1980s television. It
-  is remembered too.
+  channels spread out), or the speaker of an early-1980s television. It is remembered too.
 - Small buttons in the player's corner put the spectrum analyser, the lights and the list of tunes
   away and bring them back, for as much or as little to look at as is wanted. That is remembered as
   well.
 - A fourth of them brings out a picture to listen by: a lava lamp, a mirror ball, an aurora, a pond
   or a fire. It is away until it is asked for.
+- A fifth opens the settings: the command-line player's options, for how long tunes are played and
+  on what. They are remembered, and one button puts them all back.
 - The keys are the command-line player's.
 
 Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
 over. A song is rendered to its end as soon as it starts, far faster than it plays, and the bar
 shades in behind as it goes: anywhere in the shaded part is reached at once, and a place beyond it
 as soon as the rendering gets there.
+
+The settings are the options of the command line (see the table below), each a list to choose from
+or a slider, with what it does to be read by resting the pointer on it: how many times a tune that
+repeats is played and how long its fade is, the time given to a tune of unknown length and the
+longest any tune may play; the AY chip's make, its clock, how often the tune's player is run, and which way round its
+three channels go in stereo (the command line's `abc` and `acb`, which the page's list of outputs has as one "Stereo"); the
+SID's model, its emulation and where the 6581's filter sits; which Amiga a MOD is heard on and how
+far apart its two sides are, and the sound card of an S3M. One that has been changed is marked with
+a dot. A change is heard at once: the song that is playing is rendered again as it is now to be,
+when the setting has anything to do with it, and goes on from where it was. Two settings are the
+page's own, and are about a file with several songs. Its songs can all be played in turn, which is
+how it comes, or only the one the file names as its main song, as the command line does. And when
+they are played in turn, songs shorter than five seconds are passed over, or than some other
+length, or none are: a game's file often has a tune or two and a dozen sound effects. Passed-over
+songs are fainter in the list and can still be pressed, and a file with nothing longer in it plays
+them all.
 
 The lights are the lamps of an early-1980s tape recorder's recording level, one for each voice: an AY
 chip's three channels (six for two chips), a SID's three voices, the Atari's three, each channel of a
@@ -92,22 +112,27 @@ it starts, all of which the player knows because it is playing them. In the lava
 blob of wax, which swells as the voice gets louder, floats higher the higher its note, and sinks back
 into the pool when it falls silent. The mirror ball turns slowly at the top of a dark room and throws its
 spots across the wall in rows. Each voice has a height on the wall of its own, and the colour of its
-light is the note it is playing, the twelve notes of the octave being once round the colour wheel;
+light is the note it is playing, by how high it is among the notes of the tune, as the flame's is;
 where two voices' lights fall together their colours add, towards white. In the aurora each voice is a
 curtain of light drawn at the right of a night sky, higher for a higher note, that drifts away to the
 left. The pond is water at night, seen from above: a note being struck is a drop falling into it, low
-notes to the left and high ones to the right, and its rings spread and cross and come back off the
+notes to the left and high ones to the right (the lowest and highest eighths of the tune's range
+each fall in one place, as they are one colour in the flame, so that a melody is spread wider across
+the water), and its rings spread and cross and come back off the
 banks; a held note keeps the water trembling, and each voice leaves its colour in it. The water is
 real in a small way, a grid of heights moved on by the rule that makes a wave. The flame is a row
 of lamps on fire: each voice is a round lamp, in a row like the player's lights, as large as the
 voice is loud and the colour of its note, by the colours of the analyser's bars: red for the lowest
-the tune plays, round to violet for the highest, and pale for a drum. Flames rise from each lamp in
-its colour, so a note that has ended is still to be seen above the next. They are made the oldest
+the tune plays, round to violet for the highest, and pale for a drum. (The lowest notes of a tune
+are all the one red and the highest all the one violet, an eighth of its range at each end, so that
+the notes between, where the melodies are, are further apart in colour.) Flames rise slowly from
+each lamp in its colour and out of the top of the picture, so the notes a voice has played are bands
+of colour above the one it is playing. They are made the oldest
 way there is, the heat at each place being the mean of the heat below it, less a little. It is meant to be calm.
 Nothing in it changes at once: a voice is followed a little behind, so the loudest note there is
 brightens the picture over several frames and not in one; the kind of picture never changes of its
 own accord; and its colours change when "shuffle colours" is pressed, over a few seconds, or, in all
-but the aurora, by themselves and too slowly to see: once round the colour wheel in
+but the aurora and the flame, by themselves and too slowly to see: once round the colour wheel in
 five minutes or more. It can fill the screen (the button, or `f`), where its controls and the pointer go out of
 sight when the pointer is left still. The picture is painted in Swift like everything else, a small
 one of some 370 dots by 210 that the browser stretches, which is what makes it soft; a frame takes

@@ -14,14 +14,39 @@ public struct PlaybackPolicy: Sendable {
     public var loopFade = 20.0
     public var endFade = 1.0
     public var allSubsongs = false
+    /// When a tune's songs are played in turn, those known to be shorter than this many seconds are
+    /// passed over: the sound effects and jingles that many files keep beside their music. Nought
+    /// passes over none. See `playedInTurn`.
+    public var shortestSong = 0.0
     /// Zero-based song to start multi-song files at; nil means the file's own start song.
     public var startSubsong: Int?
 
     public init() {}
 
     public func firstSubsong(of renderer: any Renderer) -> Int {
-        if allSubsongs { return 0 }
+        if allSubsongs { return playedInTurn(of: renderer).firstIndex(of: true) ?? 0 }
         return min(max(0, startSubsong ?? renderer.defaultSubsong), renderer.subsongCount - 1)
+    }
+
+    /// The song that follows one that has ended, when a tune's songs are played in turn; nil after
+    /// the last of them.
+    public func subsong(after song: Int, of renderer: any Renderer) -> Int? {
+        let played = playedInTurn(of: renderer)
+        return played.indices.first { $0 > song && played[$0] }
+    }
+
+    public func playedInTurn(of renderer: any Renderer) -> [Bool] {
+        Self.playedInTurn(renderer.songs.map { $0.length }, shortest: shortestSong)
+    }
+
+    /// Which of a tune's songs are played when they are played in turn, from how long each is where
+    /// that is known: all but those shorter than `shortest` seconds. A song of unknown length is
+    /// played, since it cannot be said to be short. And if none of them is as long as that, all
+    /// are: a file of nothing but sound effects is there to be heard as much as any other. The
+    /// rule is here, and in this form, so that a front end that only has the lengths can use it.
+    public static func playedInTurn(_ lengths: [Double?], shortest: Double) -> [Bool] {
+        let longEnough = lengths.map { $0.map { $0 >= shortest } ?? true }
+        return longEnough.contains(true) ? longEnough : lengths.map { _ in true }
     }
 }
 

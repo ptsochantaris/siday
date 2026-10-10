@@ -83,10 +83,24 @@ final class Player {
     private(set) var picture = Player.rememberedPicture
     private static let rememberedPicture = (try? sidayRememberedPicture()).flatMap { Visualiser.Mode(rawValue: $0) } ?? .lava
     /// What tunes are heard through: at first, what they were heard through on the last visit.
-    private(set) var output = (try? sidayRememberedOutput()).flatMap { OutputStyle(rawValue: $0) } ?? .mono
+    private(set) var output = Player.outputs.contains(Player.rememberedOutput) ? Player.rememberedOutput : .abc
+    private static let rememberedOutput = (try? sidayRememberedOutput()).flatMap { OutputStyle(rawValue: $0) } ?? .mono
+    /// What there is to choose from. Stereo is listed once: which way round an AY chip's channels
+    /// go is one of the settings.
+    static let outputs = OutputStyle.allCases.filter { $0 != .acb }
     private(set) var shuffled = false
     /// The parts of the page that have been put away: at first, those that were on the last visit.
     private(set) var hidden: [Part] = ((try? sidayRememberedHidden()) ?? "").split(separator: ",").compactMap { Part(rawValue: String($0)) }
+    /// The listener's settings (see `Setting`): a value for each, in the order of its cases. At
+    /// first, what they were on the last visit.
+    private(set) var settings = Player.rememberedSettings
+    /// True while the panel of settings is on the page. It is opened to change something and shut
+    /// again, and so is not remembered: a visit begins with it shut.
+    private(set) var settingsShown = false
+    /// How many times the settings have all been put back as they come. (The panel is made anew each
+    /// time: a list on the page that has been chosen from keeps to what was chosen, whatever it is
+    /// told afterwards.)
+    private(set) var settingsRound = 0
     /// The order tunes are played in: places in `files`.
     private var order: [Int] = []
     /// Files in a row that would not play. When it reaches the length of the list, there is nothing to play.
@@ -165,6 +179,7 @@ final class Player {
             }
         )
         tellOutput()
+        tellSettings()
     }
 
     // MARK: The list
@@ -362,13 +377,28 @@ final class Player {
         if tune?.songs.indices.contains(song) == true { tune?.songs[song].length = length }
     }
 
-    /// A song has played to its end: the tune's next song follows if it has one, and the next tune if not.
+    /// A song has played to its end: the next of the tune's songs that are played in turn follows,
+    /// if there is one, and the next tune if not.
     private func songEnded() {
-        if let tune, tune.song + 1 < tune.songs.count {
-            playSong(tune.song + 1)
+        if let tune, let following = songsInTurn(of: tune).indices.first(where: { $0 > tune.song && songsInTurn(of: tune)[$0] }) {
+            playSong(following)
         } else {
             next(automatic: true)
         }
+    }
+
+    /// Which of a tune's songs are played when one ends and the next is to follow: all of them, but
+    /// for those the listener has asked to have passed over as too short; or none, if only a file's
+    /// main song is to be played. The rule is the engine's own, which chooses the first by it.
+    func songsInTurn(of tune: Tune) -> [Bool] {
+        guard value(of: .songs) == 0 else { return tune.songs.map { _ in false } }
+        return PlaybackPolicy.playedInTurn(tune.songs.map { $0.length }, shortest: Setting.shortestSong.amount(of: value(of: .shortestSong)))
+    }
+
+    /// True if a song of a tune is one that is passed over when its songs are played in turn.
+    func passesOver(_ song: Int, of tune: Tune) -> Bool {
+        let played = songsInTurn(of: tune)
+        return value(of: .songs) == 0 && played.indices.contains(song) && !played[song]
     }
 
     /// The next tune in the order. When a tune ends of its own accord at the end of the list, playing stops there.
@@ -446,17 +476,80 @@ final class Player {
         if let place = OutputStyle.allCases.firstIndex(of: output) { try? sidayOutput(output.rawValue, place) }
     }
 
+    // MARK: Settings
+
+    func value(of setting: Setting) -> Double {
+        settings.indices.contains(setting.rawValue) ? settings[setting.rawValue] : setting.standard
+    }
+
+    func set(_ setting: Setting, to value: Double) {
+        let value = setting.settled(value)
+        guard value != self.value(of: setting) else { return }
+        settings[setting.rawValue] = value
+        tellSettings()
+    }
+
+    var settingsAreStandard: Bool { settings == Setting.standards }
+
+    /// Puts every setting back as it comes.
+    func resetSettings() {
+        guard !settingsAreStandard else { return }
+        settings = Setting.standards
+        settingsRound += 1
+        tellSettings()
+    }
+
+    func toggleSettings() {
+        settingsShown.toggle()
+    }
+
+    /// A setting as it is kept from one visit to the next: for one chosen from a list, the code of
+    /// what is chosen, and for one on a scale, the place on it.
+    private static func code(of setting: Setting, _ value: Double) -> String {
+        switch setting.kind {
+        case .choice(let choices): choices[Int(setting.settled(value))].code
+        case .scale: "\(Int(setting.settled(value)))"
+        }
+    }
+
+    /// The settings of the last visit: those that had been changed were kept, by name, as
+    /// "name=code" with commas between. Anything not understood is as it comes.
+    private static var rememberedSettings: [Double] {
+        var settings = Setting.standards
+        // (Stereo the other way round was once something to be heard through, and is kept as that
+        // from a visit of those days.)
+        if rememberedOutput == .acb { settings[Setting.stereoOrder.rawValue] = 1 }
+        for kept in ((try? sidayRememberedSettings()) ?? "").split(separator: ",") {
+            let parts = kept.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2, let setting = Setting.allCases.first(where: { $0.name == parts[0] }) else { continue }
+            switch setting.kind {
+            case .choice(let choices):
+                if let place = choices.firstIndex(where: { $0.code == parts[1] }) { settings[setting.rawValue] = Double(place) }
+            case .scale:
+                if let place = Int(parts[1]) { settings[setting.rawValue] = setting.settled(Double(place)) }
+            }
+        }
+        return settings
+    }
+
+    private func tellSettings() {
+        let changed = Setting.allCases.filter { value(of: $0) != $0.standard }
+        try? sidaySettings(settings.map { "\(Int($0))" }.joined(separator: ","),
+                           changed.map { "\($0.name)=\(Self.code(of: $0, value(of: $0)))" }.joined(separator: ","))
+    }
+
     /// True if a part has not been put away. Whether it is on the page is another matter: see `isShowing`.
     func shows(_ part: Part) -> Bool {
         !hidden.contains(part)
     }
 
-    /// True if there is something for a part to show: a tune, for the analyser and the lights, and
-    /// more than one, for the list. (The moment between one tune and the next counts as a tune.)
+    /// True if there is something for a part to show: a tune, for the analyser, the lights and the
+    /// picture. (The moment between one tune and the next counts as a tune.) The list is always
+    /// there to be shown: it is where tunes are added, and with none in it yet it says how.
     func has(_ part: Part) -> Bool {
         switch part {
         case .analyser, .lights, .picture: current != nil && problem == nil
-        case .list: files.count > 1
+        case .list: true
         }
     }
 

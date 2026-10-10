@@ -127,6 +127,17 @@ func sidayHidden(_ names: String) throws(JSException)
 @JSFunction(from: .global)
 func sidayRememberedHidden() throws(JSException) -> String
 
+/// The listener's settings: a number for each of SidayKit's settings, in the order it lists them, with
+/// commas between; and the same in the form they are to be remembered in from one visit to the next.
+/// If the playing song has to be rendered again to be heard as they now are, it is, and goes on from
+/// where it had got to once that much is ready.
+@JSFunction(from: .global)
+func sidaySettings(_ values: String, _ remembered: String) throws(JSException)
+
+/// The settings remembered from the last visit, as `sidaySettings` was given them; empty if none were.
+@JSFunction(from: .global)
+func sidayRememberedSettings() throws(JSException) -> String
+
 /// The name of the output style remembered from the last visit; empty if there was none.
 @JSFunction(from: .global)
 func sidayRememberedOutput() throws(JSException) -> String

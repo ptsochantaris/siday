@@ -69,6 +69,17 @@ struct VisualFrame {
     func height(of pitch: Float) -> Float {
         max(0, min(1, (pitch - lowestPitch) / max(1, highestPitch - lowestPitch)))
     }
+
+    /// How much of the tune's range of notes, at each end of it, counts as all one note.
+    static let ends: Float = 0.12
+
+    /// Where a pitch lies for telling notes apart, from 0 to 1: a picture that gives a note its
+    /// colour by how high it is, or its place from side to side, goes by this. It is `height(of:)`
+    /// with the ends drawn in, so that the lowest notes are all as one and the highest likewise,
+    /// and the notes between, where a tune's melodies are, are further apart from one to the next.
+    func place(of pitch: Float) -> Float {
+        max(0, min(1, (height(of: pitch) - Self.ends) / (1 - 2 * Self.ends)))
+    }
 }
 
 /// One kind of picture. It keeps whatever it needs from one frame to the next.

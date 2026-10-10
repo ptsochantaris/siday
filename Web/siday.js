@@ -35,6 +35,10 @@ let serial = 0;
 let style = 0;
 const rememberedStyle = kept("siday.output") ?? "";
 let songLengths;
+/// The listener's settings: a number for each of SidayKit's, as the Swift side last gave them, and
+/// what is waiting to pass a change of them on to the engine.
+let settings;
+let settling;
 /// The player's own volume, 0 to 1, kept from one visit to the next, and the node that applies it.
 let volume = remembered();
 let loudness;
@@ -100,6 +104,7 @@ function audio() {
     engine.onmessage = (event) => heard(event.data);
     await join(engine, output);
     engine.postMessage({ type: "style", style });
+    if (settings) engine.postMessage({ type: "settings", values: settings });
     if (songLengths) engine.postMessage({ type: "songlengths", bytes: songLengths });
     return { engine, output };
   })();
@@ -645,6 +650,17 @@ Object.assign(globalThis, {
   },
   sidayRememberedOutput() {
     return rememberedStyle;
+  },
+  sidaySettings(values, remembered) {
+    settings = values.split(",").map(Number);
+    keep("siday.settings", remembered);
+    // A setting that is being dragged along its scale changes many times a second, and each change
+    // may mean rendering the song again: the engine is told when it has been left alone for a moment.
+    clearTimeout(settling);
+    settling = setTimeout(() => void sound?.then(({ engine }) => engine.postMessage({ type: "settings", values: settings })), 250);
+  },
+  sidayRememberedSettings() {
+    return kept("siday.settings") ?? "";
   },
 });
 

@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 /// A row of lamps on fire. Each voice is a round lamp, the voices in a row from side to side a
-/// little above the bottom of the picture, as the lights of the player are; a lamp is as large as its
+/// little above the bottom of the picture (the less above it the smaller they are, which is the
+/// more of them there are), as the lights of the player are; a lamp is as large as its
 /// voice is loud, and its colour is its note, by the colours of the analyser's bars: red for the
-/// lowest the tune plays, through yellow, green and blue to violet for the highest. A voice with no pitch, a drum or
+/// lowest the tune plays, through yellow, green and blue to violet for the highest (with the ends
+/// of the tune's range drawn in: see `VisualFrame.place`). A voice with no pitch, a drum or
 /// a hiss, is a pale lamp. And each lamp burns: a flame rises from it in its colour, slowly and all
 /// the way up the picture, so that the notes a voice has played are still to be seen above the one
 /// it is playing, the latest lowest.
@@ -45,10 +47,6 @@ final class Flame: VisualScene {
     /// out of sight. What is lost at each place on the way is somewhere between nothing and twice
     /// its share of that, by chance, which is what gives a flame its ragged edge.
     private static let cooling: Float = 1.2
-    /// How much of the tune's range of notes, at each end of it, is all one colour: the lowest
-    /// notes all red and the highest all violet, so that the colours between, where a tune's
-    /// melodies are, are further apart from one note to the next.
-    private static let ends: Float = 0.12
     /// How hot a lamp is.
     private static let glow: Float = 1.3
 
@@ -95,7 +93,10 @@ final class Flame: VisualScene {
         // The lamps stand evenly along a row, and the more of them there are the smaller they are.
         let room = Float(across) / Float(max(1, count))
         let largest = min(room * 0.38, Float(down) * 0.12)
-        let floor = Float(down) * 0.8
+        // They stand above the bottom of the picture by a part of their own size, so that small
+        // lamps are nearer to it than large ones, and are not left high over an empty floor. (The
+        // last two rows of the grid are below the bottom of the picture.)
+        let floor = Float(down - 2) - largest * 1.6
 
         // How large each voice's lamp is, on the grid, and its colour.
         var radius = [Float](repeating: 0, count: count)
@@ -116,8 +117,7 @@ final class Flame: VisualScene {
             let wanted = level * (1 + 0.12 * voice.kick)
             loud[index] += (wanted - loud[index]) * (1 - expf(-frame.elapsed / (wanted > loud[index] ? 0.06 : 0.12)))
             radius[index] = largest * loud[index]
-            let place = max(0, min(1, (frame.height(of: notes[index]) - Self.ends) / (1 - 2 * Self.ends)))
-            colours[index] = Self.colour(of: notes[index] > 0 ? place : nil, in: frame.look)
+            colours[index] = Self.colour(of: notes[index] > 0 ? frame.place(of: notes[index]) : nil, in: frame.look)
         }
 
         // The fire rises and cools by the height of the picture and not by the place, so that it

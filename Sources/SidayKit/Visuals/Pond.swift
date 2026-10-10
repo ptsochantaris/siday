@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 /// A pond at night, seen from above. A note being struck is a drop falling into it: low notes to
-/// the left and high ones to the right, each voice along a line of its own, and harder the louder
-/// the note. The rings spread and cross and come back off the banks, as rings do. A voice that
+/// the left and high ones to the right (with the ends of the tune's range drawn in, so that its
+/// melodies are spread wide: see `VisualFrame.place`), each voice along a line of its own, and
+/// harder the louder the note. The rings spread and cross and come back off the banks, as rings do. A voice that
 /// holds its note keeps the water trembling where it is, in finer ripples the higher the note; and
 /// each voice leaves its colour in the water, which spreads and fades. A voice with no pitch, a
 /// drum or a hiss, is rain: its drops fall anywhere.
@@ -92,7 +93,7 @@ final class Pond: VisualScene {
             let voice = frame.voices[index]
             let line = Float(index) * 0.618034
             if voice.pitched {
-                sources[index].x = 0.1 + 0.8 * frame.height(of: voice.pitch)
+                sources[index].x = 0.1 + 0.8 * frame.place(of: voice.pitch)
                 sources[index].y = 0.18 + 0.64 * (line - line.rounded(.down)) + 0.03 * sinf(frame.time * 0.31 + line * 6)
             }
             sources[index].sinceDrop += frame.elapsed

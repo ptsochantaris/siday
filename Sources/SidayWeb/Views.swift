@@ -17,17 +17,14 @@ struct PlayerView {
 
             NowPlaying(player: player)
 
+            if player.settingsShown {
+                SettingsPanel(player: player)
+            }
+
             if player.isShowing(.picture) {
                 Picture(player: player)
             }
 
-            div(.class("add")) {
-                button { "Add files…" }.onClick { try? sidayChoose(false) }
-                button { "Add a folder…" }.onClick { try? sidayChoose(true) }
-                span(.class("hint")) { "or drop them anywhere on the page. They stay on your computer." }
-            }
-
-            // One tune needs no list to choose from.
             if player.isShowing(.list) {
                 Playlist(player: player)
             }
@@ -102,7 +99,8 @@ struct NowPlaying {
             } else if player.current != nil {
                 p(.class("detail")) { "Loading \(fileName(player))…" }
             } else {
-                p(.class("detail")) { "Nothing is playing yet. Add some tunes." }
+                // (The buttons that add tunes are in the list, which may have been put away.)
+                p(.class("detail")) { player.shows(.list) ? "Nothing is playing yet. Add some tunes." : "Nothing is playing yet. Drop some tunes on the page, or bring back the list to add them." }
             }
 
             div(.class("controls")) {
@@ -118,9 +116,9 @@ struct NowPlaying {
                 // together at the far end, apart from the buttons that move through the tunes.
                 select(
                     .class("output"), .custom(name: "aria-label", value: "Output"),
-                    .title("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out, and a television is an early-1980s set's speaker")
+                    .title("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out (which way round is in the settings), and a television is an early-1980s set's speaker")
                 ) {
-                    ForEach(OutputStyle.allCases, key: { $0.rawValue }) { style in
+                    ForEach(Player.outputs, key: { $0.rawValue }) { style in
                         option(.value(style.rawValue)) { style.title }
                             .attributes(.selected, when: style == player.output)
                     }
@@ -141,7 +139,8 @@ struct NowPlaying {
 
 /// A button for each part of the page that can be put away, in the player's top corner: lit while
 /// its part is on the page, and only then. While there is nothing for a part to show, its button is
-/// not lit and cannot be pressed. Each is a small picture of its part, which the stylesheet draws.
+/// not lit and cannot be pressed. (The list of tunes always has something to show: with no tunes in
+/// it, how to add them.) Each is a small picture of its part, which the stylesheet draws.
 @View
 struct Shown {
     var player: Player
@@ -156,6 +155,72 @@ struct Shown {
                 ) {}
                     .attributes(.disabled, when: !player.has(part))
                     .onClick { player.toggle(part) }
+            }
+            // And one for the settings, which are always there to be opened.
+            button(
+                .class(player.settingsShown ? "view settings on" : "view settings"),
+                .title("Settings"), .custom(name: "aria-label", value: "Settings"),
+                .custom(name: "aria-pressed", value: player.settingsShown ? "true" : "false")
+            ) {}
+                .onClick { player.toggleSettings() }
+        }
+    }
+}
+
+/// The listener's settings: the command-line player's options, in groups, each with what it does
+/// to be read by resting the pointer on it. One that has been changed is marked. They are remembered
+/// from one visit to the next, and a button puts them all back as they come.
+@View
+struct SettingsPanel {
+    var player: Player
+
+    var body: some View {
+        section(.class("settings")) {
+            // (Made anew when the settings are put back: see `Player.settingsRound`.)
+            ForEach(Setting.Group.allCases, key: { "\($0.rawValue) \(player.settingsRound)" }) { group in
+                div(.class("group")) {
+                    h2 { group.title }
+                    ForEach(group.settings, key: { $0.name }) { setting in
+                        SettingRow(player: player, setting: setting)
+                    }
+                }
+            }
+            div(.class("bar")) {
+                span(.class("hint")) { "Rest the pointer on a setting to read what it does. They are kept for your next visit." }
+                button(.title("Put every setting back as it comes")) { "Reset to defaults" }
+                    .attributes(.disabled, when: player.settingsAreStandard)
+                    .onClick { player.resetSettings() }
+            }
+        }
+    }
+}
+
+@View
+struct SettingRow {
+    var player: Player
+    var setting: Setting
+
+    var body: some View {
+        let value = player.value(of: setting)
+        label(.class(value == setting.standard ? "setting" : "setting changed"), .title(setting.about)) {
+            span(.class("name")) { setting.title }
+            if case .choice(let choices) = setting.kind {
+                select {
+                    ForEach(Array(choices.indices), key: { String($0) }) { index in
+                        option(.value(String(index))) { choices[index].title }
+                            .attributes(.selected, when: index == Int(value))
+                    }
+                }
+                .onInput { event in
+                    if let place = event.targetValue.flatMap({ Int($0) }) { player.set(setting, to: Double(place)) }
+                }
+            } else if case .scale(let low, let high) = setting.kind {
+                span(.class("scale")) {
+                    span(.class("end")) { low }
+                    input(.type(.range), .min(0), .max(100))
+                        .bindValue(Binding(get: { player.value(of: setting) }, set: { player.set(setting, to: $0 ?? setting.standard) }))
+                    span(.class("end")) { high }
+                }
             }
         }
     }
@@ -259,13 +324,13 @@ struct Songs {
         if tune.namesSongs {
             ul(.class("songs")) {
                 ForEach(Array(tune.songs.indices), key: { String($0) }) { index in
-                    SongRow(player: player, index: index, song: tune.songs[index], playing: index == tune.song)
+                    SongRow(player: player, index: index, song: tune.songs[index], playing: index == tune.song, passed: player.passesOver(index, of: tune))
                 }
             }
         } else {
             div(.class("songs numbered")) {
                 ForEach(Array(tune.songs.indices), key: { String($0) }) { index in
-                    SongButton(player: player, index: index, song: tune.songs[index], playing: index == tune.song)
+                    SongButton(player: player, index: index, song: tune.songs[index], playing: index == tune.song, passed: player.passesOver(index, of: tune))
                 }
             }
         }
@@ -278,9 +343,11 @@ struct SongRow {
     var index: Int
     var song: Tune.Song
     var playing: Bool
+    /// True if it is passed over when the tune's songs are played in turn. It is fainter, and can be played by pressing it.
+    var passed: Bool
 
     var body: some View {
-        li(.class(playing ? "current" : "")) {
+        li(.class(playing ? "current" : passed ? "passed" : ""), .title(passed ? "Passed over when the songs are played in turn: see the settings" : "")) {
             span(.class("number")) { "\(index + 1)" }
             span(.class("name")) { song.title.isEmpty ? "Song \(index + 1)" : song.title }
             span(.class("length")) { song.length.map { formatTime($0) } ?? "" }
@@ -295,9 +362,13 @@ struct SongButton {
     var index: Int
     var song: Tune.Song
     var playing: Bool
+    var passed: Bool
 
     var body: some View {
-        button(.class(playing ? "song on" : "song"), .title("Song \(index + 1)")) {
+        button(
+            .class(playing ? "song on" : passed ? "song passed" : "song"),
+            .title(passed ? "Song \(index + 1): passed over when the songs are played in turn (see the settings)" : "Song \(index + 1)")
+        ) {
             span { "\(index + 1)" }
             if let length = song.length {
                 span(.class("length")) { formatTime(length) }
@@ -314,26 +385,35 @@ struct Playlist {
     var body: some View {
         let rows = player.rows
         section(.class("list")) {
-            div(.class("search")) {
-                input(.type(.search), .placeholder("Search \(player.files.count) tunes"))
-                    .bindValue(#Binding(player.search))
-                if player.found != nil {
-                    span(.class("hint")) { "\(player.listed) found" }
+            if player.files.isEmpty {
+                // With no tunes in it yet, the list says how they are put there.
+                p(.class("empty")) { "Drop tunes, or a whole folder of them, anywhere on the page, or add them with the buttons below. They stay on your computer." }
+            } else {
+                div(.class("search")) {
+                    input(.type(.search), .placeholder("Search \(player.files.count) tunes"))
+                        .bindValue(#Binding(player.search))
+                    if player.found != nil {
+                        span(.class("hint")) { "\(player.listed) found" }
+                    }
+                    // All of them, whatever is being searched for.
+                    button(.title("Take every tune out of the list")) { "Remove all" }
+                        .onClick { player.removeAll() }
                 }
-                // All of them, whatever is being searched for.
-                button(.title("Take every tune out of the list")) { "Remove all" }
-                    .onClick { player.removeAll() }
-            }
-            // Every tune has its place in the list, which is as tall as all of them, but only the rows
-            // that can be seen are there: the rest is empty space, filled in as it is scrolled to.
-            div(.class("rows")) {
-                div(.style(["height": "\(player.listed * Player.rowHeight)px"])) {
-                    ul(.style(["transform": "translateY(\(rows.first * Player.rowHeight)px)"])) {
-                        ForEach(rows.files, key: { String($0) }) { index in
-                            Row(player: player, index: index)
+                // Every tune has its place in the list, which is as tall as all of them, but only the rows
+                // that can be seen are there: the rest is empty space, filled in as it is scrolled to.
+                div(.class("rows")) {
+                    div(.style(["height": "\(player.listed * Player.rowHeight)px"])) {
+                        ul(.style(["transform": "translateY(\(rows.first * Player.rowHeight)px)"])) {
+                            ForEach(rows.files, key: { String($0) }) { index in
+                                Row(player: player, index: index)
+                            }
                         }
                     }
                 }
+            }
+            div(.class("add")) {
+                button { "Add files…" }.onClick { try? sidayChoose(false) }
+                button { "Add a folder…" }.onClick { try? sidayChoose(true) }
             }
         }
     }

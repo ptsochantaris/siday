@@ -11,7 +11,8 @@ public enum OutputStyle: String, Sendable, CaseIterable {
     /// Stereo. A module is heard in its own; the AY chip's three channels are spread across the
     /// stereo field, A left, B centre, C right.
     case abc
-    /// The same, with the AY chip's B and C changed over: A left, C centre, B right.
+    /// The same, with the AY chip's B and C changed over: A left, C centre, B right. (A front end
+    /// with settings can list stereo once and keep the way round among them: see `Setting.stereoOrder`.)
     case acb
     /// Through the speaker of a small early-1980s portable television in a plastic case.
     case plastic

@@ -259,13 +259,34 @@ self.onmessage = async (event) => {
         self.postMessage({ type: "again", tune });
       }
       break;
-    case "again":
+    case "settings": {
+      // The listener's settings: a number for each. If one has changed that has to do with the tune
+      // that is loaded, the song has to be made again, as for a change between mono and stereo.
+      const values = Float64Array.from(message.values);
+      const pointer = core.siday_alloc(values.byteLength);
+      new Float64Array(core.memory.buffer, pointer, values.length).set(values);
+      const again = core.siday_set_settings(pointer, values.length) === 1;
+      core.siday_free(pointer);
+      if (again && file && !(kept.length === 0 && complete)) self.postMessage({ type: "again", tune });
+      break;
+    }
+    case "again": {
       // The song is rendered again from its start, as it is now to be heard, and taken up where it
-      // had got to. Until the rendering has reached that place, the sound waits.
-      if (!file || !load()) break;
+      // had got to. Until the rendering has reached that place, the sound waits. It is the song
+      // that was playing, whichever the file would now be started at; and the page is told of the
+      // tune again, since how long it is to be played may have changed.
+      if (!file) break;
+      if (core.siday_subsongs() > 0) file.subsong = core.siday_subsong();
+      if (!load()) break;
+      const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
+      self.postMessage({
+        type: "loaded", tune, plays: true, text,
+        songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
+      });
       sendFrom(message.position, message.serial);
       start();
       break;
+    }
     case "stop":
       // The tune has been taken out of the list, and nothing follows it: the song is let go.
       file = undefined;

@@ -76,7 +76,7 @@ footer {
 }
 
 .views + * {
-  padding-right: 148px;
+  padding-right: 184px;
 }
 
 button.view {
@@ -110,6 +110,10 @@ button.view.picture {
 
 button.view.list {
   --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='2.5' width='14' height='2.2'/%3E%3Crect x='1' y='6.9' width='14' height='2.2'/%3E%3Crect x='1' y='11.3' width='14' height='2.2'/%3E%3C/svg%3E");
+}
+
+button.view.settings {
+  --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black'%3E%3Ccircle cx='8' cy='8' r='6.1' stroke-width='2.6' stroke-dasharray='2.4 2.39' transform='rotate(-14 8 8)'/%3E%3Ccircle cx='8' cy='8' r='4.1' stroke-width='2.4'/%3E%3C/svg%3E");
 }
 
 button.view.on {
@@ -322,6 +326,100 @@ html[data-still] .visual:fullscreen {
   cursor: none;
 }
 
+/* The settings: groups of them, each setting a line with what it is on the left and what it is set
+   to on the right. What a setting does is its tooltip. One that is not as it comes is marked. */
+
+.settings {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings .group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings h2 {
+  margin: 0 0 2px;
+  font-size: 0.82rem;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  cursor: help;
+}
+
+.setting .name {
+  flex: 1 1 12em;
+}
+
+.setting.changed .name::after {
+  content: " •";
+  color: var(--accent);
+}
+
+.setting select {
+  flex: 0 1 19em;
+  min-width: 0;
+}
+
+.setting .scale {
+  flex: 0 1 19em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting .scale input {
+  flex: 1;
+  min-width: 4em;
+  accent-color: var(--accent);
+}
+
+.setting .end {
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+
+.settings .bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.settings .bar .hint {
+  font-size: 0.82rem;
+  flex: 1 1 16em;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A song that is passed over when a tune's songs are played in turn. */
+.songs .passed {
+  opacity: 0.5;
+}
+
 /* A light for each voice of the tune: a round red lamp, with a glow over it that is brighter and wider
    the louder the voice. Each has a place of its own, of which the lamp is the middle half, so that
    the lamps stand well apart; many voices make for narrower places, and so for smaller lamps. */
@@ -428,6 +526,13 @@ ul {
   padding: 0;
   max-height: 46vh;
   overflow-y: auto;
+}
+
+/* What the list says while there is nothing in it. */
+.list .empty {
+  color: var(--dim);
+  padding: 18px 4px;
+  text-align: center;
 }
 
 /* The list of tunes: a window on to a list as tall as all of them, of which only the rows in view are
