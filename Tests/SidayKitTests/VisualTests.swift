@@ -501,3 +501,124 @@ private func lamp(_ visualiser: Visualiser) -> (width: Int, red: Int, green: Int
     let fallen = lamp(visualiser).width
     #expect(fallen > 2 && fallen < steady - 4)
 }
+
+/// What there is of a fountain's lights in the picture: how many dots are lit, the highest row any
+/// of them is in, and the colour of the brightest, which is a light itself and not its tail.
+private func fountain(_ visualiser: Visualiser) -> (dots: Int, top: Int, red: Int, green: Int, blue: Int) {
+    guard let pixels = visualiser.pixels else { return (0, 0, 0, 0, 0) }
+    var dots = 0, top = visualiser.height, brightest = 0, colour = (0, 0, 0)
+    for row in 0 ..< visualiser.height {
+        for column in 0 ..< visualiser.width {
+            let at = (row * visualiser.width + column) * 4
+            let most = max(Int(pixels[at]), Int(pixels[at + 1]), Int(pixels[at + 2]))
+            guard most > 70 else { continue }
+            dots += 1
+            top = min(top, row)
+            if most > brightest {
+                brightest = most
+                colour = (Int(pixels[at]), Int(pixels[at + 1]), Int(pixels[at + 2]))
+            }
+        }
+    }
+    return (dots, top, colour.0, colour.1, colour.2)
+}
+
+/// Strikes a note on a fountain's one voice and watches it for some seconds, at thirty frames a
+/// second: the highest row its light reaches, and the most dots it ever lights.
+private func flight(_ visualiser: Visualiser, from start: Double = 0, seconds: Double = 4, level: Float, then later: Float? = nil, pitch: Float = 60) -> (top: Int, dots: Int) {
+    var top = visualiser.height, dots = 0
+    for frame in 0 ..< Int(seconds * 30) {
+        visualiser.hear(levels: [frame == 0 ? level : later ?? level], pitches: [pitch], struck: [frame == 0])
+        visualiser.paint(at: start + Double(frame) / 30)
+        let seen = fountain(visualiser)
+        top = min(top, seen.top)
+        dots = max(dots, seen.dots)
+    }
+    return (top, dots)
+}
+
+@Test func fountainSendsALightUpForANoteStruck() {
+    let visualiser = Visualiser(mode: .fountain)
+    visualiser.resize(width: 160, height: 100)
+    // Nothing while nothing sounds, and nothing for a voice that only holds what it has.
+    watch(visualiser, seconds: 1, levels: [0], pitches: [0])
+    #expect(fountain(visualiser).dots == 0)
+    watch(visualiser, from: 1, seconds: 1, levels: [1], pitches: [60])
+    #expect(fountain(visualiser).dots == 0)
+    // A note struck is a light, a small one, on its way up from the bottom of the picture.
+    watch(visualiser, from: 2, seconds: 0.2, levels: [1], pitches: [60], strike: true)
+    let leaving = fountain(visualiser)
+    #expect(leaving.dots > 4 && leaving.top > 50)
+    watch(visualiser, from: 2.2, seconds: 0.6, levels: [1], pitches: [60])
+    let risen = fountain(visualiser)
+    #expect(risen.dots > 4 && risen.dots < 300 && risen.top < leaving.top - 20)
+    // It turns over and falls away, and bursts into nothing: there is never much of it.
+    let rest = flight(visualiser, from: 2.8, level: 1)
+    #expect(rest.dots < 300)
+    #expect(fountain(visualiser).dots == 0)
+}
+
+@Test func fountainSendsALouderNoteHigher() {
+    func top(level: Float, then later: Float? = nil) -> Int {
+        let visualiser = Visualiser(mode: .fountain)
+        visualiser.resize(width: 160, height: 100)
+        return flight(visualiser, level: level, then: later).top
+    }
+    let loud = top(level: 1), less = top(level: 0.8), quiet = top(level: 0.3)
+    #expect(loud < 15)
+    // Most notes are nearly as loud as notes get, and so it is those that are furthest apart:
+    // one a fifth less loud goes little more than half as high.
+    #expect(less > 40 && less < 65)
+    #expect(quiet > 80 && quiet < 95)
+    // A note that is louder a moment after it is struck than at the moment itself goes as high as
+    // it has turned out to be loud.
+    #expect(top(level: 0.2, then: 1) < 20)
+}
+
+@Test func fountainLightIsTheColourOfItsNote() {
+    /// The colour of the light of a note, in a tune that goes from 40 to 90.
+    func colour(of pitch: Float) -> (dots: Int, top: Int, red: Int, green: Int, blue: Int) {
+        let visualiser = Visualiser(mode: .fountain)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        watch(visualiser, from: 0.2, seconds: 0.5, levels: [1], pitches: [pitch], strike: true)
+        return fountain(visualiser)
+    }
+    // As the flame's lamps are: red at the bottom, green in the middle, violet at the top, and pale
+    // for what has no pitch.
+    let low = colour(of: 40), middle = colour(of: 65), high = colour(of: 90), drum = colour(of: 0)
+    #expect(low.red > 200 && low.red > low.green + 80 && low.red > low.blue + 120)
+    #expect(middle.green > 200 && middle.green > middle.red + 120 && middle.green > middle.blue + 80)
+    #expect(high.blue > 200 && high.blue > high.red + 20 && high.blue > high.green + 120)
+    #expect(drum.red > 120 && abs(drum.red - drum.green) < 30 && abs(drum.red - drum.blue) < 30)
+}
+
+@Test func fountainSendsUpNoMoreThanEightLightsASecond() {
+    /// How many lights are on their way up a second after a voice begins striking a note every so many frames.
+    func lights(every frames: Int) -> Int {
+        let visualiser = Visualiser(mode: .fountain)
+        visualiser.resize(width: 160, height: 200)
+        for frame in 0 ..< 60 {
+            visualiser.hear(levels: [1], pitches: [60], struck: [frame % frames == 0])
+            visualiser.paint(at: Double(frame) / 60)
+        }
+        // A light itself is as bright as anything gets, which its tail is not; and lights sent up
+        // at different times are at different heights, with rows between them that have none.
+        guard let pixels = visualiser.pixels else { return 0 }
+        var lights = 0, dark = 2
+        for row in 0 ..< 200 {
+            let bright = (0 ..< 160).contains { column in
+                let at = (row * 160 + column) * 4
+                return max(pixels[at], pixels[at + 1], pixels[at + 2]) > 240
+            }
+            if bright, dark >= 2 { lights += 1 }
+            dark = bright ? 0 : dark + 1
+        }
+        return lights
+    }
+    // Four notes a second are four lights. Thirty a second are eight, and not one or thirty.
+    #expect(lights(every: 15) == 4)
+    let many = lights(every: 2)
+    #expect(many >= 7 && many <= 9)
+}

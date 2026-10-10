@@ -128,11 +128,15 @@ are all the one red and the highest all the one violet, an eighth of its range a
 the notes between, where the melodies are, are further apart in colour.) Flames rise slowly from
 each lamp in its colour and out of the top of the picture, so the notes a voice has played are bands
 of colour above the one it is playing. They are made the oldest
-way there is, the heat at each place being the mean of the heat below it, less a little. It is meant to be calm.
+way there is, the heat at each place being the mean of the heat below it, less a little. The
+fountain sends a light up from the bottom of the picture for every note that is struck, as a
+firework goes up, though nothing bursts: from a place come by chance, as high as the note is loud,
+and in the note's colour, as the flame's lamps are. Each is a small light with a short tail, which
+slows, turns over and falls away. A voice sends up no more than eight a second. It is meant to be calm.
 Nothing in it changes at once: a voice is followed a little behind, so the loudest note there is
 brightens the picture over several frames and not in one; the kind of picture never changes of its
 own accord; and its colours change when "shuffle colours" is pressed, over a few seconds, or, in all
-but the aurora and the flame, by themselves and too slowly to see: once round the colour wheel in
+but the aurora, the flame and the fountain, by themselves and too slowly to see: once round the colour wheel in
 five minutes or more. It can fill the screen (the button, or `f`), where its controls and the pointer go out of
 sight when the pointer is left still. The picture is painted in Swift like everything else, a small
 one of some 370 dots by 210 that the browser stretches, which is what makes it soft; a frame takes

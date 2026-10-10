@@ -37,6 +37,18 @@ struct VisualLook {
         return Self.rgb(hue: hue + spread * place, saturation: saturation, value: value)
     }
 
+    /// The colours of the analyser's bars: from red round to violet, which is most of the wheel,
+    /// from the lowest note to the highest.
+    static let ofNotes = VisualLook(hue: 145.0 / 360, spread: 290.0 / 360)
+
+    /// The colour of a note that lies so far from the lowest a tune plays to the highest, from 0 to
+    /// 1 (see `VisualFrame.place`), or of something with no pitch if there is no such place: as
+    /// strong and as bright as the analyser's bars are, or pale.
+    func colour(ofNoteAt place: Float?) -> (Float, Float, Float) {
+        guard let place else { return Self.rgb(hue: hue, saturation: 0.1, value: 0.7) }
+        return Self.rgb(hue: hue + spread * (place - 0.5), saturation: 0.815, value: 0.98)
+    }
+
     static func rgb(hue: Float, saturation: Float, value: Float) -> (Float, Float, Float) {
         let turn = (hue - hue.rounded(.down)) * 6
         let sector = Int(turn) % 6
@@ -95,7 +107,7 @@ protocol VisualScene: AnyObject {
 public final class Visualiser {
     /// The kinds of picture there are.
     public enum Mode: String, CaseIterable, Sendable {
-        case lava, ball, aurora, pond, flame
+        case lava, ball, aurora, pond, flame, fountain
 
         public var title: String {
             switch self {
@@ -104,6 +116,7 @@ public final class Visualiser {
             case .aurora: "Aurora"
             case .pond: "Pond"
             case .flame: "Flame"
+            case .fountain: "Fountain"
             }
         }
     }
@@ -147,6 +160,7 @@ public final class Visualiser {
         case .aurora: Aurora()
         case .pond: Pond()
         case .flame: Flame()
+        case .fountain: Fountain()
         }
     }
 

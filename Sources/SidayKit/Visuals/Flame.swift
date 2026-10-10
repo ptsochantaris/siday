@@ -25,19 +25,10 @@
 /// fineness. The fire is moved on so many times a second whatever the screen's rate, on a grid half
 /// as fine as the picture.
 final class Flame: VisualScene {
-    /// The colours of the analyser's bars, to begin with: from red round to violet, which is most of
-    /// the wheel, from the lowest note to the highest. Other colours are other stretches of the wheel.
-    let look = VisualLook(hue: 145.0 / 360, spread: 290.0 / 360)
+    /// The colours of the analyser's bars, to begin with. Other colours are other stretches of the wheel.
+    let look = VisualLook.ofNotes
     /// A note keeps its colour until other colours are asked for.
     let drift: Float = 0
-
-    /// The colour of a lamp playing a note that lies so far from the lowest the tune plays to the
-    /// highest, from 0 to 1, or of one playing something with no pitch if there is no such place.
-    private static func colour(of place: Float?, in look: VisualLook) -> (Float, Float, Float) {
-        guard let place else { return VisualLook.rgb(hue: look.hue, saturation: 0.1, value: 0.7) }
-        // (As strong and as bright as the bars are.)
-        return VisualLook.rgb(hue: look.hue + look.spread * (place - 0.5), saturation: 0.815, value: 0.98)
-    }
 
     /// How long heat takes to rise the height of the picture, in seconds: a flame's heat rises a
     /// place each time the fire is moved on, so this is how often that is.
@@ -117,7 +108,7 @@ final class Flame: VisualScene {
             let wanted = level * (1 + 0.12 * voice.kick)
             loud[index] += (wanted - loud[index]) * (1 - expf(-frame.elapsed / (wanted > loud[index] ? 0.06 : 0.12)))
             radius[index] = largest * loud[index]
-            colours[index] = Self.colour(of: notes[index] > 0 ? frame.place(of: notes[index]) : nil, in: frame.look)
+            colours[index] = frame.look.colour(ofNoteAt: notes[index] > 0 ? frame.place(of: notes[index]) : nil)
         }
 
         // The fire rises and cools by the height of the picture and not by the place, so that it
