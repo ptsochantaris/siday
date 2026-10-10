@@ -571,8 +571,19 @@ Object.assign(globalThis, {
     return document.querySelector(".rows")?.clientHeight ?? 0;
   },
   sidayScrollList(top) {
-    const list = document.querySelector(".rows");
-    if (list) list.scrollTop = top;
+    // A list that has just been brought back is not on the page yet: it is looked for again for a moment.
+    const scroll = (tries) => {
+      const list = document.querySelector(".rows");
+      if (list) list.scrollTop = top;
+      else if (tries > 0) setTimeout(() => scroll(tries - 1), 30);
+    };
+    scroll(10);
+  },
+  sidayHidden(names) {
+    keep("siday.hidden", names);
+  },
+  sidayRememberedHidden() {
+    return kept("siday.hidden") ?? "";
   },
   sidayOutput(name, place) {
     style = place;

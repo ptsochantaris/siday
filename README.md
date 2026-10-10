@@ -61,6 +61,9 @@ to WebAssembly.
 - One list chooses what a tune is heard through: mono, stereo (a module's own, or the AY chip's
   channels spread out, one way round or the other), or the speaker of an early-1980s television. It
   is remembered too.
+- Three small buttons in the player's corner put the spectrum analyser, the lights and the list of
+  tunes away and bring them back, for as much or as little to look at as is wanted. That is
+  remembered as well.
 - The keys are the command-line player's.
 
 Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is

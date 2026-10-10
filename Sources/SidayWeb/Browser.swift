@@ -84,7 +84,8 @@ func sidayRememberedVolume() throws(JSException) -> Double
 @JSFunction(from: .global)
 func sidayListHeight() throws(JSException) -> Double
 
-/// Scrolls the list of tunes so that this many pixels of it are above what can be seen.
+/// Scrolls the list of tunes so that this many pixels of it are above what can be seen. If the list
+/// is only now being put on the page, it is scrolled as soon as it is there.
 @JSFunction(from: .global)
 func sidayScrollList(_ top: Double) throws(JSException)
 
@@ -93,6 +94,16 @@ func sidayScrollList(_ top: Double) throws(JSException)
 /// again to be heard that way, it is, and goes on from where it had got to once that much is ready.
 @JSFunction(from: .global)
 func sidayOutput(_ name: String, _ place: Int) throws(JSException)
+
+/// Which parts of the page have been put away, by their names with commas between. It is remembered
+/// from one visit to the next.
+@JSFunction(from: .global)
+func sidayHidden(_ names: String) throws(JSException)
+
+/// The parts of the page that were put away on the last visit, as `sidayHidden` was given them;
+/// empty if none were.
+@JSFunction(from: .global)
+func sidayRememberedHidden() throws(JSException) -> String
 
 /// The name of the output style remembered from the last visit; empty if there was none.
 @JSFunction(from: .global)

@@ -24,7 +24,7 @@ struct PlayerView {
             }
 
             // One tune needs no list to choose from.
-            if player.files.count > 1 {
+            if player.isShowing(.list) {
                 Playlist(player: player)
             }
 
@@ -56,6 +56,8 @@ struct NowPlaying {
 
     var body: some View {
         section(.class("now")) {
+            Shown(player: player)
+
             if let tune = player.tune {
                 div(.class("what")) {
                     span(.class("format")) { tune.format }
@@ -68,7 +70,9 @@ struct NowPlaying {
                     [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
                         .filter { !$0.isEmpty }.joined(separator: " · ")
                 }
-                Analyser(bars: player.bars, caps: player.caps)
+                if player.shows(.analyser) {
+                    Analyser(bars: player.bars, caps: player.caps)
+                }
                 div(.class("time")) {
                     span { formatTime(player.position) }
                     // Pressing the bar moves to that place in the song. Behind the part played is the
@@ -124,8 +128,30 @@ struct NowPlaying {
                     .bindValue(#Binding(player.volume))
             }
 
-            if !player.lights.isEmpty {
+            if !player.lights.isEmpty, player.shows(.lights) {
                 Lights(levels: player.lights)
+            }
+        }
+    }
+}
+
+/// A button for each part of the page that can be put away, in the player's top corner: lit while
+/// its part is on the page, and only then. While there is nothing for a part to show, its button is
+/// not lit and cannot be pressed. Each is a small picture of its part, which the stylesheet draws.
+@View
+struct Shown {
+    var player: Player
+
+    var body: some View {
+        div(.class("views")) {
+            ForEach(Part.allCases, key: { $0.rawValue }) { part in
+                button(
+                    .class(player.isShowing(part) ? "view \(part.rawValue) on" : "view \(part.rawValue)"),
+                    .title(part.title), .custom(name: "aria-label", value: part.title),
+                    .custom(name: "aria-pressed", value: player.isShowing(part) ? "true" : "false")
+                ) {}
+                    .attributes(.disabled, when: !player.has(part))
+                    .onClick { player.toggle(part) }
             }
         }
     }

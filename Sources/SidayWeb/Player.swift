@@ -25,6 +25,20 @@ struct Tune {
     var namesSongs: Bool { songs.contains { !$0.title.isEmpty } }
 }
 
+/// A part of the page that the listener can put away, and bring back.
+enum Part: String, CaseIterable {
+    case analyser, lights, list
+
+    /// What its button says it is.
+    var title: String {
+        switch self {
+        case .analyser: "Spectrum analyser"
+        case .lights: "A light for each voice"
+        case .list: "List of tunes"
+        }
+    }
+}
+
 /// The page's state: the list of files, which one is playing, and what the controls do. The files
 /// themselves and the sound are the JavaScript side's (see Browser.swift); this is told about them.
 @Reactive
@@ -63,6 +77,8 @@ final class Player {
     /// What tunes are heard through: at first, what they were heard through on the last visit.
     private(set) var output = (try? sidayRememberedOutput()).flatMap { OutputStyle(rawValue: $0) } ?? .mono
     private(set) var shuffled = false
+    /// The parts of the page that have been put away: at first, those that were on the last visit.
+    private(set) var hidden: [Part] = ((try? sidayRememberedHidden()) ?? "").split(separator: ",").compactMap { Part(rawValue: String($0)) }
     /// The order tunes are played in: places in `files`.
     private var order: [Int] = []
     /// Files in a row that would not play. When it reaches the length of the list, there is nothing to play.
@@ -394,6 +410,37 @@ final class Player {
 
     private func tellOutput() {
         if let place = OutputStyle.allCases.firstIndex(of: output) { try? sidayOutput(output.rawValue, place) }
+    }
+
+    /// True if a part has not been put away. Whether it is on the page is another matter: see `isShowing`.
+    func shows(_ part: Part) -> Bool {
+        !hidden.contains(part)
+    }
+
+    /// True if there is something for a part to show: a tune, for the analyser and the lights, and
+    /// more than one, for the list. (The moment between one tune and the next counts as a tune.)
+    func has(_ part: Part) -> Bool {
+        switch part {
+        case .analyser, .lights: current != nil && problem == nil
+        case .list: files.count > 1
+        }
+    }
+
+    /// True if a part is on the page: there is something for it to show, and it has not been put away.
+    func isShowing(_ part: Part) -> Bool {
+        has(part) && shows(part)
+    }
+
+    /// Puts a part of the page away, or brings it back. It is remembered from one visit to the next.
+    func toggle(_ part: Part) {
+        if let place = hidden.firstIndex(of: part) {
+            hidden.remove(at: place)
+        } else {
+            hidden.append(part)
+        }
+        try? sidayHidden(hidden.map { $0.rawValue }.joined(separator: ","))
+        // The list comes back where it was, or where it would have followed the tunes to since.
+        if part == .list, shows(.list) { scrollList(to: listTop) }
     }
 
     func toggleShuffle() {
