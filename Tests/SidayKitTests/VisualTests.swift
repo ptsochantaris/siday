@@ -622,3 +622,28 @@ private func flight(_ visualiser: Visualiser, from start: Double = 0, seconds: D
     let many = lights(every: 2)
     #expect(many >= 7 && many <= 9)
 }
+
+@Test func fountainSendsItsLightsUpFromTheMiddle() {
+    // A note struck four times a second, for long enough that lights are coming down as well.
+    let visualiser = Visualiser(mode: .fountain)
+    visualiser.resize(width: 200, height: 100)
+    var leaving = 100 ..< 100, landing = 100 ..< 100
+    for frame in 0 ..< 600 {
+        visualiser.hear(levels: [1], pitches: [60], struck: [frame % 15 == 0])
+        visualiser.paint(at: Double(frame) / 60)
+        guard let pixels = visualiser.pixels else { continue }
+        // Along the bottom of the picture, a light that is as bright as lights are is on its way
+        // up, and one that is less so, but more than a tail's edge is, is on its way down.
+        for row in 92 ..< 100 {
+            for column in 0 ..< 200 {
+                let at = (row * 200 + column) * 4
+                let most = max(pixels[at], pixels[at + 1], pixels[at + 2])
+                if most > 240 { leaving = min(leaving.lowerBound, column) ..< max(leaving.upperBound, column + 1) }
+                if most > 90, most < 130 { landing = min(landing.lowerBound, column) ..< max(landing.upperBound, column + 1) }
+            }
+        }
+    }
+    // They leave by a spout in the middle, and come down all along the picture.
+    #expect(leaving.count > 4 && leaving.lowerBound > 85 && leaving.upperBound < 115)
+    #expect(landing.lowerBound < 50 && landing.upperBound > 150)
+}

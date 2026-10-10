@@ -1,9 +1,9 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-/// A fountain of lights. Every note that is struck sends one up from the bottom of the picture, as
-/// a firework goes up, at a place along it come by chance and nothing to do with its voice: as
-/// high as the note is loud, and in the colour of the note, as a lamp of the flame is (red for the
+/// A fountain of lights. Every note that is struck sends one up from the middle of the bottom of
+/// the picture, as a firework goes up, to come down at a place along it come by chance and nothing
+/// to do with its voice: as high as the note is loud, and in the colour of the note, as a lamp of the flame is (red for the
 /// lowest the tune plays, through yellow, green and blue to violet for the highest, and pale for
 /// what has no pitch). But nothing bursts. A light is a small round thing with a short tail behind
 /// it: it slows as it rises, turns over, and falls away out of the picture, dimmer as it goes.
@@ -32,6 +32,8 @@ final class Fountain: VisualScene {
     /// the notes of nearly every tune are struck within the loudest half of them, some twenty
     /// decibels: so it is that half that is spread over the height of the picture, and not the whole.
     private static let quietest: Float = 0.5
+    /// How wide the spout is that the lights leave by, as a part of the width of the picture.
+    private static let spout: Float = 0.06
     /// The most lights there can be at once.
     private static let most = 512
 
@@ -50,6 +52,8 @@ final class Fountain: VisualScene {
     private struct Light {
         /// Where it is, in dots, and how fast it is going, in dots a second.
         var x: Float, y: Float, vx: Float, vy: Float
+        /// Where along the bottom of the picture it is to come down.
+        var land: Float
         var colour: (Float, Float, Float)
         /// The voice it was sent up by, and how loud that was heard to be.
         var voice: Int, level: Float
@@ -100,12 +104,16 @@ final class Fountain: VisualScene {
             since[index] += elapsed
             if voice.kick > kicks[index] + 0.001, since[index] > 0.12, voice.heardLevel > 0.05, lights.count < Self.most {
                 since[index] = 0
-                // As fast as will take it as high as it is to go, and not quite straight up.
-                let speed = (2 * gravity * Self.top(of: voice.heardLevel) * tall).squareRoot()
-                lights.append(Light(x: (0.04 + 0.92 * chance()) * Float(width), y: tall + size,
-                                    vx: speed * 0.14 * (chance() - 0.5), vy: -speed,
+                // As fast as will take it as high as it is to go. It leaves by the spout in the
+                // middle, and leans as far as will bring it down where it is to land: a place come
+                // by chance, anywhere along the bottom. (Its place in the spout is come by with it.)
+                let speed = (2 * gravity * Self.top(of: voice.heardLevel) * tall).squareRoot(), rise = speed / gravity
+                let chosen = 0.04 + 0.92 * chance()
+                let land = chosen * Float(width) + speed * 0.14 * (chance() - 0.5) * 2 * rise
+                let x = (0.5 + Self.spout * (chosen - 0.5)) * Float(width)
+                lights.append(Light(x: x, y: tall + size, vx: (land - x) / (2 * rise), vy: -speed, land: land,
                                     colour: frame.look.colour(ofNoteAt: voice.heardPitch > 0 ? frame.place(of: voice.heardPitch) : nil),
-                                    voice: index, level: voice.heardLevel, rise: speed / gravity))
+                                    voice: index, level: voice.heardLevel, rise: rise))
             }
             kicks[index] = voice.kick
         }
@@ -120,10 +128,12 @@ final class Fountain: VisualScene {
                 if one.age < 0.1, one.voice < count, one.vy < 0, frame.voices[one.voice].heardLevel > one.level {
                     let louder = frame.voices[one.voice].heardLevel
                     let faster = (Self.top(of: louder) / Self.top(of: one.level)).squareRoot()
-                    one.vx *= faster
                     one.vy *= faster
                     one.level = louder
                     one.rise = one.age - one.vy / gravity
+                    // It is longer in the air, and leans the less to come down where it was to.
+                    let left = (-one.vy + (one.vy * one.vy + 2 * gravity * max(0, tall + size - one.y)).squareRoot()) / gravity
+                    if left > 0 { one.vx = (one.land - one.x) / left }
                 }
                 let fromX = one.x, fromY = one.y
                 one.x += one.vx * elapsed

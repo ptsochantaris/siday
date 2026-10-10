@@ -129,9 +129,9 @@ the notes between, where the melodies are, are further apart in colour.) Flames 
 each lamp in its colour and out of the top of the picture, so the notes a voice has played are bands
 of colour above the one it is playing. They are made the oldest
 way there is, the heat at each place being the mean of the heat below it, less a little. The
-fountain sends a light up from the bottom of the picture for every note that is struck, as a
-firework goes up, though nothing bursts: from a place come by chance, as high as the note is loud,
-and in the note's colour, as the flame's lamps are. Each is a small light with a short tail, which
+fountain sends a light up from the middle of the bottom of the picture for every note that is
+struck, as a firework goes up, though nothing bursts: to come down at a place come by chance, as
+high as the note is loud, and in the note's colour, as the flame's lamps are. Each is a small light with a short tail, which
 slows, turns over and falls away. A voice sends up no more than eight a second. It is meant to be calm.
 Nothing in it changes at once: a voice is followed a little behind, so the loudest note there is
 brightens the picture over several frames and not in one; the kind of picture never changes of its
