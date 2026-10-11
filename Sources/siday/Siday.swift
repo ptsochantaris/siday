@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, AHX, HVL, XM, S3M, IT, MTM, DTM, AMF, GDM and PTM modules and CMF, ROL and FMT tunes for the AdLib from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, XM, S3M, IT, MTM, DTM, AMF, GDM and PTM modules and CMF, ROL and FMT tunes for the AdLib from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -374,6 +374,11 @@ struct Siday: ParsableCommand {
                     for channel in tick.rates.indices { text += " \(tick.rates[channel])/\(tick.volumes[channel])/\(tick.pans[channel])" }
                     text += "\n"
                 }
+                FileHandle.standardOutput.write(Data(text.utf8))
+                return
+            }
+            // (And so for a SoundFX or an Oktalyzer module: see `amigaRoutineTrace`.)
+            if let text = try amigaRoutineTrace(of: renderer, subsong: subsong, seconds: maxTime.flatMap(parseTime) ?? 20) {
                 FileHandle.standardOutput.write(Data(text.utf8))
                 return
             }

@@ -135,9 +135,9 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .sidFilter:
             "Where the 6581's filter sits. No two of the real chips were alike in this, and they differed by as much as this goes. It is something only reSIDfp has."
         case .amiga:
-            "Which Amiga a MOD, a MED or an AHX file is heard on. The 500 has a filter in the way that takes off the top of the sound, above 4.4 kHz: the darker sound that much Amiga music was written on."
+            "Which Amiga a module made for one is heard on: a MOD, MED, AHX, SoundFX or Oktalyzer file. The 500 has a filter in the way that takes off the top of the sound, above 4.4 kHz: the darker sound that much Amiga music was written on."
         case .amigaSeparation:
-            "How far apart a MOD, a MED or an AHX file's left and right are kept. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
+            "How far apart the left and right of a module made for the Amiga are kept: a MOD, MED, AHX, SoundFX or Oktalyzer file. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
         case .s3mCard:
             "The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. A file says which it was saved with; one that does not is given the Ultrasound."
         }
@@ -238,10 +238,11 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .sid, .sndh, .mod, .med, .ahx, .hvl, .xm, .s3m, .it, .cmf, .rol, .fmt: false
             case .mtm, .dtm, .amf: false
             case .gdm, .ptm: false
+            case .sfx, .okt: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid
-        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx)
+        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt)
         case .s3mCard: format == .s3m
         }
     }

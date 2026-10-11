@@ -29,7 +29,7 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum and Amstrad CPC program rips | AY (ZXAYEMUL), including beeper music |
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
-| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer |
+| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer. SFX, the modules of SoundFX, a tracker of the Amiga's first years, with fifteen samples and a tempo that is a count for the Amiga's timer, and all the songs of a file that holds several. OKT, the modules of Oktalyzer, of four to eight tracks: each voice of the chip is whole or is split in two, and the two tracks of a split voice are mixed into it as Oktalyzer mixed them; packed with PowerPacker or not. Both played as their trackers' own routines played them, on the same chip |
 | PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
 | Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
 | Modules of other trackers, on Impulse Tracker's replayer | GDM, the files of the BWSB sound system, each of them another tracker's module (an S3M, a MOD, and others) written out again; and PTM, the modules of PolyTracker, with up to 32 channels, samples of sixteen bits and loops that go back and forth. This player has no replayer of either: each is read into what Impulse Tracker plays and played by its replayer, every channel in its own place between the speakers |
@@ -40,7 +40,8 @@ A few RSID tunes that depend on exact video or serial-port timing will not play 
 An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
 SNDH files tried, a handful do not start; the reference player does not start them either.
 A MOD file packed with XPK is not unpacked. A song that MED saved before it had modules (MED2, MED3,
-MED4) is not read, and a MED module's notes for a MIDI synthesiser are not heard. An XM file written by a later tracker is played as
+MED4) is not read, and a MED module's notes for a MIDI synthesiser are not heard. A module of the later SoundFX, of 31
+samples, is not played. An XM file written by a later tracker is played as
 FastTracker 2 would play it, which is not always what the tracker that wrote it meant. An IT file
 packed with MMCMP is not unpacked, and a sample that ModPlug Tracker packed its own way (ADPCM) is
 silent. A ROL file that names an instrument no bank has is played with that instrument silent.
@@ -87,7 +88,7 @@ or a slider, with what it does to be read by resting the pointer on it: how many
 repeats is played and how long its fade is, the time given to a tune of unknown length and the
 longest any tune may play; the AY chip's make, its clock, how often the tune's player is run, and which way round its
 three channels go in stereo (the command line's `abc` and `acb`, which the page's list of outputs has as one "Stereo"); the
-SID's model, its emulation and where the 6581's filter sits; which Amiga a MOD, a MED or an AHX is heard on
+SID's model, its emulation and where the 6581's filter sits; which Amiga a module made for one is heard on
 and how far apart its two sides are (a MED in mixing mode has no Amiga in it, and its own two sides), and the sound card of an S3M. One that has been changed is marked with
 a dot. A change is heard at once: the song that is playing is rendered again as it is now to be,
 when the setting has anything to do with it, and goes on from where it was. Two settings are the
@@ -419,6 +420,63 @@ module is. `SIDAY_MED_TRACE=1 siday --raw /dev/null tune.med` writes what the pl
 chip, a line a tick; or for five to eight channels what it mixes for the chip (the bytes go to the
 file `SIDAY_MED_MIXED` names); or in mixing mode what it tells its mixer.
 
+A SoundFX module is played as SoundFX played it, and an Oktalyzer module as Oktalyzer did. As with
+MED, the players are not ports: the trackers' own routines are not free to copy, so these were
+written afresh and then held to them. The routines were run in an emulated Amiga (UADE) on every such
+module of a collection, 283 of SoundFX's and 42 of Oktalyzer's, and on some hundreds of modules made
+at random to use what those do not, and everything they wrote to the sound chip's registers was set
+beside what these write: each voice's period and volume, where each note starts in its sample and
+where it goes on from, in the order they were written and on the ticks they were written on. They are
+the same, for every one of those modules from its beginning to its end.
+
+SoundFX is of 1988, and its module is the first Soundtracker's with a different front: fifteen
+samples, patterns of 64 lines, and in place of a tempo the number that the Amiga's timer is to count
+from between one tick and the next, with six ticks to a line. Its routine has ways of its own, and
+tunes were written by ear against them, so they are kept. A slide towards a note goes on over the
+lines that follow until a new note stops it, and no other command of its voice is looked at
+meanwhile. A bend works on the period written on its own line, so that on a line without a note it
+starts from nothing. A volume command counts from the instrument's volume, and only where the
+instrument is named beside it. Every voice is told again on every line where its instrument repeats,
+so that naming another instrument under a note changes what the note goes on with. A file that was
+made to hold several tunes has them set apart by a pattern of silence, and those are its songs here,
+found much as the player of these files for DeliTracker finds them. Four files of the collection are
+shorter than their samples are said to be: the routine's own loader will not have them, and here they
+are played, with silence where a sample is missing its end. One thing the routine does is not done:
+an arpeggio on a voice whose last note is none of the notes sends it looking for a period through
+whatever lies after its table, and here the voice is left as it is.
+
+Oktalyzer, of 1989, got eight tracks out of the Amiga's four voices. A voice is whole, and plays a
+track as any tracker would; or it is split, and has two tracks, which are mixed a tick's worth at a
+time into a stretch of memory that the voice then plays. Oktalyzer had a quick way of mixing two
+notes at two pitches, which is to step through only one of them. The voice is played at the period of
+the higher note, whose sample can then be taken a byte for a byte, and the lower note is stretched to
+fit; when the notes change, so do the voice's period and how many bytes make a tick. The two are added
+four bytes at a time, as one number, so that a byte which overflows carries into its neighbour, and
+samples for a split voice are made at half strength so that they do not. A split voice has one volume
+between its two tracks, its samples never repeat, and it goes no higher than the A of the top octave.
+All of that is done here as Oktalyzer did it, and for the seventeen modules of the collection that
+have split voices what is compared is also every byte the chip was given to play, wherever it can be
+told from what the emulated chip put out (which is the byte times the voice's volume: so not while
+the volume is nought, nor in the moment it changes, which leaves nineteen parts in twenty of the
+time). They are the same bytes, some two hundred million of them.
+
+Two things have to be said of that. How long a stretch is mixed on a tick depends on whether the chip,
+which keeps its own time, has got ahead of the player's timer; and in the emulated Amiga that turns
+on a clock or two, on how many instructions the routine happened to run on the tick before. So when
+it plays, this player reckons the chip's time itself, in whole clocks as the Amiga kept it, and comes
+to the same length as the routine on three ticks in four (on the others a stretch is a word longer
+or shorter a tick sooner or later: the same run of lengths, a tick out of step); and for the
+comparison it is given the lengths the routine was seen to choose. And Oktalyzer began to fill a
+stretch of memory again when the chip might not yet have fetched its last words. On an Amiga the
+mixing took most of a tick to get that far; UADE runs this routine with every instruction taking one
+clock, and there the chip now and then plays the last word or so of a stretch from what has just been
+written over it. That is passed over in the comparison, and counted (one stretch in 260), and it does
+not happen here, where a voice has a third stretch to mix into.
+
+`SIDAY_SFX_TRACE=1 siday --raw /dev/null tune.sfx` and `SIDAY_OKT_TRACE=1 siday --raw /dev/null
+tune.okt` write what the players tell the sound chip, a line a tick. What Oktalyzer's mixes goes to
+the file `SIDAY_OKT_MIXED` names, and `SIDAY_OKT_WORDS` names a file of the lengths it is to go by.
+
 An AHX file is played as AHX played it. AHX is a tracker for the Amiga with no samples. An instrument
 is a few numbers: an envelope, a vibrato, and a short list of things to do as its note goes on, which
 is where it says what wave it is (a triangle, a sawtooth, a square of some width, or noise) and can
@@ -705,6 +763,10 @@ What it is made from:
 - MED and OctaMED are by Teijo Kinnunen, and the MED module is as he describes it in the notes on
   the format that came with OctaMED. The players of MED modules here, and the mixing, are siday's
   own: nothing in them is taken from OctaMED's, which they were written to do the same as.
+- SoundFX is by Christian Haller and Christian A. Weber (Linel, 1988), and Oktalyzer by Armin Sander
+  (1989). Their modules are as Claudio Matsuoka (for libxmp) and Harald Zappe wrote them down. The
+  players of both here are siday's own: nothing in them is taken from the trackers' routines, which
+  they were written to do the same as.
 - [ahx2play](https://github.com/8bitbubsy/ahx2play), also by Olav Sørensen: AHX's replayer and the
   making of its waves, ported by him from the tracker's own source. AHX is by Martin Wodok (Dexter)
   and Manfred Linzner (Pink) of Abyss.
@@ -762,6 +824,8 @@ What it was checked against, besides the originals of the above:
 - [UADE](https://zakalwe.fi/uade/) by Heikki Orsila and Michael Doering, which runs an Amiga's own
   music players in an emulated Amiga and can write down all they tell the sound chip and all it
   plays: OctaMED's three players in it are what the players of MED modules were held to.
+  SoundFX's routine in it (as Wanted Team fitted it for DeliTracker) and Oktalyzer's (as Buggs of
+  Defect did) are what the players of those modules were held to.
 
 What it is built with: [swift-argument-parser](https://github.com/apple/swift-argument-parser) for the
 command line, and [ElementaryUI](https://elementary.codes) and

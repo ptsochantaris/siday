@@ -133,6 +133,13 @@ play on the Paula above, its renderer (`MEDRenderer.swift`) is made after `MODRe
 its table of periods is built from the table in `ProTrackerReplayer.swift`, so those parts of it
 stand on pt2-clone as the rest of this folder does.
 
+Nor are the players of SoundFX modules (`Sources/SidayKit/SoundFX`) and of Oktalyzer modules
+(`Sources/SidayKit/Oktalyzer`) ports of anything: they were written for this project, to do what the
+trackers' own replay routines do, and none of those routines' code is in them. They play on the Paula
+above, their renderers are made after `MODRenderer.swift`, and their periods are the table in
+`ProTrackerReplayer.swift` (with, for SoundFX, the periods its routine has below that table's
+lowest), so those parts of them stand on pt2-clone as the rest of this folder does.
+
 ```
 BSD 3-Clause License
 

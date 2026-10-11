@@ -85,6 +85,7 @@ import Testing
     #expect(Setting.clock.changes(.pt3) && Setting.clock.changes(.ay) && Setting.clock.changes(.ym) && !Setting.clock.changes(.sid) && !Setting.clock.changes(.sndh) && !Setting.clock.changes(.hvl))
     #expect(Setting.amiga.changes(.mod) && Setting.amiga.changes(.ahx) && Setting.amigaSeparation.changes(.ahx) && !Setting.amiga.changes(.xm) && !Setting.amiga.changes(.hvl))
     #expect(!Setting.amiga.changes(.mtm) && !Setting.amigaSeparation.changes(.dtm) && !Setting.clock.changes(.amf) && !Setting.chip.changes(.dtm))
+    #expect(Setting.amiga.changes(.sfx) && Setting.amigaSeparation.changes(.okt) && !Setting.clock.changes(.sfx) && !Setting.clock.changes(.okt))
     #expect(Setting.s3mCard.changes(.s3m) && !Setting.s3mCard.changes(.it))
     #expect(!Setting.chip.changes(.fmt) && !Setting.clock.changes(.fmt) && Setting.loops.changes(.fmt))
     #expect(!Setting.s3mCard.changes(.gdm) && !Setting.s3mCard.changes(.ptm) && !Setting.amiga.changes(.gdm) && !Setting.clock.changes(.ptm))
