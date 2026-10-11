@@ -21,51 +21,20 @@ siday ~/Music/chiptunes --shuffle
 
 ## What it plays
 
-| Family | Formats |
-|---|---|
-| AY-3-8910 / YM2149 tracker modules | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs |
-| AY register recordings | VTX, YM (YM2, YM3, YM3b, YM5, YM6). A YM file from an Atari ST is played on the ST's chip, with the effects ST musicians made between one set of registers and the next (SID voices, digi-drums, sync-buzzer) |
-| Atari ST sample tunes | the two kinds of YM file that are samples and not registers: digi-mixes (MIX1) and YM tracker tunes (YMT1, YMT2) |
-| ZX Spectrum and Amstrad CPC program rips | AY (ZXAYEMUL), including beeper music |
-| Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
-| C64 | SID (PSID and RSID) |
-| Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer. SFX, the modules of SoundFX, a tracker of the Amiga's first years, with fifteen samples and a tempo that is a count for the Amiga's timer, and all the songs of a file that holds several. OKT, the modules of Oktalyzer, of four to eight tracks: each voice of the chip is whole or is split in two, and the two tracks of a split voice are mixed into it as Oktalyzer mixed them; packed with PowerPacker or not. Both played as their trackers' own routines played them, on the same chip |
-| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. STM, the format of Scream Tracker 2, the tracker before that one: four channels, played by its own replayer and its own mixing, which was eight bits and one channel. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter; and an IT file that ModPlug Tracker or OpenMPT made is heard through that tracker's own filter, where it was made with it, and through those of its plug-ins that are OpenMPT's own |
-| Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
-| Modules of other trackers, on Impulse Tracker's replayer | GDM, the files of the BWSB sound system, each of them another tracker's module (an S3M, a MOD, and others) written out again; PTM, the modules of PolyTracker, with up to 32 channels, samples of sixteen bits and loops that go back and forth; and ULT, the modules of UltraTracker, with as many channels and two commands beside each note. This player has no replayer of any of them: each is read into what Impulse Tracker plays and played by its replayer, every channel in its own place between the speakers |
-| OpenMPT's own modules, on Impulse Tracker's replayer | MPTM, the format OpenMPT keeps for what an IT file has no room for: an IT file with more written after it. Played by Impulse Tracker's replayer, which has been given what such a file asks beyond an IT file as far as that can honestly be given: OpenMPT's three ways of keeping time, its swing, tempos that are fractions or above 255, patterns of up to 1024 rows, lists of patterns of any length and several to a file (which are its songs), longer envelopes with a place to go when a key is let go, OpenMPT's own filter for a file that does not ask for Impulse Tracker's, a filter that lets the high through and one that is moved at random from note to note, samples played backwards and from cue points, and OpenMPT's louder way of adding channels up. An instrument that is a patch for the AdLib's FM chip is played on that chip, as OpenMPT plays it. The plug-ins that are OpenMPT's own (its echo, two reverbs, chorus, flangers, compressor, distortion, equaliser and gargle, and DigiBooster's echo) are played, wired as the file wires them; a plug-in that is somebody else's program is left out, and an instrument that is only such a plug-in is not heard |
-| Modules of other trackers, on players made for them | 669, the modules of Composer 669 and of UNIS 669 after it: eight channels of samples, with slides that are counted in samples a second and not in the Amiga's periods, which is why no other tracker's replayer will do for them |
-| AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player. FMT, the songs of Davey W Taylor's FM Tracker, a tracker of eight voices for the AdLib card, played as OpenMPT reads them |
+| For | Formats | Played by |
+|---|---|---|
+| ZX Spectrum, Amstrad CPC | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs; VTX and YM register recordings; AY program rips, beeper music included | each tracker's own player, or the tune's own program on a Z80, on the AY chip |
+| Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
+| Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
+| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's on its own mixer) |
+| PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669 | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; a player written for 669 files |
+| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
-Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
-An SNDH tune that sends its notes out of the MIDI port has nothing to play here, and of some 5,900
-SNDH files tried, a handful do not start; the reference player does not start them either.
-A MOD file packed with XPK is not unpacked. A song that MED saved before it had modules (MED2, MED3,
-MED4) is not read, and a MED module's notes for a MIDI synthesiser are not heard. A module of the later SoundFX, of 31
-samples, is not played. An XM file written by a later tracker is played as
-FastTracker 2 would play it, which is not always what the tracker that wrote it meant. An IT file
-packed with MMCMP is not unpacked, and a sample that ModPlug Tracker packed its own way (ADPCM) is
-silent. A ROL file that names an instrument no bank has is played with that instrument silent.
-A DTM file saved by Digital Home Studio, Digital Tracker's successor, is not read, and nor is the
-other kind of file called AMF, ASYLUM's.
-An MPTM file, or an IT file of ModPlug Tracker's or OpenMPT's, is played without those of its
-plug-ins that are not OpenMPT's own: what was sent through one is heard as it is. An XM file of
-theirs is played without any of its plug-ins. An MPTM file whose notes are, half of them or more,
-for instruments that are only such plug-ins, or for samples kept in other files, is not played. Nor
-is one with an instrument tuned to a scale of its own, unless the scale is a temperament: twelve
-steps to the octave, none of them more than a quarter of a semitone from where equal steps would
-put it. Then each note is started at the pitch the temperament gives it, and its slides are
-Impulse Tracker's.
-
-Between a file that is played as it was written and one that is refused there are files that are
-played with something missing or made do for: an instrument that a later tracker played through a
-plug-in or sent to a MIDI synthesiser, a command that the tracker whose replayer plays the file never
-had, a sample in stereo or packed in a way that is not read, a file that ends before its last sample
-does. Such a tune says so, in a sentence for each thing: "Three of its instruments play through
-plug-ins, and are not heard." The page puts a small ≈ beside its name, and the command line prints the
-sentences under the tune's line (see below). Only what the tune itself uses is said, and only what
-might be heard: a file is not marked for where it was made, nor for a few bytes lost from its end.
+Each of these was set beside a reference player, most of them to the sample:
+[How it is built](#how-it-is-built) says what each is made from and what it was checked against.
+What is not played, and what is played with something missing, is under
+[Playback caveats](#playback-caveats).
 
 ## In a browser
 
@@ -351,6 +320,40 @@ are corrected by content (`Sources/SidayKit/AYFile/AYFileCorrections.swift`) and
 when they play; so far those are the Exolon 128K title tune, which the rip plays 14% fast, and the Kenny
 Dalglish Soccer Match menu tune, which it plays 5% slow. Giving
 `--frame-rate` plays any file exactly as written.
+
+## Playback caveats
+
+A file that is played with something missing or made do for says so itself, in a sentence for each
+thing: "Three of its instruments play through plug-ins, and are not heard." The page puts a small ≈
+beside its name, and `siday --list --shortfalls` prints the sentences. Only what the tune itself
+uses is said, and only what might be heard.
+
+Not played:
+
+- **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
+- **Amiga:** a MOD packed with XPK; a song that MED saved before it had modules (MED2, MED3,
+  MED4); a module of the later SoundFX, of 31 samples.
+- **PC:** an IT file packed with MMCMP; a DTM file from Digital Home Studio; the other kind of
+  file called AMF, ASYLUM's; an STM song saved without its samples, and an STX file.
+- **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
+  or for samples kept in other files; and one with an instrument tuned to a scale that is not a
+  temperament of twelve steps to the octave.
+
+Played, with a difference:
+
+- **SID:** a few RSID tunes that depend on exact video or serial-port timing do not play correctly.
+- **SNDH:** a tune that sends its notes out of the MIDI port is silent, and of some 5,900 files
+  tried a handful do not start; the reference player does not start them either.
+- **MED:** notes for a MIDI synthesiser are not heard.
+- **XM** from a later tracker: played as FastTracker 2 would play it, and without its plug-ins.
+- **IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
+  out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
+  (ADPCM) is silent; and in a file tuned to a temperament each note starts at the pitch that
+  gives it, and slides as Impulse Tracker slides.
+- **GDM, PTM, ULT:** a command that Impulse Tracker's replayer has no room or no like for is
+  left out.
+- **STM:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
+- **ROL:** an instrument that no bank has is silent.
 
 ## How it is built
 
