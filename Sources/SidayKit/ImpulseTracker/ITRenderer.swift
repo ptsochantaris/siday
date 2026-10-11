@@ -19,9 +19,8 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     public var defaultSubsong: Int { ModuleSongs.first(of: songList.map { $0.empty }) }
     public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length) } }
     public var knownLength: Double? { songList[currentSubsong].length }
-
     let module: IT2Module
-    private let songList: [ModuleSongs.Song]
+    let songList: [ModuleSongs.Song]
     /// Which song first played each row. See `ModuleSongs`.
     private let firstPlayedBy: UnsafeMutablePointer<UInt8>
     private let mono: Bool
@@ -35,6 +34,8 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     private static let mostTicks = 50 * 60 * 120
     /// Set by measure, so that a module is about as loud as the chip tunes it is played among.
     private static let gain: Float = 0.64
+    /// That, by what an MPTM file's own settings make of it: see `OpenMPTSong`.
+    private let gain: Float
 
     public convenience init(_ data: [UInt8], options: LoadOptions) throws {
         try self.init(module: IT2Module(data), format: "IT", options: options)
@@ -46,6 +47,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     ///   for; nil for an IT file, which is looked over here for what later trackers added to it.
     init(module: IT2Module, format: String, author: String = "", shortfalls: [String]? = nil, options: LoadOptions) {
         self.module = module
+        gain = module.openMPT.map { Self.gain * $0.gain } ?? Self.gain
         mono = options.stereo == .mono
 
         // The channels that some pattern has a note or an instrument on, and that are not switched off.
@@ -84,10 +86,10 @@ public final class ITRenderer: Renderer, ReferenceComparable {
 
         // Once through each of its songs in silence, to find how long it is.
         let module = module
-        let firstPlayedBy = UnsafeMutablePointer<UInt8>.allocate(capacity: IT2Player.rowsInAll)
-        firstPlayedBy.initialize(repeating: ModuleSongs.unplayed, count: IT2Player.rowsInAll)
+        let firstPlayedBy = UnsafeMutablePointer<UInt8>.allocate(capacity: IT2Player.rowsInAll(of: module))
+        firstPlayedBy.initialize(repeating: ModuleSongs.unplayed, count: IT2Player.rowsInAll(of: module))
         self.firstPlayedBy = firstPlayedBy
-        songList = ModuleSongs.find(places: 256, isPattern: { Int(module.Orders[$0]) < module.patternLimit }) { start, number in
+        songList = ModuleSongs.find(places: module.Orders.count, isPattern: { Int(module.Orders[$0]) < module.patternLimit }) { start, number in
             let player = IT2Player(module, order: start, firstPlayedBy: firstPlayedBy, songNumber: number)
             var frames = 0, ticks = 0
             var watch = ModuleSongs.Watch()
@@ -166,12 +168,12 @@ public final class ITRenderer: Renderer, ReferenceComparable {
             player.mixer.postMix(into: out, from: tickPosition, count: count)
             if mono {
                 for i in 0 ..< count {
-                    let both = (out[i * 2] + out[i * 2 + 1]) * (Self.gain * 0.5)
+                    let both = (out[i * 2] + out[i * 2 + 1]) * (gain * 0.5)
                     out[i * 2] = both
                     out[i * 2 + 1] = both
                 }
             } else {
-                for i in 0 ..< count * 2 { out[i] *= Self.gain }
+                for i in 0 ..< count * 2 { out[i] *= gain }
             }
             tickPosition += count
             done += count

@@ -4,6 +4,10 @@
 // Derived from it2play, Copyright (c) Olav Sørensen, used under the BSD 3-Clause licence
 // (see THIRD-PARTY.md): the "HQ" sound driver of his C port of Impulse Tracker 2.15's replayer, which
 // is it2play's own and not one of Impulse Tracker's. The names are the original's, as in the other ports here.
+//
+// The few lines that are there for an MPTM file, and say so, are derived from OpenMPT, Copyright (c)
+// 2004-2026 OpenMPT Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque,
+// used under the BSD 3-Clause licence (see THIRD-PARTY.md, and `IT2OpenMPT.swift`).
 
 /// Two to the power of a `Float`, from the C library. The filter's cutoff is worked out with it, and
 /// the libraries do not all round it the same way, so only the library's own gives what the original
@@ -40,7 +44,7 @@ final class IT2Mixer {
 
     /// What a module made by ModPlug Tracker is turned down by, for the number of channels it uses.
     /// (The table is OpenMPT's, normalised.)
-    private static let PreAmpTable: [Float] = [
+    static let PreAmpTable: [Float] = [
         64.0 / 0x60, 64.0 / 0x60, 64.0 / 0x60, 64.0 / 0x70,
         64.0 / 0x80, 64.0 / 0x88, 64.0 / 0x90, 64.0 / 0x98,
         64.0 / 0xA0, 64.0 / 0xA4, 64.0 / 0xA8, 64.0 / 0xAC,
@@ -99,6 +103,8 @@ final class IT2Mixer {
     private let FilterParameters: UnsafeMutablePointer<UInt8>
     /// Whether the file is in stereo: in one that is not, every voice is in the middle.
     private let stereoOutput: Bool
+    /// For an MPTM file that asks for it: see `OpenMPTSong`.
+    private let softPanning: Bool
     /// The sample number that stands for a MIDI note on a voice, which has no sound. See `IT2Module`.
     private let midiVoiceSample: UInt8
 
@@ -130,14 +136,15 @@ final class IT2Mixer {
         sChn = voices
         FilterParameters = filterParameters
         stereoOutput = module.Flags & ITF_STEREO != 0
+        softPanning = module.openMPT?.softPanning ?? false
         midiVoiceSample = module.midiVoiceSample
 
         // HQ_InitDriver. 32769 Hz is the lowest rate there can be, for FreqMulVal to fit in 31 bits.
         let mixingFrequency = max(32769, min(768_000, outputSampleRate))
         FreqMulVal = Int32((Double(UInt64(1) << UInt64(32 + Self.FREQ_MUL_EXTRA_BITS)) / Double(mixingFrequency)).rounded())
 
-        // Room for the longest tick there can be.
-        let maxSamplesToMix = Int(ceil((Double(mixingFrequency) * 2.5) / Double(Self.MIN_BPM))) + 1
+        // Room for the longest tick there can be. (An MPTM file's can be longer: see `OpenMPTSong`.)
+        let maxSamplesToMix = max(Int(ceil((Double(mixingFrequency) * 2.5) / Double(Self.MIN_BPM))) + 1, module.openMPT?.longestTick ?? 0)
         fMixBuffer = .allocate(capacity: maxSamplesToMix * 2)
         fMixBuffer.initialize(repeating: 0, count: maxSamplesToMix * 2)
 
@@ -262,6 +269,13 @@ final class IT2Mixer {
         let index = Int(max(tempo, UInt8(Self.MIN_BPM))) - Self.MIN_BPM
         BytesToMix = Int32(bitPattern: SamplesPerTickInt[index])
         BytesToMixFractional = SamplesPerTickFrac[index]
+    }
+
+    /// A tick of so many frames and no fraction of one, whatever the tempo: for an MPTM file, whose
+    /// ticks are measured in OpenMPT's ways and told to the mixer one by one.
+    func setTickFrames(_ frames: Int32) {
+        BytesToMix = frames
+        BytesToMixFractional = 0
     }
 
     /// HQ_SetMixVolume
@@ -483,6 +497,8 @@ final class IT2Mixer {
                     sc.pointee.fFiltera = fFiltera
                     sc.pointee.fFilterb = fFilterb
                     sc.pointee.fFilterc = 1.0 - fFiltera - fFilterb
+                    // (An MPTM file's instrument can have the filter the other way up: see `mixLoop`.)
+                    if sc.pointee.HighPass { sc.pointee.fFiltera = 1.0 - fFiltera }
                 }
 
                 if sc.pointee.Flags & SF_CHN_MUTED != 0 {
@@ -498,6 +514,10 @@ final class IT2Mixer {
                         let volume = Float(Vol) * (0.5 / (32768.0 * 128.0))
                         sc.pointee.fLeftVolume = volume
                         sc.pointee.fRightVolume = volume
+                    } else if softPanning { // the nearer side as loud as the middle, the further one quieter
+                        let FinalPan = Int32(sc.pointee.FinalPan)
+                        sc.pointee.fLeftVolume = Float(min(32, 64 &- FinalPan) &* Vol) * (1.0 / (64.0 * 32768.0 * 128.0))
+                        sc.pointee.fRightVolume = Float(min(32, FinalPan) &* Vol) * (1.0 / (64.0 * 32768.0 * 128.0))
                     } else { // somewhere between the speakers
                         let FinalPan = Int32(sc.pointee.FinalPan)
                         sc.pointee.fLeftVolume = Float((64 &- FinalPan) &* Vol) * (1.0 / (64.0 * 32768.0 * 128.0))
@@ -577,6 +597,32 @@ final class IT2Mixer {
 
                             if sc.pointee.LoopDirection == DIR_BACKWARDS {
                                 if sc.pointee.SamplingPosition <= sc.pointee.LoopBegin {
+                                    if sc.pointee.Backwards == BACKWARDS_ONCE {
+                                        // A sample that an MPTM file is playing backwards has come to
+                                        // its start, which is its end, and ends as any sample does.
+                                        sc.pointee.Backwards = 0
+                                        sc.pointee.Flags = SF_NOTE_STOP
+                                        if sc.pointee.HostChnNum & CHN_DISOWNED == 0 {
+                                            sc.pointee.HostChnPtr?.pointee.Flags &= ~HF_CHAN_ON
+                                        }
+
+                                        var left = fLastLeftValue, right = fLastRightValue
+                                        while MixBlockSize > 0 {
+                                            fMixBufferPtr[0] += left
+                                            fMixBufferPtr[1] += right
+                                            fMixBufferPtr += 2
+
+                                            left -= left * (1.0 / 4096.0)
+                                            right -= right * (1.0 / 4096.0)
+                                            MixBlockSize -= 1
+                                        }
+                                        fLastLeftValue = left
+                                        fLastRightValue = right
+                                        fLastClickRemovalLeft += left
+                                        fLastClickRemovalRight += right
+                                        break
+                                    }
+
                                     let NewLoopPos = UInt32(bitPattern: sc.pointee.LoopBegin &- sc.pointee.SamplingPosition) % (LoopLength << 1)
                                     if NewLoopPos >= LoopLength {
                                         sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- 1) &- Int32(bitPattern: NewLoopPos &- LoopLength)
@@ -753,6 +799,13 @@ final class IT2Mixer {
             sc.pointee.Frac64 &= 0xFFFF_FFFF
 
             if sc.pointee.SamplingPosition <= sc.pointee.LoopBegin {
+                if sc.pointee.Backwards == BACKWARDS_ONCE { // an MPTM file's sample played backwards, at its end
+                    sc.pointee.Backwards = 0
+                    sc.pointee.Flags = SF_NOTE_STOP
+                    if sc.pointee.HostChnNum & CHN_DISOWNED == 0 { sc.pointee.HostChnPtr?.pointee.Flags &= ~HF_CHAN_ON }
+                    return
+                }
+
                 let NewLoopPos = UInt32(bitPattern: sc.pointee.LoopBegin &- sc.pointee.SamplingPosition) % (LoopLength << 1)
                 if NewLoopPos >= LoopLength {
                     sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- 1) &- Int32(bitPattern: NewLoopPos &- LoopLength)
@@ -1027,6 +1080,11 @@ final class IT2Mixer {
         var fCurrVolL = sc.pointee.fCurrVolL, fCurrVolR = sc.pointee.fCurrVolR
         let fLeftVolume = sc.pointee.fLeftVolume, fRightVolume = sc.pointee.fRightVolume
         let fFiltera = sc.pointee.fFiltera, fFilterb = sc.pointee.fFilterb, fFilterc = sc.pointee.fFilterc
+        // Impulse Tracker's filter lets the low through. OpenMPT's can let the high through instead,
+        // which is the same filter given what is left when the low is taken away: its first weight
+        // is one less the usual, and what it remembers of each sample is what it put out less what
+        // came in. Only an MPTM file's voice asks for it.
+        let highPass = sc.pointee.HighPass
         var fOldSamples = sc.pointee.fOldSamples
         var fLastLeftValue = fLastLeftValue, fLastRightValue = fLastRightValue
 
@@ -1046,19 +1104,20 @@ final class IT2Mixer {
             }
 
             if filtered {
+                let fIn = fSample, fInR = fSampleR
                 fSample = (fSample * fFiltera) + (fOldSamples.0 * fFilterb) + (fOldSamples.1 * fFilterc)
 
                 // The filter is held where the SB16 MMX driver holds it.
                 if fSample < -2.0 { fSample = -2.0 } else if fSample > 2.0 { fSample = 2.0 }
 
                 fOldSamples.1 = fOldSamples.0
-                fOldSamples.0 = fSample
+                fOldSamples.0 = highPass ? fSample - fIn : fSample
 
                 if stereo {
                     fSampleR = (fSampleR * fFiltera) + (fOldSamples.2 * fFilterb) + (fOldSamples.3 * fFilterc)
                     if fSampleR < -2.0 { fSampleR = -2.0 } else if fSampleR > 2.0 { fSampleR = 2.0 }
                     fOldSamples.3 = fOldSamples.2
-                    fOldSamples.2 = fSampleR
+                    fOldSamples.2 = highPass ? fSampleR - fInR : fSampleR
                 }
             }
 

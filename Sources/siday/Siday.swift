@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, XM, S3M, IT, MTM, DTM, AMF, GDM and PTM modules and CMF, ROL and FMT tunes for the AdLib from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, XM, S3M, IT, MPTM, MTM, DTM, AMF, GDM and PTM modules and CMF, ROL and FMT tunes for the AdLib from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -365,6 +365,49 @@ struct Siday: ParsableCommand {
                 for cell in listing.cells {
                     text += "\(cell.pattern) \(cell.row) \(cell.channel): n\(cell.note) i\(cell.instrument) v\(cell.volume) c\(cell.command):\(cell.value)\n"
                 }
+                // (And with the variable set to "openmpt", the rest of what an IT or an MPTM file
+                // says, for setting beside what OpenMPT made of the file: the song's settings and
+                // its lists of patterns, the channels, the rest of each sample, the instruments with
+                // their envelopes, and each pattern's length and time.)
+                if ProcessInfo.processInfo.environment["SIDAY_MODULE_LISTING"] == "openmpt" {
+                    var more = module.info.shortfalls.map { "shortfall " + $0 }
+                    if let song = listing.openMPT {
+                        more.append("song mode \(song.tempoMode) rpb \(song.rowsPerBeat) ceiling \(song.tempoCeiling) softpan \(song.softPanning ? 1 : 0) mixvol \(listing.mixVolume)"
+                            + " seqs \(song.sequences.count) swing " + song.swing.map(String.init).joined(separator: ","))
+                        for (index, sequence) in song.sequences.enumerated() {
+                            more.append("seq \(index) count \(sequence.count) restart \(sequence.restart - sequence.first) speed \(sequence.speed) tempo \(sequence.tempo) : "
+                                + listing.orders[sequence.first ..< min(listing.orders.count, sequence.first + sequence.count)].map(String.init).joined(separator: " "))
+                        }
+                        for pattern in song.patterns {
+                            more.append("pat \(pattern.number) rows \(pattern.rows) rpb \(pattern.rowsPerBeat) swing " + pattern.swing.map(String.init).joined(separator: ","))
+                        }
+                        for long in song.longValues.sorted(by: { ($0.pattern, $0.row, $0.channel) < ($1.pattern, $1.row, $1.channel) }) {
+                            more.append("long \(long.pattern) \(long.row) \(long.channel) \(long.value) \(long.rows)")
+                        }
+                    }
+                    for channel in listing.pans.indices {
+                        more.append("chn \(channel) pan \(listing.pans[channel]) vol \(listing.channelVolumes[channel])")
+                    }
+                    for (index, sample) in listing.samples.enumerated() {
+                        more.append("smpx \(index + 1) gvol \(sample.globalVolume) sus \(sample.sustainStart) sue \(sample.sustainEnd) susloop \(sample.sustains ? 1 : 0)"
+                            + " susbidir \(sample.sustainBackAndForth ? 1 : 0) stereo \(sample.stereo ? 1 : 0) sound \(sample.hasSound ? 1 : 0)"
+                            + " vs \(sample.vibratoSpeed) vd \(sample.vibratoDepth) vr \(sample.vibratoRate) vw \(sample.vibratoWave)")
+                    }
+                    func envelope(_ name: String, _ index: Int, _ e: ModuleListing.Envelope) -> String {
+                        "env \(index + 1) \(name) flags \(e.flags) num \(e.ticks.count) ls \(e.loopStart) le \(e.loopEnd) ss \(e.sustainStart) se \(e.sustainEnd) rel \(e.releaseNode) "
+                            + zip(e.ticks, e.levels).map { "\($0):\($1)" }.joined(separator: " ")
+                    }
+                    for (index, instrument) in listing.instruments.enumerated() {
+                        more.append("insx \(index + 1) nna \(instrument.newNoteAction) dct \(instrument.duplicateCheck) dca \(instrument.duplicateAction) fade \(instrument.fadeOut)"
+                            + " gvol \(instrument.globalVolume) pan \(instrument.pan) pps \(instrument.pitchPanSeparation) ppc \(instrument.pitchPanCentre)"
+                            + " rv \(instrument.randomVolume) rp \(instrument.randomPan) ifc \(instrument.cutoff) ifr \(instrument.resonance) midi \(instrument.midiChannel)")
+                        more.append("map \(index + 1) " + zip(instrument.notes, instrument.samples).map { "\($0):\($1)" }.joined(separator: " "))
+                        more.append(envelope("v", index, instrument.volume))
+                        more.append(envelope("p", index, instrument.panning))
+                        more.append(envelope("f", index, instrument.pitch))
+                    }
+                    text = more.joined(separator: "\n") + "\n" + text
+                }
                 FileHandle.standardOutput.write(Data(text.utf8))
                 return
             }
@@ -372,6 +415,19 @@ struct Siday: ParsableCommand {
                 // And what that replayer does with it, a line a tick: where the tune is, its tempo and
                 // speed, and for each channel the rate its sample plays at, its volume and its place.
                 var text = ""
+                // (With the variable set to "frames", only where the tune is on each tick and how
+                // many frames the tick lasts: for setting an MPTM file's timekeeping beside OpenMPT's.)
+                if ProcessInfo.processInfo.environment["SIDAY_MODULE_TICKS"] == "frames" {
+                    // (Of the song asked for by number, if one is; and its first line says where in the
+                    // file's list of patterns that song starts.)
+                    let song = (subsong ?? 1) - 1
+                    text += "song \(song + 1) of \(module.subsongCount) starts at \(song >= 0 && song < module.songStarts.count ? module.songStarts[song] : 0)\n"
+                    for tick in module.ticks(seconds: maxTime.flatMap(parseTime) ?? 20, song: song) {
+                        text += "\(tick.order) \(tick.row) \(tick.frames) \(tick.speed) \(tick.tempo)\n"
+                    }
+                    FileHandle.standardOutput.write(Data(text.utf8))
+                    return
+                }
                 for (number, tick) in module.ticks(seconds: maxTime.flatMap(parseTime) ?? 20).enumerated() {
                     text += "\(number) \(tick.order):\(tick.row) bpm\(tick.tempo) spd\(tick.speed) |"
                     for channel in tick.rates.indices { text += " \(tick.rates[channel])/\(tick.volumes[channel])/\(tick.pans[channel])" }

@@ -81,6 +81,7 @@ final class WebPlayer {
             ownStereo = format == .mod || format == .med || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
                 || format == .mtm || format == .dtm || format == .amf
                 || format == .gdm || format == .ptm
+                || format == .mptm
                 || format == .sfx || format == .okt
             select(policy.firstSubsong(of: loaded))
             return true

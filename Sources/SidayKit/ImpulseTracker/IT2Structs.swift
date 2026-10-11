@@ -10,6 +10,8 @@ let DIR_FORWARDS: UInt8 = 0
 let DIR_BACKWARDS: UInt8 = 1
 let PAN_SURROUND: UInt8 = 100
 let LOOP_PINGPONG: UInt8 = 24
+let BACKWARDS_ONCE: UInt8 = 1
+let BACKWARDS_LOOP: UInt8 = 2
 let LOOP_FORWARDS: UInt8 = 8
 
 // Envelope flags.
@@ -71,11 +73,15 @@ let ITF_REQ_MIDI_CFG: UInt16 = 128
 let ITF_MPT_EXT_FILTER_RANGE: UInt16 = 4096 // ModPlug Tracker's
 
 /// An envelope: up to twenty-five points, each a level at a tick, with a loop and a loop that
-/// holds while the key is down.
+/// holds while the key is down. (An MPTM file's can have more points, and then these two lists are
+/// as long as it needs; and it can name a point to go to when the key is let go, which no other has.)
 struct IT2Envelope {
     var Flags: UInt8 = 0, Num: UInt8 = 0, LoopBegin: UInt8 = 0, LoopEnd: UInt8 = 0, SustainLoopBegin: UInt8 = 0, SustainLoopEnd: UInt8 = 0
     var Magnitude = [Int8](repeating: 0, count: 25)
     var Tick = [UInt16](repeating: 0, count: 25)
+    /// OpenMPT's "release node"; `noReleaseNode` for none, which is all an IT file has.
+    var ReleaseNode: UInt8 = IT2Envelope.noReleaseNode
+    static let noReleaseNode: UInt8 = 255
 }
 
 /// An instrument: which sample each note plays, envelopes for its volume, its place and its pitch
@@ -89,6 +95,11 @@ final class IT2Instrument {
     /// For each of 120 notes: the note to play in the low byte, the sample to play it on in the high.
     var SmpNoteTable = [UInt16](repeating: 0, count: 120)
     var VolEnv = IT2Envelope(), PanEnv = IT2Envelope(), PitchEnv = IT2Envelope()
+    /// For an MPTM file's instrument only: 1 if its filter lets the high through and not the low,
+    /// 0 if the low, and `sameFilter` to leave its channel's filter as the last instrument had it,
+    /// which is all an IT file's instrument does.
+    var FilterMode: UInt8 = IT2Instrument.sameFilter
+    static let sameFilter: UInt8 = 255
 }
 
 /// A sample. Its sound is held with room either side for the mixer to read past its ends, which is
@@ -103,6 +114,8 @@ final class IT2Sample {
     /// allocated, which starts before it.
     var Data: UnsafeMutableRawPointer?, OrigData: UnsafeMutableRawPointer?
     var DataR: UnsafeMutableRawPointer?, OrigDataR: UnsafeMutableRawPointer?
+    /// The places in it that an MPTM file's volume column can start a note from; none in any other file.
+    var cues: [UInt32] = []
 
     deinit {
         OrigData?.deallocate()
@@ -125,7 +138,10 @@ struct IT2HostChannel {
     var HostChnNum: UInt8 = 0, VolSet: UInt8 = 0
     /// The voice that is playing its note, if one is.
     var SlaveChnPtr: UnsafeMutablePointer<IT2SlaveChannel>?
-    var PattLoopStartRow: UInt8 = 0, PattLoopCount: UInt8 = 0
+    /// (Impulse Tracker keeps the row in a byte, and it is held to one for every module but an MPTM
+    /// file's, whose patterns are longer than a byte can count.)
+    var PattLoopStartRow: UInt16 = 0
+    var PattLoopCount: UInt8 = 0
     var PanbrelloWaveform: UInt8 = 0, PanbrelloPos: UInt8 = 0, PanbrelloDepth: UInt8 = 0, PanbrelloSpeed: UInt8 = 0, LastPanbrelloData: UInt8 = 0
     var LastVibratoData: Int8 = 0, LastTremoloData: Int8 = 0
     var ChnPan: UInt8 = 0, ChnVol: UInt8 = 0
@@ -135,6 +151,11 @@ struct IT2HostChannel {
     var VibratoWaveform: UInt8 = 0, VibratoPos: UInt8 = 0, VibratoDepth: UInt8 = 0, VibratoSpeed: UInt8 = 0
     var TremoloWaveform: UInt8 = 0, TremoloPos: UInt8 = 0, TremoloDepth: UInt8 = 0, TremoloSpeed: UInt8 = 0
     var MiscEfxData = InlineArray<16, UInt8>(repeating: 0)
+    /// For an MPTM file only: where its last note was started from within its sample, for a note
+    /// that asks to start where the last did.
+    var OffsetMemory: UInt32 = 0
+    /// For an MPTM file only: true if its filter lets the high through. See `IT2Instrument`.
+    var HighPass = false
 }
 
 /// Where an envelope has got to.
@@ -150,6 +171,15 @@ struct IT2SlaveChannel {
     /// Which of the mixer's routines plays it.
     var MixOffset: UInt32 = 0
     var LoopMode: UInt8 = 0, LoopDirection: UInt8 = 0
+    /// For an MPTM file only, whose S9F plays a sample backwards: nought for a voice left to play as
+    /// its sample says, `BACKWARDS_ONCE` for one playing backwards to its start, where it ends, and
+    /// `BACKWARDS_LOOP` for one whose loop is being gone round the other way.
+    var Backwards: UInt8 = 0
+    /// For an MPTM file only: what a volume envelope was at, of 256, when its key was let go and it
+    /// went on from its "release node"; less than nought until then, and for ever in any other file.
+    var ReleaseLevel: Int16 = -1
+    /// For an MPTM file only: its channel's `HighPass` as it was when the note began.
+    var HighPass = false
     var LeftVolume: Int32 = 0, RightVolume: Int32 = 0
     var Frequency: Int32 = 0, FrequencySet: Int32 = 0
     var AutoVibratoPos: UInt8 = 0

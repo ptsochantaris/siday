@@ -411,7 +411,10 @@ the unpacking of their compressed samples (`IT2Module.swift`), and the sound dri
 Impulse Tracker's own, which mixes in floating point through a windowed sinc and has the resonant
 filter (`IT2Mixer.swift`). Impulse Tracker's own drivers, and it2play's reading of S3M and MMCMP
 files, are not ported. (`IT2ForeignModule.swift`, `GDMFile.swift` and `PTMFile.swift` in that folder are
-not from it2play: they are what gives that replayer two other kinds of file to play, and are below.)
+not from it2play: they are what gives that replayer two other kinds of file to play, and are below.
+Nor are `MPTMFile.swift` and `IT2OpenMPT.swift`, which give it OpenMPT's own kind of file, and what
+that kind of file asks of it that an IT file does not; they are below too, and the few lines in the
+replayer and its mixer that are there for them say so where they stand.)
 
 ```
 BSD 3-Clause License
@@ -456,6 +459,28 @@ licences set out above, under "libxmp and OpenMPT — reading MTM, DTM and AMF f
 licence, Copyright (C) 1996-2026 Claudio Matsuoka and Hipolito Carraro Jr, and OpenMPT's the BSD
 3-Clause licence, Copyright (c) 2004-2026 OpenMPT Project Developers and Contributors and Copyright
 (c) 1997-2003 Olivier Lapicque.
+
+## OpenMPT — MPTM files
+
+`Sources/SidayKit/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,
+as OpenMPT (https://openmpt.org) reads it: the parts of the file that are OpenMPT's own and no IT
+file has (`soundlib/Load_it.cpp`, `ITTools.cpp`, `InstrumentExtensions.cpp`, `ModSequence.cpp`,
+`pattern.cpp`, `patternContainer.cpp`, `tuning.cpp`, `tuningCollection.cpp` and
+`common/serialization_utils.cpp`), and what OpenMPT changes in a file that an older version of
+itself saved (`soundlib/UpgradeModule.cpp`). `IT2OpenMPT.swift`, and the lines in `IT2Player.swift`,
+`IT2Effects.swift` and `IT2Mixer.swift` that are marked as an MPTM file's, are what Impulse Tracker's
+replayer has been given so as to play such a file, and follow OpenMPT's player in what they do: its
+three ways of keeping time, its swing and its tempos that are fractions (`CSoundFile::GetTickDuration`
+in `soundlib/Sndfile.cpp`); its values that go on into the rows below a command, its delayed and cut
+note, its offsets by cue point, and its sample played backwards (`soundlib/Snd_fx.cpp`); the point an
+envelope goes to when a key is let go, the filter that lets the high through, and where a channel to
+one side is put (`soundlib/Sndmix.cpp`, `Snd_flt.cpp`). Changed from the original: carried over from
+C++ to Swift; none of OpenMPT's own player is here, only these parts of it set into another
+replayer, which plays the rest as Impulse Tracker would; a file's plug-ins, its FM instruments and
+its tunings are not played at all; and of the many ways of playing that a file can ask OpenMPT for,
+one by one, only the few that the source names are followed. Used under the BSD 3-Clause licence set
+out below, under "OpenMPT — FM Tracker files": Copyright (c) 2004-2026 OpenMPT Project Developers and
+Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
 
 ## Nuked OPL3 — the FM chip of the AdLib and Sound Blaster cards
 

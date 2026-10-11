@@ -4,6 +4,10 @@
 // Derived from it2play, Copyright (c) Olav Sørensen, used under the BSD 3-Clause licence
 // (see THIRD-PARTY.md): his C port of the replayer of Impulse Tracker 2.15, made from that tracker's
 // own assembly. The names are the original's, as in the other ports here.
+//
+// The few lines that are there for an MPTM file, and say so, are derived from OpenMPT, Copyright (c)
+// 2004-2026 OpenMPT Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque,
+// used under the BSD 3-Clause licence (see THIRD-PARTY.md, and `IT2OpenMPT.swift`).
 
 typealias IT2HostPointer = UnsafeMutablePointer<IT2HostChannel>
 typealias IT2SlavePointer = UnsafeMutablePointer<IT2SlaveChannel>
@@ -54,16 +58,39 @@ final class IT2Player {
     private let visited: UnsafeMutablePointer<Bool>
     /// True when the tick just run began a row that has been played before.
     private(set) var cameRound = false
-    private(set) var ordersPlayed = [Bool](repeating: false, count: 256)
+    private(set) var ordersPlayed: [Bool]
     var playedNote = false
     private let firstPlayedBy: UnsafeMutablePointer<UInt8>?
     private let songNumber: UInt8
     private var metEarlierSong = false
     private(set) var ledIntoEarlierSong = false
     private var offTheEnd = false
-    /// How many rows the table of who played a row first has: 256 for each of 256 places. (A
-    /// pattern can be longer; its rows beyond that are not kept track of.)
-    static let rowsInAll = 256 * 256
+    /// How many places the list of patterns has, and how many rows of each are kept track of in the
+    /// table of who played a row first: 256 of each, but for an MPTM file, whose list can be longer
+    /// and whose patterns have up to 1024 rows. (A pattern of any other file can be longer than
+    /// 256; its rows beyond that are not kept track of.)
+    private let orderRoom: Int, rowRoom: Int
+    /// How many rows the table of who played a row first has for a module.
+    static func rowsInAll(of module: IT2Module) -> Int {
+        module.Orders.count * (module.openMPT == nil ? 256 : 1024)
+    }
+
+    // An MPTM file's: see `OpenMPTSong`. For any other module they are what Impulse Tracker has
+    // and no more: a list of patterns that is one song and starts again from its top, rows that a
+    // byte can count, and a tempo of 255 at the most.
+    /// Where in the list the song being played starts, which is where its Bxx counts from, and
+    /// where it goes on from when it comes to its end.
+    private(set) var orderBase = 0
+    private var restartOrder = 0
+    /// What a row that a channel keeps is held to.
+    let rowMask: UInt16
+    let tempoCeiling: Int16
+    /// The part of the tempo that is less than one, in ten-thousandths.
+    var TempoFraction: UInt32 = 0
+    /// The row that the loop last gone back round goes back to, less one, as `ProcessRow` is kept.
+    var LoopBackRow: UInt16 = 0
+    /// What has been cut off the ticks so far to make each a whole number of frames.
+    var TickRemainder = 0.0
 
     private var MIDIInterpretState: UInt8 = 0, MIDIInterpretType: UInt8 = 0
     private var RandSeed1: UInt16 = 0x1234, RandSeed2: UInt16 = 0x5678
@@ -289,6 +316,9 @@ final class IT2Player {
         sc.pointee.PitchEnvState.Tick = 0
         sc.pointee.PitchEnvState.NextTick = 0
         sc.pointee.PitchEnvState.CurNode = 0
+        sc.pointee.ReleaseLevel = -1
+        if ins.FilterMode != IT2Instrument.sameFilter { hc.pointee.HighPass = ins.FilterMode == 1 }
+        sc.pointee.HighPass = hc.pointee.HighPass
 
         sc.pointee.Flags = SF_CHAN_ON + SF_RECALC_PAN + SF_RECALC_VOL + SF_FREQ_CHANGE + SF_NEW_NOTE
         if ins.VolEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_VOLENV_ON }
@@ -351,6 +381,7 @@ final class IT2Player {
         sc.pointee.PanEnvState.Value &= 0xFFFF
         sc.pointee.PitchEnvState.Value &= 0xFFFF
         sc.pointee.LoopDirection = DIR_FORWARDS
+        sc.pointee.Backwards = 0
         guard let s, s.Length != 0, s.Flags & SMPF_ASSOCIATED_WITH_HEADER != 0 else {
             sc.pointee.Flags = SF_NOTE_STOP
             hcFlags &= ~UInt8(HF_CHAN_ON)
@@ -369,6 +400,7 @@ final class IT2Player {
         sc.pointee.AutoVibratoDepth = 0
         sc.pointee.AutoVibratoPos = 0
         sc.pointee.LoopDirection = DIR_FORWARDS
+        sc.pointee.Backwards = 0
 
         InitPlayInstrument(hc, sc, ins)
 
@@ -618,6 +650,8 @@ final class IT2Player {
     /// Which loop a voice's sample is in now: its loop, the loop it holds while its key is down, or none.
     func GetLoopInformation(_ sc: IT2SlavePointer) {
         guard let s = sc.pointee.SmpPtr else { return }
+        // (A voice that an MPTM file is playing backwards has been given a loop for the purpose.)
+        if sc.pointee.Backwards != 0 { return }
         var LoopMode: UInt8
         var LoopBegin: Int32, LoopEnd: Int32
         let LoopEnabled = s.Flags & (SMPF_USE_LOOP | SMPF_USE_SUSTAINLOOP) != 0
@@ -765,7 +799,18 @@ final class IT2Player {
                     hc.pointee.MIDIProg = ins.MIDIProg
                     hc.pointee.Smp = midiSample
                 }
-                if hc.pointee.Smp == 0 { return }
+                if hc.pointee.Smp == 0 {
+                    // A note its instrument has no sample for: Impulse Tracker does nothing with the
+                    // row at all. OpenMPT, until its version 1.32, left the note out and did the rest.
+                    if module.openMPT?.unmappedNotesKeepCommands == true {
+                        let mask = hc.pointee.NotePackMask
+                        hc.pointee.NotePackMask &= 0xCC
+                        InitCommand(hc)
+                        hc.pointee.NotePackMask = mask
+                        hc.pointee.Flags |= HF_ROW_UPDATED
+                    }
+                    return
+                }
             }
         }
 
@@ -836,12 +881,20 @@ final class IT2Player {
         for i in 0 ..< MAX_HOST_CHANNELS {
             hChn[i].Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX | HF_ROW_UPDATED | HF_UPDATE_VOLEFX_IF_CHAN_ON)
         }
+        let orderBefore = ProcessOrder, breakBefore = BreakRow
         while true {
             let chnNum = patternByte()
             if chnNum == 0 { break }
             let hc = readChannel(chnNum, command: true)
             if hc.pointee.NotePackMask & 1 != 0, hc.pointee.RawNote < 120 { playedNote = true }
             PreInitCommand(hc)
+        }
+        // In Impulse Tracker a jump on the row of a loop that goes back ends the loop. In OpenMPT,
+        // unless a file asks for Impulse Tracker's way, the loop goes back and the jump is forgotten.
+        if PatternLooping, module.openMPT?.loopsOutlastJumps == true {
+            ProcessOrder = orderBefore
+            BreakRow = breakBefore
+            ProcessRow = LoopBackRow
         }
     }
 
@@ -863,8 +916,11 @@ final class IT2Player {
                     var looked = 0
                     while true {
                         looked += 1
-                        if NewOrder >= 256 {
-                            NewOrder = 0
+                        if NewOrder >= orderRoom {
+                            // Beyond the list is its top; or, for an MPTM file, where its song
+                            // starts again, unless this is the place before the first, which a jump
+                            // to the top and the start of playing both come by way of.
+                            NewOrder = NewOrder == 0x1_0000 ? 0 : restartOrder
                             continue
                         }
                         let NewPattern = module.Orders[NewOrder]
@@ -872,7 +928,7 @@ final class IT2Player {
                             if NewPattern == 0xFE, looked < 1024 { // a mark between songs, passed over
                                 NewOrder += 1
                             } else {
-                                NewOrder = 0
+                                NewOrder = restartOrder
                                 StopSong = true
                                 offTheEnd = true
                                 if looked >= 1024 { // a list with no pattern in it
@@ -951,8 +1007,9 @@ final class IT2Player {
             envState.Value &+= envState.Delta
             return false
         }
-        func magnitude(_ node: Int) -> Int32 { node < 25 ? Int32(env.Magnitude[node]) : 0 }
-        func tick(_ node: Int) -> Int16 { node < 25 ? Int16(bitPattern: env.Tick[node]) : 0 }
+        // (Twenty-five points, but for an MPTM file's envelope, which can have more.)
+        func magnitude(_ node: Int) -> Int32 { node < env.Magnitude.count ? Int32(env.Magnitude[node]) : 0 }
+        func tick(_ node: Int) -> Int16 { node < env.Tick.count ? Int16(bitPattern: env.Tick[node]) : 0 }
         let current = Int(envState.CurNode & 0x00FF)
         envState.Value = magnitude(current) << 16
         let NextNode = current + 1
@@ -996,6 +1053,10 @@ final class IT2Player {
 
             if sc.pointee.Ins != 0xFF, let ins = sc.pointee.InsPtr {
                 let SustainReleased = sc.pointee.Flags & SF_NOTE_OFF != 0
+                // (An MPTM file's volume envelope may have somewhere to go when the key is let go.)
+                if SustainReleased, ins.VolEnv.ReleaseNode != IT2Envelope.noReleaseNode, sc.pointee.ReleaseLevel < 0, sc.pointee.Flags & SF_VOLENV_ON != 0 {
+                    openMPTRelease(sc, ins.VolEnv)
+                }
 
                 // The envelope that is for pitch, or for the filter.
                 if sc.pointee.Flags & SF_PITCHENV_ON != 0, UpdateEnvelope(ins.PitchEnv, &sc.pointee.PitchEnvState, SustainReleased) {
@@ -1071,7 +1132,14 @@ final class IT2Player {
                 sc.pointee.Flags |= SF_UPDATE_MIXERVOL
                 var volume = UInt16(truncatingIfNeeded: (Int(sc.pointee.Vol) * Int(sc.pointee.ChnVol) * Int(sc.pointee.FadeOut)) >> 7)
                 volume = UInt16(truncatingIfNeeded: (Int(volume) * Int(sc.pointee.SmpVol)) >> 7)
-                volume = UInt16(truncatingIfNeeded: (Int(volume) * Int(UInt16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.VolEnvState.Value) >> 8))) >> 14)
+                if sc.pointee.ReleaseLevel >= 0, sc.pointee.Ins != 0xFF, let ins = sc.pointee.InsPtr {
+                    // An MPTM file's envelope that has gone on from its release node, which can make
+                    // a note louder than it was, though no louder than a note can be.
+                    let level = openMPTReleasedLevel(sc, ins.VolEnv, Int(UInt16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.VolEnvState.Value) >> 8)))
+                    volume = UInt16(min(32768, (Int(volume) * level) >> 14))
+                } else {
+                    volume = UInt16(truncatingIfNeeded: (Int(volume) * Int(UInt16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.VolEnvState.Value) >> 8))) >> 14)
+                }
                 volume = UInt16(truncatingIfNeeded: (Int(volume) * Int(GlobalVolume)) >> 7)
                 sc.pointee.FinalVol32768 = volume
                 sc.pointee.FinalVol128 = UInt8(truncatingIfNeeded: volume >> 8)
@@ -1142,6 +1210,8 @@ final class IT2Player {
             }
         }
         UpdateData()
+        // (An MPTM file keeps time in OpenMPT's ways, and its tick is as long as they make it.)
+        if let song = module.openMPT { mixer.setTickFrames(openMPTTickFrames(song)) }
         if module.Flags & ITF_INSTR_MODE != 0 { UpdateInstruments() } else { UpdateSamples() }
     }
 
@@ -1158,14 +1228,19 @@ final class IT2Player {
         sampleLimit = module.sampleLimit
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
+        orderRoom = module.Orders.count
+        rowRoom = module.openMPT == nil ? 256 : 1024
+        rowMask = module.openMPT == nil ? 0xFF : 0xFFFF
+        tempoCeiling = Int16(module.openMPT?.tempoCeiling ?? 255)
+        ordersPlayed = [Bool](repeating: false, count: module.Orders.count)
         hChn = .allocate(capacity: MAX_HOST_CHANNELS)
         hChn.initialize(repeating: IT2HostChannel(), count: MAX_HOST_CHANNELS)
         sChn = .allocate(capacity: MAX_SLAVE_CHANNELS)
         sChn.initialize(repeating: IT2SlaveChannel(), count: MAX_SLAVE_CHANNELS)
         FilterParameters = .allocate(capacity: 128)
         FilterParameters.initialize(repeating: 0, count: 128)
-        visited = .allocate(capacity: Self.rowsInAll)
-        visited.initialize(repeating: false, count: Self.rowsInAll)
+        visited = .allocate(capacity: Self.rowsInAll(of: module))
+        visited.initialize(repeating: false, count: Self.rowsInAll(of: module))
         mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters)
 
         if let own = module.midiData {
@@ -1208,8 +1283,21 @@ final class IT2Player {
                 FilterParameters[64 + i] = 0
             }
         }
-        CurrentOrder = UInt16(order & 0xFF)
-        ProcessOrder = UInt16(truncatingIfNeeded: (order & 0xFF) - 1)
+        // (A place in the list is one of Impulse Tracker's 256, but in an MPTM file, whose list can
+        // be longer and can be several songs' lists end to end, each with a speed and a tempo of its own.)
+        var order = order & 0xFF
+        if let song = module.openMPT {
+            order = max(0, min(module.Orders.count - 1, order))
+            let sequence = song.sequence(at: order)
+            orderBase = sequence.first
+            restartOrder = sequence.restart
+            ProcessTick = UInt16(sequence.speed)
+            CurrentSpeed = UInt16(sequence.speed)
+            Tempo = UInt16(sequence.tempo / OpenMPTSong.tempoUnit)
+            TempoFraction = UInt32(sequence.tempo % OpenMPTSong.tempoUnit)
+        }
+        CurrentOrder = UInt16(order)
+        ProcessOrder = UInt16(truncatingIfNeeded: order - 1)
         ProcessRow = 0xFFFE
         Playing = true
     }
@@ -1235,18 +1323,18 @@ final class IT2Player {
             offTheEnd = false
             StopSong = false
         }
-        guard CurrentRow < 256 else { return }
-        let at = Int(CurrentOrder & 0xFF) << 8 | Int(CurrentRow)
+        guard Int(CurrentRow) < rowRoom, Int(CurrentOrder) < orderRoom else { return }
+        let at = Int(CurrentOrder) * rowRoom + Int(CurrentRow)
         if visited[at] {
             cameRound = true
-            visited.update(repeating: false, count: Self.rowsInAll)
+            visited.update(repeating: false, count: orderRoom * rowRoom)
         } else if let firstPlayedBy, !metEarlierSong, firstPlayedBy[at] < songNumber {
             metEarlierSong = true
             if offTheEnd {
                 // Off the end of the list and round to its top, which a song before this one played:
                 // this one is over.
                 cameRound = true
-                visited.update(repeating: false, count: Self.rowsInAll)
+                visited.update(repeating: false, count: orderRoom * rowRoom)
             } else {
                 // On into what a song before this one played, which from here is part of this one.
                 ledIntoEarlierSong = true
@@ -1254,14 +1342,15 @@ final class IT2Player {
         }
         visited[at] = true
         if let firstPlayedBy, firstPlayedBy[at] == ModuleSongs.unplayed { firstPlayedBy[at] = songNumber }
-        ordersPlayed[Int(CurrentOrder & 0xFF)] = true
+        ordersPlayed[Int(CurrentOrder)] = true
     }
 
     /// A loop inside a pattern goes back: the rows it plays again have not been played for the last time.
     func rowsWillRepeat(from row: Int) {
+        guard Int(CurrentOrder) < orderRoom else { return }
         var again = max(0, row)
-        while again <= min(255, Int(CurrentRow)) {
-            visited[Int(CurrentOrder & 0xFF) << 8 | again] = false
+        while again <= min(rowRoom - 1, Int(CurrentRow)) {
+            visited[Int(CurrentOrder) * rowRoom + again] = false
             again += 1
         }
     }

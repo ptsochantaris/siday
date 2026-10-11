@@ -365,6 +365,52 @@ public struct ModuleListing: Sendable {
         public var pan = -1
         /// A sum over its sound, taken as sixteen bits whatever it is.
         public var sum: UInt32 = 0
+        /// The rest of what an IT file says of it: how loud it is beside the others, the loop it
+        /// holds while its key is down, whether it has two sides, and the vibrato it has of its own.
+        public var globalVolume = 0
+        public var sustainStart = 0, sustainEnd = 0
+        public var sustains = false, sustainBackAndForth = false, stereo = false, hasSound = false
+        public var vibratoSpeed = 0, vibratoDepth = 0, vibratoRate = 0, vibratoWave = 0
+    }
+
+    /// An envelope: its points as ticks and levels, and the numbers of the points its loops run between.
+    public struct Envelope: Sendable {
+        public var flags = 0
+        public var ticks: [Int] = [], levels: [Int] = []
+        public var loopStart = 0, loopEnd = 0, sustainStart = 0, sustainEnd = 0
+        /// The point it goes to when its key is let go; 255 for none.
+        public var releaseNode = 255
+    }
+
+    public struct Instrument: Sendable {
+        public var newNoteAction = 0, duplicateCheck = 0, duplicateAction = 0
+        public var fadeOut = 0, globalVolume = 0, pan = 0
+        public var pitchPanSeparation = 0, pitchPanCentre = 0, randomVolume = 0, randomPan = 0
+        public var cutoff = 0, resonance = 0, midiChannel = 0
+        /// For each of 120 notes, the note it plays and the sample it plays it on.
+        public var notes: [Int] = [], samples: [Int] = []
+        public var volume = Envelope(), panning = Envelope(), pitch = Envelope()
+    }
+
+    /// One of an MPTM file's songs: where it lies in `orders`, and what it starts with.
+    public struct Sequence: Sendable {
+        public var first = 0, count = 0, restart = 0, speed = 0
+        /// In ten-thousandths.
+        public var tempo = 0
+    }
+
+    /// What an MPTM file says of its song beyond what an IT file says.
+    public struct OpenMPT: Sendable {
+        /// 0 for Impulse Tracker's way of keeping time, 1 for OpenMPT's "alternative", 2 for its "modern".
+        public var tempoMode = 0
+        public var rowsPerBeat = 0, tempoCeiling = 0
+        public var swing: [Int] = []
+        public var softPanning = false
+        public var sequences: [Sequence] = []
+        /// For each pattern the file has: its number, its rows, its own rows to a beat and its own swing.
+        public var patterns: [(number: Int, rows: Int, rowsPerBeat: Int, swing: [Int])] = []
+        /// The values that go on into the rows below their command: where, the value, and how many rows.
+        public var longValues: [(pattern: Int, row: Int, channel: Int, value: Int, rows: Int)] = []
     }
 
     /// One channel's part of a row: -1 for whatever it does not have.
@@ -379,11 +425,19 @@ public struct ModuleListing: Sendable {
     public var pans: [Int] = []
     public var samples: [Sample] = []
     public var cells: [Cell] = []
+    public var mixVolume = 0
+    /// Each of 64 channels' volume, of 64.
+    public var channelVolumes: [Int] = []
+    public var instruments: [Instrument] = []
+    /// Nil for any module but an MPTM file's.
+    public var openMPT: OpenMPT?
 }
 
 /// What the replayer was doing on one tick of a tune, as numbers: for the same purpose.
 public struct ModuleTick: Sendable {
     public var order = 0, row = 0, tempo = 0, speed = 0
+    /// How long the tick lasted, in frames.
+    public var frames = 0
     /// For each of the first 32 channels: the rate its sample is played at, in samples a second
     /// (nought for a channel that is silent), its volume of 128, and its place from 0 to 64.
     public var rates: [Int] = [], volumes: [Int] = [], pans: [Int] = []
@@ -393,9 +447,13 @@ public extension ITRenderer {
     /// For comparing with libxmp, and set by nothing else: see `IT2ForeignModule.rate`.
     nonisolated(unsafe) static var roundsRatesAsLibxmp = false
 
-    /// The tune's first song played in silence from its start for so many seconds, tick by tick.
-    func ticks(seconds: Double) -> [ModuleTick] {
-        let player = IT2Player(module)
+    /// Where in the file's list of patterns each of the tune's songs starts.
+    var songStarts: [Int] { songList.map { $0.start } }
+
+    /// One of the tune's songs (the first, unless another is asked for) played in silence from its
+    /// start for so many seconds, tick by tick.
+    func ticks(seconds: Double, song: Int = 0) -> [ModuleTick] {
+        let player = IT2Player(module, order: song > 0 && song < songList.count ? songList[song].start : 0)
         var ticks: [ModuleTick] = []
         var frames = 0
         while Double(frames) < seconds * Double(outputSampleRate) {
@@ -413,8 +471,9 @@ public extension ITRenderer {
                 tick.volumes.append(sounding ? Int(sc.pointee.FinalVol128) : 0)
                 tick.pans.append(Int(sc.pointee.FinalPan))
             }
+            tick.frames = player.mixer.skipTick()
             ticks.append(tick)
-            frames += player.mixer.skipTick()
+            frames += tick.frames
         }
         return ticks
     }
@@ -439,6 +498,17 @@ public extension ITRenderer {
             sample.volume = Int(s.Vol)
             sample.rate = Int(s.C5Speed)
             sample.pan = s.DefPan & 0x80 != 0 ? Int(s.DefPan & 0x7F) : -1
+            sample.globalVolume = Int(s.GlobVol)
+            sample.sustains = s.Flags & SMPF_USE_SUSTAINLOOP != 0
+            sample.sustainBackAndForth = s.Flags & SMPF_SUSTAINLOOP_PINGPONG != 0
+            sample.sustainStart = Int(s.SustainLoopBegin)
+            sample.sustainEnd = Int(s.SustainLoopEnd)
+            sample.stereo = s.Flags & SMPF_STEREO != 0 && s.DataR != nil
+            sample.hasSound = s.Data != nil
+            sample.vibratoSpeed = Int(s.AutoVibratoSpeed)
+            sample.vibratoDepth = Int(s.AutoVibratoDepth)
+            sample.vibratoRate = Int(s.AutoVibratoRate)
+            sample.vibratoWave = Int(s.AutoVibratoWaveform)
             if let data = s.Data {
                 var sum: UInt32 = 0
                 for k in 0 ..< Int(s.Length) {
@@ -487,6 +557,69 @@ public extension ITRenderer {
                 }
                 listing.cells.append(cell)
             }
+        }
+        listing.mixVolume = Int(module.MixVolume)
+        listing.channelVolumes = module.ChnlVol.map { Int($0) }
+        func envelope(_ from: IT2Envelope) -> ModuleListing.Envelope {
+            var envelope = ModuleListing.Envelope()
+            envelope.flags = Int(from.Flags)
+            let count = min(Int(from.Num), from.Tick.count, from.Magnitude.count)
+            envelope.ticks = from.Tick[..<count].map { Int($0) }
+            envelope.levels = from.Magnitude[..<count].map { Int($0) }
+            envelope.loopStart = Int(from.LoopBegin)
+            envelope.loopEnd = Int(from.LoopEnd)
+            envelope.sustainStart = Int(from.SustainLoopBegin)
+            envelope.sustainEnd = Int(from.SustainLoopEnd)
+            envelope.releaseNode = Int(from.ReleaseNode)
+            return envelope
+        }
+        for index in 0 ..< (module.usesInstruments ? module.InsNum : 0) {
+            let from = module.instrument(index)
+            var instrument = ModuleListing.Instrument()
+            instrument.newNoteAction = Int(from.NNA)
+            instrument.duplicateCheck = Int(from.DCT)
+            instrument.duplicateAction = Int(from.DCA)
+            instrument.fadeOut = Int(from.FadeOut)
+            instrument.globalVolume = Int(from.GlobVol)
+            instrument.pan = Int(from.DefPan)
+            instrument.pitchPanSeparation = Int(Int8(bitPattern: from.PitchPanSep))
+            instrument.pitchPanCentre = Int(from.PitchPanCenter)
+            instrument.randomVolume = Int(from.RandVol)
+            instrument.randomPan = Int(from.RandPan)
+            instrument.cutoff = Int(from.FilterCutoff)
+            instrument.resonance = Int(from.FilterResonance)
+            instrument.midiChannel = Int(from.MIDIChn)
+            instrument.notes = from.SmpNoteTable.map { Int($0 & 0xFF) }
+            instrument.samples = from.SmpNoteTable.map { Int($0 >> 8) }
+            instrument.volume = envelope(from.VolEnv)
+            instrument.panning = envelope(from.PanEnv)
+            instrument.pitch = envelope(from.PitchEnv)
+            listing.instruments.append(instrument)
+        }
+        if let song = module.openMPT {
+            var openMPT = ModuleListing.OpenMPT()
+            openMPT.tempoMode = song.tempoMode == .modern ? 2 : song.tempoMode == .alternative ? 1 : 0
+            openMPT.rowsPerBeat = song.rowsPerBeat
+            openMPT.tempoCeiling = song.tempoCeiling
+            openMPT.swing = song.swing.map { Int($0) }
+            openMPT.softPanning = song.softPanning
+            for from in song.sequences {
+                var sequence = ModuleListing.Sequence()
+                sequence.first = from.first
+                sequence.count = from.count
+                sequence.restart = from.restart
+                sequence.speed = Int(from.speed)
+                sequence.tempo = from.tempo
+                openMPT.sequences.append(sequence)
+            }
+            for index in 0 ..< module.patternLimit where module.hasPattern(index) {
+                openMPT.patterns.append((index, Int(module.pattern(index).rows), index < song.patternRowsPerBeat.count ? Int(song.patternRowsPerBeat[index]) : 0,
+                                         index < song.patternSwing.count ? song.patternSwing[index].map { Int($0) } : []))
+            }
+            for (place, long) in song.longValues {
+                openMPT.longValues.append((place >> 16, (place >> 6) & 0x3FF, place & 63, long & 0xFF_FFFF, long >> 24))
+            }
+            listing.openMPT = openMPT
         }
         return listing
     }

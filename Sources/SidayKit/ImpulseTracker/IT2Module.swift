@@ -116,6 +116,10 @@ final class IT2Module {
     /// here means what they do to the filter. Nil for a file without them, which gets the tracker's.
     let midiData: [UInt8]?
 
+    /// What an MPTM file says of its song that an IT file has no way to say: see `MPTMFile`. Nil for
+    /// every other module, and nothing in the replayer that is for it is reached then.
+    let openMPT: OpenMPTSong?
+
     private let instruments: [IT2Instrument]
     private let samples: [IT2Sample]
     private let patterns: [[UInt8]?]
@@ -174,7 +178,10 @@ final class IT2Module {
     /// read again from the bytes that follow. The rows after them are empty.
     static let EmptyPattern: [UInt8] = [64, 0, 64, 0, 0, 0, 0, 0] + [UInt8](repeating: 0, count: 64)
 
-    init(_ data: [UInt8]) throws {
+    /// - Parameter openMPT: true for the IT file that an MPTM file begins with, whose list of
+    ///   patterns may be longer than Impulse Tracker's and is kept whole elsewhere in the file: as
+    ///   much of it as there is room for is read here, and `MPTMFile` puts the whole in its place.
+    init(_ data: [UInt8], openMPT: Bool = false) throws {
         // A file packed with MMCMP says so with "ziRCONia", whatever kind of module is inside.
         if data.count >= 8, data.starts(with: [0x7A, 0x69, 0x52, 0x43, 0x4F, 0x4E, 0x69, 0x61]) {
             throw TuneError.unsupported("a module packed with MMCMP")
@@ -212,7 +219,7 @@ final class IT2Module {
         ChnlVol = Array(data[volAt ..< volAt + MAX_HOST_CHANNELS])
 
         // (Impulse Tracker does not look; it has no need to, having written the file.)
-        guard OrdNum <= Self.MAX_ORDERS + 1, InsNum <= Self.mostInstruments, SmpNum <= Self.mostSamples, PatNum <= Self.mostPatterns else {
+        guard OrdNum <= Self.MAX_ORDERS + 1 || openMPT, InsNum <= Self.mostInstruments, SmpNum <= Self.mostSamples, PatNum <= Self.mostPatterns else {
             throw TuneError.unsupported("an IT file with more orders, instruments, samples or patterns than an IT file can number")
         }
         self.OrdNum = OrdNum
@@ -234,7 +241,7 @@ final class IT2Module {
         let OrdersToLoad = OrdNum - 1
         if OrdersToLoad > 0 {
             let at = try m.bytes(OrdersToLoad)
-            for i in 0 ..< OrdersToLoad { Orders[i] = data[at + i] }
+            for i in 0 ..< min(OrdersToLoad, Self.MAX_ORDERS) { Orders[i] = data[at + i] }
         }
         self.Orders = Orders
 
@@ -445,6 +452,7 @@ final class IT2Module {
         }
         self.patterns = patterns
         self.rows = rows
+        self.openMPT = nil
     }
 
     /// A module that did not come from an IT file: one of another tracker's, set down as Impulse
@@ -487,6 +495,45 @@ final class IT2Module {
         samplesNotRead = []
         cutShort = Shortfall.CutShort()
         extras = ModPlugExtras()
+        openMPT = nil
+    }
+
+    /// An MPTM file's module: what its IT file's part gave, which `file` is, with the list of
+    /// patterns, the patterns and the settings that OpenMPT's own part of the file has in their
+    /// place (see `MPTMFile`). The list may be longer than Impulse Tracker's 256 places. The samples
+    /// and instruments are `file`'s own, changed where they stand before this is made.
+    init(openMPT song: OpenMPTSong, file: IT2Module, madeWith: String, orders: [UInt8], mixVolume: UInt8, speed: UInt8, tempo: UInt8,
+         channelPans: [UInt8], channelVolumes: [UInt8], patterns: [[UInt8]?], rows: [UInt16]) {
+        title = file.title
+        self.madeWith = madeWith
+        var Orders = [UInt8](repeating: 255, count: max(Self.MAX_ORDERS, orders.count + 1))
+        for i in orders.indices { Orders[i] = orders[i] }
+        self.Orders = Orders
+        OrdNum = file.OrdNum
+        InsNum = file.InsNum
+        SmpNum = file.SmpNum
+        PatNum = file.PatNum
+        Cwtv = file.Cwtv
+        Cmwt = file.Cmwt
+        // (OpenMPT has no mono, and nothing that narrows the space between the speakers.)
+        Flags = file.Flags | ITF_STEREO
+        Special = file.Special
+        GlobalVol = min(file.GlobalVol, 128)
+        MixVolume = mixVolume
+        InitialSpeed = speed
+        InitialTempo = max(tempo, Self.MIN_BPM)
+        PanSep = 128
+        ChnlPan = channelPans
+        ChnlVol = channelVolumes
+        midiData = file.midiData
+        instruments = file.instruments
+        samples = file.samples
+        self.patterns = patterns
+        self.rows = rows
+        openMPT = song
+        samplesNotRead = file.samplesNotRead
+        cutShort = file.cutShort
+        extras = file.extras
     }
 
     // MARK: Instruments

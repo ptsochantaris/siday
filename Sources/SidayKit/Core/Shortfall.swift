@@ -21,11 +21,14 @@ enum Shortfall {
     /// The start of a sentence about some of what a file has: "One of its " or "Three of its ",
     /// and then whichever of the two endings goes with the count.
     static func some(_ count: Int, one: String, many: String) -> String {
-        var words = number(count)
-        if let first = words.utf8.first, first >= 0x61, first <= 0x7A {
-            words = String(decoding: [first - 0x20] + Array(words.utf8.dropFirst()), as: UTF8.self)
-        }
-        return words + " of its " + (count == 1 ? one : many)
+        capitalNumber(count) + " of its " + (count == 1 ? one : many)
+    }
+
+    /// A count in words with a capital, to begin a sentence with.
+    static func capitalNumber(_ count: Int) -> String {
+        let words = number(count)
+        guard let first = words.utf8.first, first >= 0x61, first <= 0x7A else { return words }
+        return String(decoding: [first - 0x20] + Array(words.utf8.dropFirst()), as: UTF8.self)
     }
 
     /// Things named one after another, as they are written in a sentence.

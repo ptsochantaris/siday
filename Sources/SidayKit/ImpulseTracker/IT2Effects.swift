@@ -4,6 +4,10 @@
 // Derived from it2play, Copyright (c) Olav Sørensen, used under the BSD 3-Clause licence
 // (see THIRD-PARTY.md): his C port of the replayer of Impulse Tracker 2.15, made from that tracker's
 // own assembly. The names are the original's, as in the other ports here.
+//
+// The few lines that are there for an MPTM file, and say so, are derived from OpenMPT, Copyright (c)
+// 2004-2026 OpenMPT Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque,
+// used under the BSD 3-Clause licence (see THIRD-PARTY.md, and `IT2OpenMPT.swift`).
 
 /// How fast the volume column's Gx slides, for x from 1 to 9.
 private let SlideTable: [UInt8] = [1, 4, 8, 16, 32, 64, 96, 128, 255]
@@ -45,6 +49,7 @@ extension IT2Player {
         case 24: InitCommandX(hc)
         case 25: InitCommandY(hc)
         case 26: InitCommandZ(hc)
+        case 29 where module.openMPT != nil: InitCommandDelayCut(hc) // an MPTM file's :xy
         default: InitNoCommand(hc)
         }
     }
@@ -70,6 +75,7 @@ extension IT2Player {
         case 20: CommandT(hc)
         case 23: CommandW(hc)
         case 25: CommandY(hc)
+        case 29 where module.openMPT != nil: CommandDelayCut(hc)
         default: NoCommand(hc)
         }
     }
@@ -180,6 +186,8 @@ extension IT2Player {
     /// pitch share E, F and G's.
     private func InitVolumeEffect(_ hc: IT2HostPointer) {
         if hc.pointee.NotePackMask & 0x44 == 0 { return }
+        // (In an MPTM file these are where in its sample a note starts, and nothing more.)
+        if module.openMPT != nil, hc.pointee.RawVolColumn >= 213, hc.pointee.RawVolColumn <= 232 { return }
 
         var volCmd = Int(hc.pointee.RawVolColumn & 0x7F) - 65
         if volCmd < 0 { return }
@@ -437,6 +445,7 @@ extension IT2Player {
         hcFlags &= ~UInt8(HF_PITCH_SLIDE_ONGOING)
 
         InitNoCommand11(hc, sc, hcFlags)
+        if module.openMPT != nil { OpenMPTVolumeColumnOffset(hc, sc) }
     }
 
     // MARK: Effects as their row is read
@@ -453,7 +462,9 @@ extension IT2Player {
 
     /// Bxx: on to another place in the list of patterns.
     func InitCommandB(_ hc: IT2HostPointer) {
-        ProcessOrder = UInt16(hc.pointee.CmdVal) &- 1
+        // (From the top of the list; but in an MPTM file from the top of the song's own, and by a
+        // number that may be more than a byte holds.)
+        ProcessOrder = UInt16(truncatingIfNeeded: orderBase + openMPTLongValue(hc)) &- 1
         ProcessRow = 0xFFFE
 
         InitNoCommand(hc)
@@ -462,7 +473,7 @@ extension IT2Player {
     /// Cxx: on to a row of the next pattern.
     func InitCommandC(_ hc: IT2HostPointer) {
         if !PatternLooping {
-            BreakRow = UInt16(hc.pointee.CmdVal)
+            BreakRow = UInt16(truncatingIfNeeded: openMPTLongValue(hc))
             ProcessRow = 0xFFFE
         }
 
@@ -545,6 +556,7 @@ extension IT2Player {
         sc.pointee.Smp = sample
         sc.pointee.AutoVibratoDepth = 0
         sc.pointee.LoopDirection = 0
+        sc.pointee.Backwards = 0
         sc.pointee.Frac32 = 0
         sc.pointee.Frac64 = 0
         sc.pointee.HasLooped = false
@@ -837,6 +849,10 @@ extension IT2Player {
         InitNoCommand(hc)
 
         if hc.pointee.NotePackMask & 0x33 != 0, hc.pointee.TranslatedNote < 120, hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr {
+            if module.openMPT != nil { // whose offsets are longer, and are reckoned with the volume column's
+                OpenMPTCommandO(hc, sc)
+                return
+            }
             var offset = ((Int32(hc.pointee.HighSmpOffs) << 8) | Int32(hc.pointee.EfxMem_O)) << 8
             if offset >= sc.pointee.LoopEnd {
                 // Past the end: ignored, or with "old effects" the very end.
@@ -1018,7 +1034,18 @@ extension IT2Player {
 
         case 0x90: // S91: surround
             InitNoCommand(hc)
-            if val == 1 { InitCommandX2(hc, PAN_SURROUND) }
+            if val == 1 {
+                InitCommandX2(hc, PAN_SURROUND)
+            } else if module.openMPT != nil {
+                // An MPTM file's S90 takes it away again: OpenMPT's surround is a channel in the
+                // middle with one side turned over, and the middle is where it is left. Its S9E and
+                // S9F play a sample forwards and backwards.
+                if val == 0 {
+                    if hc.pointee.ChnPan == PAN_SURROUND { InitCommandX2(hc, 32) }
+                } else {
+                    OpenMPTCommandS9(hc, val)
+                }
+            }
 
         case 0xA0: // the high part of Oxx's offset
             hc.pointee.HighSmpOffs = val
@@ -1027,22 +1054,25 @@ extension IT2Player {
         case 0xB0: // a loop within the pattern: SB0 marks its start, SBx goes back to it x times
             InitNoCommand(hc)
 
+            // (The row is kept in a byte, as Impulse Tracker keeps it, but for an MPTM file: see `rowMask`.)
             if val == 0 {
-                hc.pointee.PattLoopStartRow = UInt8(truncatingIfNeeded: CurrentRow)
+                hc.pointee.PattLoopStartRow = CurrentRow & rowMask
             } else if hc.pointee.PattLoopCount == 0 {
                 hc.pointee.PattLoopCount = val
-                ProcessRow = UInt16(hc.pointee.PattLoopStartRow) &- 1
+                ProcessRow = hc.pointee.PattLoopStartRow &- 1
+                LoopBackRow = ProcessRow
                 PatternLooping = true
                 rowsWillRepeat(from: Int(hc.pointee.PattLoopStartRow))
             } else {
                 hc.pointee.PattLoopCount &-= 1
                 if hc.pointee.PattLoopCount != 0 {
-                    ProcessRow = UInt16(hc.pointee.PattLoopStartRow) &- 1
+                    ProcessRow = hc.pointee.PattLoopStartRow &- 1
+                    LoopBackRow = ProcessRow
                     PatternLooping = true
                     rowsWillRepeat(from: Int(hc.pointee.PattLoopStartRow))
                 } else {
                     // Done: a later loop without a start of its own starts after this one.
-                    hc.pointee.PattLoopStartRow = UInt8(truncatingIfNeeded: CurrentRow) &+ 1
+                    hc.pointee.PattLoopStartRow = ((CurrentRow & rowMask) &+ 1) & rowMask
                 }
             }
 
@@ -1075,8 +1105,14 @@ extension IT2Player {
         if CmdVal == 0 { CmdVal = hc.pointee.EfxMem_T }
         hc.pointee.EfxMem_T = CmdVal
 
-        if CmdVal >= 0x20 {
+        // (An MPTM file's tempo can be higher than a byte holds, and is a whole number once set.)
+        let long = module.openMPT == nil ? 0 : openMPTLongValue(hc)
+        if CmdVal >= 0x20 || long > 0xFF {
             Tempo = UInt16(CmdVal)
+            if module.openMPT != nil {
+                Tempo = UInt16(min(Int(tempoCeiling), long > 0xFF ? long : Int(CmdVal)))
+                TempoFraction = 0
+            }
             Music_InitTempo()
             InitNoCommand(hc)
         } else {
@@ -1510,10 +1546,19 @@ extension IT2Player {
 
         if hc.pointee.EfxMem_T & 0xF0 != 0 {
             NewTempo = Int16(truncatingIfNeeded: Int(NewTempo) + Int(hc.pointee.EfxMem_T) - 16)
-            if NewTempo > 255 { NewTempo = 255 }
+            if NewTempo > tempoCeiling { // 255, but for an MPTM file that says otherwise
+                NewTempo = tempoCeiling
+                TempoFraction = 0
+            }
         } else {
             NewTempo = Int16(truncatingIfNeeded: Int(NewTempo) - Int(hc.pointee.EfxMem_T))
-            if NewTempo < 32 { NewTempo = 32 }
+            if NewTempo < 32 {
+                NewTempo = 32
+                TempoFraction = 0
+            } else if NewTempo > tempoCeiling { // an MPTM file's, which can start higher than it may be slid to
+                NewTempo = tempoCeiling
+                TempoFraction = 0
+            }
         }
 
         Tempo = UInt16(bitPattern: NewTempo)

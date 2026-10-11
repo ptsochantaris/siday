@@ -6,6 +6,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case vtx, ym, ay, sid, sndh, mod, med, ahx, hvl, xm, s3m, it, cmf, rol, fmt
     case mtm, dtm, amf
     case gdm, ptm
+    case mptm
     case sfx, okt
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
@@ -97,6 +98,10 @@ public enum TuneLoader {
             return try GDMFile.renderer(data, options: options)
         case .ptm:
             return try PTMFile.renderer(data, options: options)
+        case .mptm:
+            // OpenMPT's own kind of file, which is an IT file with more after it: Impulse Tracker's
+            // replayer plays as much of it as it has been taught to.
+            return try MPTMFile.renderer(data, options: options)
         case .cmf:
             return try CMFTune.renderer(data)
         case .rol:
