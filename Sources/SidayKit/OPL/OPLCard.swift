@@ -97,14 +97,14 @@ final class OPLCard {
         return made
     }
 
-    /// How loud each of the chip's nine voices has been since this was last asked.
-    func takeLevels(into levels: UnsafeMutablePointer<Float>) {
-        chip.pointee.takeLevels(into: levels, count: 9)
+    /// How loud each of the first so many of the chip's nine voices has been since this was last asked.
+    func takeLevels(into levels: UnsafeMutablePointer<Float>, voices: Int) {
+        chip.pointee.takeLevels(into: levels, count: voices)
     }
 
     /// What each of them is playing.
-    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
-        chip.pointee.takeNotes(pitches: pitches, struck: struck, count: 9)
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>, voices: Int) {
+        chip.pointee.takeNotes(pitches: pitches, struck: struck, count: voices)
     }
 
     /// One sample as the chip makes it, at the chip's own rate and before anything else is done to

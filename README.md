@@ -32,7 +32,7 @@ siday ~/Music/chiptunes --shuffle
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer |
 | PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
 | Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
-| AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player |
+| AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player. FMT, the songs of Davey W Taylor's FM Tracker, a tracker of eight voices for the AdLib card, played as OpenMPT reads them |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
 A few RSID tunes that depend on exact video or serial-port timing will not play correctly.
@@ -259,6 +259,7 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
   number>` rebuilds the table in `Sources/SidayKit/SIDFile/SongLengthsData.swift`, and
   `SIDAY_SONGLENGTHS=<that file> swift test` checks every entry of it against the file.
 - A CMF or ROL file ends where its music does, with a second after it for the last notes to die away.
+- An FMT file went round for ever in its tracker. It is played through once, and given the same second.
 - Only a tune that is still playing at that point is faded out, since it would go on repeating. One
   that has come to rest there has an ending of its own and simply stops. An AY file that asks for a
   particular fade gets that one.
@@ -611,6 +612,26 @@ gives it, as AdLib's driver had it, and tunes with more were written to that.
 Both are heard as the card put them out: one channel, through the filter on the card's board that
 kept its output centred, and brought from the chip's rate to the player's through a windowed sinc.
 
+An FMT file is a song from FM Tracker, a small tracker for the AdLib card by Davey W Taylor: eight
+voices, each with one instrument that it keeps for the whole song, and patterns that hold nothing but
+notes and the places where notes stop. Neither the tracker nor any account of its files by the man
+who wrote it has turned up. What there is, is OpenMPT's loader for them, by someone who wrote songs
+in the tracker, and the player here goes by that and by what OpenMPT then does with the song. It
+reads a file as OpenMPT reads it. It gives each note to the chip as the numbers OpenMPT gives it,
+which puts middle C at 257 Hz, a third of a semitone under concert pitch, and leaves the very
+highest notes as much as a sixth of a semitone out, OpenMPT's sums being in whole numbers. And it
+stops a note as OpenMPT stops one in these files, by giving the voice a pitch of nothing, so that
+the note is cut off where another tracker's would die away. The clock is the PC's timer left alone,
+18.2 ticks a second and kept in step with the chip as a CMF file's is, and each place in the song
+has a delay of one to eight ticks to the row. The tracker waited out the delay before it played a
+row, not after, so the last row of every pattern goes at the next pattern's speed, and songs were
+written to that. How the tracker itself sounded is not known beyond this. For the four songs to hand
+and for files made to try every note, every register the player sets, and the tick it sets it on, is
+what OpenMPT sets. What is heard can be held to OpenMPT only by measure, since OpenMPT plays FM on
+another emulation of the chip: tick by tick the two are as loud as each other to within a third of
+a decibel for half the ticks and one decibel for nine in ten, and their spectra keep close.
+It is heard as the other two are, and turned down by half, by measure, to be as loud as they are.
+
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
 gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
@@ -685,6 +706,10 @@ What it is made from:
   OPLx, and AdLib's sound driver as OPLx, Stas'M and Jepael have it there from the code AdLib gave
   programmers. Visual Composer, the ROL format and the first bank of instruments are AdLib's; the
   instruments built into the player are theirs and those of the many people who added to that bank.
+- [OpenMPT](https://openmpt.org/) by its developers, after Olivier Lapicque's ModPlug Tracker: all
+  that is written down of FMT files is its loader for them, and how such a song is played here
+  (its pitches, and how a note is stopped) is how OpenMPT plays it. FM Tracker and the FMT format
+  are Davey W Taylor's.
 - The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
   by Axe of Delight.
 - [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.

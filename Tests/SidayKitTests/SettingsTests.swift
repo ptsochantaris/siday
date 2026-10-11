@@ -86,6 +86,7 @@ import Testing
     #expect(Setting.amiga.changes(.mod) && Setting.amiga.changes(.ahx) && Setting.amigaSeparation.changes(.ahx) && !Setting.amiga.changes(.xm) && !Setting.amiga.changes(.hvl))
     #expect(!Setting.amiga.changes(.mtm) && !Setting.amigaSeparation.changes(.dtm) && !Setting.clock.changes(.amf) && !Setting.chip.changes(.dtm))
     #expect(Setting.s3mCard.changes(.s3m) && !Setting.s3mCard.changes(.it))
+    #expect(!Setting.chip.changes(.fmt) && !Setting.clock.changes(.fmt) && Setting.loops.changes(.fmt))
     #expect(Setting.loops.changes(.sid) && Setting.fade.changes(.mod))
     #expect(!Setting.songs.changes(.sid) && !Setting.shortestSong.changes(.sid))
 }

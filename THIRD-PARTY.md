@@ -703,6 +703,51 @@ the eleven numbers the chip is given for it, packed by `Scripts/pack-bank.swift`
 None of them states a licence. Ad Lib Inc. went bankrupt in 1992; the banks were made to be shared
 among the people who wrote and played these tunes, and have been ever since.
 
+## OpenMPT — FM Tracker files
+
+`Sources/SidayKit/OPL/FMTTune.swift` reads the songs of Davey W Taylor's FM Tracker as OpenMPT's
+loader for them does (`soundlib/Load_fmt.cpp`), and plays them as OpenMPT plays the module that
+loader makes: the sums by which a note becomes the chip's octave and number
+(`CSoundFile::GetPeriodFromNote` and `GetFreqFromPeriod` in `Snd_fx.cpp`, `CSoundFile::ReadNote` in
+`Sndmix.cpp`, `OPL::Frequency` in `OPL.cpp`), and how a note is struck and stopped. Changed from the
+original: carried over from C++ to Swift, as a small player of its own with nothing of OpenMPT's
+module player around it; the clock is the PC's timer at its real rate, where OpenMPT's tempo is 18.2
+ticks a second; a song ends where OpenMPT goes round; and the chip it plays on is this project's and
+not the one OpenMPT comes with.
+
+- Copyright (c) 2004-2026, OpenMPT Project Developers and Contributors
+- Copyright (c) 1997-2003, Olivier Lapicque
+- BSD 3-Clause License, below
+- Source: https://github.com/OpenMPT/openmpt
+
+```
+Copyright (c) 2004-2026, OpenMPT Project Developers and Contributors
+Copyright (c) 1997-2003, Olivier Lapicque
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the OpenMPT project nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ## Ice 2.4 — unpacking SNDH files
 
 `Sources/SidayKit/Atari/ICE.swift` follows the "Ice 2_40 depacker, universal C version" that Hans

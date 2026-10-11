@@ -235,7 +235,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .loops, .fade, .defaultTime, .maxTime: true
         case .chip, .clock, .frameRate:
             switch format {
-            case .sid, .sndh, .mod, .med, .ahx, .hvl, .xm, .s3m, .it, .cmf, .rol: false
+            case .sid, .sndh, .mod, .med, .ahx, .hvl, .xm, .s3m, .it, .cmf, .rol, .fmt: false
             case .mtm, .dtm, .amf: false
             default: true
             }

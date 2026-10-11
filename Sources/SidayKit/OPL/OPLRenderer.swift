@@ -10,6 +10,19 @@ protocol OPLTune: AnyObject {
     func tick() -> Int?
     /// What is to be said of the tune once it has been played through: the player and its voices.
     var detail: String { get }
+    /// How many of the chip's voices tunes of the kind have, the first so many.
+    static var voices: Int { get }
+    /// What the chip's sound is multiplied by for tunes of the kind.
+    static var gain: Float { get }
+}
+
+extension OPLTune {
+    /// All nine, unless the kind of tune says otherwise.
+    static var voices: Int { 9 }
+    /// Set by measure, so that a tune on the FM chip is about as loud as the others it is played among,
+    /// while the loudest of them still fit. The chip itself is quiet: it leaves room for nine voices at
+    /// full level, and few tunes come near that.
+    static var gain: Float { 1.4 }
 }
 
 /// Plays a tune for the FM chip: keeps the tune's clock and the chip in step, and brings what the
@@ -35,10 +48,6 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
     private static var fadeLength: Int { 9943 }
     /// An hour, in the chip's samples: a tune that has not ended by then is taken to have no end.
     private static var longest: Int { 3600 * 49716 }
-    /// Set by measure, so that a tune on the FM chip is about as loud as the others it is played among,
-    /// while the loudest of them still fit. The chip itself is quiet: it leaves room for nine voices at
-    /// full level, and few tunes come near that.
-    private static var gain: Float { 1.4 }
 
     init(info: TuneInfo, start: @escaping (OPLCard?) -> Tune) {
         self.start = start
@@ -93,19 +102,19 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
                 (buffer + done * 2).update(repeating: 0, count: (frames - done) * 2)
                 return
             }
-            done += card.render(into: buffer + done * 2, frames: frames - done, gain: Self.gain, fade: tail == nil ? 0 : Self.fadeLength)
+            done += card.render(into: buffer + done * 2, frames: frames - done, gain: Tune.gain, fade: tail == nil ? 0 : Self.fadeLength)
         }
     }
 
-    /// The chip's nine voices. Where a tune has drums, they are the last three.
-    var channelCount: Int { 9 }
+    /// The chip's voices: nine, for most kinds of tune. Where a tune has drums, they are the last three.
+    var channelCount: Int { Tune.voices }
 
     func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
-        card.takeLevels(into: levels)
+        card.takeLevels(into: levels, voices: Tune.voices)
     }
 
     func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
-        card.takeNotes(pitches: pitches, struck: struck)
+        card.takeNotes(pitches: pitches, struck: struck, voices: Tune.voices)
     }
 
     /// The tune from its start as the chip makes it: its own samples at its own rate, one channel,

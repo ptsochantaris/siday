@@ -3,7 +3,7 @@
 
 public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
-    case vtx, ym, ay, sid, sndh, mod, med, ahx, hvl, xm, s3m, it, cmf, rol
+    case vtx, ym, ay, sid, sndh, mod, med, ahx, hvl, xm, s3m, it, cmf, rol, fmt
     case mtm, dtm, amf
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
@@ -89,6 +89,8 @@ public enum TuneLoader {
             return try CMFTune.renderer(data)
         case .rol:
             return try ROLTune.renderer(data, banks: options.adLibBanks)
+        case .fmt:
+            return try FMTTune.renderer(data)
         }
     }
 
