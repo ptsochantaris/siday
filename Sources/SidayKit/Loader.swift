@@ -4,6 +4,7 @@
 public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
     case vtx, ym, ay, sid, sndh, mod, med, ahx, hvl, xm, s3m, it, cmf, rol
+    case mtm, dtm, amf
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED.
@@ -73,6 +74,13 @@ public enum TuneLoader {
             return try AHXRenderer(data, options: options)
         case .xm:
             return try XMRenderer(data, options: options)
+        case .mtm:
+            // Three trackers' modules that FastTracker 2's replayer plays, each read into its shape.
+            return XMRenderer(try FT2Module(MTMFile.read(data)), options: options)
+        case .dtm:
+            return XMRenderer(try FT2Module(DTMFile.read(data)), options: options)
+        case .amf:
+            return XMRenderer(try FT2Module(AMFFile.read(data)), options: options)
         case .s3m:
             return try S3MRenderer(data, options: options)
         case .it:

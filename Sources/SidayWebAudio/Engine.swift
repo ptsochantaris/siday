@@ -79,6 +79,7 @@ final class WebPlayer {
             self.format = format
             layout = format == .sid || format == .sndh || format == .cmf || format == .rol ? nil : options.stereo
             ownStereo = format == .mod || format == .med || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
+                || format == .mtm || format == .dtm || format == .amf
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

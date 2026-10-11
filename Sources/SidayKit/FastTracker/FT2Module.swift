@@ -17,6 +17,16 @@ final class FT2Module {
     private(set) var instr = [FT2Instrument?](repeating: nil, count: 129)
     /// True for a MOD file.
     private(set) var isMOD = false
+    /// For a module of another tracker's (see `ForeignModule`): what kind of file it was, what
+    /// made it, and how loud that kind is to be played.
+    private(set) var foreign: (format: String, tracker: String, loudness: Float)?
+    /// Where each channel is between the speakers, from 0 on the left to 255 on the right, in a
+    /// module whose channels have places. Empty for FastTracker's own, where it is each sample
+    /// that has one.
+    private(set) var channelPanning: [UInt8] = []
+    /// True for a module in which setting the speed puts the tempo back to 125, and setting the
+    /// tempo puts the speed back to 6: MultiTracker's way, and no other tracker's.
+    private(set) var speedAndTempoUndoEachOther = false
     private var allocations: [UnsafeMutableRawPointer] = []
 
     deinit {
@@ -135,6 +145,60 @@ final class FT2Module {
                     loadInstrSample(&f, i)
                 }
             }
+        }
+        if song.repS > song.len { song.repS = 0 }
+        song.timer = 1
+        setPosition(0)
+        upDateInstrs()
+    }
+
+    /// A module of another tracker's, already read into what FastTracker can play.
+    init(_ module: ForeignModule) throws {
+        allocateInstr(0).samp[0].vol = 0
+        guard module.channels >= 1, module.channels <= Self.mostChannels else {
+            throw TuneError.unsupported("\(module.aFile) of \(module.channels) channels")
+        }
+        guard !module.orders.isEmpty else { throw TuneError.malformed("\(module.aFile) with no order to play its patterns in") }
+        guard module.patterns.count <= 256, module.samples.count <= 128 else {
+            throw TuneError.unsupported("\(module.aFile) with more patterns or instruments than FastTracker 2 has room for")
+        }
+        foreign = (module.format, module.tracker, module.loudness)
+        title = module.title
+        channelPanning = (0 ..< module.channels).map { $0 < module.panning.count ? module.panning[$0] : 128 }
+        speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
+        song.antChn = UInt8(module.channels)
+        song.len = UInt16(min(256, module.orders.count))
+        song.repS = UInt16(max(0, min(255, module.restart)))
+        for i in 0 ..< Int(song.len) { song.songTab[i] = module.orders[i] }
+        song.antInstrs = UInt16(module.samples.count)
+        song.tempo = UInt16(max(1, min(255, module.speed)))
+        song.speed = UInt16(max(1, min(255, module.tempo)))
+
+        for (i, pattern) in module.patterns.enumerated() {
+            let rows = max(1, min(256, pattern.rows))
+            pattLens[i] = UInt16(rows)
+            guard pattern.notes.count >= rows * module.channels else { continue }
+            patt[i] = pattern.notes
+            if patternEmpty(i) { patt[i] = nil }
+        }
+        for (i, sample) in module.samples.enumerated() {
+            guard let sample, !sample.data.isEmpty else { continue }
+            let ins = allocateInstr(i + 1)
+            // Lengths are in bytes, and a sample of sixteen bits has a whole number of pairs of them.
+            let whole = sample.sixteenBit ? ~1 : ~0
+            let length = sample.data.count & whole
+            let repeatStart = max(0, min(length, sample.repeatStart & whole))
+            let repeatLength = max(0, min(length - repeatStart, sample.repeatLength & whole))
+            ins.antSamp = 1
+            ins.samp[0].len = Int32(length)
+            ins.samp[0].repS = Int32(repeatStart)
+            ins.samp[0].repL = Int32(repeatLength)
+            ins.samp[0].typ = (repeatLength > 0 ? 1 : 0) | (sample.sixteenBit ? 16 : 0)
+            ins.samp[0].vol = min(64, sample.volume)
+            ins.samp[0].fine = sample.fineTune
+            ins.samp[0].relTon = sample.relativeNote
+            ins.samp[0].rate = sample.rate == 8363 ? 0 : UInt32(max(0, min(ForeignModule.highestRate, sample.rate)))
+            ins.samp[0].pek = sampleMemory(sample.data)
         }
         if song.repS > song.len { song.repS = 0 }
         song.timer = 1

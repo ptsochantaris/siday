@@ -32,6 +32,12 @@ final class FT2Player {
     let stm: [FT2Channel]
     let instr: [FT2Instrument?]
     let linearFrqTab: Bool
+    /// Three things that are so only for a module of another tracker's, read into FastTracker's shape:
+    /// see `FT2Module.channelPanning`, `FT2Module.speedAndTempoUndoEachOther` and `FT2Module.foreign`.
+    let panningIsOfChannels: Bool
+    let speedAndTempoUndoEachOther: Bool
+    /// True if a loop inside a pattern is not to leave the next pattern starting on its row.
+    let loopsLeaveNothingBehind: Bool
 
     static let rate: Int32 = Int32(outputSampleRate)
     /// FastTracker's "amplification", as it comes.
@@ -93,6 +99,9 @@ final class FT2Player {
         }
         instr = module.instr
         linearFrqTab = module.linearFrqTab
+        panningIsOfChannels = !module.channelPanning.isEmpty
+        speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
+        loopsLeaveNothingBehind = module.foreign != nil
         let placeholder = module.instr[0]!
         let channels = max(1, Int(module.song.antChn))
         stm = (0 ..< channels).map { FT2Channel(nr: $0, instrument: placeholder) }
@@ -121,6 +130,14 @@ final class FT2Player {
             ch.oldPan = 128
             ch.outPan = 128
             ch.finalPan = 128
+        }
+        // A module of another tracker's has each channel in a place of its own from the start.
+        for (i, pan) in module.channelPanning.prefix(channels).enumerated() {
+            CI[i * 2].SPan = pan
+            CI[i * 2 + 1].SPan = pan
+            stm[i].oldPan = pan
+            stm[i].outPan = pan
+            stm[i].finalPan = pan
         }
         song.globVol = 64
         song.timer = 1
@@ -249,7 +266,14 @@ final class FT2Player {
                 v.pointee.SVol = UInt8(truncatingIfNeeded: vol)
             }
             if status & (IS_Vol + IS_Pan) != 0 { updateVolume(v, status & IS_QuickVol != 0 ? quickVolSizeVal : speedVal) }
-            if status & IS_Period != 0 { v.pointee.SFrq = getFrequenceValue(ch.finalPeriod) }
+            if status & IS_Period != 0 {
+                v.pointee.SFrq = getFrequenceValue(ch.finalPeriod)
+                // A sample with a rate of its own is played that much faster or slower than one of
+                // FastTracker's, whatever the note and whatever is done to the note.
+                if ch.sampleRate != 0 {
+                    v.pointee.SFrq = UInt32(truncatingIfNeeded: min(0x7FFF_FFFF, UInt64(v.pointee.SFrq) &* UInt64(ch.sampleRate) / 8363))
+                }
+            }
         }
     }
 

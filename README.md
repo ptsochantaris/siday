@@ -31,6 +31,7 @@ siday ~/Music/chiptunes --shuffle
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer |
 | PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
+| Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
 | AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
@@ -42,6 +43,8 @@ MED4) is not read, and a MED module's notes for a MIDI synthesiser are not heard
 FastTracker 2 would play it, which is not always what the tracker that wrote it meant. An IT file
 packed with MMCMP is not unpacked, and a sample that ModPlug Tracker packed its own way (ADPCM) is
 silent. A ROL file that names an instrument no bank has is played with that instrument silent.
+A DTM file saved by Digital Home Studio, Digital Tracker's successor, is not read, and nor is the
+other kind of file called AMF, ASYLUM's.
 
 ## In a browser
 
@@ -474,6 +477,41 @@ channels and only an even number; files from later trackers have any number, and
 way. A tune ends where it would play a row it has played before. `siday --raw file.raw tune.xm` writes
 what ft2play writes to a file, and the two agree to the sample.
 
+An MTM, a DTM or an AMF file is not played as its own tracker played it. MultiTracker was a tracker
+for the PC and the Gravis Ultrasound, Digital Tracker one for the Atari Falcon, and AMF is what
+DSMI, the engine of the Dual Module Player and of many games, made of any module before it played
+it. This player has no replayer of any of them. But all three are ProTracker's kind of module
+with more channels, and FastTracker 2 plays that already, for a MOD file of eight channels. So each has a loader that reads it into the shape FastTracker holds a
+module in, and FastTracker's replayer and mixer play it: with its slides, its vibrato, its arpeggio
+and its way of placing a sound between the speakers, which are near to these trackers' own and are
+not theirs. The replayer does four things for such a file that it does for no XM or MOD file. A
+channel has a place between the speakers and stays where a command puts it, where FastTracker gives
+a place to each sample. A sample plays at the rate it says it was recorded at, whatever the note
+and whatever slides it. Setting the speed in an MTM file puts the tempo back to 125, and setting
+the tempo puts the speed back to 6, which was MultiTracker's way and no other player's; a file that
+sets both on one row was written for those other players, and is played their way. And a loop
+inside a pattern does not leave the next pattern starting part of the way down, a mistake of
+FastTracker's that its own files were written around and these were not. What FastTracker cannot be
+told is left out: Digital Tracker 2.04 set how loud a channel was on each side, of which the place
+between the speakers is kept and the loudness is not; a stereo sample in a DTM file is made one
+sound; DSMI's surround sound is the middle.
+
+There is no player of these trackers to be right against, so the check is against two that have
+read these files for decades, libxmp and OpenMPT, and the loaders are written from theirs. What
+each loader made of every file to hand, 394 MTM files, 92 DTM and 38 AMF, was set beside what
+libxmp made of it, note by note and sample by sample (`SIDAY_FT2_LISTING=1 siday --raw /dev/null
+tune.mtm` writes it out): 170 files come out the same, and every difference in the rest is one of
+a few that were meant, each said in its loader, most of them where the two players read a file
+differently and one had to be followed. Then a minute of every tune was played by all three, and
+the loudness over time and the spectrograms compared. By that measure nothing plays a wrong note,
+a wrong sample or at a wrong speed; the tunes furthest from both the others are those that lean on
+what one player does and another does not, a sweep from speaker to speaker or two long samples
+kept in step by their pitch. The pitch of a note is FastTracker's, from the Amiga's table of
+periods, which is OpenMPT's too, to within two cents; libxmp works a note out afresh and is four
+cents away on some, and plays an MTM file a sixth of a semitone lower besides, at the rate of a
+European Amiga. And each kind is as loud as XM files are, by measure: the middle one of the files
+of the kind is the middle one of 200 XM files.
+
 An S3M file is played as Scream Tracker 3 played it, and that depended on the sound card. With a
 Gravis Ultrasound the card did the mixing: the tracker told it, a tick at a time, what each voice was
 to play, and the card played them smoothly, each in its place between the speakers, sliding from one
@@ -626,6 +664,11 @@ What it is made from:
 - [ft2play](https://github.com/8bitbubsy/ft2play), also by Olav Sørensen: FastTracker 2's replayer
   and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
   Huss and Magnus Högdahl, of Triton.
+- [libxmp](https://github.com/libxmp/libxmp) by Claudio Matsuoka, Hipolito Carraro Jr and those who
+  have kept it since, and [OpenMPT](https://openmpt.org) by Olivier Lapicque and the OpenMPT
+  developers: how an MTM, a DTM and an AMF file are read, and what the trackers that wrote them meant
+  by their commands, version by version. MultiTracker is by Daniel Goldstein of Renaissance, Digital
+  Tracker is Softjee's, and DSMI is by Otto Chrons.
 - [st3play](https://github.com/8bitbubsy/st3play), also by Olav Sørensen: Scream Tracker 3's replayer,
   its Gravis Ultrasound driver, Sound Blaster mixing and AdLib driver, and the emulation of the GUS's
   sound chip. Scream Tracker 3 is by Sami Tammilehto (Psi) of Future Crew.

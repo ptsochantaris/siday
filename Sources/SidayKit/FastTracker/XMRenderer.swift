@@ -10,6 +10,10 @@
 /// An XM has its instruments where its composer placed them between the speakers, and that is how it
 /// is heard here unless the sound is asked for in mono. FastTracker plays a MOD file's channels all
 /// in the middle.
+///
+/// And it plays the modules of three trackers that this player has no replayer for, MultiTracker,
+/// Digital Tracker and DSMI, each read by a loader of its own into what FastTracker plays (see
+/// `ForeignModule`). Those have a place between the speakers for each channel, and keep it.
 public final class XMRenderer: Renderer, ReferenceComparable {
     public private(set) var info: TuneInfo
     public private(set) var loopCount = 0
@@ -34,13 +38,21 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     /// From the mixer's whole numbers to the player's range, at a level set by ear and by measure so
     /// that a module is about as loud as the chip tunes it is played among.
     private static let gain: Float = 1.0 / (256.0 * 32768.0) * 1.6
+    /// And for the tune being played, which for another tracker's kind of module is that with the
+    /// kind's own loudness in it (see `ForeignModule.loudness`).
+    private let level: Float
 
-    public init(_ data: [UInt8], options: LoadOptions) throws {
-        module = try FT2Module(data)
+    public convenience init(_ data: [UInt8], options: LoadOptions) throws {
+        self.init(try FT2Module(data), options: options)
+    }
+
+    init(_ module: FT2Module, options: LoadOptions) {
+        self.module = module
         mono = options.stereo == .mono
-        var info = TuneInfo(format: module.isMOD ? "MOD" : "XM")
+        level = Self.gain * (module.foreign?.loudness ?? 1)
+        var info = TuneInfo(format: module.foreign?.format ?? (module.isMOD ? "MOD" : "XM"))
         info.title = module.title
-        info.detail = "FastTracker 2, \(module.song.antChn) channels"
+        info.detail = "\(module.foreign?.tracker ?? "FastTracker 2"), \(module.song.antChn) channels"
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is.
@@ -103,14 +115,14 @@ public final class XMRenderer: Renderer, ReferenceComparable {
             let source = player.mixBuffer + tickPosition * 2
             if mono {
                 for i in 0 ..< count {
-                    let both = (Float(source[i * 2]) + Float(source[i * 2 + 1])) * (Self.gain * 0.5)
+                    let both = (Float(source[i * 2]) + Float(source[i * 2 + 1])) * (level * 0.5)
                     buffer[(done + i) * 2] = both
                     buffer[(done + i) * 2 + 1] = both
                 }
             } else {
                 for i in 0 ..< count {
-                    buffer[(done + i) * 2] = Float(source[i * 2]) * Self.gain
-                    buffer[(done + i) * 2 + 1] = Float(source[i * 2 + 1]) * Self.gain
+                    buffer[(done + i) * 2] = Float(source[i * 2]) * level
+                    buffer[(done + i) * 2 + 1] = Float(source[i * 2 + 1]) * level
                 }
             }
             tickPosition += count
@@ -145,5 +157,43 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         }
         restart()
         return output
+    }
+
+    /// What was read from the file, as text: for setting beside what another player made of it.
+    /// A line for the song, its order and where its channels are; a line for each instrument (its
+    /// length and its repeat in bytes, its bits, volume, fine tuning, the semitones its notes are
+    /// moved by, its rate, and two sums of its bytes, of all of them and of all but the last two;
+    /// and for each pattern a line for each note that is not empty: pattern, row and channel, then
+    /// the note, the instrument, the volume column, and the command and its value.
+    public func listing() -> String {
+        let song = module.song
+        var text = "format \(info.format)\n"
+        text += "channels \(song.antChn) speed \(song.tempo) bpm \(song.speed) length \(song.len) restart \(song.repS)"
+        text += " undo \(module.speedAndTempoUndoEachOther ? 1 : 0) linear \(module.linearFrqTab ? 1 : 0)\n"
+        text += "orders" + song.songTab[0 ..< Int(song.len)].map { " \($0)" }.joined() + "\n"
+        text += "pans" + module.channelPanning.map { " \($0)" }.joined() + "\n"
+        for (number, instrument) in module.instr.enumerated() where number > 0 {
+            guard let instrument, let bytes = instrument.samp[0].pek else { continue }
+            let s = instrument.samp[0]
+            var sum: UInt32 = 0, shorter: UInt32 = 0
+            // (The sample after the end of a repeat is left out: FastTracker has written over it,
+            // for the mixer to find the start of the repeat there.)
+            let changed = s.typ & 3 != 0 ? Int(s.repS + s.repL) ..< Int(s.repS + s.repL) + (s.typ & 16 != 0 ? 2 : 1) : -1 ..< -1
+            for i in 0 ..< Int(s.len) {
+                if i == Int(s.len) - 2 { shorter = sum }
+                sum = sum &* 31 &+ (changed.contains(i) ? 0 : UInt32(bytes.load(fromByteOffset: i, as: UInt8.self)))
+            }
+            text += "ins \(number) len \(s.len) reps \(s.repS) repl \(s.repL) loop \(s.typ & 3) bits \(s.typ & 16 != 0 ? 16 : 8) vol \(s.vol)"
+            text += " fine \(s.fine) rel \(s.relTon) rate \(s.rate == 0 ? 8363 : s.rate) pan \(s.pan) sum \(sum) \(shorter)\n"
+        }
+        let channels = Int(song.antChn)
+        for (number, pattern) in module.patt.enumerated() {
+            guard let pattern else { continue }
+            text += "pattern \(number) rows \(module.pattLens[number])\n"
+            for (i, note) in pattern.enumerated() where note.ton != 0 || note.instr != 0 || note.vol != 0 || note.effTyp != 0 || note.eff != 0 {
+                text += "\(number) \(i / channels) \(i % channels): t\(note.ton) i\(note.instr) v\(note.vol) e\(note.effTyp):\(note.eff)\n"
+            }
+        }
+        return text
     }
 }

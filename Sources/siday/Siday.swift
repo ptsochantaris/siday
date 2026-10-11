@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, AHX, HVL, XM, S3M and IT modules and CMF and ROL tunes for the AdLib from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, AHX, HVL, XM, S3M, IT, MTM, DTM and AMF modules and CMF and ROL tunes for the AdLib from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -288,6 +288,12 @@ struct Siday: ParsableCommand {
             // right. To compare the sound of the two, a MED file is played with them wrong.
             if ProcessInfo.processInfo.environment["SIDAY_MED_AS_OCTAMED"] != nil, let med = renderer as? MEDRenderer {
                 med.makesOctaMEDsMistakes = true
+            }
+            // What FastTracker's replayer was given to play, as text: an XM or a MOD file as it reads
+            // them, or an MTM, a DTM or an AMF file as this player's loaders made of them.
+            if ProcessInfo.processInfo.environment["SIDAY_FT2_LISTING"] != nil, let module = renderer as? XMRenderer {
+                FileHandle.standardOutput.write(Data(module.listing().utf8))
+                return
             }
             if let trace = ProcessInfo.processInfo.environment["SIDAY_MED_TRACE"], let med = renderer as? MEDRenderer {
                 // What the player tells the sound chip, a line a tick, for setting beside what

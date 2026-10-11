@@ -19,6 +19,10 @@ struct FT2Sample {
     /// The sample's data, eight bits or sixteen to a sample, with room after it for the mixer to read
     /// one sample past the end.
     var pek: UnsafeMutableRawPointer?
+    /// For a sample from another tracker's file, which says how fast each of its samples was
+    /// recorded: the rate it is played at where FastTracker would play one of its own at 8363 Hz.
+    /// Nought for FastTracker's own, which have no such thing.
+    var rate: UInt32 = 0
 }
 
 /// An instrument: up to sixteen samples, which notes play which of them, and what is done to a note
@@ -83,6 +87,8 @@ final class FT2Channel {
     var envVCnt: UInt16 = 0, envVAmp: UInt16 = 0, envPCnt: UInt16 = 0, envPAmp: UInt16 = 0, eVibAmp: UInt16 = 0, eVibSweep: UInt16 = 0
     var fadeOutAmp: UInt16 = 0, fadeOutSpeed: UInt16 = 0
     var smpStartPos: Int32 = 0
+    /// The rate of the sample being played, where it has one of its own (see `FT2Sample.rate`).
+    var sampleRate: UInt32 = 0
     var instrSeg: FT2Instrument
     /// Which of the mixer's channels this is.
     let nr: Int
@@ -213,8 +219,10 @@ extension FT2Player {
         ton = ton &+ UInt8(bitPattern: ch.relTonNr)
         if ton >= 10 * 12 { return }
 
+        ch.sampleRate = s.rate
         ch.oldVol = s.vol
-        ch.oldPan = s.pan
+        // (In a module of another tracker's the place between the speakers is the channel's, not the sample's.)
+        if !panningIsOfChannels { ch.oldPan = s.pan }
         if effTyp == 0x0E, eff & 0xF0 == 0x50 {
             ch.fineTune = Int8(truncatingIfNeeded: (Int(eff & 0x0F) << 4) - 128)
         } else {
@@ -341,9 +349,18 @@ extension FT2Player {
         if param >= 32 {
             song.speed = UInt16(param)
             P_SetSpeed(song.speed)
+            // (MultiTracker's way, for a module of its own: see `FT2Module.speedAndTempoUndoEachOther`.)
+            if speedAndTempoUndoEachOther {
+                song.tempo = 6
+                song.timer = 6
+            }
         } else {
             song.tempo = UInt16(param)
             song.timer = UInt16(param)
+            if speedAndTempoUndoEachOther {
+                song.speed = 125
+                P_SetSpeed(song.speed)
+            }
         }
     }
 
@@ -457,6 +474,7 @@ extension FT2Player {
     func v_SetPan(_ ch: FT2Channel, _ volKol: inout UInt8) {
         volKol <<= 4
         ch.outPan = volKol
+        if panningIsOfChannels { ch.oldPan = volKol }
         ch.status |= IS_Pan
     }
 
@@ -525,6 +543,8 @@ extension FT2Player {
 
     func setPan(_ ch: FT2Channel, _ param: UInt8) {
         ch.outPan = param
+        // (Where the place is the channel's, it stays there for the notes that follow.)
+        if panningIsOfChannels { ch.oldPan = param }
         ch.status |= IS_Pan
     }
 
@@ -1162,6 +1182,9 @@ extension FT2Player {
         if song.pBreakFlag {
             song.pBreakFlag = false
             song.pattPos = Int16(song.pBreakPos)
+            // FastTracker goes on remembering the row, and starts the next pattern on it: a mistake
+            // of its own, which a module from another tracker was not written around.
+            if loopsLeaveNothingBehind, !song.posJumpFlag { song.pBreakPos = 0 }
         }
         if song.pattPos >= song.pattLen || song.posJumpFlag {
             song.pattPos = Int16(song.pBreakPos)
