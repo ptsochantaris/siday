@@ -232,6 +232,46 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     #expect(try TuneLoader.load(s3m(row: [0x20, 255, 0], orders: [0, 255, 0, 255]), format: .s3m).subsongCount == 1)
 }
 
+/// A file as Impulse Tracker 2.14 would sign it: the tracker a file says made it is two bytes of
+/// its header.
+private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
+    var file = file
+    file[0x28 ... 0x29] = [0x14, 0x32]
+    return file
+}
+
+@Test func s3mFromALaterTrackerHasItsChannelAndTuneVolumesPlayed() throws {
+    /// How loud the note is half a second in, with something else on its row.
+    func peak(_ row: [UInt8]?, _ file: ([UInt8]) -> [UInt8] = byImpulseTracker) throws -> Float {
+        stereoSound(try TuneLoader.load(file(s3m(row: row)), format: .s3m), seconds: 0.7).left[24000...].map(abs).max()!
+    }
+    /// True if a command leaves the note as loud as a note of a given volume is. (The card's
+    /// volumes are 0 to 63, and the loudest note is at 63.)
+    func leaves(_ command: UInt8, _ value: UInt8, at volume: UInt8) throws -> Bool {
+        let heard = try peak([0xA0, 0x40, 1, command, value]), wanted = try peak([0x60, 0x40, 1, volume])
+        return abs(heard - wanted) < wanted * 0.01
+    }
+    // M sets the channel's volume, of 64: at 32, a note is half what it was.
+    #expect(try leaves(13, 32, at: 31))
+    #expect(try leaves(13, 80, at: 63))
+    // N slides it, on the five ticks of the row after the first: by four a tick, twenty in all,
+    // from 64 to 44.
+    #expect(try leaves(14, 0x04, at: 43))
+    // Or once, on the first tick, with an F for the other digit.
+    #expect(try leaves(14, 0xF8, at: 55))
+    #expect(try !leaves(14, 0xF8, at: 63))
+    // W does the same to the whole tune's volume, which a note already playing is turned down by.
+    #expect(try leaves(23, 0x08, at: 23))
+    #expect(try leaves(23, 0xF8, at: 55))
+    // In a file that Scream Tracker saved they are nothing, as they were to Scream Tracker.
+    for command: UInt8 in [13, 14, 23] { #expect(try peak([0xA0, 0x40, 1, command, 0x08]) { $0 } == peak(nil) { $0 }) }
+    // And so they are in the other when it is played as the player this is ported from plays it.
+    func raw(_ row: [UInt8]?) throws -> [Int16] {
+        try #require(try TuneLoader.load(byImpulseTracker(s3m(row: row)), format: .s3m) as? S3MRenderer).renderRaw(frames: 9600)
+    }
+    #expect(try raw([0xA0, 0x40, 1, 13, 0x08]) == raw(nil))
+}
+
 // MARK: What is not played as the file asks
 
 @Test func s3mFromALaterTrackerSaysWhatScreamTrackerDoesNotPlay() throws {
@@ -239,9 +279,14 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     #expect(try shortfalls(s3m()).isEmpty)
     #expect(try shortfalls(s3m(fm: true)).isEmpty)
 
-    // Impulse Tracker's slide of the whole tune's volume (W, the 23rd letter), in a file it saved.
-    #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 23, 0x02]))
-        == ["One of its commands is left out, which Scream Tracker did not have: a slide of the whole tune's volume."])
+    // Impulse Tracker's slide of the whole tune's volume (W, the 23rd letter) is played in a file
+    // it saved, and is nothing in one that Scream Tracker saved, as it was to Scream Tracker.
+    #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 23, 0x02]))).isEmpty)
+    #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 23, 0x02])).isEmpty)
+    // Its setting of a filter (Z) is not played, since Scream Tracker's cards have no filter.
+    #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x40])))
+        == ["One of its commands is left out, which Scream Tracker did not have: the setting of a filter."])
+    #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 26, 0x40])).isEmpty)
     // Where a channel is put (X) is not counted: too many files have it, and lose little by it.
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 24, 0x40])).isEmpty)
 

@@ -627,7 +627,11 @@ bytes; files from later trackers have sixteen-bit and longer ones, which are pla
 and samples tuned higher than Scream Tracker had room to write down, which are played at the pitch
 they say and not at the highest Scream Tracker could have given them. They have samples in stereo
 too, the right side after the left, of which Scream Tracker would play the left alone: the two are
-played together, mixed into one, since its cards have no way to keep them apart.
+played together, mixed into one, since its cards have no way to keep them apart. And they have
+three commands that Scream Tracker passes over and the trackers after it play, in an S3M file as
+in any: M, which sets a channel's volume, N, which slides it, and W, which slides the volume of the
+whole tune. Those are played, as OpenMPT plays them, in a file that Scream Tracker did not save; in
+one that it did save they are nothing, as they were to it and to whoever made the tune there.
 `siday --raw file.raw tune.s3m` writes what st3play writes to a file, a stereo sample's left side only. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.

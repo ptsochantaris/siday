@@ -148,10 +148,11 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
-    private func restart() {
+    /// - Parameter asScreamTracker: as the player this is ported from plays the file, for `renderRaw`.
+    private func restart(asScreamTracker: Bool = false) {
         let song = songList[currentSubsong]
         player = ST3Player(module, card: card, order: song.start, adlib: song.adLib && !ST3Player.repeatsReferenceSlips,
-                           firstPlayedBy: firstPlayedBy, songNumber: song.number)
+                           firstPlayedBy: firstPlayedBy, songNumber: song.number, asScreamTracker: asScreamTracker)
         tickFrames = 0
         tickPosition = 0
         levels.clear()
@@ -248,7 +249,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
             module.playStereoSamples(asScreamTracker: false)
             restart()
         }
-        restart()
+        restart(asScreamTracker: true)
         var output: [Int16] = []
         output.reserveCapacity(frames * 2)
 

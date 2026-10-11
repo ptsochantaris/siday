@@ -46,6 +46,9 @@ final class ST3Module {
     let savedWithSoundBlaster: Bool
     /// True if some sample is longer than Scream Tracker allows, or of sixteen bits.
     let beyondScreamTracker: Bool
+    /// True if the file is taken to be one that Scream Tracker 3 itself saved: it says so, and
+    /// has what Scream Tracker leaves in a file and other trackers that say the same do not.
+    let madeByScreamTracker: Bool
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An S3M file
     /// from a later tracker may have what Scream Tracker never had.
     private(set) var shortfalls: [String] = []
@@ -184,6 +187,7 @@ final class ST3Module {
         if songMadeWithST3, cwtv == 0x1320, gusPositions == 0 { songMadeWithST3 = false }
         if songMadeWithST3, sampleCount >= 2, gusPositions <= 1 { soundBlaster = true }
         savedWithSoundBlaster = soundBlaster
+        madeByScreamTracker = songMadeWithST3
 
         noteWhatIsNotPlayed(f, insoff)
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
@@ -219,15 +223,20 @@ final class ST3Module {
         return (0 ..< length).map { k in Int16(Int8(bitPattern: unsigned ? f[from + k] ^ 0x80 : f[from + k])) << 8 }
     }
 
-    /// The commands of later trackers that are found in S3M files and that Scream Tracker passes
-    /// over, by their numbers (a command's letter, counted from A as 1) and by what they do.
+    /// The command of later trackers that is found in S3M files and is not played, by its number
+    /// (a command's letter, counted from A as 1) and by what it does: Z, which sets a filter that
+    /// Scream Tracker's sound cards have not got.
     ///
-    /// Three more are not counted: the ones that put a channel somewhere between the speakers (X),
-    /// slide it there (P) or sweep it from side to side (Y). One S3M file in ten has the first of
-    /// them, from having been saved by Impulse Tracker, and all it loses is where its channels
-    /// are; a mark on so many files would say little about any of them.
-    private static let commandsOfLaterTrackers: [UInt8] = [13, 14, 23, 26]
-    private static let whatTheyDo = ["a channel's volume", "a slide of a channel's volume", "a slide of the whole tune's volume", "the setting of a filter"]
+    /// Others are not counted. M, N and W, a channel's volume and the slides of it and of the
+    /// whole tune's, are played in a file that a later tracker made (see
+    /// `ST3Player.playsLaterCommands`). In a file that Scream Tracker itself saved, all of these
+    /// are nothing, as they were to Scream Tracker and to whoever heard the tune there. And three
+    /// put a channel somewhere between the speakers (X), slide it there (P) or sweep it from side
+    /// to side (Y): one S3M file in ten has the first of them, from having been saved by Impulse
+    /// Tracker, and all it loses is where its channels are; a mark on so many files would say
+    /// little about any of them.
+    private static let commandsOfLaterTrackers: [UInt8] = [26]
+    private static let whatTheyDo = ["the setting of a filter"]
 
     /// Looks over the file for what its patterns use that is not played as the file asks, and
     /// says so in `shortfalls`. Nothing that is played is changed by it.
@@ -245,7 +254,7 @@ final class ST3Module {
                 }
                 if what & 0x40 != 0 { at += 1 }
                 if what & 0x80 != 0 {
-                    if at < pattern.count, let kind = Self.commandsOfLaterTrackers.firstIndex(of: pattern[at]) { commands.note(kind) }
+                    if at < pattern.count, !madeByScreamTracker, let kind = Self.commandsOfLaterTrackers.firstIndex(of: pattern[at]) { commands.note(kind) }
                     at += 2
                 }
             }

@@ -24,6 +24,10 @@ final class ST3Channel {
     /// Where the sample it plays is in the module's samples; -1 for none.
     var m_base = -1
     var m_vol: UInt8 = 0, m_oldvol: UInt8 = 0
+    /// For a file that a later tracker made (see `ST3Player.playsLaterCommands`): the channel's own
+    /// volume, of 64, which every note on it is turned down by; and the last slides of that and
+    /// of the whole tune's volume that the channel was given, which a slide of nothing repeats.
+    var chanvol: UInt8 = 64, lastChannelSlide: UInt8 = 0, lastGlobalSlide: UInt8 = 0
     var m_pos: UInt32 = 0, m_poslow: UInt32 = 0, m_oldpos: UInt32 = 0, m_end: UInt32 = 0, m_loop: UInt32 = 0, m_speed: UInt32 = 0
     // For the AdLib card: the instrument its voice was last given, whether its note is to be struck
     // again and its level set again, and its pitch in hertz.
@@ -57,6 +61,11 @@ public final class ST3Player {
     /// of C arithmetic, not of the tracker. They are not repeated, except when the two players are
     /// being compared sample for sample, which this is for.
     public nonisolated(unsafe) static var repeatsReferenceSlips = false
+    /// True if three commands are played that Scream Tracker passes over, and the trackers that
+    /// came after it do not: M, a channel's volume; N, a slide of it; and W, a slide of the whole
+    /// tune's volume. For a file that Scream Tracker did not save, in which they are what the
+    /// tracker that made it played. See `laterCommand`.
+    let playsLaterCommands: Bool
     /// Sixteen channels of samples; the rest were the AdLib card's.
     static let ACHANNELS = 48
 
@@ -109,8 +118,11 @@ public final class ST3Player {
     ///     first note.
     ///   - firstPlayedBy: for a file of several songs, which of them first played each row.
     ///   - songNumber: which of them this is.
+    ///   - asScreamTracker: with nothing done for a file because another tracker made it: what the
+    ///     player this is ported from does, for setting the two side by side.
     init(_ module: ST3Module, card: ST3Card, order: Int = 0, adlib: Bool = false, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil,
-         songNumber: UInt8 = 0) {
+         songNumber: UInt8 = 0, asScreamTracker: Bool = false) {
+        playsLaterCommands = !module.madeByScreamTracker && !asScreamTracker
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
         self.module = module
@@ -262,6 +274,8 @@ public final class ST3Player {
     func setvol(_ ch: ST3Channel) {
         ch.achannelused |= 128
         ch.m_vol = UInt8(truncatingIfNeeded: (Int(UInt8(bitPattern: ch.avol)) * Int(useglobalvol)) >> 8)
+        // (A later tracker's file may have turned the channel down.)
+        if ch.chanvol < 64 { ch.m_vol = UInt8((Int(ch.m_vol) * Int(ch.chanvol)) >> 6) }
     }
 
     func stnote2herz(_ note: UInt8) -> UInt16 {

@@ -89,6 +89,7 @@ extension ST3Player {
         case 17: s_retrig(ch) // Q
         case 19: s_scommand1(ch) // S
         case 20: if musiccount == 0 { settempo(ch.info) } // T
+        case 13, 14, 23: if playsLaterCommands { laterCommand(ch, firstTick: true) } // M, N, W
         default: break
         }
     }
@@ -113,7 +114,43 @@ extension ST3Player {
         case 19: s_scommand2(ch) // S
         case 21: s_finevibrato(ch) // U
         case 22: s_setgvol(ch) // V
+        case 14, 23: if playsLaterCommands { laterCommand(ch, firstTick: false) } // N, W
         default: break
+        }
+    }
+
+    /// M, N and W in a file that a later tracker made, as OpenMPT plays them in an S3M file.
+    /// M sets the channel's volume, of 64. N slides it and W slides the whole tune's volume, by
+    /// the usual rule of slides: a value's first digit is so much up on every tick after the first,
+    /// its second so much down, and with the other digit an F it is so much once, on the first
+    /// tick. A slide of nothing is the channel's last of its kind again.
+    private func laterCommand(_ ch: ST3Channel, firstTick: Bool) {
+        /// How far a slide moves on this tick.
+        func step(_ value: UInt8) -> Int {
+            let up = Int(value >> 4), down = Int(value & 0x0F)
+            if down == 0x0F, up != 0 { return firstTick ? up : 0 }
+            if up == 0x0F, down != 0 { return firstTick ? -down : 0 }
+            return firstTick ? 0 : value & 0x0F != 0 && ch.cmd == 14 ? -down : up != 0 ? up : -down
+        }
+        switch ch.cmd {
+        case 13:
+            guard ch.info <= 64 else { return }
+            ch.chanvol = ch.info
+            setvol(ch)
+        case 14:
+            if ch.info != 0 { ch.lastChannelSlide = ch.info }
+            let moved = step(ch.lastChannelSlide)
+            guard moved != 0 else { return }
+            ch.chanvol = UInt8(max(0, min(64, Int(ch.chanvol) + moved)))
+            setvol(ch)
+        default:
+            if ch.info != 0 { ch.lastGlobalSlide = ch.info }
+            let moved = step(ch.lastGlobalSlide)
+            guard moved != 0 else { return }
+            setglobalvol(Int8(max(0, min(64, Int(globalvol) + moved))))
+            // Scream Tracker's own command for the tune's volume is felt by a channel when its
+            // volume is next set. A slide is felt by them all as it goes.
+            for other in zchn where other.achannelused != 0 { setvol(other) }
         }
     }
 
