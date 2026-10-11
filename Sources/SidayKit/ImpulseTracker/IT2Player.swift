@@ -155,12 +155,19 @@ final class IT2Player {
             if Data < 2 { // cutoff or resonance
                 MIDIInterpretType = Data
                 MIDIInterpretState += 1
+            } else if sound != nil, Data == 3 || Data >= 0x80 {
+                // (In a file of ModPlug Tracker's or OpenMPT's with plug-ins that are played, such
+                // a message is for the channel's plug-in.)
+                MIDIInterpretType = Data
+                MIDIInterpretState += 1
             } else {
                 MIDIInterpretState = 0
             }
         } else if MIDIInterpretState == 3 {
             if Data <= 0x7F {
-                if MIDIInterpretType == 1 {
+                if MIDIInterpretType >= 2 {
+                    modPlugMacro(hc, code: MIDIInterpretType, value: Data)
+                } else if MIDIInterpretType == 1 {
                     FilterParameters[(64 + Int(hc.pointee.HostChnNum)) & 127] = Data
                 } else {
                     FilterParameters[Int(hc.pointee.HostChnNum) & 127] = Data
@@ -366,6 +373,7 @@ final class IT2Player {
         sc.pointee.Note = hc.pointee.RawNote
         sc.pointee.Ins = hc.pointee.Ins
         sc.pointee.Flags = SF_CHAN_ON + SF_RECALC_PAN + SF_RECALC_VOL + SF_FREQ_CHANGE + SF_NEW_NOTE
+        sc.pointee.Started &+= 1
 
         guard hc.pointee.Smp > 0 else {
             sc.pointee.Flags = SF_NOTE_STOP
@@ -401,6 +409,7 @@ final class IT2Player {
         sc.pointee.AutoVibratoPos = 0
         sc.pointee.LoopDirection = DIR_FORWARDS
         sc.pointee.Backwards = 0
+        sc.pointee.Started &+= 1
 
         InitPlayInstrument(hc, sc, ins)
 
@@ -656,7 +665,13 @@ final class IT2Player {
         var LoopBegin: Int32, LoopEnd: Int32
         let LoopEnabled = s.Flags & (SMPF_USE_LOOP | SMPF_USE_SUSTAINLOOP) != 0
         let SustainLoopOnlyAndNoteOff = s.Flags & SMPF_USE_SUSTAINLOOP != 0 && sc.pointee.Flags & SF_NOTE_OFF != 0 && s.Flags & SMPF_USE_LOOP == 0
-        if !LoopEnabled || SustainLoopOnlyAndNoteOff {
+        if adLib != nil, s.AdLib != nil {
+            // A note for the FM chip has no sample to come to the end of: its voice goes round a
+            // loop with nothing in it for as long as the note lasts.
+            LoopBegin = 0
+            LoopEnd = 4
+            LoopMode = LOOP_FORWARDS
+        } else if !LoopEnabled || SustainLoopOnlyAndNoteOff {
             LoopBegin = 0
             LoopEnd = Int32(truncatingIfNeeded: s.Length)
             LoopMode = 0
@@ -876,6 +891,7 @@ final class IT2Player {
     }
 
     private func UpdateNoteData() {
+        RowJustRead = true
         PatternLooping = false
         DecodeExpectedRow &+= 1
         if CurrentPattern != DecodeExpectedPattern || DecodeExpectedRow != CurrentRow { UpdateGOTONote() }
@@ -1143,6 +1159,7 @@ final class IT2Player {
                 } else {
                     volume = UInt16(truncatingIfNeeded: (Int(volume) * Int(UInt16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.VolEnvState.Value) >> 8))) >> 14)
                 }
+                sc.pointee.VolNoGlobal = volume
                 volume = UInt16(truncatingIfNeeded: (Int(volume) * Int(GlobalVolume)) >> 7)
                 sc.pointee.FinalVol32768 = volume
                 sc.pointee.FinalVol128 = UInt8(truncatingIfNeeded: volume >> 8)
@@ -1180,6 +1197,7 @@ final class IT2Player {
             if sc.pointee.Flags & SF_RECALC_VOL != 0 {
                 sc.pointee.Flags &= ~SF_RECALC_VOL
                 sc.pointee.Flags |= SF_UPDATE_MIXERVOL
+                sc.pointee.VolNoGlobal = UInt16(truncatingIfNeeded: (Int(sc.pointee.Vol) * Int(sc.pointee.ChnVol) * Int(sc.pointee.SmpVol)) >> 4)
                 let volume = UInt16(truncatingIfNeeded: (((Int(sc.pointee.Vol) * Int(sc.pointee.ChnVol) * Int(sc.pointee.SmpVol)) >> 4) * Int(GlobalVolume)) >> 7)
                 sc.pointee.FinalVol32768 = volume
                 sc.pointee.FinalVol128 = UInt8(truncatingIfNeeded: volume >> 8)
@@ -1200,6 +1218,7 @@ final class IT2Player {
     /// One tick: the song is moved on, and every voice's volume, place and pitch settled for the mixer.
     func Update() {
         cameRound = false
+        RowJustRead = false
         for i in 0 ..< MAX_SLAVE_CHANNELS {
             let sc = sChn + i
             if sc.pointee.Flags & SF_CHAN_ON == 0 { continue }
@@ -1216,6 +1235,12 @@ final class IT2Player {
         // (An MPTM file keeps time in OpenMPT's ways, and its tick is as long as they make it.)
         if let song = module.openMPT { mixer.setTickFrames(openMPTTickFrames(song)) }
         if module.Flags & ITF_INSTR_MODE != 0 { UpdateInstruments() } else { UpdateSamples() }
+        // (And for a file of ModPlug Tracker's or OpenMPT's with FM instruments or plug-ins: see `ModPlugSound`.)
+        if sound != nil {
+            if let song = module.openMPT, !song.parameterNotes.isEmpty { openMPTParameterNotes(song) }
+            adLib?.update(self)
+            mixer.GlobalVolume = GlobalVolume
+        }
     }
 
     // MARK: Starting
@@ -1224,6 +1249,16 @@ final class IT2Player {
     /// by ModPlug Tracker or OpenMPT, which did so, unless it is to be played as Impulse Tracker
     /// itself would play it.
     private let samplesPlayForMIDI: Bool
+    /// The file's plug-ins and FM instruments, if it has any that are played and is not to be played
+    /// as Impulse Tracker would play it; and the FM chip, if it has instruments for that.
+    let sound: ModPlugSound?
+    let adLib: OpenMPTAdLib?
+    /// True if the rate of a note for the FM chip is kept in sixteenths: see `OpenMPTAdLib.fineShift`.
+    let fineFMPitch: Bool
+    /// True for a tick on which a row was read; and the plug-in settings that the row being played
+    /// is sliding (see `openMPTParameterNotes`).
+    var RowJustRead = false
+    var parameterSlides: [ParameterSlide] = []
 
     /// - Parameters:
     ///   - order: where in the list of patterns to start.
@@ -1231,8 +1266,14 @@ final class IT2Player {
     ///   - songNumber: which of them this is.
     ///   - asImpulseTracker: with nothing done for a file because another tracker made it: what the
     ///     player this is ported from does, for setting the two side by side.
-    init(_ module: IT2Module, order: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0, asImpulseTracker: Bool = false) {
+    ///   - forSound: true if what it plays is to be heard, and not only followed to find how long
+    ///     a tune is: then a file's plug-ins are made ready.
+    init(_ module: IT2Module, order: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0, asImpulseTracker: Bool = false,
+         forSound: Bool = false) {
         samplesPlayForMIDI = module.madeByModPlug && !asImpulseTracker
+        sound = asImpulseTracker ? nil : module.sound
+        adLib = sound?.adLib.map { OpenMPTAdLib(behaviour: $0) }
+        fineFMPitch = adLib != nil && module.Flags & ITF_LINEAR_FRQ != 0
         self.module = module
         midiSample = module.midiSample
         midiVoiceSample = module.midiVoiceSample
@@ -1252,7 +1293,9 @@ final class IT2Player {
         FilterParameters.initialize(repeating: 0, count: 128)
         visited = .allocate(capacity: Self.rowsInAll(of: module))
         visited.initialize(repeating: false, count: Self.rowsInAll(of: module))
-        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters)
+        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound)
+        mixer.adLib = adLib
+        if forSound { mixer.playsPlugIns() }
 
         if let own = module.midiData {
             for i in 0 ..< min(own.count, MIDIDataArea.count) { MIDIDataArea[i] = own[i] }

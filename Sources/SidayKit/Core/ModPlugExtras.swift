@@ -8,11 +8,17 @@
 /// What ModPlug Tracker and OpenMPT add to an XM or an IT file that the trackers those files belong
 /// to know nothing of: plug-ins, and which instruments and channels are played through them.
 ///
-/// None of it is played here. It is read only so that a tune that needs it can be said to
+/// The plug-ins that are OpenMPT's own are played, by the replayer that has been taught to (see
+/// `ModPlugSound`). The rest are read so that a tune that needs them can be said to
 /// (`TuneInfo.shortfalls`): an instrument that is nothing but a plug-in is silent without it.
 struct ModPlugExtras {
     /// Which of the places for a plug-in, counted from 1, has one in it.
     private(set) var hasPlugIn = [Bool](repeating: false, count: 256)
+    /// The plug-ins themselves, the first place first; one that is not there for a place left empty.
+    private(set) var plugIns: [ModPlugPlugIn] = []
+    /// What the song's own extras say of how loud it is, where they say: which of OpenMPT's ways
+    /// of adding up, its "sample pre-amp" and its "synth volume".
+    private(set) var mixLevels: Int?, preAmp: Int?, synthVolume: Int?
     /// The plug-in each channel is sent through, counted from 1; nought for none.
     private(set) var channelPlugIns: [Int] = []
     /// And the one each instrument plays through, the first instrument first.
@@ -61,13 +67,48 @@ struct ModPlugExtras {
                 // says which plug-in it is, in its first eight bytes.
                 var slot = Int(file[at + 2] - 0x30) * 10 + Int(file[at + 3] - 0x30)
                 if file[at + 1] != 0x58 { slot += Int(file[at + 1] - 0x30) * 100 }
-                if slot + 1 < hasPlugIn.count, length >= 8, (0 ..< 8).contains(where: { file[body + $0] != 0 }) { hasPlugIn[slot + 1] = true }
+                if slot + 1 < hasPlugIn.count, length >= 8, (0 ..< 8).contains(where: { file[body + $0] != 0 }) {
+                    hasPlugIn[slot + 1] = true
+                    while plugIns.count <= slot { plugIns.append(ModPlugPlugIn()) }
+                    plugIns[slot] = ModPlugPlugIn(file.data, at: body, size: length)
+                }
             } else if code != Self.name("text"), code != Self.name("MIDI"), code != Self.name("PNAM"), code != Self.name("CNAM") {
                 break
             }
             at = body + length
         }
         return at
+    }
+
+    /// True if the plug-in in a place, counted from 1, is one of OpenMPT's own, which are played.
+    func isPlayed(plugIn slot: Int) -> Bool {
+        slot >= 1 && slot <= plugIns.count && plugIns[slot - 1].kind != nil
+    }
+
+    /// The names of the plug-ins that are not OpenMPT's own, and how many plug-ins there are in all.
+    var plugInsLeftOut: (names: [String], all: Int) {
+        let there = plugIns.filter { $0.isThere }
+        return (there.filter { $0.kind == nil }.map { $0.title }, there.count)
+    }
+
+    /// Reads the song's own extras, which these trackers put after everything else in a file and
+    /// begin "STPM": a list of things, each with a name, a size and a value. Only what bears on
+    /// how loud the song is played is kept.
+    mutating func readSongExtras(_ file: ByteReader) {
+        let data = file.data
+        // (The last of them, if the letters come up more than once: the real one is at the end.)
+        var at = data.count - 4
+        while at >= 0, !(data[at] == 0x53 && data[at + 1] == 0x54 && data[at + 2] == 0x50 && data[at + 3] == 0x4D) { at -= 1 }
+        guard at >= 0 else { return }
+        at += 4
+        while at + 6 <= data.count {
+            let code = file.u16le(at) | file.u16le(at + 2) << 16
+            let size = file.u16le(at + 4)
+            guard (0 ..< 4).allSatisfy({ data[at + $0] >= 0x20 && data[at + $0] < 0x7F }), at + 6 + size <= data.count else { break }
+            let value = size >= 4 ? file.u16le(at + 6) | min(file.u16le(at + 8), 0x3FFF) << 16 : size >= 2 ? file.u16le(at + 6) : size == 1 ? Int(data[at + 6]) : 0
+            if code == Self.name(".MMP") { mixLevels = value } else if code == Self.name(".APS") { preAmp = value } else if code == Self.name("VTSV") { synthVolume = value }
+            at += 6 + size
+        }
     }
 
     /// Reads what is said of each instrument beyond what its own tracker could say, which begins

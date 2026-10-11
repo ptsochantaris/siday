@@ -63,8 +63,8 @@ enum Shortfall {
         }
     }
 
-    /// What to say of the plug-ins of a file from ModPlug Tracker or OpenMPT, none of which are
-    /// played here.
+    /// What to say of the plug-ins of a file from ModPlug Tracker or OpenMPT that are not played:
+    /// all of them, where the replayer has not been taught any; where it has, see `plugInsLeftOut`.
     /// - Parameters:
     ///   - unheard: how many instruments that the tune plays are a plug-in and nothing else.
     ///   - bare: how many have a sample, and a plug-in that it is sent through.
@@ -81,6 +81,25 @@ enum Shortfall {
             sentences.append(some(channels, one: "channels is sent through a plug-in, and is heard without it.", many: "channels are sent through plug-ins, and are heard without them."))
         }
         return sentences
+    }
+
+    /// What to say of the plug-ins of a file that are not OpenMPT's own, and so are not played:
+    /// how many of how many, and which programs they are, each named once. Nil if there are none.
+    /// - Parameters:
+    ///   - names: the name of each plug-in that is left out, which may be empty.
+    ///   - all: how many plug-ins the file has, those that are played among them.
+    static func plugInsLeftOut(_ names: [String], of all: Int) -> String? {
+        guard !names.isEmpty else { return nil }
+        var programs: [String] = []
+        for name in names where !name.isEmpty && !programs.contains(name) { programs.append(name) }
+        if programs.count > 4 { programs = Array(programs.prefix(3)) + ["\(number(programs.count - 3)) more"] }
+        let named = programs.isEmpty ? "" : " (" + list(programs) + ")"
+        let rest = names.count == 1 ? " is left out, and it is heard without what that does to its sound."
+            : " are left out, and it is heard without what they do to its sound."
+        if names.count >= all {
+            return (names.count == 1 ? "Its plug-in" : "Its \(number(names.count)) plug-ins") + named + rest
+        }
+        return capitalNumber(names.count) + " of its \(number(all)) plug-ins" + named + rest
     }
 
     /// The samples of a file that ends before they do.

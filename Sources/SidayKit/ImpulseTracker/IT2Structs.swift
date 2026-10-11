@@ -100,6 +100,13 @@ final class IT2Instrument {
     /// which is all an IT file's instrument does.
     var FilterMode: UInt8 = IT2Instrument.sameFilter
     static let sameFilter: UInt8 = 255
+    /// For an MPTM file's instrument only, and of those only one tuned to a scale of its own that is
+    /// near enough the usual one to be played (see `MPTMFile`): what each of the 120 notes is to
+    /// middle C, where the usual tuning has a semitone between each and the next. Nil for the usual.
+    var Tuning: [Float]?
+    /// For a file of ModPlug Tracker's or OpenMPT's: the plug-in its notes are sent through, counted
+    /// from 1; nought for none, which is all any other file's instrument has.
+    var MixPlug: UInt8 = 0
 }
 
 /// A sample. Its sound is held with room either side for the mixer to read past its ends, which is
@@ -116,6 +123,9 @@ final class IT2Sample {
     var DataR: UnsafeMutableRawPointer?, OrigDataR: UnsafeMutableRawPointer?
     /// The places in it that an MPTM file's volume column can start a note from; none in any other file.
     var cues: [UInt32] = []
+    /// For a file of OpenMPT's: the eleven numbers of a patch for the AdLib's FM chip, and one to
+    /// spare, if that is what the sample is in place of a sound (see `OpenMPTAdLib`). Nil for a sample.
+    var AdLib: [UInt8]?
 
     deinit {
         OrigData?.deallocate()
@@ -180,6 +190,12 @@ struct IT2SlaveChannel {
     var ReleaseLevel: Int16 = -1
     /// For an MPTM file only: its channel's `HighPass` as it was when the note began.
     var HighPass = false
+    /// How many notes the voice has been given, as far as a byte counts: for telling a new note
+    /// on it from the note it had. Only what plays the FM chip looks.
+    var Started: UInt8 = 0
+    /// `FinalVol32768` as it was before the song's volume went into it. OpenMPT applies the song's
+    /// volume to the whole sound, after its plug-ins, and plays the FM chip's notes without it.
+    var VolNoGlobal: UInt16 = 0
     var LeftVolume: Int32 = 0, RightVolume: Int32 = 0
     var Frequency: Int32 = 0, FrequencySet: Int32 = 0
     var AutoVibratoPos: UInt8 = 0

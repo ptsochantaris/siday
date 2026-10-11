@@ -23,3 +23,7 @@
 @_extern(c, "expf") func expf(_ x: Float) -> Float
 @_extern(c, "asinf") func asinf(_ x: Float) -> Float
 @_extern(c, "atan2f") func atan2f(_ y: Float, _ x: Float) -> Float
+@_extern(c, "powf") func powf(_ x: Float, _ y: Float) -> Float
+@_extern(c, "logf") func logf(_ x: Float) -> Float
+@_extern(c, "tanf") func tanf(_ x: Float) -> Float
+@_extern(c, "sinhf") func sinhf(_ x: Float) -> Float

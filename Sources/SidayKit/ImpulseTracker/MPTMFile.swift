@@ -16,13 +16,18 @@
 /// lists in one file (which are its songs), envelopes of more than 25 points with a point to go to
 /// when a key is let go, and a few commands of its own (see `OpenMPTSong`).
 ///
-/// The rest is not played, and a file that is mostly the rest is refused. OpenMPT plays instruments
-/// through plug-ins, which are other people's programs and are not here, and through the AdLib's FM
-/// chip, which this replayer has no voice for; it tunes instruments to scales that are not the
-/// twelve equal steps of every other module. An instrument that is only a plug-in or an FM patch is
-/// not heard, and if half a file's notes or more are for such instruments the file is refused; so is
-/// one with an instrument in another tuning. A plug-in that is an effect on other instruments' sound
-/// is left out, and they are heard without it.
+/// OpenMPT also plays an instrument on the AdLib's FM chip, and sends sound through plug-ins. The
+/// chip is here, and is played as OpenMPT plays it (`OpenMPTAdLib`). A plug-in is somebody's
+/// program, and most are not here; but a few are OpenMPT's own, an echo and reverbs and the like,
+/// and those are played, wired as the file wires them (`OpenMPTPlugIns`). Any other plug-in is left
+/// out, and what was sent through it is heard without it, as OpenMPT plays a file on a machine that
+/// has not got the program. An instrument that is nothing but such a plug-in is not heard, and if
+/// half a file's notes or more are for such instruments the file is refused.
+///
+/// And OpenMPT tunes instruments to scales that are not the twelve equal steps of every other
+/// module. A temperament, which is twelve steps that are not quite equal, has each note started at
+/// the pitch it gives; a scale that is further from the usual one than that is not played, and a
+/// file with an instrument tuned to one is refused.
 ///
 /// OpenMPT plays these files in its own way and not in Impulse Tracker's where the two differ, and
 /// which of its ways a file wants is written in the file, flag by flag. Those flags are not followed
@@ -302,6 +307,8 @@ enum MPTMFile {
         var tempoMode = 0
         var mixLevels: Int?
         var preAmp: Int?
+        /// How loud its plug-in instruments are, which is how loud its FM instruments are too: 48 if it does not say.
+        var synthVolume = 48
         /// How many channels OpenMPT is to give the song, if that is more than its patterns use.
         var channels = 0
         var restart = 0
@@ -319,6 +326,7 @@ enum MPTMFile {
     private enum Behaviour {
         static let compatiblePlay = 0, oldSwing = 1, tempoClamp = 8, tremorAsImpulseTracker = 22, offsetAsImpulseTracker = 27, legacyReleaseNode = 94
         static let jumpsEndLoops = 103, jumpsEndLoopsOld = 49, unmappedNotesDoNothing = 123
+        static let fmFlexibleNoteOff = 99, fmKeepsVoiceWhenLetGo = 105, surroundIsNotMoved = 37
     }
 
     /// Half of how far an instrument's higher notes go to one side, rounded away from the middle.
@@ -405,6 +413,7 @@ enum MPTMFile {
             case "..MT": extras.tempoMode = number()
             case ".MMP": extras.mixLevels = number()
             case ".APS": extras.preAmp = number()
+            case "VTSV": extras.synthVolume = number()
             case "...C": extras.channels = number()
             case "..PR": extras.restart = number()
             case "VWSL": extras.savedWith = number()
@@ -432,11 +441,22 @@ enum MPTMFile {
     private struct Tuning {
         var name: [UInt8] = []
         var twelveTone = false
+        /// What it makes of each of the 120 notes, against middle C; empty if it is not one that is played.
+        var ratios: [Float] = []
+        /// How far the furthest of those is from the usual tuning, in hundredths of a semitone.
+        var furthest = 0.0
     }
+
+    /// A tuning that is nowhere further than this from the usual one, in hundredths of a semitone,
+    /// is played: a quarter of a semitone, which lets in the well temperaments and keeps out a scale
+    /// with more or fewer than twelve steps to the octave.
+    private static let nearEnough = 25.0
 
     /// The tunings the file carries, each looked at for whether it is twelve equal steps after all,
     /// with sixteen parts to a step as Impulse Tracker's slides have: which is what OpenMPT's own
-    /// "12TET" is, and a file tuned to it is played as it would be anyway.
+    /// "12TET" is, and a file tuned to it is played as it would be anyway. One that is not, but is
+    /// never far from it (a temperament: twelve steps to the octave that are not quite equal), has
+    /// what it makes of each note kept, for its notes to be started at.
     private static func tunings(_ data: [UInt8], at start: Int) -> [Tuning] {
         guard let collection = Chunk(data, at: start, named: "TC") else { return [] }
         var tunings: [Tuning] = []
@@ -468,7 +488,9 @@ enum MPTMFile {
                 case 3: // every step the same
                     return groupSize > 0 && groupRatio > 0 ? pow(Double(groupRatio), Double(note) / Double(groupSize)) : 0
                 case 1: // one group of steps, given, and the rest of the scale that group again higher and lower
-                    guard groupSize > 0, ratios.count >= groupSize, groupRatio > 0 else { return 0 }
+                    // (As many steps as are given: the file need not say how many apart from that.)
+                    let groupSize = ratios.count
+                    guard groupSize > 0, groupRatio > 0 else { return 0 }
                     let from = note - lowest
                     let group = from >= 0 ? from / groupSize : -((-from + groupSize - 1) / groupSize)
                     return Double(ratios[from - group * groupSize]) * pow(Double(groupRatio), Double(group))
@@ -484,14 +506,30 @@ enum MPTMFile {
                 if !(found > wanted * 0.99971 && found < wanted * 1.00029) { equal = false }
             }
             tuning.twelveTone = equal
+            if !equal {
+                var kept: [Float] = [], near = true
+                for note in -60 ..< 60 where near {
+                    let found = ratio(note)
+                    // (In hundredths of a semitone: 1200 to the octave.)
+                    let apart = found > 0 ? abs(log(found) / log(2.0) * 1200 - Double(note) * 100) : Double.infinity
+                    if apart <= nearEnough {
+                        tuning.furthest = max(tuning.furthest, apart)
+                        kept.append(Float(found))
+                    } else {
+                        near = false
+                    }
+                }
+                if near { tuning.ratios = kept }
+            }
             tunings.append(tuning)
         }
         return tunings
     }
 
-    /// Which instruments are tuned to something other than twelve equal steps: the file gives each
-    /// tuning in use a number, and each instrument the number of its own.
-    private static func mistuned(_ data: [UInt8], at start: Int, instruments: Int, tunings: [Tuning]) -> [Bool] {
+    /// Which of the tunings each instrument has, for those tuned to something other than twelve
+    /// equal steps, and nil for the rest: the file gives each tuning in use a number, and each
+    /// instrument the number of its own.
+    private static func mistuned(_ data: [UInt8], at start: Int, instruments: Int, tunings: [Tuning]) -> [Int?] {
         var r = Reader(data, at: start)
         var names: [Int: [UInt8]] = [:]
         let count = r.u16()
@@ -501,11 +539,11 @@ enum MPTMFile {
             names[r.u16()] = name
         }
         return (0 ..< instruments).map { _ in
-            guard r.left >= 2, let name = names[r.u16()] else { return false }
+            guard r.left >= 2, let name = names[r.u16()] else { return nil }
             // OpenMPT's word for no tuning; and one it does not find among the file's is no tuning either.
-            if name == Array("->MPT_ORIGINAL_IT<-".utf8) { return false }
-            guard let tuning = tunings.first(where: { $0.name == name }) else { return false }
-            return !tuning.twelveTone
+            if name == Array("->MPT_ORIGINAL_IT<-".utf8) { return nil }
+            guard let tuning = tunings.firstIndex(where: { $0.name == name }), !tunings[tuning].twelveTone else { return nil }
+            return tuning
         }
     }
 
@@ -596,8 +634,8 @@ enum MPTMFile {
             guard soundAt <= data.count else { continue }
             s.at = soundAt
             let sixteen = flags & Int(SMPF_16BIT) != 0, sides = flags & Int(SMPF_STEREO) != 0 ? 2 : 1
-            if convert == 0x40 {
-                kinds[index] = .fm
+            if convert == Int(IT2Module.adLibPatch) {
+                kinds[index] = file.sample(index)?.AdLib != nil ? .fm : .none
                 s.skip(12)
             } else if convert == 0x80 {
                 kinds[index] = length > 0 ? .elsewhere : .none
@@ -646,10 +684,11 @@ enum MPTMFile {
 
         // MARK: Plug-ins
 
-        // They are named between the header and the first of the instruments, samples and patterns,
-        // after the history of the file's making and its MIDI settings. Only which there are is
-        // wanted: no plug-in is played.
+        // They are kept between the header and the first of the instruments, samples and patterns,
+        // after the history of the file's making and its MIDI settings: each plug-in by its place,
+        // and which of them each channel is sent through.
         var plugins = Set<Int>()
+        var sound = ModPlugSound()
         do {
             var p = Reader(data, at: header.places)
             var firstPlace = data.count
@@ -669,9 +708,15 @@ enum MPTMFile {
                 let digits = code.map { Int($0) - 0x30 }
                 if code[0] == 0x46, code[1] == 0x58 || (0 ... 9).contains(digits[1]), (0 ... 9).contains(digits[2]), (0 ... 9).contains(digits[3]) {
                     let number = (code[1] == 0x58 ? 0 : digits[1] * 100) + digits[2] * 10 + digits[3]
-                    var info = Reader(data, at: p.at)
-                    let first = info.u32(), second = info.u32()
-                    if size >= 8, first | second != 0 { plugins.insert(number + 1) }
+                    let plugIn = ModPlugPlugIn(data, at: p.at, size: size)
+                    if size >= 8, plugIn.isThere {
+                        plugins.insert(number + 1)
+                        while sound.plugIns.count <= number { sound.plugIns.append(ModPlugPlugIn()) }
+                        sound.plugIns[number] = plugIn
+                    }
+                } else if code == Array("CHFX".utf8) {
+                    var channels = Reader(data, at: p.at)
+                    sound.channelPlugIns = (0 ..< min(size / 4, MAX_HOST_CHANNELS)).map { _ in min(channels.u32(), 255) }
                 }
                 p.skip(size)
             }
@@ -902,6 +947,34 @@ enum MPTMFile {
                 let beat = chunk.number("RPB.", bytes: 4, in: data) ?? 0, measure = chunk.number("RPM.", bytes: 4, in: data) ?? 0
                 // (Only a pair that makes sense is taken: a beat of some rows, and a measure of no fewer.)
                 if beat >= 1, beat <= 0xFFFF, measure >= beat, measure <= 0xFFFF { openMPT.patternRowsPerBeat[index] = UInt16(beat) }
+                // The rows that change a plug-in's setting, which are kept here and not in the IT
+                // file's pattern: a row at a time, each cell with which of its six parts differ
+                // from the cell last given for its channel.
+                if let entry = chunk.entry("data"), index < patternRows.count, sound.plugIns.contains(where: { $0.kind != nil }) {
+                    var d = Reader(data, at: entry.start)
+                    let end = entry.size >= 0 ? min(data.count, entry.start + entry.size) : data.count
+                    var last = [[UInt8]](repeating: [0, 0, 0, 0, 0, 0], count: 128)
+                    var row = 0
+                    while row < patternRows[index], d.at < end {
+                        let what = d.u8()
+                        if what == 0 {
+                            row += 1
+                            continue
+                        }
+                        let channel = (what & 0x7F) - 1
+                        guard channel >= 0 else { continue }
+                        if what & 0x80 != 0 {
+                            let mask = d.u8()
+                            for part in 0 ..< 6 where mask & (1 << part) != 0 { last[channel][part] = UInt8(d.u8()) }
+                        }
+                        let cell = last[channel]
+                        guard cell[0] == 0xFC || cell[0] == 0xFB, cell[1] > 0 else { continue }
+                        let setting = Int(cell[2]) << 8 | Int(cell[3]), value = min(999, Int(cell[4]) << 8 | Int(cell[5]))
+                        guard setting < 1024 else { continue }
+                        let note = UInt32(cell[0] == 0xFB ? 1 : 0) << 31 | UInt32(cell[1]) << 20 | UInt32(setting) << 10 | UInt32(value)
+                        openMPT.parameterNotes[index << 16 | row, default: []].append(note)
+                    }
+                }
                 if let entry = chunk.entry("SWNG") {
                     var s = Reader(data, at: entry.start)
                     let swing = swing(&s)
@@ -916,11 +989,27 @@ enum MPTMFile {
 
         // MARK: Tunings
 
+        // An instrument tuned to a temperament has its notes started at the pitches that gives them.
+        // What happens to a note after that is another matter: OpenMPT slides a tuned instrument by
+        // the steps of its tuning and at speeds of its own, and that is not done. A scale that is
+        // further from the usual one is not played at all.
+        var temperaments: [String] = []
         if header.instruments > 0, let map = own.entry("1") {
             let all = own.entry("0").map { tunings(data, at: $0.start) } ?? []
             let mistuned = mistuned(data, at: map.start, instruments: header.instruments, tunings: all)
-            if mistuned.contains(true) {
+            if mistuned.contains(where: { $0.map { all[$0].ratios.isEmpty } ?? false }) {
                 throw TuneError.unsupported("an MPTM file with instruments tuned to a scale of their own")
+            }
+            for index in all.indices where mistuned.contains(index) {
+                let name = all[index].name.isEmpty ? "a temperament of its own" : "\"" + String(decoding: all[index].name, as: UTF8.self) + "\""
+                // (To the hundredth above, but for what is a hair over one.)
+                let furthest = Int((all[index].furthest - 0.05).rounded(.up))
+                temperaments.append("It is tuned to \(name), which is nowhere more than \(Shortfall.number(max(1, furthest))) "
+                    + "\(furthest > 1 ? "hundredths" : "hundredth") of a semitone from the usual tuning: its notes start at that tuning's pitches, "
+                    + "and its slides and arpeggios move by the usual tuning's steps.")
+            }
+            for (instrument, tuning) in mistuned.enumerated() {
+                if let tuning { file.instrument(instrument).Tuning = all[tuning].ratios }
             }
         }
 
@@ -935,8 +1024,18 @@ enum MPTMFile {
         var played = [Bool](repeating: false, count: file.patternLimit)
         for order in orders where Int(order) < file.patternLimit { played[Int(order)] = true }
         var notes = 0, pluginNotes = 0, fmNotes = 0, elsewhereNotes = 0
-        var silentInstruments = Set<Int>(), fmInstruments = Set<Int>(), elsewhereInstruments = Set<Int>(), usedInstruments = Set<Int>()
-        var smoothMacros = 0, bends = 0, reverbs = 0, speakerCommands = 0
+        var silentInstruments = Set<Int>(), elsewhereInstruments = Set<Int>(), usedInstruments = Set<Int>()
+        // The plug-ins that are not OpenMPT's own, and so are not played.
+        let leftOut = plugins.filter { sound.plugIns[$0 - 1].kind == nil }
+        var smoothMacros = 0, smoothPlugInMacros = 0, bends = 0, reverbs = 0, speakerCommands = 0
+        // The file's MIDI macros, for telling one that sets a filter from one that sets a plug-in:
+        // sixteen that a command chooses among and gives a value, and 128 with a value of their own.
+        let macros = file.midiData ?? IT2Module.defaultMIDIData()
+        func macroIsForPlugIn(_ slot: Int) -> Bool {
+            let at = slot * 32
+            guard at + 6 <= macros.count, macros[at ..< at + 4].elementsEqual(Array("F0F0".utf8)) else { return false }
+            return macros[at + 4] >= 0x38 || (macros[at + 4] == 0x30 && macros[at + 5] == 0x33) // "8…" and up, or "03"
+        }
         var highestChannel = 0
         typealias Command = IT2ForeignModule.Command
         let oldEffects = file.Flags & ITF_OLD_EFFECTS != 0
@@ -1017,6 +1116,7 @@ enum MPTMFile {
                 }
             }
             var instruments = [Int](repeating: 0, count: MAX_HOST_CHANNELS)
+            var chosenMacro = [Int](repeating: 0, count: MAX_HOST_CHANNELS)
             for row in 0 ..< rows {
                 for channel in 0 ..< MAX_HOST_CHANNELS {
                     var cell = pattern[row, channel]
@@ -1044,12 +1144,12 @@ enum MPTMFile {
                         case .sound: break
                         case .fm:
                             fmNotes += 1
-                            fmInstruments.insert(instrument)
                         case .elsewhere:
                             elsewhereNotes += 1
                             elsewhereInstruments.insert(instrument)
                         case .none:
-                            if plugins.contains(plugin) {
+                            // (A plug-in that is an effect makes no sound of a note, here or in OpenMPT.)
+                            if leftOut.contains(plugin) {
                                 pluginNotes += 1
                                 silentInstruments.insert(instrument)
                             }
@@ -1061,7 +1161,9 @@ enum MPTMFile {
                         case Own.smoothMacro:
                             // A macro sent a little at a time over the row is sent whole at its start.
                             cell.set(command: Own.Z, cell.value)
-                            if played[index] { smoothMacros += 1 }
+                            if played[index] {
+                                if macroIsForPlugIn(cell.value < 0x80 ? 9 + chosenMacro[channel] : 25 + Int(cell.value & 0x7F)) { smoothPlugInMacros += 1 } else { smoothMacros += 1 }
+                            }
                         case Own.bend, Own.smoothBend:
                             cell.clearCommand()
                             if played[index] { bends += 1 }
@@ -1077,6 +1179,7 @@ enum MPTMFile {
                             }
                             if more > 0 { openMPT.longValues[OpenMPTSong.place(pattern: index, row: row, channel: channel)] = more << 24 | value }
                         case IT2ForeignModule.Command.S:
+                            if cell.value & 0xF0 == 0xF0 { chosenMacro[channel] = Int(cell.value & 0x0F) }
                             if played[index], cell.value == 0x99 { reverbs += 1 }
                             if played[index], cell.value >= 0x9A, cell.value <= 0x9D { speakerCommands += 1 }
                         default: break
@@ -1091,25 +1194,21 @@ enum MPTMFile {
 
         // MARK: What is not heard
 
-        let unheard = pluginNotes + fmNotes + elsewhereNotes
+        let unheard = pluginNotes + elsewhereNotes
         if notes > 0, unheard * 2 >= notes {
-            if fmNotes >= pluginNotes, fmNotes >= elsewhereNotes { throw TuneError.unsupported("an MPTM file that is mostly for the AdLib's FM chip") }
             if pluginNotes >= elsewhereNotes { throw TuneError.unsupported("an MPTM file that is mostly for plug-ins") }
             throw TuneError.unsupported("an MPTM file most of whose samples are in other files")
         }
 
-        var shortfalls: [String] = []
+        var shortfalls: [String] = temperaments
         func say(_ count: Int, one: String, many: String) {
             if count == 1 { shortfalls.append(one) } else if count > 1 { shortfalls.append(Shortfall.capitalNumber(count) + many) }
         }
         say(silentInstruments.count, one: "One of its instruments plays through a plug-in, and is not heard.",
             many: " of its instruments play through plug-ins, and are not heard.")
-        say(fmInstruments.count, one: "One of its instruments is for the AdLib's FM chip, and is not heard.",
-            many: " of its instruments are for the AdLib's FM chip, and are not heard.")
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
-        say(plugins.count, one: "It has a plug-in, and is heard without what that does to its sound.",
-            many: " plug-ins are left out, and it is heard without what they do to its sound.")
+        if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
         if instrumentMode {
             let used = usedInstruments.filter { $0 >= 1 && $0 <= header.instruments }
 
@@ -1120,6 +1219,9 @@ enum MPTMFile {
                 many: " of its instruments have filters that change at random from note to note, and that is not done.")
         }
         if smoothMacros > 0 { shortfalls.append("Where it slides its filter over a row, the filter is moved in one step at the row's start.") }
+        if smoothPlugInMacros > 0, plugins.count > leftOut.count {
+            shortfalls.append("Where it slides a plug-in's setting over a row, the setting is moved in one step at the row's start.")
+        }
         say(bends, one: "One command that bends a note's pitch is left out.", many: " commands that bend a note's pitch are left out.")
         if reverbs > 0 { shortfalls.append("Its reverb is left out.") }
         if speakerCommands > 0 { shortfalls.append("What it asks of four speakers, and of filters on its whole sound, is left out.") }
@@ -1156,6 +1258,26 @@ enum MPTMFile {
         }
         openMPT.gain = Float(preAmp) / Float(min(preAmp, 128)) * level * loudness
 
+        // MARK: Plug-ins and FM
+
+        // What there is to hear besides samples. The FM chip is as loud as OpenMPT makes it against
+        // the samples, which depends on all of the above; a plug-in is given sound as loud as
+        // OpenMPT gives it, which in its two oldest ways of adding up is a half and a sixteenth of
+        // what it would otherwise be; and in all but those two the song's volume is applied last.
+        sound.level = Float(preAmp) / Float(min(preAmp, 128)) * level
+        sound.plugInScale = mixLevels == 0 ? 0.5 : mixLevels == 1 ? 1.0 / 16.0 : 1
+        sound.globalVolumeAtMaster = mixLevels >= 2
+        sound.adLibLevel = ModPlugSound.adLibLevel(synthVolume: song.synthVolume)
+        if fmNotes > 0 {
+            sound.adLib = OpenMPTAdLib.Behaviour(flexibleNoteOff: asks(Behaviour.fmFlexibleNoteOff), keepsVoiceWhenLetGo: asks(Behaviour.fmKeepsVoiceWhenLetGo),
+                                                 surroundIsMoved: !asks(Behaviour.surroundIsNotMoved))
+        }
+        if instrumentMode {
+            for index in 0 ..< header.instruments { file.instrument(index).MixPlug = UInt8(max(0, min(255, instrumentExtras[index].plugin))) }
+        }
+        let instrumentPlugIns = instrumentMode ? (0 ..< header.instruments).map { instrumentExtras[$0].plugin } : []
+        let heard = sound.adLib != nil || sound.sendsToPlugIns(instruments: instrumentPlugIns)
+
         // The version that last saved it, as OpenMPT writes one: 1.28.05, each part in base sixteen.
         var madeWith = "OpenMPT"
         if song.savedWith != 0 {
@@ -1165,7 +1287,7 @@ enum MPTMFile {
             }
             madeWith += " \((song.savedWith >> 24) & 0x7F)." + part(song.savedWith >> 16) + "." + part(song.savedWith >> 8)
         }
-        let module = IT2Module(openMPT: openMPT, file: file, madeWith: madeWith, orders: orders, mixVolume: UInt8(min(preAmp, 128)),
+        let module = IT2Module(openMPT: openMPT, sound: heard ? sound : nil, file: file, madeWith: madeWith, orders: orders, mixVolume: UInt8(min(preAmp, 128)),
                                speed: openMPT.sequences[0].speed, tempo: UInt8(min(255, openMPT.sequences[0].tempo / OpenMPTSong.tempoUnit)),
                                channelPans: pans, channelVolumes: volumes, patterns: packed, rows: rowCounts)
         return ITRenderer(module: module, format: "MPTM", shortfalls: shortfalls, options: options)

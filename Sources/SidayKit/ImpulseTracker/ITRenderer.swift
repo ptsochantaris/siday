@@ -121,7 +121,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     /// - Parameter asImpulseTracker: as the player this is ported from plays the file, for `renderRaw`.
     private func restart(asImpulseTracker: Bool = false) {
         let song = songList[currentSubsong]
-        player = IT2Player(module, order: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asImpulseTracker: asImpulseTracker)
+        player = IT2Player(module, order: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asImpulseTracker: asImpulseTracker, forSound: true)
         tickFrames = 0
         tickPosition = 0
         loopCount = 0

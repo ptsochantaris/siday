@@ -107,9 +107,17 @@ extension IT2Player {
         hc.pointee.MiscEfxData[at + 1] = UInt8(truncatingIfNeeded: value >> 8)
     }
 
-    /// The rate a sample is played at for a note (which is below 120).
-    @inline(__always) private func noteFrequency(_ s: IT2Sample?, _ note: UInt8) -> Int32 {
-        Int32(truncatingIfNeeded: (UInt64(s?.C5Speed ?? 0) &* UInt64(it2PitchTable[Int(note)])) >> 16)
+    /// The rate a voice's sample is played at for a note (which is below 120). An instrument of an
+    /// MPTM file may have a tuning of its own, and then the note's rate is what that makes of it.
+    @inline(__always) private func noteFrequency(_ sc: IT2SlavePointer, _ note: UInt8) -> Int32 {
+        let s = sc.pointee.SmpPtr
+        // (And a note for the FM chip is kept sixteen times finer than a sample's rate needs to be:
+        // see `OpenMPTAdLib.fineShift`.)
+        let fine = fineFMPitch && s?.AdLib != nil
+        if let tuning = sc.pointee.InsPtr?.Tuning, sc.pointee.Ins != 0xFF, Int(note) < tuning.count {
+            return openMPTTunedFrequency(s, fine ? tuning[Int(note)] * Float(1 << OpenMPTAdLib.fineShift) : tuning[Int(note)])
+        }
+        return Int32(truncatingIfNeeded: (UInt64(s?.C5Speed ?? 0) &* UInt64(it2PitchTable[Int(note)])) >> (fine ? 16 - OpenMPTAdLib.fineShift : 16))
     }
 
     private func CommandEChain(_ hc: IT2HostPointer, _ SlideValue: UInt16) {
@@ -438,7 +446,7 @@ extension IT2Player {
         sc.pointee.Frac32 = 0
         sc.pointee.Frac64 = 0
         sc.pointee.HasLooped = false
-        sc.pointee.FrequencySet = noteFrequency(s, hc.pointee.TranslatedNote)
+        sc.pointee.FrequencySet = noteFrequency(sc, hc.pointee.TranslatedNote)
         sc.pointee.Frequency = sc.pointee.FrequencySet
 
         hcFlags |= UInt8(HF_CHAN_ON)
@@ -629,7 +637,7 @@ extension IT2Player {
             if hc.pointee.TranslatedNote < 120 {
                 if hc.pointee.Smp != midiSample { sc.pointee.Note = hc.pointee.TranslatedNote }
 
-                hc.pointee.PortaFreq = noteFrequency(sc.pointee.SmpPtr, hc.pointee.TranslatedNote)
+                hc.pointee.PortaFreq = noteFrequency(sc, hc.pointee.TranslatedNote)
                 hc.pointee.Flags |= HF_PITCH_SLIDE_ONGOING
             } else if hc.pointee.Flags & HF_CHAN_ON != 0 {
                 if hc.pointee.TranslatedNote == 255 {

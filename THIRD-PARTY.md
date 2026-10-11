@@ -412,9 +412,9 @@ Impulse Tracker's own, which mixes in floating point through a windowed sinc and
 filter (`IT2Mixer.swift`). Impulse Tracker's own drivers, and it2play's reading of S3M and MMCMP
 files, are not ported. (`IT2ForeignModule.swift`, `GDMFile.swift` and `PTMFile.swift` in that folder are
 not from it2play: they are what gives that replayer two other kinds of file to play, and are below.
-Nor are `MPTMFile.swift` and `IT2OpenMPT.swift`, which give it OpenMPT's own kind of file, and what
-that kind of file asks of it that an IT file does not; they are below too, and the few lines in the
-replayer and its mixer that are there for them say so where they stand.)
+Nor are `MPTMFile.swift`, `IT2OpenMPT.swift` and `IT2AdLib.swift`, which give it OpenMPT's own kind
+of file, and what that kind of file asks of it that an IT file does not; they are below too, and the
+few lines in the replayer and its mixer that are there for them say so where they stand.)
 
 ```
 BSD 3-Clause License
@@ -476,11 +476,62 @@ note, its offsets by cue point, and its sample played backwards (`soundlib/Snd_f
 envelope goes to when a key is let go, the filter that lets the high through, and where a channel to
 one side is put (`soundlib/Sndmix.cpp`, `Snd_flt.cpp`). Changed from the original: carried over from
 C++ to Swift; none of OpenMPT's own player is here, only these parts of it set into another
-replayer, which plays the rest as Impulse Tracker would; a file's plug-ins, its FM instruments and
-its tunings are not played at all; and of the many ways of playing that a file can ask OpenMPT for,
+replayer, which plays the rest as Impulse Tracker would; an instrument tuned to a temperament has
+its notes started at the tuning's pitches and nothing more of the tuning, and a tuning further from
+the usual one is not played at all; and of the many ways of playing that a file can ask OpenMPT for,
 one by one, only the few that the source names are followed. Used under the BSD 3-Clause licence set
 out below, under "OpenMPT — FM Tracker files": Copyright (c) 2004-2026 OpenMPT Project Developers and
 Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
+
+## OpenMPT — FM instruments and built-in plug-ins
+
+Three more things in this player are made from OpenMPT (https://openmpt.org), and are for the files
+of OpenMPT and of ModPlug Tracker before it: MPTM files, and IT files that say one of the two made
+them.
+
+`Sources/SidayKit/ImpulseTracker/IT2AdLib.swift` plays an instrument that is a patch for the AdLib's
+FM chip as OpenMPT plays one: how it gives the chip's eighteen voices out to notes, and what it sets
+the chip's registers to for a note's patch, pitch, level and side (`soundlib/OPL.cpp` and `OPL.h`),
+and when it does each (`soundlib/Snd_fx.cpp`, `soundlib/Sndmix.cpp`). Changed from the original:
+carried over from C++ to Swift; what OpenMPT does as each thing happens to a note is done here once
+a tick, from what Impulse Tracker's replayer has made of its voices by then, so that the chip is
+left set as OpenMPT leaves it; the chip itself is Nuked OPL3 (below) where OpenMPT's is Opal; and a
+note's pitch is Impulse Tracker's replayer's, which is not in every case OpenMPT's.
+
+`Sources/SidayKit/OpenMPT` has OpenMPT's own effects, which are its remakes of the effects that came
+with Windows as DirectX Media Objects, and one more: `OpenMPTEcho.swift`, `OpenMPTChorus.swift` (the
+chorus and both flangers), `OpenMPTGargle.swift`, `OpenMPTWavesReverb.swift`,
+`OpenMPTI3DL2Reverb.swift`, `OpenMPTDistortion.swift`, `OpenMPTParamEq.swift` and
+`OpenMPTCompressor.swift`, with `OpenMPTDMOUtils.swift`, from `soundlib/plugins/dmo/Echo.cpp`,
+`Chorus.cpp`, `Flanger.cpp`, `Gargle.cpp`, `WavesReverb.cpp`, `I3DL2Reverb.cpp`, `Distortion.cpp`,
+`ParamEq.cpp`, `Compressor.cpp` and `DMOUtils.cpp`; and `OpenMPTDigiBoosterEcho.swift` from
+`soundlib/plugins/DigiBoosterEcho.cpp`. `OpenMPTEffect.swift` is what they have in common
+(`soundlib/plugins/PlugInterface.h`). Changed from the originals: carried over from C++ to Swift,
+each as a class that is given sound and gives sound back and knows nothing of OpenMPT's mixer; their
+delay lines are laid out once and nothing is allocated while they play; the six powers of 0.93 that
+set the lengths of the I3DL2 reverb's late delays are written out as the numbers they come to, so
+that no maths library can make a delay a sample longer or shorter; a few loops are written to go
+faster without changing a sum or its order; and where the original is undefined (a number too large
+for the whole number it is cut to, a delay outside its line) the port does what ARM does, or stays
+inside.
+
+`OpenMPTPlugIns.swift` in the same folder sends sound through a song's plug-ins as OpenMPT does:
+which plug-in a voice goes to, a plug-in's sound going on to another or to the listener, one put on
+the whole sound, and how what it makes is put together with what it was given (`ProcessPlugins` and
+`MixChannel` in `soundlib/Fastmix.cpp`, `GetBestPlugin` in `soundlib/Snd_fx.cpp`, `ProcessMixOps`
+and `RecalculateGain` in `soundlib/plugins/PlugInterface.cpp`). `ModPlugSound.swift` reads a
+plug-in from a file and finds which of OpenMPT's own it is (`ReadMixPluginChunk` in
+`soundlib/Load_it.cpp`, `soundlib/plugins/PluginStructs.h`, and `CreateMixPlugin` and the list of
+built-in plug-ins in `soundlib/plugins/PluginManager.cpp`), and how OpenMPT changes a plug-in's
+settings as a tune plays is in `IT2OpenMPT.swift` and `IT2Player.swift` (parameter control notes and
+the MIDI macros that address a plug-in, `soundlib/Snd_fx.cpp`). Changed from the original: carried
+over from C++ to Swift, and set into Impulse Tracker's mixer, which mixes in floating point and a
+tick at a time; only OpenMPT's own effects are there to be run, and a place whose plug-in is
+anything else is treated as OpenMPT treats one whose plug-in it cannot find.
+
+All of it is used under the BSD 3-Clause licence set out below, under "OpenMPT — FM Tracker files":
+Copyright (c) 2004-2026 OpenMPT Project Developers and Contributors and Copyright (c) 1997-2003
+Olivier Lapicque.
 
 ## Nuked OPL3 — the FM chip of the AdLib and Sound Blaster cards
 

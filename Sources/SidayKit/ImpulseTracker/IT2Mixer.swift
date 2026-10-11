@@ -108,6 +108,21 @@ final class IT2Mixer {
     /// The sample number that stands for a MIDI note on a voice, which has no sound. See `IT2Module`.
     private let midiVoiceSample: UInt8
 
+    // For a file of ModPlug Tracker's or OpenMPT's with plug-ins or FM instruments that are played
+    // (see `ModPlugSound`); for any other, nil and false, and the tick is mixed as it always was.
+    /// The song's plug-ins, which voices are sent through.
+    private var plugIns: OpenMPTPlugIns?
+    /// The FM chip, which the replayer sets and whose sound is added to the voices'.
+    var adLib: OpenMPTAdLib?
+    private let adLibLevel: Float
+    private let sound: ModPlugSound?
+    /// True if the song's volume is left out of each voice and applied to the whole sound instead,
+    /// after the plug-ins and the chip, as OpenMPT applies it.
+    private let globalVolumeAtMaster: Bool
+    /// The song's volume, of 128, as the replayer last had it; and what the sound is at on its way there.
+    var GlobalVolume: UInt16 = 128
+    private var masterVolume: Float = -1
+
     private var MixVolume: UInt16 = 0
     private var RealBytesToMix: Int32 = 0, BytesToMix: Int32 = 0
     private let FreqMulVal: Int32
@@ -132,7 +147,8 @@ final class IT2Mixer {
     /// What the voice last mixed last added to each side.
     private var fLastLeftValue: Float = 0, fLastRightValue: Float = 0
 
-    init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>) {
+    init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>, sound: ModPlugSound? = nil) {
+        globalVolumeAtMaster = sound?.globalVolumeAtMaster ?? false
         sChn = voices
         FilterParameters = filterParameters
         stereoOutput = module.Flags & ITF_STEREO != 0
@@ -180,6 +196,17 @@ final class IT2Mixer {
 
         // and the gain.
         MixGain = Self.mixGain(of: module)
+
+        // (For a file with plug-ins or FM instruments that are played. The plug-ins themselves are
+        // made only for a mixer that is to make sound: see `playsPlugIns`.)
+        var level = sound?.level ?? 1
+        if sound?.levelIsTheMixers == true { level *= MixGain * (1.0 / 32768.0) }
+        self.sound = sound.map { known in
+            var sound = known
+            sound.level = level > 0 ? level : 1
+            return sound
+        }
+        adLibLevel = (sound?.adLibLevel ?? 1) / (level > 0 ? level : 1)
 
         // The original has no HQ_FixSamples: nothing is written about the samples' ends until a voice
         // is mixed. What voices have written there is cleared, though, so that a tune starts as it does
@@ -260,6 +287,29 @@ final class IT2Mixer {
                 }
             }
         }
+    }
+
+    // MARK: Plug-ins
+
+    /// Makes the song's plug-ins, for a mixer whose sound is to be heard: one that only finds how
+    /// long a tune is has no use for them.
+    func playsPlugIns() {
+        if plugIns == nil, let sound { plugIns = OpenMPTPlugIns(sound) }
+    }
+
+    /// Sets one of the settings of the plug-in in a place, counted from nought, while the tune
+    /// plays; `slide` if it is to be moved by so much from where it is. Nothing is done without the plug-in.
+    func setPlugInParameter(place: Int, _ index: Int, _ value: Float, slide: Bool = false) {
+        guard let plugIns else { return }
+        plugIns.setParameter(place: place, index, slide ? plugIns.parameter(place: place, index) + value : value)
+    }
+
+    func plugInParameter(place: Int, _ index: Int) -> Float {
+        plugIns?.parameter(place: place, index) ?? 0
+    }
+
+    func setPlugInDryRatio(place: Int, _ ratio: Float) {
+        plugIns?.setDryRatio(place: place, ratio)
     }
 
     // MARK: What the replayer asks
@@ -408,6 +458,7 @@ final class IT2Mixer {
                 levels.now[channel] = 0
                 notes.pitches[channel] = 0
             }
+            plugIns?.begin(frames: Int(RealBytesToMix))
         }
         defer { if !silent { levels.tickMade() } }
 
@@ -422,6 +473,10 @@ final class IT2Mixer {
                 if sc.pointee.Flags & SF_NEW_NOTE != 0 { notes.struck[channel] = true }
                 if sc.pointee.HostChnNum & CHN_DISOWNED == 0, sc.pointee.Frequency > 0 {
                     notes.pitches[channel] = ChannelPitch.note(ofRate: Double(sc.pointee.Frequency))
+                    // (A note for the FM chip may have its rate kept finer: see `OpenMPTAdLib.fineShift`.)
+                    if let adLib, adLib.fine, sc.pointee.SmpPtr?.AdLib != nil {
+                        notes.pitches[channel] = ChannelPitch.note(ofRate: Double(sc.pointee.Frequency) / Double(1 << OpenMPTAdLib.fineShift))
+                    }
                 }
             }
             // A channel is the loudest of its voices: its note, and those before it still dying away.
@@ -437,6 +492,7 @@ final class IT2Mixer {
                 sc.pointee.Flags &= ~SF_CHAN_ON
 
                 sc.pointee.FinalVol32768 = 0
+                sc.pointee.VolNoGlobal = 0
                 sc.pointee.Flags |= SF_UPDATE_MIXERVOL
             }
 
@@ -505,7 +561,7 @@ final class IT2Mixer {
                     sc.pointee.fLeftVolume = 0
                     sc.pointee.fRightVolume = 0
                 } else {
-                    let Vol = Int32(sc.pointee.FinalVol32768) &* Int32(MixVolume)
+                    let Vol = Int32(globalVolumeAtMaster ? sc.pointee.VolNoGlobal : sc.pointee.FinalVol32768) &* Int32(MixVolume)
                     if !stereoOutput {
                         let volume = Float(Vol) * (1.0 / (32768.0 * 128.0))
                         sc.pointee.fLeftVolume = volume
@@ -549,6 +605,14 @@ final class IT2Mixer {
                 }
             } else {
                 let Surround = sc.pointee.FinalPan == PAN_SURROUND
+                // Where its sound is added: to the tick, or for a song with plug-ins to what is
+                // sent to the plug-in of the voice's instrument, or failing that of its channel.
+                var place = -1
+                if let plugIns {
+                    let ofInstrument = sc.pointee.Ins != 0xFF ? Int(sc.pointee.InsPtr?.MixPlug ?? 0) : 0
+                    place = plugIns.place(instrumentPlugIn: ofInstrument, channel: Int(sc.pointee.HostChnNum & 63))
+                    plugIns.voiceMixed()
+                }
 
                 if Int32(bitPattern: LoopLength) > 0, let s, let Data = s.Data {
                     // Where the sample's memory begins and ends, at the width the voice reads it at.
@@ -562,6 +626,7 @@ final class IT2Mixer {
                     let Delta64 = sc.pointee.Delta64
 
                     var fMixBufferPtr = fMixBuffer
+                    if place >= 0, let plugIns { fMixBufferPtr = plugIns.buffer(ofPlace: place) }
                     if sc.pointee.LoopMode == LOOP_PINGPONG {
                         while MixBlockSize > 0 {
                             // How many frames until the end of the loop it is heading for.
@@ -618,8 +683,12 @@ final class IT2Mixer {
                                         }
                                         fLastLeftValue = left
                                         fLastRightValue = right
-                                        fLastClickRemovalLeft += left
-                                        fLastClickRemovalRight += right
+                                        if place < 0 {
+                                            fLastClickRemovalLeft += left
+                                            fLastClickRemovalRight += right
+                                        } else {
+                                            plugIns?.addClick(toPlace: place, left: left, right: right)
+                                        }
                                         break
                                     }
 
@@ -712,8 +781,12 @@ final class IT2Mixer {
                                 fLastRightValue = right
 
                                 // and what is left of it then goes on into the ticks after.
-                                fLastClickRemovalLeft += left
-                                fLastClickRemovalRight += right
+                                if place < 0 {
+                                    fLastClickRemovalLeft += left
+                                    fLastClickRemovalRight += right
+                                } else {
+                                    plugIns?.addClick(toPlace: place, left: left, right: right)
+                                }
 
                                 break
                             }
@@ -727,6 +800,39 @@ final class IT2Mixer {
 
             sc.pointee.Flags &= ~(SF_RECALC_PAN | SF_RECALC_VOL | SF_FREQ_CHANGE | SF_UPDATE_MIXERVOL | SF_NEW_NOTE | SF_NOTE_STOP | SF_LOOP_CHANGED | SF_PAN_CHANGED)
         }
+
+        if !silent, adLib != nil || plugIns != nil { finishTick(fMixBuffer, Int(RealBytesToMix)) }
+    }
+
+    /// What OpenMPT does to a tick once its voices are mixed, for a song that has the means: the FM
+    /// chip's sound is added, the whole is sent through the plug-ins, and the song's volume is applied.
+    private func finishTick(_ fMixBuffer: UnsafeMutablePointer<Float>, _ frames: Int) {
+        if let adLib {
+            adLib.render(into: fMixBuffer, frames: frames, level: adLibLevel)
+            // A channel with a note on the chip is as loud as the chip's voice is.
+            withUnsafeTemporaryAllocation(of: Float.self, capacity: OpenMPTAdLib.voiceCount) { swings in
+                guard let swings = swings.baseAddress else { return }
+                adLib.takeLevels(into: swings)
+                for voice in 0 ..< OpenMPTAdLib.voiceCount {
+                    let channel = adLib.channel(ofVoice: voice, sChn)
+                    if channel >= 0, swings[voice] > levels.now[channel] { levels.now[channel] = swings[voice] }
+                }
+            }
+        }
+        plugIns?.process(master: fMixBuffer, frames: frames)
+        guard globalVolumeAtMaster else { return }
+        // The song's volume, reached over a moment so that a change of it makes no click.
+        let wanted = Float(min(GlobalVolume, 128)) * (1.0 / 128.0)
+        if masterVolume < 0 { masterVolume = wanted }
+        let ramp = min(frames, 64)
+        let step = ramp > 0 ? (wanted - masterVolume) / Float(ramp) : 0
+        var volume = masterVolume
+        for i in 0 ..< frames {
+            if i < ramp { volume += step } else { volume = wanted }
+            fMixBuffer[i * 2] *= volume
+            fMixBuffer[i * 2 + 1] *= volume
+        }
+        masterVolume = wanted
     }
 
     /// How many frames of output a voice gives before it has gone `distance` frames of its sample

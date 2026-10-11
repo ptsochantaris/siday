@@ -6,7 +6,8 @@ extension IT2Module {
     /// `TuneInfo.shortfalls`.
     ///
     /// Most of it is what later trackers put in an IT file. ModPlug Tracker and OpenMPT play an
-    /// instrument through a plug-in, and have commands and ways of packing a sample of their own;
+    /// instrument through a plug-in, which is played here only if it is one of OpenMPT's own
+    /// (see `ModPlugSound`), and have commands and ways of packing a sample of their own;
     /// and Impulse Tracker itself could send an instrument's notes to a MIDI synthesiser, which is
     /// not here to play them. (Most files with such an instrument are ModPlug Tracker's, which
     /// marked the drums of a MIDI file it had read that way, and went on playing their samples.
@@ -61,7 +62,7 @@ extension IT2Module {
         var sentences: [String] = []
         var usedSample = [Bool](repeating: false, count: 256)
         if usesInstruments {
-            var unheard = 0, bare = 0, midi = 0
+            var unheard = 0, midi = 0
             for number in 1 ... 255 where usedInstrument[number] && number <= InsNum {
                 let instrument = instrument(number - 1)
                 var hasSample = false
@@ -72,7 +73,9 @@ extension IT2Module {
                     if let s = self.sample(sample - 1), s.Length > 0 { hasSample = true }
                 }
                 if extras.playsThroughPlugIn(instrument: number - 1) {
-                    if hasSample { bare += 1 } else { unheard += 1 }
+                    // (One with a sample is heard, through its plug-in or without it; and a plug-in
+                    // that is an effect makes no sound of a note, here or in OpenMPT.)
+                    if !hasSample, !extras.isPlayed(plugIn: extras.instrumentPlugIns[number - 1]) { unheard += 1 }
                 } else if instrument.MIDIChn >= 1, instrument.MIDIChn <= 17, !madeByModPlug {
                     // (Impulse Tracker sends such an instrument's notes to the synthesiser and
                     // plays no sample for them, whether it has one or not. ModPlug Tracker and
@@ -80,14 +83,15 @@ extension IT2Module {
                     midi += 1
                 }
             }
-            sentences.append(contentsOf: Shortfall.plugIns(unheard: unheard, bare: bare, channels: extras.channelsThroughPlugIns))
+            sentences.append(contentsOf: Shortfall.plugIns(unheard: unheard, bare: 0, channels: 0))
             if midi > 0 {
                 sentences.append(Shortfall.some(midi, one: "instruments is sent to a MIDI synthesiser, and is not heard.", many: "instruments are sent to a MIDI synthesiser, and are not heard."))
             }
         } else {
             usedSample = usedInstrument
-            sentences.append(contentsOf: Shortfall.plugIns(unheard: 0, bare: 0, channels: extras.channelsThroughPlugIns))
         }
+        let leftOut = extras.plugInsLeftOut
+        if let sentence = Shortfall.plugInsLeftOut(leftOut.names, of: leftOut.all) { sentences.append(sentence) }
 
         let silent = samplesNotRead.filter { $0 + 1 < usedSample.count && usedSample[$0 + 1] }.count
         if silent > 0 {

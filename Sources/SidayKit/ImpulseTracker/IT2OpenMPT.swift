@@ -74,6 +74,12 @@ struct OpenMPTSong {
     var softPanning = false
     /// How much louder or quieter than an IT file with the same settings it is to be played.
     var gain: Float = 1
+    /// The rows that change a plug-in's setting ("parameter control notes"), each under its
+    /// pattern and row as `pattern << 16 | row`. Such a note names a plug-in by its place from 1 (in
+    /// eight bits from the twentieth), one of its settings (in ten bits from the tenth) and what
+    /// it is to be, of 999 (in the low ten); and the top bit says the setting is to be slid there
+    /// over the row and not set at its start.
+    var parameterNotes: [Int: [UInt32]] = [:]
 
     /// A row of a channel of a pattern as one number, for `longValues`.
     static func place(pattern: Int, row: Int, channel: Int) -> Int {
@@ -293,6 +299,72 @@ extension IT2Player {
             hc.pointee.OffsetMemory = offset
         }
         startNote(hc, sc, at: offset &+ high)
+    }
+
+    // MARK: Plug-ins' settings
+
+    /// A plug-in's setting on its way to where a row said it was to be by the row's end.
+    struct ParameterSlide {
+        var place: Int, index: Int
+        var target: Float, step: Float
+        var ticksLeft: Int
+    }
+
+    /// What an MPTM file's rows say of its plug-ins' settings, done for the tick just begun: a
+    /// setting is set on a row's first tick, or slid over its ticks and set exactly on the last.
+    func openMPTParameterNotes(_ song: OpenMPTSong) {
+        if RowJustRead {
+            parameterSlides.removeAll(keepingCapacity: true)
+            for note in song.parameterNotes[Int(CurrentPattern) << 16 | Int(CurrentRow)] ?? [] {
+                let place = Int(note >> 20 & 0xFF) - 1, index = Int(note >> 10 & 0x3FF)
+                let value = Float(note & 0x3FF) / 999
+                if note >> 31 == 0 {
+                    mixer.setPlugInParameter(place: place, index, value)
+                } else {
+                    let ticks = max(1, Int(CurrentSpeed))
+                    let step = (value - mixer.plugInParameter(place: place, index)) / Float(ticks)
+                    parameterSlides.append(ParameterSlide(place: place, index: index, target: value, step: step, ticksLeft: ticks))
+                }
+            }
+        }
+        for slide in parameterSlides.indices where parameterSlides[slide].ticksLeft > 0 {
+            parameterSlides[slide].ticksLeft -= 1
+            let now = parameterSlides[slide]
+            if now.ticksLeft == 0 {
+                mixer.setPlugInParameter(place: now.place, now.index, now.target)
+            } else {
+                mixer.setPlugInParameter(place: now.place, now.index, now.step, slide: true)
+            }
+        }
+    }
+
+    /// A MIDI macro has addressed a plug-in, which is how ModPlug Tracker and OpenMPT let a Zxx
+    /// command reach one: `code` 3 for how much of what the plug-in is given is heard beside what
+    /// it makes, and 128 and upwards for its settings, each to `value` of 127. The plug-in is the
+    /// channel's, or failing that the one its instrument plays through.
+    func modPlugMacro(_ hc: IT2HostPointer, code: UInt8, value: UInt8) {
+        guard let sound else { return }
+        let channel = Int(hc.pointee.HostChnNum)
+        var plugIn = channel < sound.channelPlugIns.count ? sound.channelPlugIns[channel] : 0
+        if plugIn == 0, module.Flags & ITF_INSTR_MODE != 0, hc.pointee.Ins >= 1, Int(hc.pointee.Ins) <= module.InsNum {
+            plugIn = Int(module.instrument(Int(hc.pointee.Ins) - 1).MixPlug)
+        }
+        guard plugIn > 0 else { return }
+        if code == 3 {
+            mixer.setPlugInDryRatio(place: plugIn - 1, Float(127 - Int(value)) / 127)
+        } else if code >= 0x80 {
+            mixer.setPlugInParameter(place: plugIn - 1, Int(code & 0x7F), Float(value) / 127)
+        }
+    }
+
+    // MARK: Tunings
+
+    /// The rate of a note of an instrument that has a tuning of its own: the sample's rate at middle
+    /// C by what the tuning makes of the note, rounded as OpenMPT rounds it. (A slide from there, or
+    /// an arpeggio, then moves by the usual tuning's steps and not by this one's.)
+    func openMPTTunedFrequency(_ s: IT2Sample?, _ ratio: Float) -> Int32 {
+        let rate = (Float(s?.C5Speed ?? 0) * ratio).rounded()
+        return rate >= 0 && rate < 2_147_483_520 ? Int32(rate) : 0
     }
 
     // MARK: Envelopes

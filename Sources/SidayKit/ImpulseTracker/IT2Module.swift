@@ -108,6 +108,8 @@ final class IT2Module {
     /// things otherwise than Impulse Tracker, and a file of theirs is played as they played it
     /// where that is known to matter: an instrument with a MIDI channel plays its sample.
     var madeByModPlug: Bool { madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) }
+    /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
+    static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
     let OrdNum: Int, InsNum: Int, SmpNum: Int, PatNum: Int
     let Cwtv: UInt16, Cmwt: UInt16, Flags: UInt16, Special: UInt16
@@ -123,6 +125,9 @@ final class IT2Module {
     /// What an MPTM file says of its song that an IT file has no way to say: see `MPTMFile`. Nil for
     /// every other module, and nothing in the replayer that is for it is reached then.
     let openMPT: OpenMPTSong?
+    /// What a file of ModPlug Tracker's or OpenMPT's has to be heard besides its samples, if it has
+    /// any: plug-ins that are played, and instruments for the FM chip. Nil for every other module.
+    let sound: ModPlugSound?
 
     private let instruments: [IT2Instrument]
     private let samples: [IT2Sample]
@@ -275,7 +280,8 @@ final class IT2Module {
         // ModPlug Tracker and OpenMPT put their plug-ins here, before the first thing the header
         // points at, and what else they say of an instrument wherever it fits. (For `shortfalls`.)
         var extras = ModPlugExtras()
-        if madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) {
+        let byModPlug = madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8)
+        if byModPlug {
             let reader = ByteReader(data)
             var firstPointed = data.count
             for i in 0 ..< InsNum + SmpNum + PatNum {
@@ -285,6 +291,7 @@ final class IT2Module {
             }
             _ = extras.readPieces(reader, at: m.position, before: firstPointed)
             extras.readInstrumentExtras(reader, from: PtrListOffset, instruments: InsNum)
+            extras.readSongExtras(reader)
         }
 
         // (The song's message is not kept.)
@@ -374,6 +381,14 @@ final class IT2Module {
             // These are left with the length they claim and no sound: a sample kept as differences
             // without being compressed, an empty one, and one in a form that is not handled (its
             // bytes the other way round, and stranger things).
+            if s.Cvt == Self.adLibPatch, openMPT || byModPlug {
+                // Not a sound at all, but a patch for the AdLib's FM chip, which OpenMPT can have
+                // in a sample's place: twelve bytes.
+                var patch = [UInt8](repeating: 0, count: 12)
+                let got = patch.withUnsafeMutableBytes { m.read(12, into: $0.baseAddress!) }
+                if got == 12 { s.AdLib = patch }
+                continue
+            }
             if s.Length != 0, (DeltaEncoded && !Compressed) || s.Cvt & 0b1111_1010 != 0 { samplesNotRead.append(i) }
             if DeltaEncoded, !Compressed { continue }
             if s.Length == 0 { continue }
@@ -457,6 +472,33 @@ final class IT2Module {
         self.patterns = patterns
         self.rows = rows
         self.openMPT = nil
+
+        // MARK: Plug-ins and FM
+
+        // What a file of ModPlug Tracker's or OpenMPT's has to hear besides samples (see
+        // `ModPlugSound`), if it has any: plug-ins that are OpenMPT's own, with something sent
+        // through them, and patches for the FM chip.
+        var sound = ModPlugSound()
+        if byModPlug, !openMPT {
+            sound.plugIns = extras.plugIns
+            sound.channelPlugIns = Array(extras.channelPlugIns.prefix(MAX_HOST_CHANNELS))
+            let plugInOf = (0 ..< InsNum).map { $0 < extras.instrumentPlugIns.count ? extras.instrumentPlugIns[$0] : 0 }
+            for i in 0 ..< InsNum { instruments[i].MixPlug = UInt8(max(0, min(255, plugInOf[i]))) }
+            // How loud OpenMPT plays it, by which of its ways of adding up the file asks for:
+            // ModPlug Tracker's own unless it says, for a file that tracker made, and the one that
+            // is like Impulse Tracker's for a file OpenMPT made. (See `MPTMFile`, where this is told at length.)
+            let mixLevels = extras.mixLevels ?? (madeWith.utf8.starts(with: "ModPlug".utf8) ? 0 : 4)
+            let preAmp = max(1, min(2000, extras.preAmp ?? Int(MixVolume)))
+            sound.level = Float(preAmp) / Float(min(preAmp, 128)) * (mixLevels == 3 ? 2 : 1)
+            sound.levelIsTheMixers = mixLevels < 3
+            sound.plugInScale = mixLevels == 0 ? 0.5 : mixLevels == 1 ? 1.0 / 16.0 : 1
+            sound.globalVolumeAtMaster = mixLevels >= 2
+            sound.adLibLevel = ModPlugSound.adLibLevel(synthVolume: extras.synthVolume ?? 48)
+            if samples.contains(where: { $0.AdLib != nil }) { sound.adLib = OpenMPTAdLib.Behaviour() }
+            self.sound = sound.adLib != nil || sound.sendsToPlugIns(instruments: plugInOf) ? sound : nil
+        } else {
+            self.sound = nil
+        }
     }
 
     /// A module that did not come from an IT file: one of another tracker's, set down as Impulse
@@ -500,14 +542,16 @@ final class IT2Module {
         cutShort = Shortfall.CutShort()
         extras = ModPlugExtras()
         openMPT = nil
+        sound = nil
     }
 
     /// An MPTM file's module: what its IT file's part gave, which `file` is, with the list of
     /// patterns, the patterns and the settings that OpenMPT's own part of the file has in their
     /// place (see `MPTMFile`). The list may be longer than Impulse Tracker's 256 places. The samples
     /// and instruments are `file`'s own, changed where they stand before this is made.
-    init(openMPT song: OpenMPTSong, file: IT2Module, madeWith: String, orders: [UInt8], mixVolume: UInt8, speed: UInt8, tempo: UInt8,
+    init(openMPT song: OpenMPTSong, sound: ModPlugSound?, file: IT2Module, madeWith: String, orders: [UInt8], mixVolume: UInt8, speed: UInt8, tempo: UInt8,
          channelPans: [UInt8], channelVolumes: [UInt8], patterns: [[UInt8]?], rows: [UInt16]) {
+        self.sound = sound
         title = file.title
         self.madeWith = madeWith
         var Orders = [UInt8](repeating: 255, count: max(Self.MAX_ORDERS, orders.count + 1))
@@ -875,7 +919,7 @@ final class IT2Module {
     /// The tracker's own MIDI settings, which are what make Zxx and SFx work the filter. (The player
     /// has them too, for a file with none of its own; they are here for the file that ends part of
     /// the way through its own.)
-    private static func defaultMIDIData() -> [UInt8] {
+    static func defaultMIDIData() -> [UInt8] {
         var area = [UInt8](repeating: 0, count: midiDataLength)
         func put(_ slot: Int, _ text: String) {
             var at = slot * 32

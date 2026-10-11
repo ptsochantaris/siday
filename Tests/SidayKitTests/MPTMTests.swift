@@ -125,15 +125,23 @@ private struct Song {
 ///   - patternExtras: a pattern's own rows to a beat and swing, by its number.
 ///   - tunings: the names of the file's tunings with the steps to an octave each has, and which of
 ///     them each instrument is tuned to (by its place among them from 1; nought for none).
+///   - temperament: if given, every tuning is twelve steps to the octave that are these against the first.
+///   - plugInPieces: the pieces of the file that keep its plug-ins, the first place first (see
+///     `plugInPiece`); `plugins` more follow them, which are somebody else's programs.
+///   - channelPlugIns: the plug-in each channel is sent through, counted from 1.
+///   - parameterNotes: the rows of a pattern that change a plug-in's setting, as OpenMPT packs them.
+///   - macros: MIDI macros that are other than the tracker's own, by their places among the 153.
 private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? = nil,
                   sequences: [(orders: [Int], restart: Int?, speed: Int, tempo: Int)]? = nil, samples: [Sample] = [.sound(square, loops: true)],
                   instruments: [(sample: UInt8, volumeEnvelope: [(tick: Int, level: Int)], fade: Int)] = [],
                   instrumentExtras: [(name: String, size: Int, values: [[UInt8]])] = [], patternExtras: [Int: (rowsPerBeat: Int, swing: [Int])] = [:],
-                  cues: [Int: [Int]] = [:], tunings: [(name: String, steps: Int)] = [], tuned: [Int] = [], plugins: Int = 0, cutoff: UInt8 = 0) -> [UInt8] {
+                  cues: [Int: [Int]] = [:], tunings: [(name: String, steps: Int)] = [], tuned: [Int] = [], plugins: Int = 0, cutoff: UInt8 = 0,
+                  temperament: [Float] = [], plugInPieces: [[UInt8]] = [], channelPlugIns: [Int] = [], parameterNotes: [Int: [UInt8]] = [:],
+                  macros: [Int: String] = [:]) -> [UInt8] {
     let orders = orders ?? patterns.indices.map { UInt8($0) }
     var file = text("IMPM") + padded(text("a square wave"), to: 26) + [UInt8(song.rowsPerBeat), 16]
     file += word(orders.count) + word(instruments.count) + word(samples.count) + word(patterns.count) + word(0x0891) + word(0x0888)
-    file += word(0x0009 | (instruments.isEmpty ? 0 : 4)) + word(4)
+    file += word(0x0009 | (instruments.isEmpty ? 0 : 4)) + word(macros.isEmpty ? 4 : 12)
     file += [128, 48, UInt8(song.speed), UInt8(min(song.tempo, 255)), 128, 0] + word(0) + long(0) + text("OMPT")
     file += [UInt8](repeating: 32, count: 64) + [UInt8](repeating: 64, count: 64)
     #expect(file.count == 192)
@@ -141,10 +149,18 @@ private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? =
 
     // The plug-ins, which are named between the header and what its lists point at.
     var pluginChunks: [UInt8] = []
+    if !macros.isEmpty {
+        // (The MIDI settings come first: the tracker's own, with these in their places.)
+        var settings = IT2Module.defaultMIDIData()
+        for (place, macro) in macros { settings.replaceSubrange(place * 32 ..< place * 32 + 32, with: padded(text(macro), to: 32)) }
+        pluginChunks += settings
+    }
+    for (place, piece) in plugInPieces.enumerated() { pluginChunks += text("FX0\(place)") + long(piece.count) + piece }
     for plugin in 0 ..< plugins {
         let info = long(0x5653_5450) + long(0x1234_0000 + plugin) + [UInt8](repeating: 0, count: 120)
-        pluginChunks += text("FX0\(plugin)") + long(info.count + 8) + info + long(0) + long(0)
+        pluginChunks += text("FX0\(plugInPieces.count + plugin)") + long(info.count + 8) + info + long(0) + long(0)
     }
+    if !channelPlugIns.isEmpty { pluginChunks += text("CHFX") + long(channelPlugIns.count * 4) + channelPlugIns.flatMap(long) }
 
     let count = instruments.count + samples.count + patterns.count
     let base = file.count + count * 4 + pluginChunks.count
@@ -228,9 +244,17 @@ private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? =
     if !tunings.isEmpty {
         // Each tuning is of equal steps, so many to an octave, with sixteen parts to a step.
         let all = tunings.map { tuning in
-            (name: text("2"), data: chunk("CTB244RTI", [(text("0"), adaptive(tuning.name.utf8.count) + text(tuning.name)), (text("2"), word(3)), (text("4"), long(15)),
-                                                        (text("RTI1"), word(0x10000 - 64)), (text("RTI2"), word(tuning.steps)),
-                                                        (text("RTI3"), long(Int(Float(2).bitPattern))), (text("RTI4"), word(128))]))
+            guard temperament.count == 12 else {
+                return (name: text("2"), data: chunk("CTB244RTI", [(text("0"), adaptive(tuning.name.utf8.count) + text(tuning.name)), (text("2"), word(3)), (text("4"), long(15)),
+                                                                   (text("RTI1"), word(0x10000 - 64)), (text("RTI2"), word(tuning.steps)),
+                                                                   (text("RTI3"), long(Int(Float(2).bitPattern))), (text("RTI4"), word(128))]))
+            }
+            // A temperament: twelve steps given, from the lowest note there is (64 below middle C,
+            // which is the eighth step of an octave six below), and the rest of the scale those again.
+            let steps = (0 ..< 12).map { step -> Float in temperament[(8 + step) % 12] / Float(step < 4 ? 64 : 32) }
+            return (name: text("2"), data: chunk("CTB244RTI", [(text("0"), adaptive(tuning.name.utf8.count) + text(tuning.name)), (text("2"), word(1)), (text("4"), long(15)),
+                                                               (text("RTI0"), adaptive(12) + steps.flatMap { long(Int($0.bitPattern)) }),
+                                                               (text("RTI1"), word(0x10000 - 64)), (text("RTI3"), long(Int(Float(2).bitPattern))), (text("RTI4"), word(128))]))
         }
         items.append((text("0"), chunk("TC", all)))
         var map = word(tunings.count)
@@ -238,10 +262,14 @@ private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? =
         for which in tuned { map += word(which) }
         items.append((text("1"), map))
     }
-    if !patternExtras.isEmpty {
-        var all: [(name: [UInt8], data: [UInt8])] = patternExtras.sorted(by: { $0.key < $1.key }).map { index, extra in
-            var parts: [(name: [UInt8], data: [UInt8])] = [(text("RPB."), long(extra.rowsPerBeat)), (text("RPM."), long(extra.rowsPerBeat * 4))]
-            if !extra.swing.isEmpty { parts.append((text("SWNG"), word(extra.swing.count) + extra.swing.flatMap(long))) }
+    if !patternExtras.isEmpty || !parameterNotes.isEmpty {
+        var all: [(name: [UInt8], data: [UInt8])] = Set(patternExtras.keys).union(parameterNotes.keys).sorted().map { index in
+            var parts: [(name: [UInt8], data: [UInt8])] = []
+            if let notes = parameterNotes[index] { parts.append((text("data"), notes)) }
+            if let extra = patternExtras[index] {
+                parts += [(text("RPB."), long(extra.rowsPerBeat)), (text("RPM."), long(extra.rowsPerBeat * 4))]
+                if !extra.swing.isEmpty { parts.append((text("SWNG"), word(extra.swing.count) + extra.swing.flatMap(long))) }
+            }
             return (word(index), chunk("mptP", parts))
         }
         all.append((text("num"), word(patterns.count)))
@@ -530,14 +558,13 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
 // MARK: What is not played
 
 @Test func mptmSaysWhatItLeavesOut() throws {
-    // Three instruments: a sample's, a plug-in's and an FM patch; and a second plug-in that is an effect.
+    // Three instruments: a sample's, a plug-in's and an FM patch; and a second plug-in, neither of them OpenMPT's own.
     let pattern = Pattern((0 ..< 8).map { (row: $0, channel: 0, cell: Cell.note(60, instrument: $0 == 2 ? 2 : $0 == 5 ? 3 : 1)) })
     let file = mptm([pattern], samples: [.sound(square, loops: true), .fm], instruments: [(1, [], 0), (0, [], 0), (2, [], 0)],
                     instrumentExtras: [("MiP.", 1, [[0], [1], [0]])], plugins: 2)
     let renderer = try player(file)
     #expect(renderer.info.shortfalls == ["One of its instruments plays through a plug-in, and is not heard.",
-                                    "One of its instruments is for the AdLib's FM chip, and is not heard.",
-                                    "Two plug-ins are left out, and it is heard without what they do to its sound."])
+                                    "Its two plug-ins are left out, and it is heard without what they do to its sound."])
     #expect(renderer.info.detail == "OpenMPT 1.30.00")
     // What is said is only what the file uses.
     let unused = mptm([Pattern([(0, 0, .note())])], samples: [.sound(square, loops: true), .fm], instruments: [(1, [], 0), (2, [], 0)])
@@ -558,12 +585,13 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
             return "\(error)"
         }
     }
-    // Half its notes are for a plug-in, or for the FM chip, or for a sample that is not in the file.
+    // Half its notes are for a plug-in that is not here, or for a sample that is not in the file.
     let pattern = Pattern((0 ..< 8).map { (row: $0, channel: 0, cell: Cell.note(60, instrument: $0 % 2 == 0 ? 2 : 1)) })
     let plugin = mptm([pattern], instruments: [(1, [], 0), (0, [], 0)], instrumentExtras: [("MiP.", 1, [[0], [1]])], plugins: 1)
     #expect(refusal(plugin) == "unsupported: an MPTM file that is mostly for plug-ins")
+    // (One that is for the AdLib's FM chip is played.)
     let fm = mptm([pattern], samples: [.sound(square, loops: true), .fm], instruments: [(1, [], 0), (2, [], 0)])
-    #expect(refusal(fm) == "unsupported: an MPTM file that is mostly for the AdLib's FM chip")
+    #expect(refusal(fm) == "")
     let elsewhere = mptm([pattern], samples: [.sound(square, loops: true), .elsewhere], instruments: [(1, [], 0), (2, [], 0)])
     #expect(refusal(elsewhere) == "unsupported: an MPTM file most of whose samples are in other files")
     // An instrument with no sample and no plug-in is silent in OpenMPT too, and is nothing to refuse a file for.
@@ -627,4 +655,208 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
     #expect(loudness(stereo(later, seconds: 0.5).left[4800...]) > 0.01)
     // But written out for setting beside the player this is ported from, it is as that plays it.
     #expect(later.renderRaw(frames: 24000).allSatisfy { abs(Int($0)) < 4 })
+}
+
+// MARK: Temperaments
+
+@Test func mptmTemperamentIsPlayedAtItsOwnPitches() throws {
+    // Twelve steps to the octave that are not quite equal: each a few hundredths of a semitone out.
+    let equal = (0 ..< 12).map { Float(pow(2.0, Double($0) / 12)) }
+    var steps = equal
+    steps[4] *= Float(pow(2.0, -0.14 / 12)) // an E fourteen hundredths flat
+    steps[7] *= Float(pow(2.0, 0.02 / 12))
+    let notes = Pattern([(0, 0, .note(60)), (4, 0, .note(64)), (8, 0, .note(79)), (12, 0, .note(52))])
+    let file = mptm([notes], instruments: [(1, [], 0)], tunings: [("well tempered", 12)], tuned: [1], temperament: steps)
+    let renderer = try player(file)
+    #expect(renderer.info.shortfalls == ["It is tuned to \"well tempered\", which is nowhere more than fourteen hundredths of a semitone from the usual tuning: "
+            + "its notes start at that tuning's pitches, and its slides and arpeggios move by the usual tuning's steps."])
+    // Each note's rate is the sample's own by what the tuning makes of the note.
+    let rates = renderer.ticks(seconds: 2).enumerated().filter { $0.offset % 24 == 0 }.map { $0.element.rates.max() ?? 0 }
+    let wanted = [steps[0], steps[4], steps[7] * 2, steps[4] / 2].map { Int((8363 * $0).rounded()) }
+    #expect(Array(rates.prefix(4)) == wanted)
+    #expect(wanted[1] != Int((8363 * equal[4]).rounded()))
+    // One that is further out than a quarter of a semitone anywhere is still refused.
+    steps[9] *= Float(pow(2.0, 0.3 / 12))
+    let far = mptm([notes], instruments: [(1, [], 0)], tunings: [("far", 12)], tuned: [1], temperament: steps)
+    #expect(throws: TuneError.self) { try TuneLoader.load(far, format: .mptm) }
+}
+
+// MARK: The FM chip
+
+/// A song that asks for OpenMPT's ways with the FM chip since its version 1.30: a note that is fading
+/// is still told its level, and a note that its channel lets go keeps its voice of the chip.
+private let fmSong: Song = {
+    var song = Song()
+    song.behaviours += [99, 105]
+    return song
+}()
+
+/// What a player sets the FM chip's registers to, tick by tick, for as many ticks as asked.
+private func chipWrites(_ renderer: ITRenderer, ticks: Int) -> [[(register: Int, value: UInt8)]] {
+    let player = IT2Player(renderer.module)
+    player.adLib?.log = []
+    return (0 ..< ticks).map { _ in
+        player.Update()
+        let writes = (player.adLib?.log ?? []).map { (register: Int($0 >> 8), value: UInt8(truncatingIfNeeded: $0)) }
+        player.adLib?.log = []
+        _ = player.mixer.skipTick()
+        return writes
+    }
+}
+
+@Test func mptmInstrumentForTheFMChipIsPlayedOnIt() throws {
+    // A note of an FM patch, let go on the fifth row and cut on the ninth; nothing else.
+    let pattern = Pattern([(0, 0, .note(60, instrument: 1)), (4, 0, Cell(note: 255)), (8, 0, .note(60, instrument: 1, volume: 32)), (12, 0, Cell(note: 254))])
+    let file = mptm([pattern], song: fmSong, samples: [.fm], instruments: [(1, [], 0)])
+    let renderer = try player(file)
+    #expect(renderer.info.shortfalls.isEmpty)
+
+    // The chip is given the patch, and the note: middle C is 261.625 Hz, which is 690 in the chip's third octave.
+    let ticks = chipWrites(renderer, ticks: 80)
+    let first = Dictionary(ticks[0].map { ($0.register, $0.value) }, uniquingKeysWith: { _, last in last })
+    #expect(first[0x20] == 0x21 && first[0x23] == 0x21 && first[0x40] == 0x10 && first[0x60] == 0xF2 && first[0x63] == 0xF2 && first[0x80] == 0x74)
+    #expect(first[0xA0] == 0xB2 && first[0xB0] == 0x2E)
+    #expect(first[0x43] == 0x00 && first[0xC0] == 0x3E)
+    // Its key is let go when the note is, and it is cut when the note is cut: let go, and turned right down.
+    #expect(ticks[23].last { $0.register == 0xB0 }?.value == 0x2E)
+    #expect(ticks[24].last { $0.register == 0xB0 }?.value == 0x0E)
+    // A note at half volume has the operator that is heard turned down by as much.
+    #expect(ticks[48].last { $0.register == 0xB0 }?.value == 0x2E)
+    #expect(ticks[48].last { $0.register == 0x43 }?.value == 31)
+    #expect(ticks[72].last { $0.register == 0xB0 }?.value == 0x0E && ticks[72].last { $0.register == 0x43 }?.value == 0x3F)
+
+    // And it is heard, at its pitch, with a light and a note for the pictures.
+    let sound = stereo(renderer, seconds: 0.4)
+    #expect(loudness(sound.left[2400...]) > 0.01 && loudness(sound.right[2400...]) > 0.01)
+    var levels = [Float](repeating: 0, count: renderer.channelCount), pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    renderer.takeChannelLevels(into: &levels)
+    renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+    #expect(renderer.channelCount == 1 && levels[0] > 0.05 && abs(pitches[0] - 60) < 0.1 && struck[0])
+
+    // Written out for setting beside Impulse Tracker's own player, there is no FM: that had none.
+    #expect(renderer.renderRaw(frames: 9600).allSatisfy { abs(Int($0)) < 4 })
+}
+
+@Test func mptmFMNoteThatIsLetGoKeepsItsVoiceWhileTheNextStarts() throws {
+    // An instrument whose notes are let go, and not cut, when the next arrives: the first note keeps
+    // its voice of the chip with its key up, and the second takes another.
+    let pattern = Pattern([(0, 0, .note(60, instrument: 1)), (4, 0, .note(67, instrument: 1))])
+    func writes(_ song: Song) throws -> [(register: Int, value: UInt8)] {
+        var file = mptm([pattern], song: song, samples: [.fm], instruments: [(1, [(0, 64), (10, 64), (40, 0)], 64)])
+        let instrument = try #require(file.firstRange(of: Array("IMPI".utf8))).lowerBound
+        file[instrument + 0x11] = 2 // its "new note action": note off
+        return chipWrites(try player(file), ticks: 30)[24]
+    }
+    let now = try writes(fmSong)
+    #expect(now.contains { $0.register == 0xB0 && $0.value & 0x20 == 0 })
+    #expect(now.contains { $0.register == 0xB1 && $0.value & 0x20 != 0 })
+    // Before OpenMPT 1.30 the first note gave its voice up to the second.
+    let once = try writes(Song())
+    #expect(once.last { $0.register == 0xB0 }.map { $0.value & 0x20 != 0 } == true && !once.contains { $0.register == 0xB1 })
+}
+
+// MARK: Plug-ins
+
+/// The piece of a file that keeps one of OpenMPT's own effects: which it is, how it is wired, and its settings.
+private func plugInPiece(_ second: UInt32, _ name: String, flags: UInt8 = 0, mixMode: UInt8 = 0, gain: UInt8 = 0, output: Int = 0, dry: Float? = nil,
+                         settings: [Float]) -> [UInt8] {
+    var piece = long(0x4458_4D4F) + long(Int(second)) + [flags, mixMode, gain, 0] + long(output) + [UInt8](repeating: 0, count: 16)
+    piece += [UInt8](repeating: 0, count: 32) + padded(text(name), to: 64)
+    let data = long(0) + settings.flatMap { long(Int($0.bitPattern)) }
+    let more = dry.map { text("DWRT") + long(Int($0.bitPattern)) } ?? []
+    return piece + long(data.count) + data + long(more.count) + more
+}
+
+/// OpenMPT's echo, set to give back what it is given a thousandth of a second later (48 frames) and nothing else.
+private func delay(flags: UInt8 = 0, output: Int = 0, dry: Float? = nil, gain: UInt8 = 0) -> [UInt8] {
+    plugInPiece(0xEF3E_932C, "Echo", flags: flags, gain: gain, output: output, dry: dry, settings: [1, 0, 0, 0, 0])
+}
+
+/// How far two sounds are apart at the most, the second taken so many frames later than the first.
+private func apart(_ a: [Float], _ b: [Float], later: Int = 0, from: Int = 0, to: Int? = nil) -> Float {
+    var most: Float = 0
+    for n in from ..< min(to ?? a.count, a.count, b.count - later) { most = max(most, abs(a[n] - b[n + later])) }
+    return most
+}
+
+private let held = Pattern([(0, 0, .note(60)), (0, 1, .note(67)), (8, 0, .note(64))])
+
+@Test func mptmChannelIsHeardThroughItsPlugIn() throws {
+    let dry = stereo(try player(mptm([held])), seconds: 1).left
+    #expect(loudness(dry[...]) > 0.01)
+    // Both channels through the echo: all that is heard is what the echo gives back.
+    let both = try player(mptm([held], plugInPieces: [delay()], channelPlugIns: [1, 1]))
+    #expect(both.info.shortfalls.isEmpty)
+    let wet = stereo(both, seconds: 1).left
+    #expect(apart(dry, wet, later: 48) < 1e-5 && loudness(wet[..<48]) == 0)
+    #expect(apart(dry, wet) > 0.01)
+    // As much of what it was given beside that as the file says, and as loud.
+    let mixed = stereo(try player(mptm([held], plugInPieces: [delay(dry: 0.25, gain: 20)], channelPlugIns: [1, 1])), seconds: 1).left
+    #expect((48 ..< 40000).allSatisfy { abs(mixed[$0] - 2 * (0.75 * dry[$0 - 48] + 0.25 * dry[$0])) < 1e-5 })
+    // A plug-in that is switched off passes on what it is given.
+    #expect(apart(dry, stereo(try player(mptm([held], plugInPieces: [delay(flags: 2)], channelPlugIns: [1, 1])), seconds: 1).left) < 1e-5)
+    // One whose sound goes on to another plug-in is heard through both.
+    let chain = stereo(try player(mptm([held], plugInPieces: [delay(output: 0x81), delay()], channelPlugIns: [1, 1])), seconds: 1).left
+    #expect(apart(dry, chain, later: 96) < 1e-5)
+    // One that is on the whole sound has everything through it, whatever was sent where.
+    let master = stereo(try player(mptm([held], plugInPieces: [delay(flags: 1)])), seconds: 1).left
+    #expect(apart(dry, master, later: 48) < 1e-5)
+}
+
+@Test func mptmInstrumentIsHeardThroughItsPlugInBeforeItsChannels() throws {
+    // One instrument with a sample and a plug-in, and a channel sent through another: the instrument's counts.
+    let pattern = Pattern([(0, 0, .note(60, instrument: 1))])
+    let dry = stereo(try player(mptm([pattern], instruments: [(1, [], 0)])), seconds: 0.5).left
+    let file = mptm([pattern], instruments: [(1, [], 0)], instrumentExtras: [("MiP.", 1, [[2]])], plugInPieces: [delay(output: 0x81), delay()], channelPlugIns: [1])
+    #expect(apart(dry, stereo(try player(file), seconds: 0.5).left, later: 48) < 1e-5)
+}
+
+@Test func mptmPlugInThatIsNotOpenMPTsOwnIsLeftOutAndSaidToBe() throws {
+    // The channel is sent through somebody's program, which is not here: it is heard as it is.
+    let dry = stereo(try player(mptm([held])), seconds: 0.5).left
+    let other = try player(mptm([held], plugins: 1, channelPlugIns: [1, 1]))
+    #expect(apart(dry, stereo(other, seconds: 0.5).left) == 0)
+    #expect(other.info.shortfalls == ["Its plug-in is left out, and it is heard without what that does to its sound."])
+    // With one of OpenMPT's own beside it, that one is played and the other is named, if it has a name.
+    var named = plugInPiece(0x1234_5678, "Classic Reverb", settings: [])
+    named.replaceSubrange(0 ..< 4, with: long(0x5673_7450))
+    let two = try player(mptm([held], plugInPieces: [delay(), named], channelPlugIns: [1, 2]))
+    #expect(two.info.shortfalls == ["One of its two plug-ins (Classic Reverb) is left out, and it is heard without what that does to its sound."])
+    #expect(apart(dry, stereo(two, seconds: 0.5).left) > 0.01)
+}
+
+@Test func mptmRowCanChangeAPlugInsSetting() throws {
+    let dry = stereo(try player(mptm([held])), seconds: 1).left
+    // On the fifth row the echo is told to pass on what it is given and none of what it has kept:
+    // by a note that is for that, and then by a macro that is.
+    let row = 4 * 6 * 960
+    let note: [UInt8] = [0, 0, 0, 0, 0x83, 0x3F, 0xFC, 1, 0, 0, 0, 0, 0] + [UInt8](repeating: 0, count: 11)
+    let byNote = stereo(try player(mptm([held], plugInPieces: [delay()], channelPlugIns: [1, 1], parameterNotes: [0: note])), seconds: 1).left
+    #expect(apart(dry, byNote, later: 48, to: row - 48) < 1e-5 && apart(dry, byNote, from: row + 96) < 1e-5)
+    let macro = Pattern(held.cells + [(4, 0, .command("Z", 0))])
+    let byMacro = try player(mptm([macro], plugInPieces: [delay()], channelPlugIns: [1, 1], macros: [9: "F0F080z"]))
+    #expect(byMacro.info.shortfalls.isEmpty)
+    let sound = stereo(byMacro, seconds: 1).left
+    #expect(apart(dry, sound, later: 48, to: row - 48) < 1e-5 && apart(dry, sound, from: row + 96) < 1e-5)
+}
+
+@Test func itFileOfOpenMPTsIsHeardThroughItsPlugIns() throws {
+    func file(madeBy tracker: [UInt8], plugIn: Bool) -> [UInt8] {
+        var file = plugIn ? mptm([held], plugInPieces: [delay()], channelPlugIns: [1, 1]) : mptm([held])
+        file.replaceSubrange(file.count - 4 ..< file.count, with: [0, 0, 0, 0])
+        file.replaceSubrange(0x28 ..< 0x2C, with: tracker)
+        return file
+    }
+    let openMPT = word(0x5130) + word(0x0214), impulseTracker = word(0x0214) + word(0x0200)
+    let dry = try #require(try TuneLoader.load(file(madeBy: openMPT, plugIn: false), format: .it) as? ITRenderer)
+    let wet = try #require(try TuneLoader.load(file(madeBy: openMPT, plugIn: true), format: .it) as? ITRenderer)
+    #expect(wet.info.format == "IT" && wet.info.shortfalls.isEmpty)
+    #expect(apart(stereo(dry, seconds: 0.5).left, stereo(wet, seconds: 0.5).left, later: 48) < 1e-5)
+    // Written out for setting beside Impulse Tracker's own player, it is as that plays it: no plug-in.
+    #expect(wet.renderRaw(frames: 9600) == dry.renderRaw(frames: 9600))
+    // And a file that says Impulse Tracker made it is played as Impulse Tracker plays it, whatever else is in it.
+    let own = try TuneLoader.load(file(madeBy: impulseTracker, plugIn: true), format: .it)
+    let plain = try TuneLoader.load(file(madeBy: impulseTracker, plugIn: false), format: .it)
+    #expect(stereo(own, seconds: 0.5).left == stereo(plain, seconds: 0.5).left)
 }
