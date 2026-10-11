@@ -253,11 +253,27 @@ output, terminal keys and options (via swift-argument-parser).
 | Atari ST YM files, their effects, digi-mixes and YM tracker tunes | AtariAudio | AtariAudio, sample for sample, on the 23 files to hand; no YM2 or YMT2 file among them |
 | Ice unpacking | the C version by Hans Wessels (public domain) | — |
 
+### PT3 and the other AY trackers, VTX and AY files — the ZX Spectrum and the Amstrad CPC
+
 Where a reference player and Ay_Emul's source disagreed, the source was followed. Three deliberate
 departures from Ay_Emul are marked in the code: old-format PSC modules start with version-correct sample
 and ornament tables; an AY file only counts as Amstrad CPC once it writes a register through the CPC's
 ports; and the AY player stub is placed after the file's memory blocks rather than before.
 
+Tracker players keep the field names and control flow of the Pascal they came from, so the two can be
+read side by side. Tracker modules are loaded into a 64 KB wrap-around memory and all file parsing is
+bounds-checked, so a corrupt file plays wrongly or is skipped but does not crash the player.
+
+### YM — recordings of two machines' chips
+
+A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
+(`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
+gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
+on some other machine and is played like a VTX, with the stereo choices that go with that. Asking for
+a chip, a clock or a frame rate by name (`--chip`, `--clock`, `--frame-rate`) gets the plain recording
+whatever the file is.
+
+### SNDH — the Atari ST and STE
 
 An Atari ST tune is the program that played it, so the machine is there to run it: a 68000, four
 megabytes, the sound hardware, and the few things such a program asks of the operating system. It is
@@ -269,6 +285,8 @@ from the machine and not added up. One thing is done differently from AtariAudio
 out: the chip's 250,000 steps a second come down to the output's rate through a low-pass filter and
 not a plain average, which keeps out tones that were never played. `siday --raw file.raw tune.sndh`
 writes the plain average, which is what agrees with AtariAudio to the sample.
+
+### MOD — ProTracker and the Amiga
 
 A module is played as ProTracker played it. The replayer is ProTracker 2.3D's, by way of pt2-clone's
 port of it to C, and keeps ProTracker's mistakes, because tunes were written by ear against them. What
@@ -289,6 +307,8 @@ routines that played modules outside the tracker did so: a longer sample is play
 where it would play a row it has played before. `siday --raw file.raw tune.mod` writes the tune as
 pt2-clone writes one to a file, sixteen bits with its dither and a long sample cut off where ProTracker
 cuts it, and the two agree to the sample.
+
+### MED — MED and OctaMED
 
 A MED module is played as OctaMED played it. The players here are not ports: OctaMED's own are not
 free to copy, so these were written afresh and then held to them. OctaMED's players were run in an
@@ -338,6 +358,8 @@ A file with several songs has them all as its songs, and each is looked through 
 module is. `SIDAY_MED_TRACE=1 siday --raw /dev/null tune.med` writes what the player tells the sound
 chip, a line a tick; or for five to eight channels what it mixes for the chip (the bytes go to the
 file `SIDAY_MED_MIXED` names); or in mixing mode what it tells its mixer.
+
+### SFX and OKT — SoundFX and Oktalyzer
 
 A SoundFX module is played as SoundFX played it, and an Oktalyzer module as Oktalyzer did. As with
 MED, the players are not ports: the trackers' own routines are not free to copy, so these were
@@ -396,6 +418,8 @@ not happen here, where a voice has a third stretch to mix into.
 tune.okt` write what the players tell the sound chip, a line a tick. What Oktalyzer's mixes goes to
 the file `SIDAY_OKT_MIXED` names, and `SIDAY_OKT_WORDS` names a file of the lengths it is to go by.
 
+### AHX
+
 An AHX file is played as AHX played it. AHX is a tracker for the Amiga with no samples. An instrument
 is a few numbers: an envelope, a vibrato, and a short list of things to do as its note goes on, which
 is where it says what wave it is (a triangle, a sawtooth, a square of some width, or noise) and can
@@ -416,6 +440,8 @@ it stops itself. `siday --raw file.raw tune.ahx` writes what ahx2play writes to 
 Paula at the rate of the output with nothing after her, at ahx2play's loudness and with its dither,
 and the two agree to the sample: on a quarter of an hour of each of the 858 files tried, and on
 three minutes of every other song in them.
+
+### HVL — HivelyTracker
 
 A HivelyTracker file is played as HivelyTracker plays it. HivelyTracker is AHX carried on, by other
 hands and off the Amiga: the same instruments and the same waves, to the byte, but as many as sixteen
@@ -447,6 +473,8 @@ list of positions goes to its top, a track or a row the file does not have is em
 the five octaves there are has no pitch to slide from, and a wave other than the four there are is
 silence.
 
+### XM — FastTracker 2
+
 An XM file, and a MOD file of more channels than the Amiga has, is played as FastTracker 2 played
 it: the replayer and the mixer are FastTracker 2.09's, by way of ft2play's port of them to C. The mixer
 works in whole numbers, with FastTracker's interpolation between one sample and the next and its
@@ -467,6 +495,8 @@ letter be typed for a command, and in a file of its own a letter it has no comma
 nothing, as it was to FastTracker: often a mark for a demo to keep time by. A tune ends where it
 would play a row it has played before. `siday --raw file.raw tune.xm` writes
 what ft2play writes to a file, stereo samples as it has them, and the two agree to the sample.
+
+### MTM, DTM and AMF — MultiTracker, Digital Tracker and DSMI
 
 An MTM, a DTM or an AMF file is not played as its own tracker played it. MultiTracker was a tracker
 for the PC and the Gravis Ultrasound, Digital Tracker one for the Atari Falcon, and AMF is what
@@ -503,6 +533,8 @@ cents away on some, and plays an MTM file a sixth of a semitone lower besides, a
 European Amiga. And each kind is as loud as XM files are, by measure: the middle one of the files
 of the kind is the middle one of 200 XM files.
 
+### S3M — Scream Tracker 3
+
 An S3M file is played as Scream Tracker 3 played it, and that depended on the sound card. With a
 Gravis Ultrasound the card did the mixing: the tracker told it, a tick at a time, what each voice was
 to play, and the card played them smoothly, each in its place between the speakers, sliding from one
@@ -537,6 +569,8 @@ to the sample. Writes reach the chip no faster than a PC could make them, two sa
 a note let go and struck again in one tick is heard to be. The samples of a tune with FM in it are as
 loud as in any other tune: st3play turns them down by a third at the card's first note, to leave room
 for it.
+
+### STM — Scream Tracker 2
 
 An STM file is from Scream Tracker 2, the same author's tracker of 1990, from when no sound card
 did any mixing: four channels, 31 samples of eight bits, and the program adding the four
@@ -585,6 +619,8 @@ not loaded, as in st2play, and its notes are silence. One file named for the for
 else, and is refused; and an STX file, which is what a converter for the Scream Tracker Music
 Interface Kit made of an STM, is not played. The files are as loud as XM files are, by measure:
 the middle one of each is the same.
+
+### IT — Impulse Tracker, and ModPlug Tracker after it
 
 An IT file is played as Impulse Tracker 2 played it, by way of it2play's port of its replayer: 64
 channels, each of which can have many notes sounding at once, since an instrument says what becomes
@@ -676,6 +712,8 @@ made is played as Impulse Tracker played it, and `--raw`
 writes every file so, to set beside it2play. The filter is the one place where the web
 player and the Mac's do not agree to the last bit: each asks its own maths library for a power of two.
 
+### GDM and PTM — BWSB and PolyTracker
+
 A GDM file and a PTM file are played by Impulse Tracker's replayer too, which is not their own: as
 with the three kinds of file that FastTracker's plays for want of theirs, what is heard is another
 tracker's reading of the tune. GDM was the one format of BWSB, a
@@ -703,6 +741,8 @@ way in, because Impulse Tracker alone would take them otherwise: an instrument n
 no note is given as the instrument's volume, where Impulse Tracker would have played the note again,
 and in a tune that began as a MOD a slide of nought does nothing, where Impulse Tracker's would go on
 with the last.
+
+### ULT — UltraTracker
 
 A ULT file is UltraTracker's, a tracker that Marc André Schallehn wrote for DOS and the Gravis
 Ultrasound in the early nineties: up to 32 channels, each at any of sixteen places between the
@@ -752,6 +792,8 @@ at 125 beats a minute where they ask for another tempo. What is heard was set be
 the first minute of each: the spectrum and the loudness over time agree to 0.999 for the middle
 file, and to 0.945 and 0.859 for the file a tenth of the way up from the worst. The files are made
 as loud as XM files are, by measure.
+
+### MPTM — OpenMPT
 
 An MPTM file is another matter, because the tracker that writes it is alive and plays its own files.
 OpenMPT descends from ModPlug Tracker, which wrote IT files, and when it wanted more than an IT file
@@ -836,6 +878,8 @@ too, to 0.997 and 0.979. The files with FM come to 0.984 and 0.957. The rest of 
 slides in a tune that uses the Amiga's; a pitch that OpenMPT rounds where Impulse Tracker does
 not; and whatever an instrument does at random.
 
+### 669 — Composer 669 and UNIS 669
+
 A 669 file is a module from Composer 669, which Tran of Renaissance wrote for the PC in 1992, or
 from UNIS 669, which came after and added a little. It has eight channels, samples of eight bits,
 patterns that each have a speed and a last row of their own, and a handful of commands. Neither
@@ -890,26 +934,60 @@ tempo faster than the fastest, which nothing says the speed of; a file that asks
 at the tempo it had, and says so. Two of the files have commands that neither program is said to
 have had. They are left out, and those files say so too.
 
-A C67 file is from Composer 670, which is Composer 669 with an AdLib card beside it: four channels
-of samples and nine FM voices, and no commands at all, only notes, volumes and a speed. There is
-nothing in that which Impulse Tracker's replayer has not got, so it plays these files, with the FM
-chip beside it played as OpenMPT plays it, as for an MPTM file. OpenMPT is the only other player of
-them, and the pitches, the tempo and how loud the chip is against the samples are as it has them.
-All 34 files to hand are played. Beside libopenmpt the two are at the same row on every tick, and
-alike on 212,060 ticks of 216,154: the rest are the ends of samples, the tick on which a tune comes
-round, and the highest FM notes, which OpenMPT keeps as periods too coarse for them. What is heard
-agrees to 0.96 for the middle file, the two having different emulations of the chip.
+### C67 — Composer 670
 
-A FAR file is from Farandole Composer, which Daniel Potter wrote for the PC and the Gravis
-Ultrasound in 1994: sixteen channels, patterns as long as they like, slides counted in the steps of
-the Ultrasound's frequency, and a way of keeping time that is all its own, a tempo and a fine tempo
-from which it works out what to set the PC's timer to. Its replayer was never published, so it has
-a small player written for it, as 669 files have, from the description that came with the program
-and from libxmp, whose authors set theirs beside the program itself. Set beside libxmp on every
-tick of the 37 files to hand, the two are never at different rows, and 32 files are alike on every
-tick. In four of the rest a note ends a tick sooner in one than in the other; in the fifth a slide
-to a volume starts from the volume the channel has, as the program's description says, where
-libxmp starts it from the loudest. The files are as loud as XM files are, by measure.
+A C67 file is from Composer 670, which is Composer 669 with an AdLib card beside it: four channels
+of samples and nine of the card's FM voices, 32 samples and 32 patches for the chip. (CDFM, the
+player that went with it, had another kind of file, the 670, which its converter turns back into
+this one; a C67 is what the composer itself kept.)
+It is the plainest module there is. It has no commands at all: a pattern is a list of notes, each
+with an instrument and a volume, of volumes alone, and of how many rows to wait before the next
+thing, and a tune has a speed that nothing changes. Its volumes are sixteen, and the least of them
+is not silence, for a sample or for the chip; and it counted the chip's volumes evenly, which the
+chip itself does not, so that each has to be looked up.
+
+There is nothing in that which Impulse Tracker's replayer has not got, so it plays these files,
+with the FM chip beside it played as OpenMPT plays it, as for an MPTM file. OpenMPT is the only
+other player of them, and the pitches, the tempo of 143 to the minute and how loud the chip is
+against the samples are as it has them. All 34 files to hand are played. Beside libopenmpt the two
+are at the same row on every tick, and alike on 212,060 ticks of 216,154: the rest are the ends of
+samples, the tick on which a tune comes round, and the highest FM notes, which OpenMPT keeps as
+periods too coarse for them. What is heard agrees to 0.96 for the middle file, the two having
+different emulations of the chip. The files are as loud as XM files are, by measure.
+
+### FAR — Farandole Composer
+
+A FAR file is from Farandole Composer, which Megan Potter of Digital Infinity wrote for the PC and
+the Gravis Ultrasound in 1994, and which played on that card and nothing else: sixteen channels,
+each at one of sixteen places between the speakers, 64 samples of eight bits or sixteen, and
+patterns as long as they like, up to 256 rows. Its file was the composer's own working file, and
+keeps what the composer had open as well as the tune.
+
+It is like no other tracker in how it keeps time. A tune has a tempo from 0 to 15, which is how
+many thirty-seconds of a second a row lasts, and a fine tempo that commands add to and take from.
+From the two the program worked out how many ticks a second there were to be, and set the PC's
+timer to that, four ticks to a row; where that is slower than the timer's sixteen bits can count,
+it halved the tick and gave the row more of them, though not as many more as would keep the row
+the length it was. And it took the timer to count a third of a percent faster than it does, so
+every tune is that much slower than it says. All of that is kept. Its slides are its own too.
+They are counted in the steps of the Ultrasound's frequency register, so many samples a second
+and not so much of a period, as in a 669 file. A slide to a note is asked for once, with the
+number of rows it is to take, and goes on by itself until it is there; a slide to a volume the
+same. How deep a vibrato goes is one setting for all sixteen channels. A sample's number counts
+only beside a note, and a note with no volume beside it is silent.
+
+The program's replayer was never published, so a FAR file has a small player written for it, as
+a 669 file has, from the description of the file that came with the program and from libxmp,
+whose authors set their player beside the program itself and wrote down what they found. Set
+beside libxmp on every tick of the 37 files to hand, the two are never at different rows, and 32
+files are alike on every tick. In four of the rest a note ends a tick sooner in one than in the
+other; in the fifth a slide to a volume starts from the volume the channel has, as the program's
+description says, where libxmp starts it from the loudest. Two things are libxmp's and not
+OpenMPT's: a pattern that the list names and the file has nothing of is 64 rows of nothing, and
+the tempo is the program's, where OpenMPT plays every file at one. The files are as loud as XM
+files are, by measure.
+
+### CMF — Creative's music files
 
 A CMF file is a tune for the FM chip alone: its instruments, each the handful of numbers the chip
 wants for one, and the music as MIDI. It was Creative's format, and what played it was SBFMDRV,
@@ -923,6 +1001,8 @@ ran off the one crystal, so a tick is a whole number of twenty-fourths of one of
 and the two are kept in step exactly. `siday --raw file.raw tune.cmf` writes the chip's own samples,
 at its own 49,716 a second, and they agree to the sample with fmdrv playing on Nuked OPL3: on all
 932 files to hand, from end to end.
+
+### ROL — AdLib's Visual Composer
 
 A ROL file is a piano roll from AdLib's Visual Composer, the program that came with the AdLib card:
 nine voices, or six and the drums, each a list of notes and, beside it, the times at which its
@@ -949,8 +1029,10 @@ the same bank, on every one of those files. (AdPlug refuses a ROL file that has 
 and wants one bank to have everything.) A beat is played as sixty ticks at most however many the file
 gives it, as AdLib's driver had it, and tunes with more were written to that.
 
-Both are heard as the card put them out: one channel, through the filter on the card's board that
+A CMF file and a ROL file are heard as the card put them out: one channel, through the filter on the card's board that
 kept its output centred, and brought from the chip's rate to the player's through a windowed sinc.
+
+### FMT — FM Tracker
 
 An FMT file is a song from FM Tracker, a small tracker for the AdLib card by Davey W Taylor: eight
 voices, each with one instrument that it keeps for the whole song, and patterns that hold nothing but
@@ -972,21 +1054,10 @@ another emulation of the chip: tick by tick the two are as loud as each other to
 a decibel for half the ticks and one decibel for nine in ten, and their spectra keep close.
 It is heard as the other two are, and turned down by half, by measure, to be as loud as they are.
 
-A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
-(`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
-gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
-on some other machine and is played like a VTX, with the stereo choices that go with that. Asking for
-a chip, a clock or a frame rate by name (`--chip`, `--clock`, `--frame-rate`) gets the plain recording
-whatever the file is.
-
-Tracker players keep the field names and control flow of the Pascal they came from, so the two can be
-read side by side. Tracker modules are loaded into a 64 KB wrap-around memory and all file parsing is
-bounds-checked, so a corrupt file plays wrongly or is skipped but does not crash the player.
-
 ## Licence and credits
 
-GNU General Public License, version 2 or (at your option) any later version; see `LICENSE`. One part,
-the driver for CMF files, comes from work under the Apache License 2.0, which goes with version 3 of
+GNU General Public License, version 2 or (at your option) any later version; see `LICENSE`. Two parts,
+the driver for CMF files and the replayer for STM files, come from work under the Apache License 2.0, which goes with version 3 of
 the GPL and not with version 2: the player as a whole is passed on under version 3 or later.
 
 This project stands on other people's work, most of all Sergey Bulba's Ay_Emul, Dag Lem's reSID,
@@ -1050,7 +1121,7 @@ What it is made from:
   format is as MenTaLguY describes it, and BWSB and its converter are by Edward Schlunder; the PTM
   format is as JAL of Nostalgia describes it, and PolyTracker is by Lone Ranger of AcmE.
 - And again: what a 669 file and a FAR file mean, which the players written for them were made
-  from. Composer 669 is by Tran of Renaissance, and Farandole Composer by Daniel Potter.
+  from. Composer 669 is by Tran of Renaissance, and Farandole Composer by Megan Potter.
 - And again: how a ULT file is read, made after both of theirs and, for what goes where when a note
   has two commands, after neither; libopenmpt is the player those files were checked against. The
   format is as FreeJack of The Elven Nation describes it, and UltraTracker is by Marc André

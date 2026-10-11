@@ -4,7 +4,7 @@
 // Written for siday from the description of the file that came with Farandole Composer, and from
 // what libxmp and OpenMPT make of such a file (see THIRD-PARTY.md).
 
-/// A FAR file: a module of Farandole Composer, which Daniel Potter of Digital Infinity wrote for
+/// A FAR file: a module of Farandole Composer, which Megan Potter of Digital Infinity wrote for
 /// the PC and the Gravis Ultrasound in 1994.
 ///
 /// There are sixteen channels, each at any of sixteen places between the speakers; up to 64
