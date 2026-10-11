@@ -242,6 +242,38 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(left > 100 && abs(left - right) < left / 50)
 }
 
+@Test func xmFromALaterTrackerHasItsFilterPlayed() throws {
+    func loudness(_ samples: ArraySlice<Float>) -> Float { (samples.reduce(0) { $0 + $1 * $1 } / Float(samples.count)).squareRoot() }
+    func heard(_ file: [UInt8]) throws -> [Float] { stereo(try TuneLoader.load(file, format: .xm), seconds: 1).left }
+    let open = try heard(xm())
+    // Z20 on the note's row closes the filter to some 330 Hz, a little above the note: the square
+    // wave's harmonics go, and it is a good deal quieter, though still there and at its pitch.
+    let closed = try heard(xm(notes: [0x9B, 49, 1, 35, 0x20, 0x80]))
+    #expect(abs(crossings(closed[9600...]) * 10 / 8 - 261) <= 3)
+    #expect(loudness(closed[9600...]) < loudness(open[9600...]) * 0.8)
+    #expect(loudness(closed[9600...]) > loudness(open[9600...]) * 0.3)
+    // The command after it brings the filter there a little at a time, over the six ticks of the
+    // row: the note begins brighter than with Z, and ends the same.
+    let slid = try heard(xm(notes: [0x9B, 49, 1, 36, 0x20, 0x80]))
+    #expect(loudness(slid[200 ..< 900]) > loudness(closed[200 ..< 900]) * 1.2)
+    #expect(abs(loudness(slid[9600...]) - loudness(closed[9600...])) < loudness(closed[9600...]) * 0.05)
+    // A note begun later on the channel has the filter still: it belongs to the channel. (Here,
+    // on the second row, with no command of its own.)
+    var rows: [UInt8] = [0x9B, 49, 1, 35, 0x20, 0x80, 0x83, 49, 1, 0x80] + [UInt8](repeating: 0x80, count: 62 * 2)
+    let again = try heard(xm(pattern: (64, rows)))
+    #expect(loudness(again[9600...]) < loudness(open[9600...]) * 0.8)
+    // But one begun with the filter fully open has none, though the channel's was on before.
+    rows = [0x9B, 49, 1, 35, 0x7F, 0x80, 0x83, 49, 1, 0x80] + [UInt8](repeating: 0x80, count: 62 * 2)
+    let opened = try heard(xm(pattern: (64, rows)))
+    #expect(abs(loudness(opened[9600...]) - loudness(open[9600...])) < loudness(open[9600...]) * 0.02)
+    // In a file of FastTracker's own the letter is nothing, and so it is when the other file is
+    // played as the player this is ported from plays it.
+    let itsOwn = try heard(byFastTracker(xm(notes: [0x9B, 49, 1, 35, 0x20, 0x80])))
+    #expect(abs(loudness(itsOwn[9600...]) - loudness(open[9600...])) < loudness(open[9600...]) * 0.02)
+    func raw(_ file: [UInt8]) throws -> [Int16] { try #require(try TuneLoader.load(file, format: .xm) as? XMRenderer).renderRaw(frames: 9600) }
+    #expect(try raw(xm(notes: [0x9B, 49, 1, 35, 0x20, 0x80])) == raw(xm()))
+}
+
 @Test func xmFromALaterTrackerSaysWhatFastTrackerDoesNotPlay() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .xm).info.shortfalls }
     #expect(try shortfalls(xm()).isEmpty)
@@ -255,11 +287,19 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     packed[packed.count - 32 - 40 + 17] = 0xAD
     #expect(try shortfalls(packed).first?.hasPrefix("One of its samples is packed in a way of ModPlug Tracker's own") == true)
 
-    // A command of ModPlug Tracker's: Z, which is its 35th. In a file of FastTracker's own it is
-    // a letter that means nothing, and nothing is said of it.
-    #expect(try shortfalls(xm(notes: [0x9B, 49, 1, 35, 0x40, 0x80]))
+    // A command of ModPlug Tracker's: Z, which is its 35th, and sets a channel's filter unless
+    // the file has macros of its own that say it does something else. The filter is played, and a
+    // macro for anything else is not. In a file of FastTracker's own Z is a letter that means
+    // nothing, and nothing is said of it.
+    let withZ = xm(notes: [0x9B, 49, 1, 35, 0x40, 0x80])
+    #expect(try shortfalls(withZ).isEmpty)
+    func macros(_ first: String) -> [UInt8] {
+        Array("MIDI".utf8) + long(4896) + [UInt8](repeating: 0, count: 9 * 32) + padded(first, 32) + [UInt8](repeating: 0, count: 143 * 32)
+    }
+    #expect(try shortfalls(withZ + macros("F0F000z")).isEmpty)
+    #expect(try shortfalls(withZ + macros("F0F080z"))
         == ["One of its commands is left out, which FastTracker 2 did not have: the setting of a filter or a plug-in."])
-    #expect(try shortfalls(byFastTracker(xm(notes: [0x9B, 49, 1, 35, 0x40, 0x80]))).isEmpty)
+    #expect(try shortfalls(byFastTracker(withZ)).isEmpty)
 
     // An instrument sent through a plug-in, which is written after all that FastTracker reads: it
     // has a sample, and that is heard. Sent through a place with no plug-in in it, it loses nothing.

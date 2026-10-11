@@ -220,7 +220,7 @@ extension IT2Player {
         let left = Int(CurrentTick) + (RowDelayOn ? (Int(RowDelay) - 1) * Int(CurrentSpeed) : 0)
         guard comingTo, left > 1 else { return }
         func nearer(_ from: UInt8, _ to: UInt8) -> UInt8 {
-            UInt8(max(0, min(127, Int(Float(from) + Float(Int(to) - Int(from)) / Float(left)))))
+            UInt8(max(0, min(127, Int((Float(from) + Float(Int(to) - Int(from)) / Float(left)).rounded()))))
         }
         FilterParameters[channel] = nearer(cutoff, FilterParameters[channel])
         FilterParameters[64 + channel] = nearer(resonance, FilterParameters[64 + channel])

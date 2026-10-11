@@ -51,6 +51,37 @@ struct ModPlugExtras {
     /// Reads the pieces these trackers put one after another in a file, each with four letters and a
     /// length: the song's text and its names, which are passed over, and the plug-ins. Stops at
     /// the first thing that is none of them, and says where that is.
+    /// Where the file's macros are, if it has any of its own: what the commands Z and the one
+    /// after it send. Nine lines of 32 letters for the song, then the sixteen that take the
+    /// command's value, then the 128 with values of their own.
+    private(set) var macros: (at: Int, length: Int)?
+
+    /// What one of those macros does to a channel's filter, if that is what it is for: 0 if it
+    /// sets where the filter closes and 1 if it sets how it rings, with the value it sets, or nil
+    /// for the command's own. Such a macro is "F0F000z" or "F0F001" and two digits.
+    /// - Parameter number: 0 to 15 for those that take the command's value, 16 on for the others.
+    func filterMacro(_ file: ByteReader, _ number: Int) -> (sets: UInt8, value: UInt8?)? {
+        guard let macros, number >= 0, (9 + number + 1) * 32 <= macros.length else { return nil }
+        var letters: [UInt8] = []
+        for k in 0 ..< 32 {
+            let byte = file[macros.at + (9 + number) * 32 + k]
+            if byte == 0 { break }
+            if byte != 0x20 { letters.append(byte >= 0x61 && byte <= 0x66 ? byte - 0x20 : byte) }
+        }
+        func digit(_ byte: UInt8) -> UInt8? { byte >= 0x30 && byte <= 0x39 ? byte - 0x30 : byte >= 0x41 && byte <= 0x46 ? byte - 0x37 : nil }
+        guard letters.count >= 7, Array(letters[0 ..< 5]) == Array("F0F00".utf8), let sets = digit(letters[5]), sets <= 1 else { return nil }
+        if letters.count == 7, letters[6] == 0x7A { return (sets, nil) }
+        guard letters.count == 8, let high = digit(letters[6]), let low = digit(letters[7]) else { return nil }
+        return (sets, high << 4 | low)
+    }
+
+    /// True if one of those macros sends anything at all.
+    func macroSendsSomething(_ file: ByteReader, _ number: Int) -> Bool {
+        guard let macros, number >= 0, (9 + number + 1) * 32 <= macros.length else { return false }
+        let first = file[macros.at + (9 + number) * 32]
+        return first != 0 && first != 0x20
+    }
+
     mutating func readPieces(_ file: ByteReader, at start: Int, before end: Int) -> Int {
         var at = start
         while at >= 0, at + 8 <= end {
@@ -72,7 +103,9 @@ struct ModPlugExtras {
                     while plugIns.count <= slot { plugIns.append(ModPlugPlugIn()) }
                     plugIns[slot] = ModPlugPlugIn(file.data, at: body, size: length)
                 }
-            } else if code != Self.name("text"), code != Self.name("MIDI"), code != Self.name("PNAM"), code != Self.name("CNAM") {
+            } else if code == Self.name("MIDI") {
+                macros = (body, length)
+            } else if code != Self.name("text"), code != Self.name("PNAM"), code != Self.name("CNAM") {
                 break
             }
             at = body + length

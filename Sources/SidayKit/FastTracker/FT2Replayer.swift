@@ -85,6 +85,11 @@ final class FT2Channel {
     /// is, and whether the last tick was swept.
     var sweepPos: UInt8 = 0, sweepSpeed: UInt8 = 0, sweepDepth: UInt8 = 0, sweepWave: UInt8 = 0
     var swept = false
+    /// And its filter: where it closes, of 127, and how it rings; whether it is on, which it is
+    /// from the first setting of either until the next note, and for a note begun with it closed
+    /// at all; and whether the mixer has still to be told.
+    var cutoff: UInt8 = 127, resonance: UInt8 = 0
+    var filtered = false, filterChanged = false
     var envSustainActive = false
     var envVIPValue: Int16 = 0, envPIPValue: Int16 = 0
     var outPeriod: UInt16 = 0, realPeriod: UInt16 = 0, finalPeriod: UInt16 = 0, finalVol: UInt16 = 0
@@ -640,8 +645,10 @@ extension FT2Player {
         volumeColumnTickZero(ch, &newVolKol)
 
         let param = ch.eff
+        if playsLaterCommands, ch.effTyp == 36 { sendFilterMacro(ch, param, comingTo: true) }
         if (ch.effTyp == 0 && param == 0) || ch.effTyp > 35 { return }
         switch ch.effTyp {
+        case 35: if playsLaterCommands { sendFilterMacro(ch, param, comingTo: false) }
         case 27: multiRetrig(ch, param, newVolKol)
         case 8: setPan(ch, param)
         case 11: posJump(param)
@@ -661,6 +668,25 @@ extension FT2Player {
             }
         default: break
         }
+    }
+
+    /// Zxx in a file that a later tracker made, and the command after it: a macro, which is how
+    /// such a file sets a channel's filter, as OpenMPT plays one in an XM file.
+    /// - Parameter comingTo: true for the command after Z, which is sent on every tick of its row
+    ///   and brings the filter only as far towards what the macro sets as the ticks left of the
+    ///   row allow: a part of the way that is one over their number.
+    func sendFilterMacro(_ ch: FT2Channel, _ param: UInt8, comingTo: Bool) {
+        guard let macro = module.filterMacros[Int(param)] else { return }
+        let value = macro.value ?? param
+        guard value < 0x80 else { return }
+        let left = Int(song.timer)
+        func nearer(_ from: UInt8) -> UInt8 {
+            guard comingTo, left > 1 else { return value }
+            return UInt8(max(0, min(127, Int((Float(from) + Float(Int(value) - Int(from)) / Float(left)).rounded()))))
+        }
+        if macro.sets == 0 { ch.cutoff = nearer(ch.cutoff) } else { ch.resonance = nearer(ch.resonance) }
+        ch.filtered = true
+        ch.filterChanged = true
     }
 
     /// A sweep from side to side, in a file that a later tracker made, as OpenMPT plays one in an
@@ -1175,6 +1201,7 @@ extension FT2Player {
     /// The effects of the ticks after the first.
     func doEffects(_ ch: FT2Channel) {
         if ch.volKolVol >> 4 > 0 { volumeColumnTickNonZero(ch) }
+        if playsLaterCommands, ch.effTyp == 36 { sendFilterMacro(ch, ch.eff, comingTo: true) }
         if (ch.eff == 0 && ch.effTyp == 0) || ch.effTyp > 35 { return }
         let param = ch.eff
         switch ch.effTyp {

@@ -493,7 +493,9 @@ a slide of the whole tune's (`laterCommand` in `Sources/SidayKit/ScreamTracker/S
 in an XM file, a sweep from side to side (`sweepFromSideToSide` in
 `Sources/SidayKit/FastTracker/FT2Replayer.swift`, with its two tables of 64 numbers in
 `FT2Tables.swift`, which are OpenMPT's `ModSinusTable` and `ModRandomTable` from
-`soundlib/Tables.cpp`). The first of the signs by which an XM file is taken not to be FastTracker's
+`soundlib/Tables.cpp`) and a channel's filter, set by macros (`sendFilterMacro` there, and
+`setFilter` and the filter's line in the mixer in `FT2Player.swift`, after `soundlib/Snd_flt.cpp`
+and the mixer's own filter). The first of the signs by which an XM file is taken not to be FastTracker's
 own are those of `soundlib/Load_xm.cpp`. Changed from the original: carried over from C++ to Swift,
 and each set into another tracker's replayer, which plays the rest as that tracker would. Used
 under the BSD 3-Clause licence set out below, under "OpenMPT — FM Tracker files": Copyright (c)

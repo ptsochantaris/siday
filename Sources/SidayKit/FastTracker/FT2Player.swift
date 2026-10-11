@@ -20,6 +20,10 @@ struct FT2Voice {
     var SLen: Int32 = 0, SRepS: Int32 = 0, SRepL: Int32 = 0, SPos: Int32 = 0
     var sixteen = false
     var SPosDec: UInt32 = 0, SFrq: UInt32 = 0
+    /// For a file that a later tracker made: the filter its sample is played through, if any, as
+    /// the three numbers that make one and the last two samples that came out of it.
+    var filtered = false
+    var filterA0: Float = 0, filterB0: Float = 0, filterB1: Float = 0, filterY1: Float = 0, filterY2: Float = 0
 }
 
 /// FastTracker 2's replayer and mixer, playing a module: the replayer is in `FT2Replayer.swift`, and
@@ -228,6 +232,13 @@ final class FT2Player {
 
     func P_StartTone(_ s: FT2Sample, _ smpStartPos: Int32, _ nr: Int) {
         let v = stopTone(nr)
+        // (A note begins with no filter, until its row or its channel says otherwise: see `setFilter`.)
+        if playsLaterCommands {
+            stm[nr].filtered = false
+            v.pointee.filtered = false
+            v.pointee.filterY1 = 0
+            v.pointee.filterY2 = 0
+        }
         var type = s.typ
         let sample16Bit = (type >> 4) & 1 != 0
         var len: Int32
@@ -263,6 +274,7 @@ final class FT2Player {
             let ch = stm[i]
             let status = ch.status
             ch.status = 0
+            if playsLaterCommands, ch.filterChanged || status & IS_NyTon != 0 { setFilter(CI + chnReloc[i], ch, newNote: status & IS_NyTon != 0) }
             if status == 0 { continue }
             let v = CI + chnReloc[i]
             if status & IS_Pan != 0 { v.pointee.SPan = ch.finalPan }
@@ -282,6 +294,31 @@ final class FT2Player {
                 }
             }
         }
+    }
+
+    /// Tells a voice of its channel's filter, in a file that a later tracker made. The filter is
+    /// OpenMPT's, as it has it for an XM file: two poles, closing at 110 Hz times two to the power
+    /// of a quarter and a twenty-fourth of the setting (which is 5 kHz at its most open, so that a
+    /// filter that is on is always heard), and ringing by 24 dB at the most. A note begins with
+    /// it on if its channel's filter is closed at all.
+    private func setFilter(_ v: UnsafeMutablePointer<FT2Voice>, _ ch: FT2Channel, newNote: Bool) {
+        ch.filterChanged = false
+        if newNote, ch.cutoff < 127 { ch.filtered = true }
+        if ch.filtered, !v.pointee.filtered {
+            v.pointee.filterY1 = 0
+            v.pointee.filterY2 = 0
+        }
+        v.pointee.filtered = ch.filtered
+        guard ch.filtered else { return }
+        let damping = powf(10, -Float(ch.resonance) * ((24.0 / 128.0) / 20.0))
+        let rate = Float(Self.rate)
+        let frequency = min(rate * 0.5, max(120, min(20000, 110 * powf(2, 0.25 + Float(ch.cutoff) / 24))))
+        let r = frequency * (2 * Float.pi) / rate
+        let d = (2 * damping - min(2, (1 - 2 * damping) * r)) / r
+        let e = 1 / (r * r)
+        v.pointee.filterA0 = 1 / (1 + d + e)
+        v.pointee.filterB0 = (d + e + e) / (1 + d + e)
+        v.pointee.filterB1 = -e / (1 + d + e)
     }
 
     private func mix_SaveIPVolumes() {
@@ -378,6 +415,12 @@ final class FT2Player {
         var pos = v.pointee.SPosDec
         var mixBuffPos: UInt16 = (32768 + 96) - 8
         var lVolIP = v.pointee.SLVolIP, rVolIP = v.pointee.SRVolIP
+        let filtered = v.pointee.filtered, a0 = v.pointee.filterA0, b0 = v.pointee.filterB0, b1 = v.pointee.filterB1
+        var y1 = v.pointee.filterY1, y2 = v.pointee.filterY2
+        defer {
+            v.pointee.filterY1 = y1
+            v.pointee.filterY2 = y2
+        }
 
         var bytesLeft = numSamples
         while bytesLeft > 0 {
@@ -431,6 +474,13 @@ final class FT2Player {
                 pos &+= pos
                 sample2 &+= sample2
                 sample2 &+= sample
+                if filtered {
+                    // (A later tracker's file: the sample goes through the channel's filter.)
+                    let out = Float(sample2) * a0 + y1 * b0 + y2 * b1
+                    y2 = y1
+                    y1 = max(-131_072, min(131_072, out))
+                    sample2 = Int32(y1)
+                }
                 if sample2 < low { low = sample2 }
                 if sample2 > high { high = sample2 }
                 sample2 <<= 28 - 16

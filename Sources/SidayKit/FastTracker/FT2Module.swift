@@ -34,6 +34,19 @@ final class FT2Module {
     /// goes by. FastTracker lets any letter be typed for a command, and a letter it has no command
     /// for in a file of its own is nothing: a mark for a demo to keep time by, as often as not.)
     private(set) var madeByFastTracker = true
+    /// What the command Z does to a channel's filter in a file that a later tracker made, by its
+    /// value: 0 if it sets where the filter closes and 1 if it sets how it rings, and the value
+    /// it sets, or nil for the command's own; nil for a value that does neither. They are the
+    /// file's macros if it has any, and otherwise the ones ModPlug Tracker began with: values to
+    /// 7F close the filter, and 80 to 8F make it ring, in sixteen steps.
+    private(set) var filterMacros: [(sets: UInt8, value: UInt8?)?] = FT2Module.usualMacros()
+
+    private static func usualMacros() -> [(sets: UInt8, value: UInt8?)?] {
+        var macros = [(sets: UInt8, value: UInt8?)?](repeating: nil, count: 256)
+        for value in 0 ..< 0x80 { macros[value] = (0, nil) }
+        for step in 0 ..< 16 { macros[0x80 + step] = (1, UInt8(step * 8)) }
+        return macros
+    }
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An XM file
     /// from a later tracker may have what FastTracker never had, and is read as FastTracker reads it.
     private(set) var shortfalls: [String] = []
@@ -202,26 +215,37 @@ final class FT2Module {
                                              many: "samples are packed in a way of ModPlug Tracker's own, which is not read: they are not heard as they should be, and nor are the samples after them."))
         }
 
+        // What ModPlug Tracker and OpenMPT write after everything FastTracker reads: macros, and plug-ins.
+        var extras = ModPlugExtras()
+        let file = ByteReader(data)
+        let afterPieces = extras.readPieces(file, at: end, before: data.count)
+        if extras.macros != nil {
+            let chosen = extras.filterMacro(file, 0)
+            for value in 0 ..< 256 { filterMacros[value] = value < 0x80 ? chosen : extras.filterMacro(file, 16 + value - 0x80) }
+        }
+
         // Which instruments the patterns play, and which commands of ModPlug Tracker's they have.
         var used = [Bool](repeating: false, count: 256)
         var commands = Shortfall.Kinds()
+        var macroValues = [Bool](repeating: false, count: 256)
         for case let pattern? in patt {
             for note in pattern {
                 if note.instr != 0 { used[Int(note.instr)] = true }
                 // (A sweep from side to side, 34, is played in a file that is not FastTracker's
-                // own; and in one that is, both of these are nothing, as they were to FastTracker.)
-                if note.effTyp == 35 || note.effTyp == 36, !madeByFastTracker { commands.note(0) }
+                // own, and so is the setting of a filter; in one that is, they are nothing, as they
+                // were to FastTracker. What is left is a macro of the file's own that sends
+                // something else: the filter's kind, or a plug-in's setting.)
+                if note.effTyp == 35 || note.effTyp == 36, !madeByFastTracker { macroValues[Int(note.eff)] = true }
             }
         }
+        if macroValues.indices.contains(where: { value in
+            macroValues[value] && filterMacros[value] == nil && extras.macroSendsSomething(file, value < 0x80 ? 0 : 16 + value - 0x80)
+        }) { commands.note(0) }
         if let sentence = Shortfall.commandsLeftOut(commands.named(["the setting of a filter or a plug-in"]),
                                                     why: "which FastTracker 2 did not have") {
             shortfalls.append(sentence)
         }
 
-        // Plug-ins, which ModPlug Tracker and OpenMPT write after everything FastTracker reads.
-        var extras = ModPlugExtras()
-        let file = ByteReader(data)
-        let afterPieces = extras.readPieces(file, at: end, before: data.count)
         extras.readInstrumentExtras(file, from: afterPieces, instruments: Int(song.antInstrs))
         var unheard = 0, bare = 0
         for i in 1 ... 128 where used[i] && extras.playsThroughPlugIn(instrument: i - 1) {
