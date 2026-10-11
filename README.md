@@ -34,6 +34,7 @@ siday ~/Music/chiptunes --shuffle
 | Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
 | Modules of other trackers, on Impulse Tracker's replayer | GDM, the files of the BWSB sound system, each of them another tracker's module (an S3M, a MOD, and others) written out again; and PTM, the modules of PolyTracker, with up to 32 channels, samples of sixteen bits and loops that go back and forth. This player has no replayer of either: each is read into what Impulse Tracker plays and played by its replayer, every channel in its own place between the speakers |
 | OpenMPT's own modules, on Impulse Tracker's replayer | MPTM, the format OpenMPT keeps for what an IT file has no room for: an IT file with more written after it. Played by Impulse Tracker's replayer, which has been given what such a file asks beyond an IT file as far as that can honestly be given: OpenMPT's three ways of keeping time, its swing, tempos that are fractions or above 255, patterns of up to 1024 rows, lists of patterns of any length and several to a file (which are its songs), longer envelopes with a place to go when a key is let go, OpenMPT's own filter for a file that does not ask for Impulse Tracker's, a filter that lets the high through and one that is moved at random from note to note, samples played backwards and from cue points, and OpenMPT's louder way of adding channels up. An instrument that is a patch for the AdLib's FM chip is played on that chip, as OpenMPT plays it. The plug-ins that are OpenMPT's own (its echo, two reverbs, chorus, flangers, compressor, distortion, equaliser and gargle, and DigiBooster's echo) are played, wired as the file wires them; a plug-in that is somebody else's program is left out, and an instrument that is only such a plug-in is not heard |
+| Modules of other trackers, on players made for them | 669, the modules of Composer 669 and of UNIS 669 after it: eight channels of samples, with slides that are counted in samples a second and not in the Amiga's periods, which is why no other tracker's replayer will do for them |
 | AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player. FMT, the songs of Davey W Taylor's FM Tracker, a tracker of eight voices for the AdLib card, played as OpenMPT reads them |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
@@ -859,6 +860,60 @@ was 0.972 and 0.894; and for those with a plug-in that is left out, which libope
 too, to 0.997 and 0.979. The files with FM come to 0.984 and 0.957. The rest of the difference is
 slides in a tune that uses the Amiga's; a pitch that OpenMPT rounds where Impulse Tracker does
 not; and whatever an instrument does at random.
+
+A 669 file is a module from Composer 669, which Tran of Renaissance wrote for the PC in 1992, or
+from UNIS 669, which came after and added a little. It has eight channels, samples of eight bits,
+patterns that each have a speed and a last row of their own, and a handful of commands. Neither
+program's replayer has ever been published, and nothing here is a port. The player is written
+from the descriptions that came with the two programs and from what OpenMPT and libxmp make of
+such a file, and it plays through a mixer of this player's own, since there is no card's sound to
+be faithful to: Composer 669 mixed for a Sound Blaster at 22 kHz, UNIS 669 played through a Gravis
+Ultrasound, and the mixer here is neither (it puts a curve through each four samples, at the
+output's rate, and lets nothing click).
+
+Composer 669 is unlike the trackers that came from the Amiga in one thing, and it is why these
+files have a player to themselves. Those trackers count a note's pitch as a period and slide it
+by adding to that, so that a slide is a wider step the higher the note. Composer 669 counts in
+samples a second, and its slides add to that: 80 a second on every tick for each one of the
+command's value, and 40 for a slide to a note. So a slide is widest on the lowest notes, and
+turned into another tracker's commands it would be wrong on nearly all of them. Its vibrato is not
+one, either: every other tick the note is played 668 samples a second higher for each one of the
+value, which is a trill. And a command, once given, goes on until the channel has another command
+or another note.
+
+The numbers are OpenMPT's, whose authors set their player beside Composer 669 itself running in
+an emulator, and libxmp has the same ones. In three things the two disagree, or OpenMPT disagrees
+with the program's own manual, and a choice was made. The manual says a command goes on until the
+next; OpenMPT stops the trill at the end of its row, and here, as in libxmp, it goes on. A slide
+to a note begins on its first tick here, as in libxmp and as the other slides do in both; in
+OpenMPT it begins a tick later. And a pattern's own speed is its speed from its first row, where
+OpenMPT, which writes the speed into the pattern as a command, has to put it a row late if every
+channel of the first row has a command already. Two more are matters of taste. Composer 669 had
+its channels all the way to the left and to the right, turn and turn about, which is all a Sound
+Blaster Pro could do and is hard on the ears in headphones: they are brought in to five eighths
+of the way, as OpenMPT has them. And a tick is a seventy-eighth of two and a half seconds, which
+both of the others agree on, though libopenmpt drops the part of a sample that this comes to at
+its output's rate, and so runs faster by a third of a thousandth.
+
+Of 167 files to hand that are named for the format, three are not 669 files at all and are
+refused; the other 164 are played. Every channel's pitch and volume was set beside libopenmpt's
+on every tick of every one, to its end or for ten minutes: the two are never at different rows
+but for the one row of the one file where OpenMPT's speed comes late, and of 901,749 ticks they
+are alike on 894,484. Every one of the rest is one of the three things above, or the last tick,
+where libopenmpt stops and this goes round. What is heard was set beside it too, for the first
+minute of each. With the ticks made the length libopenmpt makes them, the spectrum and the
+loudness over time both agree to 1.000 for the middle file and to 0.999 and 0.998 for the file a
+tenth of the way up from the worst. With the ticks their own length, a minute of music drifts
+apart by a sixtieth of a second, and the same measures come to 0.992 and 0.966, which says more
+about the measure than about the sound. The files are made as loud as XM files are, by measure:
+the middle one of each is the same.
+
+UNIS 669's two commands are played, in files that say they are its own: one moves a channel a
+little to the left or the right on every row, and the other strikes a note again and again
+through its row, which OpenMPT takes to mean every so many ticks and so does this. It also has a
+tempo faster than the fastest, which nothing says the speed of; a file that asks for it is left
+at the tempo it had, and says so. Two of the files have commands that neither program is said to
+have had. They are left out, and those files say so too.
 
 A CMF file is a tune for the FM chip alone: its instruments, each the handful of numbers the chip
 wants for one, and the music as MIDI. It was Creative's format, and what played it was SBFMDRV,

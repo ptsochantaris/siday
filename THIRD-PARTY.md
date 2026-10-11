@@ -448,6 +448,18 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## libxmp and OpenMPT — 669 files
+
+No code of either player is in this one, but the reading and the playing of 669 files
+(`Sources/SidayKit/Composer669`) were written with theirs open: libxmp's `src/loaders/669_load.c`
+and the 669 effects in its `src/effects.c`, and OpenMPT's `soundlib/Load_669.cpp` and what its
+`Snd_fx.cpp` and `Sndmix.cpp` do for a module of that kind. The checks a file is held to before it
+is taken for a 669 file, how far each command moves a note's pitch, the tempo, and how far to each
+side the channels sit are as OpenMPT has them; where the two differ, or differ from the manuals of
+Composer 669 and UNIS 669, the Swift and the README say which is followed and why. Both are used
+under the licences set out above, under "libxmp and OpenMPT — reading MTM, DTM and AMF files", and
+below, under "OpenMPT — FM Tracker files".
+
 ## libxmp and OpenMPT — GDM and PTM files
 
 `Sources/SidayKit/ImpulseTracker/GDMFile.swift` and `PTMFile.swift`, which read GDM and PTM files

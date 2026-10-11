@@ -85,6 +85,7 @@ final class WebPlayer {
                 || format == .gdm || format == .ptm
                 || format == .mptm
                 || format == .sfx || format == .okt
+                || format == .composer669
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {
