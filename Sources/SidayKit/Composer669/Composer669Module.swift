@@ -79,7 +79,8 @@ final class Composer669Module {
             let at = Self.header + sample * Self.sampleHeader
             let length = file.u32le(at + 13), loopStart = file.u32le(at + 17)
             var loopEnd = file.u32le(at + 21)
-            guard length < Self.longestSample else { throw TuneError.malformed("not a 669 file") }
+            // (In a browser a whole number has 32 bits, and a length that fills them is less than nothing.)
+            guard length >= 0, length < Self.longestSample else { throw TuneError.malformed("not a 669 file") }
             // (A sample that does not go round says so with an end past its own, or with none.)
             if loopEnd > length, loopStart == 0 { loopEnd = 0 }
             let there = max(0, min(length, data.count - soundAt))

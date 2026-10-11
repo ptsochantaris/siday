@@ -467,7 +467,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## libxmp and OpenMPT — 669 files
+## libxmp and OpenMPT — 669 and FAR files
 
 No code of either player is in this one, but the reading and the playing of 669 files
 (`Sources/SidayKit/Composer669`) were written with theirs open: libxmp's `src/loaders/669_load.c`
@@ -478,6 +478,12 @@ side the channels sit are as OpenMPT has them; where the two differ, or differ f
 Composer 669 and UNIS 669, the Swift and the README say which is followed and why. Both are used
 under the licences set out above, under "libxmp and OpenMPT — reading MTM, DTM and AMF files", and
 below, under "OpenMPT — FM Tracker files".
+
+The reading and the playing of FAR files (`Sources/SidayKit/Farandole`) were written the same way,
+with libxmp's `src/loaders/far_load.c` and `src/far_extras.c` open, and OpenMPT's
+`soundlib/Load_far.cpp`: how the program kept time, how far each command moves a pitch or a volume,
+and when a note is struck again are as libxmp has them, whose authors found them out from
+Farandole Composer itself. No code of either is in it. Under the same licences.
 
 ## libxmp and OpenMPT — GDM, PTM and ULT files
 

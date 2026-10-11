@@ -27,7 +27,7 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's on its own mixer) |
-| PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669 | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; a player written for 669 files |
+| PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
@@ -890,6 +890,17 @@ tempo faster than the fastest, which nothing says the speed of; a file that asks
 at the tempo it had, and says so. Two of the files have commands that neither program is said to
 have had. They are left out, and those files say so too.
 
+A FAR file is from Farandole Composer, which Daniel Potter wrote for the PC and the Gravis
+Ultrasound in 1994: sixteen channels, patterns as long as they like, slides counted in the steps of
+the Ultrasound's frequency, and a way of keeping time that is all its own, a tempo and a fine tempo
+from which it works out what to set the PC's timer to. Its replayer was never published, so it has
+a small player written for it, as 669 files have, from the description that came with the program
+and from libxmp, whose authors set theirs beside the program itself. Set beside libxmp on every
+tick of the 37 files to hand, the two are never at different rows, and 32 files are alike on every
+tick. In four of the rest a note ends a tick sooner in one than in the other; in the fifth a slide
+to a volume starts from the volume the channel has, as the program's description says, where
+libxmp starts it from the loudest. The files are as loud as XM files are, by measure.
+
 A CMF file is a tune for the FM chip alone: its instruments, each the handful of numbers the chip
 wants for one, and the music as MIDI. It was Creative's format, and what played it was SBFMDRV,
 the driver on the disk that came with a Sound Blaster. That driver is what is here, by way of fmdrv's
@@ -1028,6 +1039,8 @@ What it is made from:
   and libxmp the player that the reading and the playing of those files were checked against. The GDM
   format is as MenTaLguY describes it, and BWSB and its converter are by Edward Schlunder; the PTM
   format is as JAL of Nostalgia describes it, and PolyTracker is by Lone Ranger of AcmE.
+- And again: what a 669 file and a FAR file mean, which the players written for them were made
+  from. Composer 669 is by Tran of Renaissance, and Farandole Composer by Daniel Potter.
 - And again: how a ULT file is read, made after both of theirs and, for what goes where when a note
   has two commands, after neither; libopenmpt is the player those files were checked against. The
   format is as FreeJack of The Elven Nation describes it, and UltraTracker is by Marc André
