@@ -40,124 +40,15 @@ What is not played, and what is played with something missing, is under
 
 [ptsochantaris.github.io/siday](https://ptsochantaris.github.io/siday/) is the player as a web page,
 and `Web/` is where it comes from. It is Swift too: the emulators and the page itself are compiled
-to WebAssembly.
+to WebAssembly. Drop tunes or a whole folder on it and it plays them. Nothing is uploaded: the files
+are read where they are and never leave your computer.
 
-- Drop tunes or a whole folder on it, or choose them, and it plays them. Nothing is uploaded: the
-  files are read where they are and never leave your computer.
-- A tune with several songs lists them, by name where the file names them, and plays them in turn,
-  passing over those of a few seconds: the sound effects and jingles many files keep beside their
-  music, which are still there in the list to be pressed.
-- A spectrum analyser follows what is being heard, and under it is a light for each voice of the
-  tune, which glows as bright as that voice is loud.
-- Press anywhere on the time bar to move there, in either direction.
-- SID tunes know their lengths: those of the High Voltage SID Collection are built in.
-- A tune that is not played quite as its file asks has a small ≈ beside its name. Rest the pointer
-  on it to read what is left out or made do for, or press it to have that written out under the
-  tune's details, where it stays for the tunes after it until it is pressed again. Once such a tune
-  has been played, its row in the list keeps the mark.
-- The list shows every tune that was added, however many, and can be searched. The cross at the end
-  of a row takes that tune out of the list, and "Remove all" empties it. The buttons that add files
-  or a folder are at its foot, and while it is empty it says how tunes are added.
-- It has a volume of its own, apart from the computer's, which it remembers.
-- One list chooses what a tune is heard through: mono, stereo (a module's own, or the AY chip's
-  channels spread out), or the speaker of an early-1980s television. It is remembered too.
-- Small buttons in the player's corner put the spectrum analyser, the lights and the list of tunes
-  away and bring them back, for as much or as little to look at as is wanted. That is remembered as
-  well.
-- A fourth of them brings out a picture to listen by: a lava lamp, a mirror ball, an aurora, a pond,
-  a fire, a fountain or rain. It is away until it is asked for.
-- A fifth opens the settings: the command-line player's options, for how long tunes are played and
-  on what. They are remembered, and one button puts them all back.
-- The keys are the command-line player's.
-
-Press anywhere on the time bar to move to that place in the song; the pointer shows the time it is
-over. A song is rendered to its end as soon as it starts, far faster than it plays, and the bar
-shades in behind as it goes: anywhere in the shaded part is reached at once, and a place beyond it
-as soon as the rendering gets there.
-
-The settings are the options of the command line (see the table below), each a list to choose from
-or a slider, with what it does to be read by resting the pointer on it: how many times a tune that
-repeats is played and how long its fade is, the time given to a tune of unknown length and the
-longest any tune may play; the AY chip's make, its clock, how often the tune's player is run, and which way round its
-three channels go in stereo (the command line's `abc` and `acb`, which the page's list of outputs has as one "Stereo"); the
-SID's model, its emulation and where the 6581's filter sits; which Amiga a module made for one is heard on
-and how far apart its two sides are (a MED in mixing mode has no Amiga in it, and its own two sides), and the sound card of an S3M. One that has been changed is marked with
-a dot. A change is heard at once: the song that is playing is rendered again as it is now to be,
-when the setting has anything to do with it, and goes on from where it was. Two settings are the
-page's own, and are about a file with several songs. Its songs can all be played in turn, which is
-how it comes, or only the one the file names as its main song, as the command line does. And when
-they are played in turn, songs shorter than five seconds are passed over, or than some other
-length, or none are: a game's file often has a tune or two and a dozen sound effects. So is a song
-of a module in which no note is played, however long it is: a stretch of empty patterns at the top
-of a file, kept there to hold its samples or for no reason at all. Passed-over
-songs are fainter in the list and can still be pressed, and a file with nothing longer in it plays
-them all.
-
-The lights are the lamps of an early-1980s tape recorder's recording level, one for each voice: an AY
-chip's three channels (six for two chips), a SID's three voices, the Atari's three, each channel of a
-module, each of the FM chip's nine voices. What a light shows is its voice by itself, measured where
-the sound is made, before the voices are mixed: how far the voice swings, in decibels, over the last
-fiftieth of a second. (A SID's voices are the exception: they go by their envelopes, since the chip
-mixes them before there is anything to measure.) A module shows the channels its patterns use. Some
-voices are ones a tune may never use, and get a light only once they are heard: the ZX Spectrum's
-beeper, the samples a SID tune plays on the volume, the samples of an Atari STE; and since many
-Spectrum tunes are for the beeper alone, an AY file's three channels too. Measuring costs nothing
-that can be heard and little that can be timed: the sound is the same to the sample, and rendering
-is slower by nothing for a SID tune, a thirtieth for a Spectrum's and at most a seventh for a module's,
-which is rendered some hundreds of times faster than it plays.
-
-The picture to listen by is for watching while a tune plays, and is made from what the tune's voices
-are doing and not from the sound they add up to: how loud each is, the pitch it is at, and the notes
-it starts, all of which the player knows because it is playing them. In the lava lamp each voice is a
-blob of wax, which swells as the voice gets louder, floats higher the higher its note, and sinks back
-into the pool when it falls silent. The mirror ball turns slowly at the top of a dark room and throws its
-spots across the wall in rows. Each voice has a height on the wall of its own, and the colour of its
-light is the note it is playing, by how high it is among the notes of the tune, as the flame's is;
-where two voices' lights fall together their colours add, towards white. In the aurora each voice is a
-curtain of light drawn at the right of a night sky, higher for a higher note, that drifts away to the
-left. The pond is water at night, seen from above: a note being struck is a drop falling into it, low
-notes to the left and high ones to the right (the lowest and highest eighths of the tune's range
-each fall in one place, as they are one colour in the flame, so that a melody is spread wider across
-the water), and its rings spread and cross and come back off the
-banks; a held note keeps the water trembling, and each voice leaves its colour in it. The water is
-real in a small way, a grid of heights moved on by the rule that makes a wave. The flame is a row
-of lamps on fire: each voice is a round lamp, in a row like the player's lights, as large as the
-voice is loud and the colour of its note, by the colours of the analyser's bars: red for the lowest
-the tune plays, round to violet for the highest, and pale for a drum. (The lowest notes of a tune
-are all the one red and the highest all the one violet, an eighth of its range at each end, so that
-the notes between, where the melodies are, are further apart in colour.) Flames rise slowly from
-each lamp in its colour and out of the top of the picture, so the notes a voice has played are bands
-of colour above the one it is playing. They are made the oldest
-way there is, the heat at each place being the mean of the heat below it, less a little. The
-fountain sends a light up from the middle of the bottom of the picture for every note that is
-struck, as a firework goes up, though nothing bursts: to come down at a place come by chance, as
-high as the note is loud, and in the note's colour, as the flame's lamps are. Each is a small light with a short tail, which
-slows, turns over and falls away. A voice sends up no more than eight a second. The rain lets a
-drop fall for every note that is struck, straight down from a place along the top come by chance.
-Where it meets the bottom it bounces, as high as the note is loud, to the side the tune has the note
-on (the left or the right as chance has it, for a note in the middle or a tune with no sides, and
-whatever the tune is being listened to through), and as fast sideways as the note is high; it turns
-back at the sides, and each bounce is some half as high as the last, and a little dimmer, until it
-falls out of the picture. A drop is in the note's colour,
-and is drawn as the way it has come in the last moment: a thin line with round ends, as bright at
-its tail as at its head, long where the drop is fast and bent where it has just bounced. It is meant to be calm.
-Nothing in it changes at once: a voice is followed a little behind, so the loudest note there is
-brightens the picture over several frames and not in one; the kind of picture never changes of its
-own accord; and its colours change, in all but the flame, the fountain and the rain, where a note's colour says
-how high it is, only by themselves and too slowly to see: once round the colour wheel in
-five minutes or more. It can fill the screen (the button, or `f`), where its controls and the pointer go out of
-sight when the pointer is left still. The picture is painted in Swift like everything else, a small
-one of some 370 dots by 210 that the browser stretches, which is what makes it soft; a frame takes
-about a millisecond.
-
-The spectrum analyser and the lights are held back by as long as the browser says the sound takes to be heard, which
-with wireless headphones is a sixth of a second or more. When the sound is sent somewhere else while
-the page is open, headphones put on or taken off, the page makes its audio output afresh and carries
-on from where it was. Adding `?timing` to the page's address shows what the browser is reporting.
-
-Rendering ahead also finds the length of a tune whose file does not give one. Such a tune is allowed
-three minutes; if it turns out to end sooner, the page shows its real length as soon as it is known,
-and does not sit through the seconds of silence it takes to be sure a tune is over.
+Beside the player and its list there is a spectrum analyser, a light for each voice of the tune, a
+picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain or rain,
+each made from what the tune's voices are doing), and the command-line player's options as
+settings. A song is rendered to its end as soon as it starts, far faster than it plays, so any
+place in it can be moved to. A tune that is not played quite as its file asks has a small ≈ beside
+its name: see [Playback caveats](#playback-caveats).
 
 To run it from here:
 
@@ -166,35 +57,19 @@ To run it from here:
 ```
 
 That builds what needs building, serves the folder at http://localhost:8000 (to this Mac only) and
-opens the page; Ctrl-C stops it. `./Web/build.sh` builds without serving. `./Web/publish.sh` builds
-and puts the result on the web: it pushes the site, and nothing else, to the repository's `gh-pages`
-branch, which GitHub Pages serves. The page on the web changes when that is run, and not before.
+opens the page. `./Web/build.sh` builds without serving, and `./Web/publish.sh` builds and pushes
+the site, and nothing else, to the repository's `gh-pages` branch, which GitHub Pages serves.
 
-The folder is the whole site, static files and nothing more: an HTML page, a stylesheet, three short
-JavaScript files, and what `build.sh` puts in `Web/generated`. Any web server can serve it (a browser
-will not load it straight from disk). After a rebuild, reload the page.
+Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly (`swift sdk list`
+shows what is installed), and nothing else: no Node, no packages to install. If Binaryen's
+`wasm-opt` is installed, both modules go through it and come out smaller. The folder is the whole
+site, static files that any web server can serve.
 
-Building it needs Swift 6.4 and the matching Embedded Swift SDK for WebAssembly (`swift sdk list` shows
-what is installed), and nothing else: no Node, no packages to install. If Binaryen's `wasm-opt` is
-installed (`brew install binaryen`), both modules go through it: the page's comes out a little over
-half the size and the engine's a tenth smaller, a quarter and a twentieth once compressed. That is all
-it buys. Measured on a SID, an AY, a tracker and an Atari ST tune, the engine renders no faster for it,
-and what it renders is the same to the sample.
-
-The modules are built to use WebAssembly's SIMD instructions (`-msimd128` in `Web/toolset.json`), which
-makes rendering a quarter to a third faster and changes no sample of it. Every current browser has
-them; Safari has since 16.4.
-
-The page is two WebAssembly modules. `SidayWebAudio` is SidayKit and nothing else. It runs in a
-worker (`engine.js`), which renders the whole of a song and keeps it (23 MB for each minute, for the
-song that is playing), and the audio thread (`worklet.js`) only plays what it is sent, a fifth of a
-second ahead: much the arrangement of the command-line player, so neither loading a tune nor anything
-the page does can hold the sound up. What is kept is the sound as the chip made it; the television and
-the spectrum analyser are applied as it is played, so a television can be put in the way or taken out at
-any moment. Mono and stereo are what the chip makes, so a change between them renders the song again,
-which takes a moment, and it goes on from where it was. `SidayWeb` is the page itself, written in
-[ElementaryUI](https://elementary.codes). Between them is `siday.js`, for what only a browser has: the
-chosen files and the audio graph. All told it is about 1.5 MB compressed, the song lengths of the High Voltage SID Collection being some 550 kB of that and the AdLib instruments some 120 kB.
+The page is two WebAssembly modules, about 1.5 MB compressed. `SidayWebAudio` is SidayKit and
+nothing else: it runs in a worker, which renders the whole of a song and keeps it, and the audio
+thread only plays what it is sent, so nothing the page does can hold the sound up. `SidayWeb` is
+the page itself, written in [ElementaryUI](https://elementary.codes). Between them is `siday.js`,
+for what only a browser has: the chosen files and the audio graph.
 
 With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
 what they depend on for the Mac, which takes minutes the first time and is of no use.
