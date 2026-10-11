@@ -5,6 +5,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
     case vtx, ym, ay, sid, sndh, mod, med, ahx, hvl, xm, s3m, it, cmf, rol, fmt
     case mtm, dtm, amf
+    case gdm, ptm
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED.
@@ -85,6 +86,12 @@ public enum TuneLoader {
             return try S3MRenderer(data, options: options)
         case .it:
             return try ITRenderer(data, options: options)
+        case .gdm:
+            // Neither of these two has a replayer of its own here: each is read into the shape of an
+            // Impulse Tracker module, and Impulse Tracker's replayer plays it.
+            return try GDMFile.renderer(data, options: options)
+        case .ptm:
+            return try PTMFile.renderer(data, options: options)
         case .cmf:
             return try CMFTune.renderer(data)
         case .rol:

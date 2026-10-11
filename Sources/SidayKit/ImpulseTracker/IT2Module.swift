@@ -406,6 +406,45 @@ final class IT2Module {
         self.rows = rows
     }
 
+    /// A module that did not come from an IT file: one of another tracker's, set down as Impulse
+    /// Tracker would hold it so that this replayer can play it (see `IT2ForeignModule`). It has samples
+    /// and no instruments, and none of what only an IT file can say.
+    /// - Parameters:
+    ///   - samples: as many as the replayer is to have room for, which is at least `MAX_SAMPLES`.
+    ///   - patterns: packed as an IT file packs them, and `rows` how many rows each has; at least
+    ///     `MAX_PATTERNS` of each.
+    init(title: String, madeWith: String, orders: [UInt8], flags: UInt16, globalVolume: UInt8, mixVolume: UInt8, speed: UInt8, tempo: UInt8,
+         channelPans: [UInt8], samples: [IT2Sample], patterns: [[UInt8]?], rows: [UInt16]) {
+        self.title = title
+        self.madeWith = madeWith
+        var Orders = [UInt8](repeating: 255, count: Self.MAX_ORDERS)
+        for i in 0 ..< min(orders.count, Self.MAX_ORDERS) { Orders[i] = orders[i] }
+        self.Orders = Orders
+        OrdNum = min(orders.count, Self.MAX_ORDERS) + 1
+        InsNum = 0
+        SmpNum = samples.count
+        PatNum = patterns.count
+        // (Impulse Tracker 2.14's numbers, which nothing here takes to mean anything.)
+        Cwtv = 0x0214
+        Cmwt = 0x0200
+        Flags = flags
+        Special = 0
+        GlobalVol = globalVolume
+        MixVolume = mixVolume
+        InitialSpeed = speed
+        InitialTempo = max(tempo, Self.MIN_BPM)
+        PanSep = 128
+        var ChnlPan = [UInt8](repeating: 32 | 128, count: MAX_HOST_CHANNELS)
+        for i in 0 ..< min(channelPans.count, MAX_HOST_CHANNELS) { ChnlPan[i] = channelPans[i] }
+        self.ChnlPan = ChnlPan
+        ChnlVol = [UInt8](repeating: 64, count: MAX_HOST_CHANNELS)
+        midiData = nil
+        instruments = (0 ..< Self.MAX_INSTRUMENTS).map { _ in Self.blankInstrument() }
+        self.samples = samples
+        self.patterns = patterns
+        self.rows = rows
+    }
+
     // MARK: Instruments
 
     /// An instrument with nothing in it, which is what the replayer has for one the file leaves out.
@@ -512,7 +551,7 @@ final class IT2Module {
     // MARK: Samples
 
     /// Room for a sample's sound of `length` bytes and what goes either side of it, all of it nought.
-    private static func allocate(_ length: Int) -> UnsafeMutableRawPointer {
+    static func allocate(_ length: Int) -> UnsafeMutableRawPointer {
         let memory = UnsafeMutableRawPointer.allocate(byteCount: length + SAMPLE_PAD_LENGTH, alignment: 16)
         memory.initializeMemory(as: UInt8.self, repeating: 0, count: length + SAMPLE_PAD_LENGTH)
         return memory

@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, AHX, HVL, XM, S3M, IT, MTM, DTM and AMF modules and CMF, ROL and FMT tunes for the AdLib from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, AHX, HVL, XM, S3M, IT, MTM, DTM, AMF, GDM and PTM modules and CMF, ROL and FMT tunes for the AdLib from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -269,6 +269,7 @@ struct Siday: ParsableCommand {
             FileHandle.standardOutput.write(Data(text.utf8))
         } else if let raw {
             ST3Player.repeatsReferenceSlips = ProcessInfo.processInfo.environment["SIDAY_REFERENCE_SLIPS"] != nil
+            ITRenderer.roundsRatesAsLibxmp = ProcessInfo.processInfo.environment["SIDAY_RATES_AS_LIBXMP"] != nil
             var renderer = try tuneFiles.load(scan.files[0])
             let frames = Int((maxTime.flatMap(parseTime) ?? 20) * Double(outputSampleRate))
             // A YM file played on a chip of another machine has no reference output; for the comparison
@@ -345,7 +346,40 @@ struct Siday: ParsableCommand {
                 if let path = ProcessInfo.processInfo.environment["SIDAY_MED_MIXED"] { try mixed.write(to: URL(fileURLWithPath: path)) }
                 return
             }
-            if let atari = renderer as? any ReferenceComparable {
+            if ProcessInfo.processInfo.environment["SIDAY_MODULE_LISTING"] != nil, let module = renderer as? ITRenderer {
+                // What was read from a module that Impulse Tracker's replayer plays, as text, for
+                // setting beside what another player made of the same file: a GDM or a PTM file
+                // above all, which are not that replayer's own.
+                let listing = module.listing()
+                var text = "speed \(listing.speed) tempo \(listing.tempo) gvol \(listing.globalVolume)\n"
+                text += "orders " + listing.orders.map(String.init).joined(separator: " ") + "\n"
+                text += "pans " + listing.pans.map(String.init).joined(separator: " ") + "\n"
+                for (index, sample) in listing.samples.enumerated() {
+                    text += "ins \(index + 1) len \(sample.length) lps \(sample.loopStart) lpe \(sample.loopEnd) loop \(sample.loops ? 1 : 0)"
+                        + " bidir \(sample.backAndForth ? 1 : 0) bits \(sample.sixteenBit ? 16 : 8) vol \(sample.volume) rate \(sample.rate)"
+                        + " pan \(sample.pan) sum \(sample.sum)\n"
+                }
+                for cell in listing.cells {
+                    text += "\(cell.pattern) \(cell.row) \(cell.channel): n\(cell.note) i\(cell.instrument) v\(cell.volume) c\(cell.command):\(cell.value)\n"
+                }
+                FileHandle.standardOutput.write(Data(text.utf8))
+                return
+            }
+            if ProcessInfo.processInfo.environment["SIDAY_MODULE_TICKS"] != nil, let module = renderer as? ITRenderer {
+                // And what that replayer does with it, a line a tick: where the tune is, its tempo and
+                // speed, and for each channel the rate its sample plays at, its volume and its place.
+                var text = ""
+                for (number, tick) in module.ticks(seconds: maxTime.flatMap(parseTime) ?? 20).enumerated() {
+                    text += "\(number) \(tick.order):\(tick.row) bpm\(tick.tempo) spd\(tick.speed) |"
+                    for channel in tick.rates.indices { text += " \(tick.rates[channel])/\(tick.volumes[channel])/\(tick.pans[channel])" }
+                    text += "\n"
+                }
+                FileHandle.standardOutput.write(Data(text.utf8))
+                return
+            }
+            // (With SIDAY_RAW_AS_HEARD set, what is written is what is heard, as numbers with a point and
+            // not as a reference player would write it: for setting the web player's sound beside this one's.)
+            if let atari = renderer as? any ReferenceComparable, ProcessInfo.processInfo.environment["SIDAY_RAW_AS_HEARD"] == nil {
                 // The machine's own sixteen-bit output as the reference player writes it: one channel, or
                 // for a module two.
                 if let subsong { renderer.select(subsong: subsong - 1) }

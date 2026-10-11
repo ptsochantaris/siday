@@ -20,7 +20,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length) } }
     public var knownLength: Double? { songList[currentSubsong].length }
 
-    private let module: IT2Module
+    let module: IT2Module
     private let songList: [ModuleSongs.Song]
     /// Which song first played each row. See `ModuleSongs`.
     private let firstPlayedBy: UnsafeMutablePointer<UInt8>
@@ -36,8 +36,14 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     /// Set by measure, so that a module is about as loud as the chip tunes it is played among.
     private static let gain: Float = 0.64
 
-    public init(_ data: [UInt8], options: LoadOptions) throws {
-        module = try IT2Module(data)
+    public convenience init(_ data: [UInt8], options: LoadOptions) throws {
+        try self.init(module: IT2Module(data), format: "IT", options: options)
+    }
+
+    /// A module as Impulse Tracker holds one, wherever it came from: an IT file, or a file of another
+    /// tracker's that this replayer is to play (see `IT2ForeignModule`), which says what kind it is.
+    init(module: IT2Module, format: String, author: String = "", options: LoadOptions) {
+        self.module = module
         mono = options.stereo == .mono
 
         // The channels that some pattern has a note or an instrument on, and that are not switched off.
@@ -67,8 +73,9 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         let places = module.ChnlPan
         lights = (0 ..< 64).filter { used[$0] && places[$0] & 128 == 0 }
 
-        var info = TuneInfo(format: "IT")
+        var info = TuneInfo(format: format)
         info.title = module.title
+        info.author = author
         info.detail = module.madeWith
         self.info = info
 

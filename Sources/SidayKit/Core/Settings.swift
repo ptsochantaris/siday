@@ -237,6 +237,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             switch format {
             case .sid, .sndh, .mod, .med, .ahx, .hvl, .xm, .s3m, .it, .cmf, .rol, .fmt: false
             case .mtm, .dtm, .amf: false
+            case .gdm, .ptm: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid

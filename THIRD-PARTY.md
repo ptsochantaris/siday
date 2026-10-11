@@ -403,7 +403,8 @@ the replayer (`IT2Player.swift`, `IT2Effects.swift`, `IT2Tables.swift`), the rea
 the unpacking of their compressed samples (`IT2Module.swift`), and the sound driver it2play adds to
 Impulse Tracker's own, which mixes in floating point through a windowed sinc and has the resonant
 filter (`IT2Mixer.swift`). Impulse Tracker's own drivers, and it2play's reading of S3M and MMCMP
-files, are not ported.
+files, are not ported. (`IT2ForeignModule.swift`, `GDMFile.swift` and `PTMFile.swift` in that folder are
+not from it2play: they are what gives that replayer two other kinds of file to play, and are below.)
 
 ```
 BSD 3-Clause License
@@ -436,6 +437,18 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## libxmp and OpenMPT — GDM and PTM files
+
+`Sources/SidayKit/ImpulseTracker/GDMFile.swift` and `PTMFile.swift`, which read GDM and PTM files
+into the shape Impulse Tracker's replayer plays, are made after the loaders of those formats in
+libxmp (https://github.com/libxmp/libxmp, `src/loaders/gdm_load.c` and `ptm_load.c`) and in OpenMPT
+(https://openmpt.org, `soundlib/Load_gdm.cpp` and `Load_ptm.cpp`): the layout of the files, and what
+each of their commands is taken to mean. Neither library's player is used. Both are used under the
+licences set out above, under "libxmp and OpenMPT — reading MTM, DTM and AMF files": libxmp's the MIT
+licence, Copyright (C) 1996-2026 Claudio Matsuoka and Hipolito Carraro Jr, and OpenMPT's the BSD
+3-Clause licence, Copyright (c) 2004-2026 OpenMPT Project Developers and Contributors and Copyright
+(c) 1997-2003 Olivier Lapicque.
 
 ## Nuked OPL3 — the FM chip of the AdLib and Sound Blaster cards
 

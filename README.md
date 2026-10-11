@@ -32,6 +32,7 @@ siday ~/Music/chiptunes --shuffle
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer |
 | PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter |
 | Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
+| Modules of other trackers, on Impulse Tracker's replayer | GDM, the files of the BWSB sound system, each of them another tracker's module (an S3M, a MOD, and others) written out again; and PTM, the modules of PolyTracker, with up to 32 channels, samples of sixteen bits and loops that go back and forth. This player has no replayer of either: each is read into what Impulse Tracker plays and played by its replayer, every channel in its own place between the speakers |
 | AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player. FMT, the songs of Davey W Taylor's FM Tracker, a tracker of eight voices for the AdLib card, played as OpenMPT reads them |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
@@ -571,6 +572,34 @@ where it2play reads past the end of its three. And where it2play would read soun
 sample, which a few files lead it to do, there is silence. The filter is the one place where the web
 player and the Mac's do not agree to the last bit: each asks its own maths library for a power of two.
 
+A GDM file and a PTM file are played by Impulse Tracker's replayer too, which is not their own: as
+with the three kinds of file that FastTracker's plays for want of theirs, what is heard is another
+tracker's reading of the tune. GDM was the one format of BWSB, a
+sound system that DOS games were built with: nobody composed in it, and a GDM file is an S3M, a MOD
+or some other tracker's module written out again by BWSB's converter, with up to four commands
+beside a note. PTM was the format of PolyTracker, which set out to be a better Scream Tracker: 32
+channels, samples of sixteen bits, loops that go back and forth. Neither BWSB's player nor
+PolyTracker's is ported, and there is nothing here to say how either sounded to the sample. What is
+done is what Impulse Tracker did with an S3M file: the file is read into Impulse Tracker's own shape,
+its commands given as the letters that do the same, and played with "old effects" on. Each channel is
+where the file puts it between the speakers. What was read from every such file to hand, 56 of them,
+has been set beside what two other players read from it, libxmp and OpenMPT, whose loaders these are
+made after; where it differs from libxmp's it is by choice, and where those two disagree the source
+says which was followed and why. What is heard has been set beside libxmp's playing by measure, of
+how the loudness goes and of the spectrum, which finds a wrong note or a missing channel and cannot
+find a wrong nuance.
+
+Some of what these files ask is not Impulse Tracker's to give. A PTM sample played backwards is
+handed to it as a sample of its own, written out backwards. PolyTracker's slides by semitones are
+played as smooth slides that get as far. Its volumes, which a Gravis Ultrasound did not space quite
+evenly, are spaced evenly. Sliding by semitones and retuning a sample in the middle of a tune (E3x
+and E5x in both) are left out, and so is any command of a GDM note's four that neither the one
+command Impulse Tracker has room for nor its volume column can do. And two things are changed on the
+way in, because Impulse Tracker alone would take them otherwise: an instrument named on a row with
+no note is given as the instrument's volume, where Impulse Tracker would have played the note again,
+and in a tune that began as a MOD a slide of nought does nothing, where Impulse Tracker's would go on
+with the last.
+
 A CMF file is a tune for the FM chip alone: its instruments, each the handful of numbers the chip
 wants for one, and the music as MIDI. It was Creative's format, and what played it was SBFMDRV,
 the driver on the disk that came with a Sound Blaster. That driver is what is here, by way of fmdrv's
@@ -696,6 +725,10 @@ What it is made from:
 - [it2play](https://github.com/8bitbubsy/it2play), also by Olav Sørensen: Impulse Tracker 2's
   replayer, ported by him from the tracker's own assembly, the reading of IT files, and the sound
   driver, which is his own. Impulse Tracker is by Jeffrey Lim.
+- libxmp and OpenMPT again: how a GDM and a PTM file are read, which is made after both of theirs,
+  and libxmp the player that the reading and the playing of those files were checked against. The GDM
+  format is as MenTaLguY describes it, and BWSB and its converter are by Edward Schlunder; the PTM
+  format is as JAL of Nostalgia describes it, and PolyTracker is by Lone Ranger of AcmE.
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.
