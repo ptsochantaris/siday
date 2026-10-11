@@ -13,9 +13,11 @@ import JavaScriptKit
 ///   - added: files have been added to the list: their names, one to a line, in the order they now have
 ///     after those already there.
 ///   - loaded: the tune asked for with `sidayPlay` has started, or could not be: whether it plays, its
-///     details one to a line (format, title, author, detail, then for a tune of several songs a line
-///     for each: its length in milliseconds if known, a tab, its name if it has one) or the reason it
-///     does not, how many songs it has, which one is playing, and its length in seconds.
+///     details one to a line (format, title, author, detail; then for a tune of several songs a line
+///     for each: its length in milliseconds if known, a tab, its name if it has one; then a line for
+///     each thing the file asks for that is not played as it asks: an exclamation mark and a
+///     sentence) or the reason it does not, how many songs it has, which one is playing, and its
+///     length in seconds.
 ///   - progress: where the playing song has got to, in seconds; then, in one list of numbers from 0
 ///     to 255, the spectrum analyser's bars (the height of each, low notes to high, and then the
 ///     height of each bar's cap) and what the tune's voices are doing, in three rows: a light for each

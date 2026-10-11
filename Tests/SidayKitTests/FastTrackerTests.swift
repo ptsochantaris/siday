@@ -179,3 +179,37 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     #expect(abs(crossings(sound[4800 ..< 48000]) * 10 / 9 - 261) <= 2)
     #expect(renderer.hasEnded)
 }
+
+// MARK: What is not played as the file asks
+
+@Test func xmFromALaterTrackerSaysWhatFastTrackerDoesNotPlay() throws {
+    func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .xm).info.shortfalls }
+    #expect(try shortfalls(xm()).isEmpty)
+
+    // A sample said to be in stereo, which FastTracker takes for one long sample.
+    var stereo = xm()
+    stereo[stereo.count - 32 - 40 + 14] |= 0x20
+    #expect(try shortfalls(stereo) == ["One of its samples is in stereo, and is played one side after the other."])
+    // One packed as ModPlug Tracker packed them.
+    var packed = xm()
+    packed[packed.count - 32 - 40 + 17] = 0xAD
+    #expect(try shortfalls(packed).first?.hasPrefix("One of its samples is packed in a way of ModPlug Tracker's own") == true)
+
+    // A command of ModPlug Tracker's: Z, which is its 35th.
+    #expect(try shortfalls(xm(notes: [0x9B, 49, 1, 35, 0x40, 0x80]))
+        == ["One of its commands is left out, which FastTracker 2 did not have: the setting of a filter or a plug-in."])
+
+    // An instrument sent through a plug-in, which is written after all that FastTracker reads: it
+    // has a sample, and that is heard. Sent through a place with no plug-in in it, it loses nothing.
+    func extras(plugIn: UInt8) -> [UInt8] {
+        var bytes = Array("FX00".utf8) + long(128) + [1, 2, 3, 4] + [UInt8](repeating: 0, count: 124)
+        bytes += Array("XTPM".utf8) + Array(".PiM".utf8) + word(1) + [plugIn]
+        return bytes
+    }
+    #expect(try shortfalls(xm() + extras(plugIn: 1)) == ["One of its instruments is sent through a plug-in, and is heard without it."])
+    #expect(try shortfalls(xm() + extras(plugIn: 2)).isEmpty)
+
+    // And a file that ends before its sample does.
+    #expect(try shortfalls(Array(xm().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])
+    #expect(try shortfalls(Array(xm().dropLast(1))).isEmpty)
+}

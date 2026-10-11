@@ -131,6 +131,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         var info = TuneInfo(format: "S3M")
         info.title = module.title
         info.detail = "Scream Tracker 3, " + (card == .gus ? "Gravis Ultrasound" : "Sound Blaster Pro") + (songList.contains { $0.adLib } ? " and AdLib" : "")
+        info.shortfalls = module.shortfalls
         self.info = info
         currentSubsong = defaultSubsong
         restart()

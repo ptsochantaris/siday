@@ -11,6 +11,12 @@ public struct TuneInfo: Sendable {
     public var comment = ""
     /// Free-form detail such as tracker version or chip model.
     public var detail = ""
+    /// What the file asks for that is not played as it asks: an instrument that is not heard, a
+    /// command that is left out, a sample that is cut short. A sentence for each, to be shown as it
+    /// is; none for a file that is played whole. A file that cannot be played at all is another
+    /// matter, and is refused (see `TuneError`). Only what the tune itself uses is said, and only
+    /// what may be heard: it is known when the file is loaded, and does not change as it plays.
+    public var shortfalls: [String] = []
 
     public init(format: String) {
         self.format = format

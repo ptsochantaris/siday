@@ -13,6 +13,8 @@ struct NowPlaying {
     /// Incremented whenever a new tune or subsong starts.
     var generation = 0
     var header = ""
+    /// What the tune asks for that is not played as it asks, to be printed under the header.
+    var shortfalls: [String] = []
     var length = 0.0
     var index = 0
     /// Lines to print above the status line (skipped files and the like).
@@ -86,6 +88,7 @@ final class Engine: @unchecked Sendable {
         nowPlaying.withLock {
             $0.generation += 1
             $0.header = header
+            $0.shortfalls = renderer.info.shortfalls
             $0.length = session.displayLength
             $0.index = index
         }

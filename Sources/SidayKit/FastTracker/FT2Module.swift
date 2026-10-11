@@ -27,6 +27,13 @@ final class FT2Module {
     /// True for a module in which setting the speed puts the tempo back to 125, and setting the
     /// tempo puts the speed back to 6: MultiTracker's way, and no other tracker's.
     private(set) var speedAndTempoUndoEachOther = false
+    /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An XM file
+    /// from a later tracker may have what FastTracker never had, and is read as FastTracker reads it.
+    private(set) var shortfalls: [String] = []
+    /// What is found on the way through a file that `shortfalls` is made from: samples the file
+    /// ends before the end of, samples in stereo, and samples ModPlug Tracker packed its own way.
+    private var cutShort = Shortfall.CutShort()
+    private var stereoSamples = 0, packedSamples = 0
     private var allocations: [UnsafeMutableRawPointer] = []
 
     deinit {
@@ -146,10 +153,55 @@ final class FT2Module {
                 }
             }
         }
+        if !isMOD { noteWhatLaterTrackersAdded(data, after: f.at) }
+        if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         if song.repS > song.len { song.repS = 0 }
         song.timer = 1
         setPosition(0)
         upDateInstrs()
+    }
+
+    /// Looks over an XM file for what a later tracker put in it that FastTracker does not play,
+    /// and says so in `shortfalls`. Nothing that is played is changed by it.
+    /// - Parameter end: where in the file the last of what FastTracker reads ended.
+    private func noteWhatLaterTrackersAdded(_ data: [UInt8], after end: Int) {
+        // FastTracker knows nothing of a sample in stereo: its two sides, which lie one after the
+        // other in the file, are one long sample to it.
+        if stereoSamples > 0 {
+            shortfalls.append(Shortfall.some(stereoSamples, one: "samples is in stereo, and is played one side after the other.",
+                                             many: "samples are in stereo, and are played one side after the other."))
+        }
+        if packedSamples > 0 {
+            shortfalls.append(Shortfall.some(packedSamples, one: "samples is packed in a way of ModPlug Tracker's own, which is not read: it is not heard as it should be, and nor are the samples after it.",
+                                             many: "samples are packed in a way of ModPlug Tracker's own, which is not read: they are not heard as they should be, and nor are the samples after them."))
+        }
+
+        // Which instruments the patterns play, and which commands of ModPlug Tracker's they have.
+        var used = [Bool](repeating: false, count: 256)
+        var commands = Shortfall.Kinds()
+        for case let pattern? in patt {
+            for note in pattern {
+                if note.instr != 0 { used[Int(note.instr)] = true }
+                if note.effTyp == 34 { commands.note(0) }
+                if note.effTyp == 35 || note.effTyp == 36 { commands.note(1) }
+            }
+        }
+        if let sentence = Shortfall.commandsLeftOut(commands.named(["a sweep from side to side", "the setting of a filter or a plug-in"]),
+                                                    why: "which FastTracker 2 did not have") {
+            shortfalls.append(sentence)
+        }
+
+        // Plug-ins, which ModPlug Tracker and OpenMPT write after everything FastTracker reads.
+        var extras = ModPlugExtras()
+        let file = ByteReader(data)
+        let afterPieces = extras.readPieces(file, at: end, before: data.count)
+        extras.readInstrumentExtras(file, from: afterPieces, instruments: Int(song.antInstrs))
+        var unheard = 0, bare = 0
+        for i in 1 ... 128 where used[i] && extras.playsThroughPlugIn(instrument: i - 1) {
+            let hasSample = instr[i].map { ins in (0 ..< 16).contains { ins.samp[$0].len > 0 } } ?? false
+            if hasSample { bare += 1 } else { unheard += 1 }
+        }
+        shortfalls.append(contentsOf: Shortfall.plugIns(unheard: unheard, bare: bare, channels: extras.channelsThroughPlugIns))
     }
 
     /// A module of another tracker's, already read into what FastTracker can play.
@@ -163,6 +215,7 @@ final class FT2Module {
             throw TuneError.unsupported("\(module.aFile) with more patterns or instruments than FastTracker 2 has room for")
         }
         foreign = (module.format, module.tracker, module.loudness)
+        shortfalls = module.shortfalls
         title = module.title
         channelPanning = (0 ..< module.channels).map { $0 < module.panning.count ? module.panning[$0] : 128 }
         speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
@@ -274,6 +327,9 @@ final class FT2Module {
             ins.samp[j].typ = headers[at + 14]
             ins.samp[j].pan = headers[at + 15]
             ins.samp[j].relTon = Int8(bitPattern: headers[at + 16])
+            // (For `shortfalls`: what a later tracker may say of a sample, which FastTracker does not look at.)
+            if ins.samp[j].len > 0, ins.samp[j].typ & 32 != 0 { stereoSamples += 1 }
+            if ins.samp[j].len > 0, ins.samp[j].typ & 48 == 0, headers[at + 17] == 0xAD { packedSamples += 1 }
         }
     }
 
@@ -290,6 +346,7 @@ final class FT2Module {
             // A file cut a little short keeps its last sample's length, and the end of it is silence.
             // One that speaks of far more than it holds is not believed.
             let left = f.eof ? 0 : f.data.count - f.at
+            cutShort.add(length: Int(ins.samp[j].len), there: left)
             if Int(ins.samp[j].len) - left > Self.mostMissing { ins.samp[j].len = Int32(left & ~(ins.samp[j].typ & 16 != 0 ? 1 : 0)) }
             if ins.samp[j].len > 0 {
                 // A sample is stored as the differences between one value and the next.
@@ -531,6 +588,7 @@ final class FT2Module {
             ins.samp[0].fine = Int8(truncatingIfNeeded: 8 * ((2 * (Int(ha[at + 24] & 15) ^ 8)) - 16))
             ins.samp[0].repL = Int32(repL)
             ins.samp[0].repS = Int32(repS)
+            cutShort.add(length: len, there: f.eof ? 0 : f.data.count - f.at)
             ins.samp[0].pek = sampleMemory(f.read(len))
         }
     }

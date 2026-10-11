@@ -48,6 +48,8 @@ struct ROLFile {
     var timeOfLastNote: Int16 = 0
     /// The names of the instruments the file asks for, in capitals, each once.
     var instruments: [[UInt8]] = []
+    /// True if the file ended before all that it has was read.
+    var cutShort = false
 
     init(_ data: [UInt8]) throws {
         // The player this is ported from reads a file a byte at a time, and past the end of one
@@ -128,6 +130,7 @@ struct ROLFile {
 
             voices.append(voice)
         }
+        cutShort = failed
     }
 }
 
@@ -154,7 +157,6 @@ final class ROLTune: OPLTune {
     private let file: ROLFile
     /// The sound of each of the file's instruments, in the file's order.
     private let sounds: [AdLibInstrument]
-    private let missing: Int
     private let driver: AdLibDriver
     private var voices: [VoiceState]
     private var mRefresh: Float = 18.2
@@ -165,13 +167,11 @@ final class ROLTune: OPLTune {
 
     var detail: String {
         "AdLib Visual Composer, " + (driver.mRhythmMode ? "6 voices and drums" : "9 voices")
-            + (missing == 0 ? "" : missing == 1 ? ", 1 instrument not found" : ", \(missing) instruments not found")
     }
 
-    private init(_ file: ROLFile, sounds: [AdLibInstrument], missing: Int, card: OPLCard?) {
+    private init(_ file: ROLFile, sounds: [AdLibInstrument], card: OPLCard?) {
         self.file = file
         self.sounds = sounds
-        self.missing = missing
         driver = AdLibDriver(card: card)
         voices = [VoiceState](repeating: VoiceState(), count: file.voices.count)
 
@@ -301,7 +301,13 @@ final class ROLTune: OPLTune {
         }
         var info = TuneInfo(format: "ROL")
         info.comment = file.comment
-        let notFound = missing
-        return OPLRenderer(info: info) { card in ROLTune(file, sounds: sounds, missing: notFound, card: card) }
+        // A ROL file has no sounds of its own, only their names, and a name that is in no bank is
+        // an instrument with nothing to play.
+        if missing > 0 {
+            info.shortfalls.append(Shortfall.some(missing, one: "instruments is in no bank that was found, and is silent.",
+                                                  many: "instruments are in no bank that was found, and are silent."))
+        }
+        if file.cutShort { info.shortfalls.append("The file is cut short, and is played as far as it goes.") }
+        return OPLRenderer(info: info) { card in ROLTune(file, sounds: sounds, card: card) }
     }
 }

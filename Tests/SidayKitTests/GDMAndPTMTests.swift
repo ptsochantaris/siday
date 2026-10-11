@@ -404,3 +404,31 @@ private func letter(_ character: Character) -> Int {
         if let renderer = try? TuneLoader.load(damaged, format: .ptm) { _ = stereo(renderer, seconds: 0.05) }
     }
 }
+
+// MARK: What is not played as the file asks
+
+@Test func gdmAndPTMSayWhatImpulseTrackerLeavesOut() throws {
+    #expect(try TuneLoader.load(gdm(), format: .gdm).info.shortfalls.isEmpty)
+    #expect(try TuneLoader.load(ptm(), format: .ptm).info.shortfalls.isEmpty)
+
+    // GDM: sliding by semitones and retuning a sample, which Impulse Tracker cannot do.
+    #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x2E, 0x31, 0x4E, 0x53]), format: .gdm).info.shortfalls
+        == ["Two of its commands are left out: sliding by semitones and the retuning of a sample."])
+    // Three commands that are none of them the volume column's: one has the command's place.
+    #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x29, 0x10, 0x67, 0x33, 0x92, 0x21]), format: .gdm).info.shortfalls
+        == ["Some of its rows have more commands for a channel than Impulse Tracker has room for, and the rest are left out."])
+    // A tune from Scream Tracker whose slide of volume goes on from a number given to a slide of
+    // pitch: Impulse Tracker's goes on from the last slide of volume, of which there is none.
+    #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x02, 0x08, 0, 0x40, 0x0A, 0x00]), format: .gdm).info.shortfalls
+        == ["One of its commands goes on from a number given to a command of another kind, as Scream Tracker let it, and is not played as Scream Tracker played it."])
+    // (A tune from a MOD file has no such commands: there a slide by nothing is no slide.)
+    #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x02, 0x08, 0, 0x40, 0x0A, 0x00], origin: 1), format: .gdm).info.shortfalls.isEmpty)
+
+    // PTM: a slide by steps, which is played smooth, and a sample played backwards with no note.
+    #expect(try TuneLoader.load(ptm(rows: [0x60, 49, 1, 0x13, 0x24]), format: .ptm).info.shortfalls
+        == ["Its notes are slid smoothly where PolyTracker slid them by steps."])
+    #expect(try TuneLoader.load(ptm(rows: [0x60, 49, 1, 0x15, 0x24]), format: .ptm).info.shortfalls
+        == ["Its notes are slid smoothly where PolyTracker slid them by steps, and are not struck again at each step."])
+    #expect(try TuneLoader.load(ptm(rows: [0x40, 0x17, 0x00]), format: .ptm).info.shortfalls
+        == ["One of its commands to play a sample backwards has no note to play, and is left out."])
+}

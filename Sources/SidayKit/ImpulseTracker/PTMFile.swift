@@ -121,6 +121,7 @@ enum PTMFile {
 
         var samples = [Sample](repeating: Sample(), count: 256)
         var made: [IT2Sample] = []
+        var cutShort = Shortfall.CutShort()
         for index in 0 ..< IT2ForeignModule.sampleRoom {
             guard index < sampleCount else {
                 made.append(IT2Sample())
@@ -138,6 +139,7 @@ enum PTMFile {
             if type & 3 == 1 {
                 let from = long(f, at + 18)
                 let bytes = max(0, min(long(f, at + 22), data.count - from))
+                cutShort.add(length: long(f, at + 22), there: data.count - from)
                 loopStart = long(f, at + 26)
                 loopEnd = long(f, at + 30)
                 // (PolyTracker went round one sample short of where the file says.)
@@ -238,6 +240,11 @@ enum PTMFile {
         }
         var slidings = [Sliding](repeating: Sliding(), count: 32)
         var speed = 6
+        // For `TuneInfo.shortfalls`: what of PolyTracker's is met in the patterns and is left out
+        // or made do for.
+        var leftOut = Shortfall.Kinds()
+        var slidesBySteps = false, strikesAtSteps = false
+        var backwardsLeftOut = 0
 
         var memories = [IT2ForeignModule.ChannelMemory](repeating: IT2ForeignModule.ChannelMemory(), count: 32)
         let patterns = IT2ForeignModule.settledDownTheList(&orders, patterns: patternCount) { index in
@@ -273,9 +280,13 @@ enum PTMFile {
                             cell.set(instrument: number)
                             cell.set(command: Command.Q, 0x01)
                             memories[channel].told = number
+                        } else {
+                            backwardsLeftOut += 1
                         }
                     } else if from.hasEffect, let (command, value) = translated(from.effect, from.value) {
                         cell.set(command: command, value)
+                    } else if from.hasEffect, from.effect == 0x0E, from.value >> 4 == 3 && from.value & 15 != 0 || from.value >> 4 == 5 {
+                        leftOut.note(from.value >> 4 == 3 ? 0 : 1)
                     }
 
                     if cell.hasNote, cell.note < 120, playing.rate > 0 {
@@ -291,6 +302,8 @@ enum PTMFile {
                         let up = from.effect == 0x13 || from.effect == 0x15
                         let period = slidings[channel].period
                         if steps > 0, semitones > 0, period > 0, speed > 1 {
+                            slidesBySteps = true
+                            if from.effect >= 0x15 { strikesAtSteps = true }
                             let wanted = slidings[channel].wanted * pow(2.0, Double(steps * semitones) / (up ? -12 : 12))
                             slidings[channel].wanted = wanted
                             // (A slide's value is four of the units, on each tick of the row but its first.)
@@ -308,13 +321,24 @@ enum PTMFile {
             return pattern.packed()
         }
 
+        var shortfalls: [String] = []
+        if slidesBySteps {
+            shortfalls.append("Its notes are slid smoothly where PolyTracker slid them by steps" + (strikesAtSteps ? ", and are not struck again at each step." : "."))
+        }
+        if backwardsLeftOut > 0 {
+            shortfalls.append(Shortfall.some(backwardsLeftOut, one: "commands to play a sample backwards has no note to play, and is left out.",
+                                             many: "commands to play a sample backwards have no note to play, and are left out."))
+        }
+        if let sentence = Shortfall.commandsLeftOut(leftOut.named(["sliding by semitones", "the retuning of a sample"])) { shortfalls.append(sentence) }
+        if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+
         let minor = Int(f[29])
         let digits = Array("0123456789abcdef".utf8)
         let madeWith = "PolyTracker \(f[30])." + String(decoding: [digits[minor >> 4], digits[minor & 15]], as: UTF8.self)
         let module = IT2Module(title: f.ascii(at: 0, length: 28), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: 128, mixVolume: mixVolume, speed: 6, tempo: 125, channelPans: pans, samples: made,
                                patterns: patterns, rows: [UInt16](repeating: 64, count: IT2ForeignModule.patternRoom))
-        return ITRenderer(module: module, format: "PTM", options: options)
+        return ITRenderer(module: module, format: "PTM", shortfalls: shortfalls, options: options)
     }
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are

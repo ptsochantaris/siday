@@ -96,6 +96,7 @@ public final class MEDRenderer: Renderer {
         info.title = module.songs[0].title
         info.comment = module.comment
         info.detail = "MMD\(module.songs[0].version)"
+        info.shortfalls = Self.shortfalls(of: module)
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is, and to find the songs
@@ -176,6 +177,47 @@ public final class MEDRenderer: Renderer {
                 }
             }
         }
+    }
+
+    /// What a module asks for that is played without it, or in a way that could not be made sure
+    /// of: see `TuneInfo.shortfalls`. Like `refuseWhatIsNotPlayed`, it goes by what the notes ask for.
+    private static func shortfalls(of module: MEDModule) -> [String] {
+        var midi = 0, forCard = 0, unchecked = 0
+        var counted = [Bool](repeating: false, count: MEDModule.mostInstruments)
+        for song in module.songs {
+            var used = [Bool](repeating: false, count: MEDModule.mostInstruments)
+            for block in song.blocks {
+                for i in 0 ..< block.tracks * block.lines {
+                    let instrument = Int(module.cells[block.firstCell + i].instrument)
+                    if instrument >= 1, instrument <= MEDModule.mostInstruments { used[instrument - 1] = true }
+                }
+            }
+            for (i, instrument) in song.instruments.enumerated() where used[i] && !counted[i] {
+                if instrument.kind == .absent, instrument.midiChannel != 0 {
+                    // Its notes went out of the Amiga to a synthesiser, and there is no sample to play.
+                    midi += 1
+                    counted[i] = true
+                } else if instrument.kind != .absent, instrument.outputDevice != 0, song.mode != .mixing {
+                    forCard += 1
+                    counted[i] = true
+                }
+            }
+            // Five tracks, six or seven: how those are mixed could not be set beside OctaMED's own
+            // mixing of them, as the mixing of eight was.
+            if song.mode == .eightChannel, song.mixed.contains(false) { unchecked = max(unchecked, 4 + song.mixed.filter { $0 }.count) }
+        }
+        var sentences: [String] = []
+        if midi > 0 {
+            sentences.append(Shortfall.some(midi, one: "instruments is for a MIDI synthesiser, and is not heard.", many: "instruments are for a MIDI synthesiser, and are not heard."))
+        }
+        if forCard > 0 {
+            sentences.append(Shortfall.some(forCard, one: "instruments is for a sound card, and is not heard.", many: "instruments are for a sound card, and are not heard."))
+        }
+        if unchecked > 0 {
+            sentences.append("Its \(Shortfall.number(unchecked)) tracks are mixed into the Amiga's four voices in a way that could not be checked against OctaMED.")
+        }
+        if let sentence = module.songs[0].cutShort.sentence { sentences.append(sentence) }
+        return sentences
     }
 
     public func select(subsong: Int) {

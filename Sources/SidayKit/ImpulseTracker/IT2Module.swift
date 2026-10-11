@@ -122,6 +122,14 @@ final class IT2Module {
     private let rows: [UInt16]
     private let noInstrument = IT2Module.blankInstrument()
 
+    // What is found as a file is read that `shortfalls` is made from: none of it is played.
+    /// The samples, counted from nought, whose sound is kept in a form that is not read.
+    let samplesNotRead: [Int]
+    /// The samples the file ends before the end of.
+    let cutShort: Shortfall.CutShort
+    /// The plug-ins ModPlug Tracker and OpenMPT put in a file, and what is played through them.
+    let extras: ModPlugExtras
+
     /// How many samples and patterns there is room for: Impulse Tracker's 100 and 200, or as many as
     /// the file has if that is more. A number in the list of patterns at or beyond the second is a
     /// mark and not a pattern.
@@ -253,6 +261,21 @@ final class IT2Module {
         }
         self.midiData = midiData
 
+        // ModPlug Tracker and OpenMPT put their plug-ins here, before the first thing the header
+        // points at, and what else they say of an instrument wherever it fits. (For `shortfalls`.)
+        var extras = ModPlugExtras()
+        if madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) {
+            let reader = ByteReader(data)
+            var firstPointed = data.count
+            for i in 0 ..< InsNum + SmpNum + PatNum {
+                let high = reader.u16le(PtrListOffset + i * 4 + 2)
+                let pointed = high >= 0x4000 ? data.count : high << 16 | reader.u16le(PtrListOffset + i * 4)
+                if pointed > 0 { firstPointed = min(firstPointed, pointed) }
+            }
+            _ = extras.readPieces(reader, at: m.position, before: firstPointed)
+            extras.readInstrumentExtras(reader, from: PtrListOffset, instruments: InsNum)
+        }
+
         // (The song's message is not kept.)
 
         // MARK: Instruments
@@ -272,6 +295,12 @@ final class IT2Module {
             }
         }
         self.instruments = instruments
+        // (An IT file has room in an instrument for a MIDI channel, and these two trackers put a
+        // plug-in there: its number and 128.)
+        for i in 0 ..< InsNum where instruments[i].MIDIChn > 128 && !extras.playsThroughPlugIn(instrument: i) {
+            extras.set(plugIn: Int(instruments[i].MIDIChn) - 128, ofInstrument: i)
+        }
+        self.extras = extras
 
         // MARK: Samples
 
@@ -311,6 +340,8 @@ final class IT2Module {
         // the file byte for byte and compressed ones at no less than a bit for each sample; a file
         // that asks for more is asking for memory there is nothing to fill with.
         var budget = UInt64(data.count) * 64 + (16 << 20)
+        var samplesNotRead: [Int] = []
+        var cutShort = Shortfall.CutShort()
         for i in 0 ..< SmpNum {
             let s = samples[i]
             if s.OffsetInFile == 0 || s.Flags & SMPF_ASSOCIATED_WITH_HEADER == 0 { continue }
@@ -318,7 +349,10 @@ final class IT2Module {
             // this is ported from gives up on the whole file there, even for a sample of no length,
             // which is how ModPlug Tracker wrote its empty ones: one file in twenty-five.)
             m.seek(UInt64(s.OffsetInFile))
-            if m.eof { continue }
+            if m.eof {
+                cutShort.add(length: Int(min(s.Length, 1 << 28)), there: 0)
+                continue
+            }
 
             let Stereo = s.Flags & SMPF_STEREO != 0
             let Compressed = s.Flags & SMPF_COMPRESSED != 0
@@ -329,6 +363,7 @@ final class IT2Module {
             // These are left with the length they claim and no sound: a sample kept as differences
             // without being compressed, an empty one, and one in a form that is not handled (its
             // bytes the other way round, and stranger things).
+            if s.Length != 0, (DeltaEncoded && !Compressed) || s.Cvt & 0b1111_1010 != 0 { samplesNotRead.append(i) }
             if DeltaEncoded, !Compressed { continue }
             if s.Length == 0 { continue }
             if s.Cvt & 0b1111_1010 != 0 { continue }
@@ -355,9 +390,13 @@ final class IT2Module {
                 right = memory + Self.SMP_DAT_OFFSET
             }
 
+            // (For `shortfalls`. A whole number in a browser has 32 bits: a length is kept within them.)
+            let said = min(length, 1 << 29) * (Stereo ? 2 : 1)
             if Compressed {
-                Self.LoadCompressedSample(&m, left + Self.SMP_DAT_OFFSET, right, length: length, Sample16Bit: Sample16Bit, DeltaEncoded: DeltaEncoded)
+                let unpacked = Self.LoadCompressedSample(&m, left + Self.SMP_DAT_OFFSET, right, length: length, Sample16Bit: Sample16Bit, DeltaEncoded: DeltaEncoded)
+                cutShort.add(length: said, there: unpacked)
             } else {
+                cutShort.add(length: said, there: data.count - m.position)
                 // The left of a stereo sample, whole, and then the right.
                 _ = m.read(length, into: left + Self.SMP_DAT_OFFSET)
                 if let right { _ = m.read(length, into: right) }
@@ -381,6 +420,8 @@ final class IT2Module {
             if Sample16Bit { s.Length >>= 1 } // and now it counts samples again
         }
         self.samples = samples
+        self.samplesNotRead = samplesNotRead
+        self.cutShort = cutShort
 
         // MARK: Patterns
 
@@ -443,6 +484,9 @@ final class IT2Module {
         self.samples = samples
         self.patterns = patterns
         self.rows = rows
+        samplesNotRead = []
+        cutShort = Shortfall.CutShort()
+        extras = ModPlugExtras()
     }
 
     // MARK: Instruments
@@ -567,8 +611,14 @@ final class IT2Module {
     /// Nothing here fails. Where the file ends, the blocks still to come are unpacked from what
     /// the block before left behind, as the original does, and so is whatever a block reads beyond
     /// its own packed length.
+    ///
+    /// Says how many bytes were unpacked from what the file has: all of both sides, unless the
+    /// file ended first. (Nothing that is unpacked goes by it.)
+    @discardableResult
     private static func LoadCompressedSample(_ m: inout IT2MemoryFile, _ left: UnsafeMutableRawPointer, _ right: UnsafeMutableRawPointer?,
-                                             length: Int, Sample16Bit: Bool, DeltaEncoded: Bool) {
+                                             length: Int, Sample16Bit: Bool, DeltaEncoded: Bool) -> Int {
+        var fromTheFile = 0
+        var ended = false
         // (With a little more than is ever filled, so that the last of it can be read four bytes at a time.)
         let DecompBuffer = UnsafeMutableRawPointer.allocate(byteCount: decompBufferLength + 4, alignment: 4)
         DecompBuffer.initializeMemory(as: UInt8.self, repeating: 0, count: decompBufferLength + 4)
@@ -579,7 +629,12 @@ final class IT2Module {
             var done = 0
             while done < length {
                 let BytesToUnpack = min(32768, length - done)
-                if let PackedLen = m.u16IfThere() { _ = m.read(Int(PackedLen), into: DecompBuffer) }
+                if let PackedLen = m.u16IfThere() {
+                    if m.read(Int(PackedLen), into: DecompBuffer) < Int(PackedLen) { ended = true }
+                } else {
+                    ended = true
+                }
+                if !ended { fromTheFile += BytesToUnpack }
                 let DstPtr = base + done
 
                 if Sample16Bit {
@@ -604,6 +659,7 @@ final class IT2Module {
                 done += BytesToUnpack
             }
         }
+        return fromTheFile
     }
 
     // The packed data is a stream of bits: each sample is the difference from the one before, in a

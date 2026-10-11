@@ -148,3 +148,27 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
     // More than a byte can number is more than an IT file can have.
     #expect(throws: TuneError.self) { try TuneLoader.load(it(before: 253), format: .it) }
 }
+
+// MARK: What is not played as the file asks
+
+@Test func itFromALaterTrackerSaysWhatImpulseTrackerDoesNotPlay() throws {
+    func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .it).info.shortfalls }
+    #expect(try shortfalls(it()).isEmpty)
+    #expect(try shortfalls(it(emptySample: true)).isEmpty)
+
+    // ModPlug Tracker's command to play a sample backwards, which Impulse Tracker has not got.
+    #expect(try shortfalls(it(row: [0x81, 0x0B, 60, 1, 19, 0x9F]))
+        == ["One of its commands is left out, which Impulse Tracker did not have: playing a sample backwards."])
+    // A sample kept in a form that is not read (here, with its bytes the other way round), which a
+    // note plays; and the same sample with no note to play it, which is nobody's loss.
+    var odd = it()
+    let convert = try #require(odd.firstRange(of: Array("IMPS".utf8))).lowerBound + 0x2E
+    #expect(odd[convert] == 1)
+    odd[convert] = 3
+    #expect(try shortfalls(odd) == ["One of its samples is kept in a form this player does not read, and is silent."])
+    var unplayed = it(row: [0x81, 0x08, 1, 0x06])
+    unplayed[try #require(unplayed.firstRange(of: Array("IMPS".utf8))).lowerBound + 0x2E] = 3
+    #expect(try shortfalls(unplayed).isEmpty)
+    // A file that ends before its sample's sound begins.
+    #expect(try shortfalls(Array(it().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])
+}

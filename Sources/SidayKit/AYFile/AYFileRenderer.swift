@@ -260,6 +260,9 @@ public final class AYFileRenderer: Renderer {
         chip = .allocate(capacity: 1)
         chip.initialize(to: AYChip(type: chipType, clockHz: defaultAYClockHz, sampleRate: outputSampleRate, stereo: options.stereo))
         info = TuneInfo(format: "AY")
+        if file.songsLeftOut > 0 {
+            info.shortfalls.append(Shortfall.cutShort(Shortfall.some(file.songsLeftOut, one: "songs is missing.", many: "songs are missing.")))
+        }
         info.author = file.author
         info.comment = file.misc
         select(subsong: file.firstSong)

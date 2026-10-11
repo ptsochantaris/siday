@@ -207,3 +207,29 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     // Nor is an empty pattern.
     #expect(try TuneLoader.load(s3m(row: [0x20, 255, 0], orders: [0, 255, 0, 255]), format: .s3m).subsongCount == 1)
 }
+
+// MARK: What is not played as the file asks
+
+@Test func s3mFromALaterTrackerSaysWhatScreamTrackerDoesNotPlay() throws {
+    func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .s3m).info.shortfalls }
+    #expect(try shortfalls(s3m()).isEmpty)
+    #expect(try shortfalls(s3m(fm: true)).isEmpty)
+
+    // Impulse Tracker's slide of the whole tune's volume (W, the 23rd letter), in a file it saved.
+    #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 23, 0x02]))
+        == ["One of its commands is left out, which Scream Tracker did not have: a slide of the whole tune's volume."])
+    // Where a channel is put (X) is not counted: too many files have it, and lose little by it.
+    #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 24, 0x40])).isEmpty)
+
+    // A sample in stereo that a note plays, and one that no note plays.
+    var stereo = s3m()
+    stereo[0x70 + 31] |= 2
+    stereo[0xC0 + 31] |= 2
+    #expect(try shortfalls(stereo) == ["One of its samples is in stereo, and only its left side is played."])
+    // One of the AdLib card's drums, which Scream Tracker never came to play.
+    var drum = s3m(row: [0x20, 0x40, 2], fm: true)
+    drum[0xC0] = 3
+    #expect(try shortfalls(drum) == ["One of its instruments is one of the AdLib card's drums, which Scream Tracker never played, and is not heard."])
+    // A file that ends before its second sample.
+    #expect(try shortfalls(Array(s3m().dropLast(0x80))) == ["The file is cut short: one of its samples is missing, and is silent."])
+}

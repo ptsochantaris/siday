@@ -66,10 +66,23 @@ struct NowPlaying {
                     if !tune.author.isEmpty {
                         span(.class("author")) { tune.author }
                     }
+                    // A tune that is not played quite as its file asks has a small mark beside its
+                    // name, which says why when the pointer rests on it, and when it is pressed
+                    // writes it out under the details.
+                    if !tune.shortfalls.isEmpty {
+                        ShortfallMark(player: player, why: tune.shortfalls.joined(separator: " "))
+                    }
                 }
                 p(.class("detail")) {
                     [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
                         .filter { !$0.isEmpty }.joined(separator: " · ")
+                }
+                if !tune.shortfalls.isEmpty, player.shortfallsShown {
+                    p(.class("shortfalls")) {
+                        ForEach(Array(tune.shortfalls.indices), key: { String($0) }) { index in
+                            span { tune.shortfalls[index] }
+                        }
+                    }
                 }
                 if player.shows(.analyser) {
                     Analyser(bars: player.bars, caps: player.caps)
@@ -134,6 +147,24 @@ struct NowPlaying {
                 Lights(levels: player.lights)
             }
         }
+    }
+}
+
+/// The mark beside the name of a tune that is not played quite as its file asks: a quiet one, since
+/// most such tunes sound very nearly as they should. It is a button: what is wrong is its tooltip,
+/// and pressing it writes that out under the tune's details, or puts it away again.
+@View
+struct ShortfallMark {
+    var player: Player
+    var why: String
+
+    var body: some View {
+        button(
+            .class(player.shortfallsShown ? "shortfall on" : "shortfall"),
+            .title("\(Tune.shortfallHeading) \(why)"), .custom(name: "aria-label", value: "\(Tune.shortfallHeading) \(why)"),
+            .custom(name: "aria-expanded", value: player.shortfallsShown ? "true" : "false")
+        ) { "≈" }
+            .onClick { player.toggleShortfalls() }
     }
 }
 
@@ -433,6 +464,12 @@ struct Row {
                 span(.class("folder")) { folder(player.file(at: index)) }
             }
             .onClick { player.play(index) }
+            // A tune that has been played, and was not played quite as its file asks, keeps a mark
+            // that says why.
+            if let why = player.shortfalls(ofFile: index) {
+                span(.class("shortfall"), .title("\(Tune.shortfallHeading) \(why)"), .custom(name: "aria-label", value: "\(Tune.shortfallHeading) \(why)"),
+                     .custom(name: "role", value: "img")) { "≈" }
+            }
             button(.class("remove"), .title("Take out of the list"), .custom(name: "aria-label", value: "Take out of the list")) { "×" }
                 .onClick { player.remove(index) }
         }

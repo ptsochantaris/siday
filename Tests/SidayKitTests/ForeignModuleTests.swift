@@ -378,3 +378,35 @@ private func amf(events: [[UInt8]] = [[0, 0x80, 0], [0, 60, 0xFF]], version: Int
         }
     }
 }
+
+// MARK: What is not played as the file asks
+
+@Test func foreignModulesSayWhatFastTrackerLeavesOut() throws {
+    // A file that is played whole says nothing.
+    #expect(try TuneLoader.load(mtm(), format: .mtm).info.shortfalls.isEmpty)
+    #expect(try TuneLoader.load(dtm(), format: .dtm).info.shortfalls.isEmpty)
+    #expect(try TuneLoader.load(amf(), format: .amf).info.shortfalls.isEmpty)
+
+    // MTM: the commands MultiTracker has not got, each named once, and not those that ask for
+    // nothing (a loop's start, the shape a vibrato has anyway).
+    let loops = mtm(rows: [0: [24 << 2, 0x1E, 0x62], 1: [0, 0x0E, 0x61], 2: [0, 0x0E, 0x31], 3: [0, 0x0E, 0x60], 4: [0, 0x0E, 0x40]])
+    #expect(try TuneLoader.load(loops, format: .mtm).info.shortfalls
+        == ["Two of its commands are left out, which MultiTracker did not have: sliding by semitones and a loop within a pattern."])
+    // And a file that has lost its sample.
+    #expect(try TuneLoader.load(Array(mtm().dropLast(256)), format: .mtm).info.shortfalls == ["The file is cut short: one of its samples is missing, and is silent."])
+    #expect(try TuneLoader.load(Array(mtm().dropLast(100)), format: .mtm).info.shortfalls == ["The file is cut short: its last sample ends in silence."])
+    #expect(try TuneLoader.load(Array(mtm().dropLast(3)), format: .mtm).info.shortfalls.isEmpty)
+
+    // DTM: a sample in stereo, and a channel turned down on both sides at once.
+    #expect(try TuneLoader.load(dtm(sides: 2), format: .dtm).info.shortfalls == ["One of its samples is in stereo, and is played as one sound."])
+    #expect(try TuneLoader.load(dtm(rows: [0: [0x41, 0, 0x18, 0x48]]), format: .dtm).info.shortfalls
+        == ["Where it sets how loud a channel is on each side, the channel's place between them is kept and its loudness is not."])
+    #expect(try TuneLoader.load(dtm(rows: [0: [0x41, 0, 0x18, 0xF4]]), format: .dtm).info.shortfalls.isEmpty)
+
+    // AMF: surround, a note below the lowest, and a row with more commands than there is room for.
+    #expect(try TuneLoader.load(amf(places: [100, 63]), format: .amf).info.shortfalls == ["Its surround sound is played in the middle."])
+    #expect(try TuneLoader.load(amf(events: [[0, 0x80, 0], [0, 60, 0xFF], [4, 5, 0xFF]]), format: .amf).info.shortfalls
+        == ["One of its notes is below FastTracker's lowest, and is not heard."])
+    #expect(try TuneLoader.load(amf(events: [[0, 0x80, 0], [0, 60, 0xFF], [0, 0x86, 4], [0, 0x89, 0x34]]), format: .amf).info.shortfalls
+        == ["Some of its rows have more commands for a channel than FastTracker has room for, and the rest are left out."])
+}

@@ -66,6 +66,8 @@ final class ProTrackerModule {
     let initialTempo: Int
     let patterns: UnsafeMutablePointer<Note>
     let memory: UnsafeMutablePointer<Int8>
+    /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`.
+    private(set) var shortfalls: [String] = []
 
     private let file: ByteReader
     /// Where in the file each sample's bytes are, and how many of them were taken.
@@ -302,6 +304,10 @@ final class ProTrackerModule {
         }
 
         // Where the samples are in the file.
+        var cutShort = Shortfall.CutShort()
+        var used = [Bool](repeating: false, count: 32)
+        for i in 0 ..< patternCount * Self.rows * Self.channels { used[Int(patterns[i].sample & 31)] = true }
+        var tooLong = 0
         for i in 0 ..< sampleCount {
             var skip = 0
             if kind == nil {
@@ -322,8 +328,15 @@ final class ProTrackerModule {
                 skip = realLengths[i] - Self.sampleSpace
             }
             sources[i] = (p, samples[i].length)
+            cutShort.add(length: samples[i].length, there: size - p)
+            if realLengths[i] > Self.sampleSpace, used[i + 1] { tooLong += 1 }
             p += samples[i].length + skip
         }
+        if tooLong > 0 {
+            shortfalls.append(Shortfall.some(tooLong, one: "samples is longer than ProTracker has room for, and is cut off at 64 KB.",
+                                             many: "samples are longer than ProTracker has room for, and are cut off at 64 KB."))
+        }
+        if let sentence = cutShort.sentence { shortfalls.append(sentence) }
 
         // And the samples made safe to play.
         for i in 0 ..< 31 {

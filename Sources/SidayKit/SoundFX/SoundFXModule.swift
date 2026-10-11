@@ -49,6 +49,9 @@ final class SoundFXModule {
     let memory: UnsafeMutablePointer<Int8>
     let memorySize: Int
     let silence: Int
+    /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. A file
+    /// that is shorter than its samples are said to be is played with silence where they are not.
+    let shortfalls: [String]
 
     deinit {
         memory.deallocate()
@@ -100,6 +103,7 @@ final class SoundFXModule {
 
         var instruments: [Instrument] = []
         var place = Self.patterns + patternCount * Self.linesInPattern * 16
+        var cutShort = Shortfall.CutShort()
         for i in 0 ..< Self.instrumentCount {
             let header = Self.headers + i * 30
             var instrument = Instrument()
@@ -115,9 +119,11 @@ final class SoundFXModule {
             if lengths[i] != 0 {
                 for k in 0 ..< 4 where place + k < data.count { memory[place + k] = 0 }
             }
+            cutShort.add(length: lengths[i], there: data.count - place)
             place += lengths[i]
         }
         self.instruments = instruments
+        shortfalls = cutShort.sentence.map { [$0] } ?? []
     }
 
     /// A byte of the file as it lay in the Amiga's memory; nought beyond its end.

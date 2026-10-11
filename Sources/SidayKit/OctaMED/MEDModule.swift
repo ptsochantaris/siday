@@ -78,6 +78,10 @@ final class MEDModule {
         var shortRepeatWords = 0
         /// Nought for the Amiga's own sound chip. Anything else is a sound card, and is not heard.
         var outputDevice: UInt8 = 0
+        /// The MIDI channel its notes are sent out on, as the song has it; nought for none. Nothing
+        /// is played by it: it is kept so that an instrument that is nothing else can be said to be
+        /// one that is not heard.
+        var midiChannel: UInt8 = 0
         /// For a synthetic sound, where its structure is in the file: the two lists of instructions
         /// and the table of its waveforms. A hybrid sound has one too, and is otherwise the sample
         /// that the lists are played on. For a plain sample, -1.
@@ -165,6 +169,8 @@ final class MEDModule {
         var separation = 0
         /// Where each track lies between left (-16) and right (16).
         var trackPans: [Int8] = []
+        /// The samples the file ends before the end of. (Nothing is played by it.)
+        var cutShort = Shortfall.CutShort()
 
         var filterOn: Bool { flags & 0x01 != 0 }
         /// Volumes in commands are written in hexadecimal, and not as two decimal digits.
@@ -502,6 +508,7 @@ final class MEDModule {
             song.instruments[i].shortRepeatStart = file.u16be(s + i * 8)
             song.instruments[i].shortRepeatWords = file.u16be(s + i * 8 + 2)
             song.instruments[i].transpose = Int8(bitPattern: file[s + i * 8 + 7])
+            song.instruments[i].midiChannel = file[s + i * 8 + 4]
             guard i < sampleCount, let table = at.instruments else { continue }
             // A sample that a file cut short no longer has is still an instrument: one of no length,
             // whose notes are silent but are notes all the same.
@@ -528,6 +535,10 @@ final class MEDModule {
                 }
             } else {
                 read(kind: type, into: &song.instruments[i])
+                // (A place for it beyond the end of the file is no place: it has lost all of itself,
+                // however long it was.)
+                let said = sample + 6 <= size ? min(song.instruments[i].length, 1 << 28) * (song.instruments[i].stereo ? 2 : 1) : 1 << 16
+                song.cutShort.add(length: said, there: size - sample - 6)
             }
         }
 

@@ -48,6 +48,15 @@ silent. A ROL file that names an instrument no bank has is played with that inst
 A DTM file saved by Digital Home Studio, Digital Tracker's successor, is not read, and nor is the
 other kind of file called AMF, ASYLUM's.
 
+Between a file that is played as it was written and one that is refused there are files that are
+played with something missing or made do for: an instrument that a later tracker played through a
+plug-in or sent to a MIDI synthesiser, a command that the tracker whose replayer plays the file never
+had, a sample in stereo or packed in a way that is not read, a file that ends before its last sample
+does. Such a tune says so, in a sentence for each thing: "Three of its instruments play through
+plug-ins, and are not heard." The page puts a small ≈ beside its name, and the command line prints the
+sentences under the tune's line (see below). Only what the tune itself uses is said, and only what
+might be heard: a file is not marked for where it was made, nor for a few bytes lost from its end.
+
 ## In a browser
 
 [ptsochantaris.github.io/siday](https://ptsochantaris.github.io/siday/) is the player as a web page,
@@ -63,6 +72,10 @@ to WebAssembly.
   tune, which glows as bright as that voice is loud.
 - Press anywhere on the time bar to move there, in either direction.
 - SID tunes know their lengths: those of the High Voltage SID Collection are built in.
+- A tune that is not played quite as its file asks has a small ≈ beside its name. Rest the pointer
+  on it to read what is left out or made do for, or press it to have that written out under the
+  tune's details, where it stays for the tunes after it until it is pressed again. Once such a tune
+  has been played, its row in the list keeps the mark.
 - The list shows every tune that was added, however many, and can be searched. The cross at the end
   of a row takes that tune out of the list, and "Remove all" empties it. The buttons that add files
   or a folder are at its foot, and while it is empty it says how tunes are added.
@@ -219,6 +232,9 @@ Folders are searched recursively and files are recognised by extension. The file
 While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+` / `-` (or `↑` / `↓`) subsong ·
 `q` quit.
 
+A tune that is not played quite as its file asks says what is missing, a line for each thing, under
+its own line as it starts.
+
 | Option | Effect |
 |---|---|
 | `--shuffle` | Random order |
@@ -239,8 +255,9 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, bright to dark (default 0.5). Real chips varied this much; reSIDfp only |
 | `--songlengths path` | A copy of HVSC's `Songlengths.md5` to ask before the lengths that are built in; remembered for later runs. A file with no lengths in it is ignored |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
-| `--list` | Show what would be played, with format, length and title |
-| `--check` | Load and render a few seconds of every file silently and report per format |
+| `--list` | Show what would be played, with format, length and title. A `*` after the length marks a tune that is not played quite as its file asks |
+| `--shortfalls` | With `--list`, say under each marked tune what it is that is left out or made do for |
+| `--check` | Load and render a few seconds of every file silently and report per format; the last column counts the tunes `--list` would mark |
 | `--bench` | Render at full speed and report the multiple of real time |
 
 ### How long a tune plays

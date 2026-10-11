@@ -155,6 +155,39 @@ button.view:disabled {
   color: #e8836b;
 }
 
+/* The mark of a tune that is not played quite as its file asks, beside its name and on its row of the
+   list: small and dim, since most such tunes sound very nearly as they should. Beside the name it is a
+   button, which writes out underneath what the mark's tooltip says. */
+.shortfall {
+  color: var(--dim);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: help;
+}
+
+button.shortfall {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: none;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+button.shortfall:hover, button.shortfall.on {
+  color: var(--ink);
+  border-color: var(--dim);
+}
+
+.shortfalls {
+  color: var(--dim);
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+
 .time {
   display: flex;
   align-items: center;

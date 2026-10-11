@@ -35,6 +35,8 @@ struct FMTFile {
     /// The patterns, a row at a time and eight voices to the row: nought for nothing, one for a
     /// note's end, and from 2 to 97 for a note.
     private var cells: [UInt8] = []
+    /// True if the file ended before the end of its patterns.
+    var cutShort = false
 
     init(_ data: [UInt8]) throws {
         let file = ByteReader(data)
@@ -83,6 +85,7 @@ struct FMTFile {
                 }
             }
         }
+        cutShort = at > data.count
     }
 
     /// What a voice has on a row of the pattern at a place in the song. A place that asks for a
@@ -227,6 +230,7 @@ final class FMTTune: OPLTune {
         let file = try FMTFile(data)
         var info = TuneInfo(format: "FMT")
         info.title = file.title
+        if file.cutShort { info.shortfalls.append("The file is cut short: the patterns it ends before are played as far as they go, and then as silence.") }
         return OPLRenderer(info: info) { card in
             FMTTune(file) { register, value in card?.write(register, value) }
         }

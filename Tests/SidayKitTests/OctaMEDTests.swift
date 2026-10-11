@@ -439,6 +439,8 @@ private func synthetic(volumes: [UInt8], waves: [UInt8], hybrid: Bool = false) -
     let file = module([Tune(entries: [c(), high], flags: 0x40, tracks: 8)])
     let renderer = try MEDRenderer(file, options: LoadOptions())
     #expect(renderer.channelCount == 8 && renderer.isPlayedOnAnAmiga)
+    // (The mixing of eight tracks was set beside OctaMED's own, and there is nothing to say of it.)
+    #expect(renderer.info.shortfalls.isEmpty)
     let played = renderer.registerTicks(seconds: 1)
     // Any tempo but the nine fast ones is the tenth: 366 words are mixed for a tick, and a tick
     // lasts as long as a voice takes to play them, a byte every 124 of the chip's clocks.

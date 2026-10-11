@@ -313,3 +313,27 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     for _ in 0 ..< 8 { notes() }
     #expect(abs(pitches[2] - 71.84) < 0.05)
 }
+
+// MARK: What is not played as the file asks
+
+@Test func moduleThatIsCutShortOrHasASampleTooLongSaysSo() throws {
+    let whole = module(notes: [(0, 0, note(period: 428))])
+    #expect(try TuneLoader.load(whole, format: .mod).info.shortfalls.isEmpty)
+    // A byte or two short is how a great many modules are, and is nothing.
+    #expect(try TuneLoader.load(Array(whole.dropLast(2)), format: .mod).info.shortfalls.isEmpty)
+    #expect(try TuneLoader.load(Array(whole.dropLast(32)), format: .mod).info.shortfalls == ["The file is cut short: one of its samples is missing, and is silent."])
+
+    // A sample of more than 64 KB, from a tracker that had the room: ProTracker plays what it can hold.
+    var long = whole
+    long[20 + 22] = 0x90
+    long += [UInt8](repeating: 0x40, count: 0x9000 * 2 - 32)
+    #expect(try TuneLoader.load(long, format: .mod).info.shortfalls == ["One of its samples is longer than ProTracker has room for, and is cut off at 64 KB."])
+
+    // And a module of more channels, which FastTracker plays, says the same of a file cut short.
+    // (Its sample here is of 4,096 bytes, of which the file has the first 2,000.)
+    var wide = module(tag: "6CHN", notes: [])
+    wide[20 + 22] = 0x08
+    wide = Array(wide.dropLast(32)) + [UInt8](repeating: 0, count: 64 * 2 * 4) + [UInt8](repeating: 0x40, count: 4096)
+    #expect(try TuneLoader.load(wide, format: .mod).info.shortfalls.isEmpty)
+    #expect(try TuneLoader.load(Array(wide.dropLast(2096)), format: .mod).info.shortfalls == ["The file is cut short: its last sample ends in silence."])
+}

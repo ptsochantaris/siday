@@ -54,6 +54,9 @@ struct ForeignModule {
     /// How loud the kind of file is played, beside an XM file at 1. It is set by measure: so that
     /// of the files of the kind to hand, the middle one is as loud as the middle one of XM files.
     var loudness: Float = 1
+    /// What the file asks for that FastTracker cannot do, or that its loader leaves out: see
+    /// `TuneInfo.shortfalls`.
+    var shortfalls: [String] = []
 
     /// A rate past this is not one a sample was recorded at.
     static let highestRate = 384_000

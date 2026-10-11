@@ -53,6 +53,7 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         var info = TuneInfo(format: module.foreign?.format ?? (module.isMOD ? "MOD" : "XM"))
         info.title = module.title
         info.detail = "\(module.foreign?.tracker ?? "FastTracker 2"), \(module.song.antChn) channels"
+        info.shortfalls = module.shortfalls
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is.

@@ -107,9 +107,11 @@ enum DTMFile {
         // way across and three quarters, as OpenMPT puts them.) In the one it calls panoramic they
         // start in the middle and a command places them.
         module.panning = (0 ..< channels).map { panoramic && version >= .v204 ? 128 : $0 & 3 == 0 || $0 & 3 == 3 ? ForeignModule.leftward : ForeignModule.rightward }
+        var found = Found()
         if said >= 19, let settings = first("SV19"), settings.length >= 70 {
             // A tempo has a fraction, which FastTracker's has not: the nearest whole one.
             if file.u16be(settings.start + 2) >= 0x8000 { module.tempo += 1 }
+            found.tempoHasFraction = file.u16be(settings.start + 2) != 0
             // Where each channel starts: from 0 on the left, by way of 90, to 180 on the right.
             if panoramic {
                 for channel in 0 ..< channels {
@@ -130,7 +132,7 @@ enum DTMFile {
             var notes = [FT2Note](repeating: FT2Note(), count: rows * channels)
             for i in 0 ..< notes.count {
                 let from = chunk.start + 8 + i * 4
-                notes[i] = note(data[from], data[from + 1], data[from + 2], data[from + 3], packing, version, panoramic, channels)
+                notes[i] = note(data[from], data[from + 1], data[from + 2], data[from + 3], packing, version, panoramic, channels, &found)
             }
             module.patterns[number] = ForeignModule.Pattern(rows: rows, notes: notes)
         }
@@ -152,13 +154,47 @@ enum DTMFile {
                 let number = numbered ? file.u16be(record - 2) : index
                 guard number < 128 else { continue }
                 while module.samples.count <= number { module.samples.append(nil) }
-                module.samples[number] = sample(file, record, sounds[number], version, depthOfAll, rateOfAll)
+                module.samples[number] = sample(file, record, sounds[number], version, depthOfAll, rateOfAll, &found)
             }
         }
+        module.shortfalls = found.sentences
         return module
     }
 
-    private static func sample(_ file: ByteReader, _ record: Int, _ sound: Chunk?, _ version: Version, _ depthOfAll: Int, _ rateOfAll: Int) -> ForeignModule.Sample? {
+    /// What is met in a file that FastTracker cannot do, for `ForeignModule.shortfalls`.
+    private struct Found {
+        var tempoHasFraction = false
+        /// Samples in stereo, and samples said to be louder than FastTracker's loudest.
+        var stereoSamples = 0, loudSamples = 0
+        /// True if a channel has been turned down on both its sides at once.
+        var turnsChannelsDown = false
+        /// Which of `commandsLeftOut` are in the patterns.
+        var leftOut = Shortfall.Kinds()
+        var cutShort = Shortfall.CutShort()
+
+        /// The commands of ProTracker's that Digital Tracker does not have and a tune would be
+        /// heard to lack, in the order `note` counts them in.
+        static let commandsLeftOut = ["the shape of a tremolo", "striking a note again"]
+
+        var sentences: [String] {
+            var sentences: [String] = []
+            if stereoSamples > 0 {
+                sentences.append(Shortfall.some(stereoSamples, one: "samples is in stereo, and is played as one sound.", many: "samples are in stereo, and are played as one sound."))
+            }
+            if loudSamples > 0 {
+                sentences.append(Shortfall.some(loudSamples, one: "samples is louder than FastTracker's loudest, and is played at that.",
+                                                many: "samples are louder than FastTracker's loudest, and are played at that."))
+            }
+            if turnsChannelsDown { sentences.append("Where it sets how loud a channel is on each side, the channel's place between them is kept and its loudness is not.") }
+            if tempoHasFraction { sentences.append("Its tempo has a fraction, and is played at the nearest whole one.") }
+            if let sentence = Shortfall.commandsLeftOut(leftOut.named(Self.commandsLeftOut), why: "which Digital Tracker did not have") { sentences.append(sentence) }
+            if let sentence = cutShort.sentence { sentences.append(sentence) }
+            return sentences
+        }
+    }
+
+    private static func sample(_ file: ByteReader, _ record: Int, _ sound: Chunk?, _ version: Version, _ depthOfAll: Int, _ rateOfAll: Int,
+                               _ found: inout Found) -> ForeignModule.Sample? {
         guard let sound else { return nil }
         // The length is in bytes, as are the two ends of the part that repeats.
         let length = file.size32be(record + 4)
@@ -167,6 +203,9 @@ enum DTMFile {
         // silence; one that is simply shorter than the sample says it is, is another.)
         let cutShort = sound.start + sound.length >= file.count
         var bytes = file.sample(at: sound.start, length: cutShort ? length : min(length, sound.length))
+        if cutShort { found.cutShort.add(length: length, there: file.count - sound.start) }
+        if !bytes.isEmpty, file[record + 40] & 1 != 0 { found.stereoSamples += 1 }
+        if !bytes.isEmpty, file[record + 9] > 64 { found.loudSamples += 1 }
         var repeatStart = file.size32be(record + 10), repeatLength = file.size32be(record + 14)
         if repeatStart >= bytes.count {
             repeatStart = 0
@@ -223,7 +262,7 @@ enum DTMFile {
     }
 
     private static func note(_ first: UInt8, _ second: UInt8, _ third: UInt8, _ value: UInt8, _ packing: Packing, _ version: Version, _ panoramic: Bool,
-                             _ channels: Int) -> FT2Note
+                             _ channels: Int, _ found: inout Found) -> FT2Note
     {
         var note = FT2Note()
         switch packing {
@@ -260,6 +299,7 @@ enum DTMFile {
                 // has a place and no loudness for a channel, so the place is kept and the loudness
                 // is not: a channel turned down on both sides is as loud as one that is not.
                 let left = Int(value >> 4), right = Int(value & 15)
+                if max(left, right) < 15 { found.turnsChannelsDown = true }
                 note.eff = UInt8(max(0, min(255, 0x80 * (right - left) / (left + right + 2) + 0x80)))
             }
         case 0xB:
@@ -286,7 +326,8 @@ enum DTMFile {
                     note.eff = value
                 }
             // The rest the tracker does not have.
-            default: break
+            default:
+                if value & 15 != 0, let kind = [0x7, 0x9].firstIndex(of: value >> 4) { found.leftOut.note(kind) }
             }
         case 0xF:
             if version <= .v203, value == 0 || value == 0x20 {

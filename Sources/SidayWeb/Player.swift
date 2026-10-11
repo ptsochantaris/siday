@@ -15,6 +15,9 @@ struct Tune {
     /// The song that is playing, counted from 0.
     var song: Int
     var length: Double
+    /// What its file asks for that is not played as it asks, a sentence each: an instrument that is
+    /// not heard, a command that is left out. None, for a tune that is played whole.
+    var shortfalls: [String] = []
 
     struct Song {
         var title: String
@@ -23,6 +26,17 @@ struct Tune {
 
     /// True when the file names its songs, and not only numbers them.
     var namesSongs: Bool { songs.contains { !$0.title.isEmpty } }
+
+    /// What is said of a tune that is not played quite as its file asks, before what it is.
+    static let shortfallHeading = "Not played quite as the file asks."
+}
+
+/// A tune in the list that has been played, and was found not to be played quite as its file asks.
+struct Marked {
+    /// Its place in the list of files.
+    var file: Int
+    /// What is not played as it asks: the sentences, one after another.
+    var why: String
 }
 
 /// A part of the page that the listener can put away, and bring back.
@@ -53,6 +67,13 @@ final class Player {
     private(set) var tune: Tune?
     /// The place in `files` of the file `tune` describes.
     private var tuneFile: Int?
+    /// The tunes of the list that have been played and were not played quite as their files ask:
+    /// each keeps a mark on its row, which says why. (Only a tune that has been loaded can be known
+    /// to be one, so the rest of the list has no marks, whatever is in it.)
+    private(set) var marked: [Marked] = []
+    /// True while what is not played as the playing tune's file asks is written out under its
+    /// details, and not only marked. It stays as it is from one tune to the next.
+    private(set) var shortfallsShown = false
     /// Why the current file is not playing, when it is not.
     private(set) var problem: String?
     private(set) var paused = false
@@ -211,6 +232,7 @@ final class Player {
         searchable.remove(at: index)
         // The order is of places in the list, and those after the one that has gone are each one less.
         order = order.filter { $0 != index }.map { $0 > index ? $0 - 1 : $0 }
+        marked = marked.filter { $0.file != index }.map { Marked(file: $0.file > index ? $0.file - 1 : $0.file, why: $0.why) }
         try? sidayRemove(index)
         find()
         if let playing = current, playing > index { current = playing - 1 }
@@ -239,6 +261,7 @@ final class Player {
         files = []
         searchable = []
         order = []
+        marked = []
         failures = 0
         // (Which also finds nothing, and puts the list back at its top.)
         search = ""
@@ -364,8 +387,30 @@ final class Player {
                 for index in list.indices where list[index].length == nil { list[index].length = known[index].length }
             }
         }
+        // After the songs: what the file asks for that is not played as it asks, each line of it
+        // marked with an exclamation mark.
+        let shortfalls = lines.dropFirst(4 + list.count).filter { $0.utf8.first == 0x21 }.map { String($0.dropFirst()) }
         tuneFile = current
-        tune = Tune(format: line(0), title: line(1), author: line(2), detail: line(3), songs: list, song: song, length: length)
+        tune = Tune(format: line(0), title: line(1), author: line(2), detail: line(3), songs: list, song: song, length: length, shortfalls: shortfalls)
+        // And its row in the list is marked from now on, or is not.
+        if let current {
+            let why = shortfalls.joined(separator: " ")
+            if let place = marked.firstIndex(where: { $0.file == current }) {
+                if shortfalls.isEmpty { marked.remove(at: place) } else if marked[place].why != why { marked[place].why = why }
+            } else if !shortfalls.isEmpty {
+                marked.append(Marked(file: current, why: why))
+            }
+        }
+    }
+
+    /// Why a tune in the list is marked as not played quite as its file asks; nil if it is not marked.
+    func shortfalls(ofFile index: Int) -> String? {
+        marked.first { $0.file == index }?.why
+    }
+
+    /// Writes out under the playing tune's details what is not played as its file asks, or puts it away again.
+    func toggleShortfalls() {
+        shortfallsShown.toggle()
     }
 
     /// The playing song had no length in its file and was given the usual time, or had one and fell

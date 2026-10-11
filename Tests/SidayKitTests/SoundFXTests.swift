@@ -273,3 +273,13 @@ private func first(ofLine line: Int) -> Int { 5 + line * 6 }
         _ = renderer.registerTicks(seconds: 3)
     }
 }
+
+// MARK: What is not played as the file asks
+
+@Test func soundFXFileShorterThanItsSamplesSaysSo() throws {
+    let whole = module([Entry(line: 0, voice: 0, period: 428, instrument: 1)])
+    #expect(try SoundFXRenderer(whole, options: LoadOptions()).info.shortfalls.isEmpty)
+    #expect(try SoundFXRenderer(Array(whole.dropLast(40)), options: LoadOptions()).info.shortfalls == ["The file is cut short: its last sample ends in silence."])
+    #expect(try SoundFXRenderer(Array(whole.dropLast(64)), options: LoadOptions()).info.shortfalls
+        == ["The file is cut short: one of its samples is missing, and is silent."])
+}

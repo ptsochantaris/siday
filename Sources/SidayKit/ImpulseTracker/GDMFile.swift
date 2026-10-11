@@ -153,6 +153,7 @@ enum GDMFile {
         /// The volume each sample has of its own; nil for one that has none, or is not in the file.
         var ownVolumes = [UInt8?](repeating: nil, count: 256)
         var soundAt = sampleDataOffset
+        var cutShort = Shortfall.CutShort()
         for index in 0 ..< IT2ForeignModule.sampleRoom {
             guard index < sampleCount else {
                 samples.append(IT2Sample())
@@ -173,6 +174,7 @@ enum GDMFile {
             // Its sound, as much as the file has of it: unsigned, and one sample after another from
             // where the samples start.
             let there = max(0, min(bytes, data.count - soundAt))
+            cutShort.add(length: bytes, there: data.count - soundAt)
             var sound8: [Int8] = [], sound16: [Int16] = []
             if sixteen {
                 sound16 = (0 ..< there / 2).map { Int16(bitPattern: (UInt16(f[soundAt + $0 * 2]) | UInt16(f[soundAt + $0 * 2 + 1]) << 8) ^ 0x8000) }
@@ -189,6 +191,10 @@ enum GDMFile {
 
         var patterns = [IT2ForeignModule.Pattern](repeating: IT2ForeignModule.Pattern(), count: min(patternCount, IT2ForeignModule.patternRoom))
         var at = patternOffset
+        // For `TuneInfo.shortfalls`: which of `commandsLeftOut` the patterns have, and whether a
+        // row has had more commands for a channel than Impulse Tracker has room for.
+        var leftOut = Shortfall.Kinds()
+        var crowded = false
         for index in patterns.indices where at < data.count {
             // A pattern says how long it is, and that length counts the two bytes that say so. What
             // it has for each channel of each row is gathered first: a row can come back to a channel
@@ -239,7 +245,10 @@ enum GDMFile {
                 var pan: UInt8?
                 var cut = false
                 for which in 0 ..< 4 {
-                    switch meaning(from.effects[which], from.values[which], fromS3M: fromS3M) {
+                    let effect = from.effects[which], value = from.values[which]
+                    if effect == 0x0E, value & 15 != 0 || value >> 4 == 5, let kind = [0x3, 0x5, 0xF].firstIndex(of: value >> 4) { leftOut.note(kind) }
+                    if effect == 0x1E, value > 1, value >> 4 != 8 { leftOut.note(3) }
+                    switch meaning(effect, value, fromS3M: fromS3M) {
                     case .nothing: break
                     case .volume(let volume): cell.set(volume: volume)
                     case .pan(let place): pan = place
@@ -247,7 +256,7 @@ enum GDMFile {
                     case .cut: cut = true
                     }
                 }
-                _ = IT2ForeignModule.place(commands: commands, pan: pan, in: &cell)
+                if IT2ForeignModule.place(commands: commands, pan: pan, in: &cell) > 0 { crowded = true }
                 if cut { cell.set(note: IT2ForeignModule.noteCut) }
                 patterns[index][place / 32, place % 32] = cell
             }
@@ -255,10 +264,26 @@ enum GDMFile {
 
         // An instrument on a row with no note is not Impulse Tracker's to play. See `settle`.
         var memories = [IT2ForeignModule.ChannelMemory](repeating: IT2ForeignModule.ChannelMemory(), count: 32)
+        // A command given nought goes on from the last number given: in Scream Tracker the last
+        // given to any command on the channel, and in Impulse Tracker the last given to a command
+        // of its own kind. Both are followed here, to count the commands of a tune from Scream
+        // Tracker that the two would play differently. (Nothing that is played goes by it.)
+        var lastOfAny = [UInt8](repeating: 0, count: 32), lastOfKind = [UInt8](repeating: 0, count: 32 * 8)
+        var strays = 0
         let packed = IT2ForeignModule.settledDownTheList(&orders, patterns: patterns.count) { index in
             var pattern = patterns[index]
             for row in 0 ..< 64 {
                 for channel in 0 ..< 32 where pattern[row, channel].mask != 0 {
+                    let cell = pattern[row, channel]
+                    if fromS3M, cell.hasCommand {
+                        let kind = Self.kindsThatRemember.firstIndex { $0.contains(cell.command) }
+                        if cell.value != 0 {
+                            lastOfAny[channel] = cell.value
+                            if let kind { lastOfKind[channel * 8 + kind] = cell.value }
+                        } else if let kind, lastOfKind[channel * 8 + kind] != lastOfAny[channel] {
+                            strays += 1
+                        }
+                    }
                     IT2ForeignModule.settle(&pattern[row, channel], &memories[channel], slideStartsNote: fromS3M, cutIsSilence: !fromS3M) {
                         ownVolumes[Int($0)]
                     }
@@ -273,11 +298,28 @@ enum GDMFile {
         var madeWith = "BWSB 2GDM \(f[79])." + (f[80] < 10 ? "0" : "") + "\(f[80])"
         if origin > 0, origin < origins.count { madeWith += ", from " + (origin == 2 || origin == 3 || origin == 7 ? "an " : "a ") + origins[origin] + " file" }
         let author = f.ascii(at: 36, length: 32)
+        var shortfalls: [String] = []
+        if let sentence = Shortfall.commandsLeftOut(leftOut.named(Self.commandsLeftOut)) { shortfalls.append(sentence) }
+        if crowded { shortfalls.append("Some of its rows have more commands for a channel than Impulse Tracker has room for, and the rest are left out.") }
+        if strays > 0 {
+            shortfalls.append(Shortfall.some(strays, one: "commands goes on from a number given to a command of another kind, as Scream Tracker let it, and is not played as Scream Tracker played it.",
+                                             many: "commands go on from a number given to a command of another kind, as Scream Tracker let them, and are not played as Scream Tracker played them."))
+        }
+        if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         let module = IT2Module(title: f.ascii(at: 4, length: 32), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: min(f[113], 64) * 2, mixVolume: mixVolume, speed: f[114] == 0 ? 6 : f[114],
                                tempo: f[115] == 0 ? 125 : f[115], channelPans: pans, samples: samples, patterns: packed, rows: rows)
-        return ITRenderer(module: module, format: "GDM", author: author == "Unknown" ? "" : author, options: options)
+        return ITRenderer(module: module, format: "GDM", author: author == "Unknown" ? "" : author, shortfalls: shortfalls, options: options)
     }
+
+    /// The commands a GDM file can have that Impulse Tracker cannot do and a tune would be heard to
+    /// lack, in the order they are counted in. (The Amiga's filter is another, and is nothing here.)
+    private static let commandsLeftOut = ["sliding by semitones", "the retuning of a sample", "the turning of a sample's loop inside out", "BWSB's control of a sample"]
+
+    /// The commands of Scream Tracker's that go on from the last number given when they are given
+    /// nought, sorted as Impulse Tracker sorts them: each kind remembers its own.
+    private static let kindsThatRemember: [[UInt8]] = [[Command.D, Command.K, Command.L], [Command.E, Command.F], [Command.I], [Command.J],
+                                                       [Command.Q], [Command.R], [Command.S]]
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are
     /// about as loud as S3M and IT files are.

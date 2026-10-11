@@ -78,6 +78,9 @@ final class OktalyzerModule {
     /// lines begin.
     private(set) var firstRowOfPosition: [Int] = []
     private(set) var rowsInAll = 0
+    /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An
+    /// instrument whose sample the file ends before is silent.
+    private(set) var shortfalls: [String] = []
 
     deinit {
         memory.deallocate()
@@ -166,10 +169,18 @@ final class OktalyzerModule {
             patterns.append(Pattern(lines: reader.u16be(body.place), place: body.place + 2))
         }
         // The samples follow, one for each instrument that says it has a length, in their order.
+        var cutShort = Shortfall.CutShort()
         for i in 0 ..< Self.instrumentCount where instruments[i].length != 0 {
-            guard let body = piece("SBOD") else { break }
+            let said = Int(min(instruments[i].length, 1 << 28))
+            guard let body = piece("SBOD") else {
+                // (The rest have none either, and are counted as they are come to.)
+                cutShort.add(length: said, there: 0)
+                continue
+            }
             instruments[i].place = body.place
+            cutShort.add(length: said, there: body.length)
         }
+        if let sentence = cutShort.sentence { shortfalls.append(sentence) }
 
         silence = data.count
         mixSpace = data.count + Self.silenceLength

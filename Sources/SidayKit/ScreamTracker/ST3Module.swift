@@ -46,6 +46,9 @@ final class ST3Module {
     let savedWithSoundBlaster: Bool
     /// True if some sample is longer than Scream Tracker allows, or of sixteen bits.
     let beyondScreamTracker: Bool
+    /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An S3M file
+    /// from a later tracker may have what Scream Tracker never had.
+    private(set) var shortfalls: [String] = []
 
     deinit {
         samples.deallocate()
@@ -136,10 +139,12 @@ final class ST3Module {
 
         // Where each sample goes, and how much of it the file has.
         var total = 0
+        var cutShort = Shortfall.CutShort()
         for i in 0 ..< insnum where ins[i].type == 1 && offsets[i] != 0 {
             let bytesPerSample = ins[i].flags & 4 != 0 ? 2 : 1
             let stated = Int(truncatingIfNeeded: ins[i].length)
             let there = max(0, (data.count - offsets[i]) / bytesPerSample)
+            if stated > 0, stated < 1 << 28 { cutShort.add(length: stated * bytesPerSample, there: data.count - offsets[i]) }
             if stated < 0 || stated > there { ins[i].length = UInt32(there) }
             // Scream Tracker's limit, kept for the files it could have made.
             if !beyond, ins[i].length > 64000 { ins[i].length = 64000 }
@@ -177,7 +182,65 @@ final class ST3Module {
         if songMadeWithST3, sampleCount >= 2, gusPositions <= 1 { soundBlaster = true }
         savedWithSoundBlaster = soundBlaster
 
+        noteWhatIsNotPlayed(f, insoff)
+        if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         for i in 0 ..< Self.mostInstruments { checkins(i) }
+    }
+
+    /// The commands of later trackers that are found in S3M files and that Scream Tracker passes
+    /// over, by their numbers (a command's letter, counted from A as 1) and by what they do.
+    ///
+    /// Three more are not counted: the ones that put a channel somewhere between the speakers (X),
+    /// slide it there (P) or sweep it from side to side (Y). One S3M file in ten has the first of
+    /// them, from having been saved by Impulse Tracker, and all it loses is where its channels
+    /// are; a mark on so many files would say little about any of them.
+    private static let commandsOfLaterTrackers: [UInt8] = [13, 14, 23, 26]
+    private static let whatTheyDo = ["a channel's volume", "a slide of a channel's volume", "a slide of the whole tune's volume", "the setting of a filter"]
+
+    /// Looks over the file for what its patterns use that is not played as the file asks, and
+    /// says so in `shortfalls`. Nothing that is played is changed by it.
+    private func noteWhatIsNotPlayed(_ f: ByteReader, _ insoff: [Int]) {
+        var used = [Bool](repeating: false, count: 256)
+        var commands = Shortfall.Kinds()
+        for case let pattern? in patp {
+            var at = 0
+            while at < pattern.count {
+                let what = pattern[at]
+                at += 1
+                if what & 0x20 != 0 {
+                    if at + 1 < pattern.count { used[Int(pattern[at + 1])] = true }
+                    at += 2
+                }
+                if what & 0x40 != 0 { at += 1 }
+                if what & 0x80 != 0 {
+                    if at < pattern.count, let kind = Self.commandsOfLaterTrackers.firstIndex(of: pattern[at]) { commands.note(kind) }
+                    at += 2
+                }
+            }
+        }
+        // A sample in stereo has its right side after its left in the file, and Scream Tracker,
+        // which knows nothing of it, plays the left. A packed one it reads as if it were not.
+        var stereo = 0, packed = 0, drums = 0
+        for i in 0 ..< insnum where used[i + 1] {
+            let o = insoff[i] << 4
+            if ins[i].type == 1, ins[i].length > 0, ins[i].baseptr >= 0 {
+                if ins[i].flags & 2 != 0 { stereo += 1 }
+                if f[o + 30] != 0 { packed += 1 }
+            }
+            if ins[i].type >= 3, ins[i].type <= 7 { drums += 1 }
+        }
+        if stereo > 0 {
+            shortfalls.append(Shortfall.some(stereo, one: "samples is in stereo, and only its left side is played.", many: "samples are in stereo, and only their left sides are played."))
+        }
+        if packed > 0 {
+            shortfalls.append(Shortfall.some(packed, one: "samples is packed, which Scream Tracker's never were: it is not heard as it should be.",
+                                             many: "samples are packed, which Scream Tracker's never were: they are not heard as they should be."))
+        }
+        if drums > 0 {
+            shortfalls.append(Shortfall.some(drums, one: "instruments is one of the AdLib card's drums, which Scream Tracker never played, and is not heard.",
+                                             many: "instruments are the AdLib card's drums, which Scream Tracker never played, and are not heard."))
+        }
+        if let sentence = Shortfall.commandsLeftOut(commands.named(Self.whatTheyDo), why: "which Scream Tracker did not have") { shortfalls.append(sentence) }
     }
 
     /// Puts a sample in order: a loop is written out again past its end, 512 samples of it, so that

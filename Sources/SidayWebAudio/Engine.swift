@@ -106,8 +106,10 @@ final class WebPlayer {
         blockLength = 0
         blockCursor = 0
         // One line each: format, title, author, detail. Then a line for each song when there are several:
-        // its length in milliseconds, if that is known, a tab, and its name, if it has one. The page
-        // takes them apart again.
+        // its length in milliseconds, if that is known, a tab, and its name, if it has one. Then a
+        // line for each thing the file asks for that is not played as it asks (`TuneInfo.shortfalls`):
+        // an exclamation mark, which no song's line begins with, and the sentence. The page takes
+        // them apart again.
         let info = renderer.info
         func tidy(_ field: String) -> String { String(field.map { $0.isNewline || $0 == "\t" ? " " : $0 }) }
         var lines = [info.format, info.title, info.author, info.detail].map(tidy)
@@ -116,6 +118,7 @@ final class WebPlayer {
                 lines.append("\(song.length.map { String(Int($0 * 1000)) } ?? "")\t\(tidy(song.title))")
             }
         }
+        for shortfall in info.shortfalls { lines.append("!" + tidy(shortfall)) }
         text = Array(lines.joined(separator: "\n").utf8)
     }
 

@@ -55,6 +55,8 @@ public struct AYFile: Sendable {
     public var songs: [Song] = []
     /// Zero-based index of the song to play first.
     public var firstSong = 0
+    /// How many of the songs the file says it has are not in it: the file ends before them.
+    public var songsLeftOut = 0
     private let bytes: [UInt8]
 
     /// - Parameter corrected: apply the built-in timing fixes for files known to be ripped at the wrong speed.
@@ -81,7 +83,10 @@ public struct AYFile: Sendable {
         for index in 0 ..< songCount {
             let entry = table + index * 4
             // Songs whose table entry is cut off by the end of the file are left out.
-            guard entry + 4 <= reader.count else { break }
+            guard entry + 4 <= reader.count else {
+                songsLeftOut = songCount - index
+                break
+            }
             var song = Song()
             song.name = Self.text(reader, at: entry + reader.s16be(entry))
             let songData = entry + 2 + reader.s16be(entry + 2)

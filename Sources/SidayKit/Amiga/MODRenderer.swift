@@ -63,6 +63,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         var info = TuneInfo(format: "MOD")
         info.title = module.title
         info.detail = module.channelCount == 4 ? module.kind.name : "\(module.kind.name), \(module.channelCount) channels"
+        info.shortfalls = module.shortfalls
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is.

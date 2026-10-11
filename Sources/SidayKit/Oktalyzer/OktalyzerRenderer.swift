@@ -62,6 +62,7 @@ public final class OktalyzerRenderer: Renderer {
 
         var info = TuneInfo(format: "Oktalyzer")
         info.detail = "\(module.trackCount) tracks"
+        info.shortfalls = module.shortfalls
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is.

@@ -87,10 +87,13 @@ struct Siday: ParsableCommand {
     @Option(help: "Render each tune to a WAV file in this folder instead of playing.")
     var wav: String?
 
-    @Flag(help: "List what would be played, with format, length and title, and exit.")
+    @Flag(help: "List what would be played, with format, length and title, and exit. A * after the length marks a tune that is not played quite as its file asks: an instrument that is not heard, a command that is left out, a file that is cut short.")
     var list = false
 
-    @Flag(help: "Load and render a few seconds of every file without sound; report per format.")
+    @Flag(help: "With --list, say under each tune marked * what it is that is not played as its file asks.")
+    var shortfalls = false
+
+    @Flag(help: "Load and render a few seconds of every file without sound; report per format. The last column counts the tunes that --list would mark.")
     var check = false
 
     @Flag(help: "Render at full speed and report the multiple of real time.")
@@ -452,6 +455,8 @@ struct Siday: ParsableCommand {
                 length = state.length
                 clearStatus()
                 print(state.header)
+                // What is not played as the file asks, under the tune's own line.
+                for shortfall in state.shortfalls { print("  \(shortfall)") }
             }
             if state.finished { break loop }
             if Terminal.interactive, generation > 0 {
@@ -497,6 +502,7 @@ struct Siday: ParsableCommand {
     private func listFiles(_ files: [URL]) {
         let loader = tuneFiles
         let policy = policy
+        let explains = shortfalls
         // Loading can mean running a tune silently to find its length, so files are loaded on every core,
         // a batch at a time, and printed in order.
         let batch = 256
@@ -505,7 +511,7 @@ struct Siday: ParsableCommand {
             let lines = Mutex([String](repeating: "", count: slice.count))
             DispatchQueue.concurrentPerform(iterations: slice.count) { i in
                 let url = slice[slice.startIndex + i]
-                let line: String
+                var line: String
                 do {
                     let renderer = try loader.load(url)
                     let session = TuneSession(renderer: renderer, policy: policy)
@@ -517,7 +523,10 @@ struct Siday: ParsableCommand {
                         songs = " [\(renderer.subsongCount) songs: \(lengths.joined(separator: " "))]"
                     }
                     let text = describe(renderer.info)
-                    line = "\(renderer.info.format.padding(toLength: 4, withPad: " ", startingAt: 0)) \(length)  \(text.isEmpty ? "" : text + "  ")\(url.path)\(songs)"
+                    // A tune that is not played quite as its file asks is marked, and with --shortfalls says why.
+                    let mark = renderer.info.shortfalls.isEmpty ? " " : "*"
+                    line = "\(renderer.info.format.padding(toLength: 4, withPad: " ", startingAt: 0)) \(length)\(mark) \(text.isEmpty ? "" : text + "  ")\(url.path)\(songs)"
+                    if explains { for shortfall in renderer.info.shortfalls { line += "\n             \(shortfall)" } }
                 } catch {
                     line = "----   -    \(url.path): \(error)"
                 }
@@ -591,6 +600,8 @@ struct Siday: ParsableCommand {
     private func checkFiles(_ files: [URL]) {
         struct Tally {
             var ok = 0, silent = 0, rejected = 0, bad = 0
+            /// Tunes that load and are not played quite as their files ask (see `TuneInfo.shortfalls`).
+            var marked = 0
             var notes: [String] = []
         }
         let loader = {
@@ -606,8 +617,10 @@ struct Siday: ParsableCommand {
             let format = url.pathExtension.lowercased()
             var outcome = 0 // 0 ok, 1 silent, 2 rejected, 3 bad output
             var note: String?
+            var marked = false
             do {
                 let renderer = try loader.load(url)
+                marked = !renderer.info.shortfalls.isEmpty
                 let block = 1024
                 let buffer = UnsafeMutablePointer<Float>.allocate(capacity: block * 2)
                 defer { buffer.deallocate() }
@@ -648,6 +661,7 @@ struct Siday: ParsableCommand {
                 case 2: tally.rejected += 1
                 default: tally.bad += 1
                 }
+                if marked { tally.marked += 1 }
                 if let note { tally.notes.append(note) }
                 $0[format] = tally
             }
@@ -660,9 +674,9 @@ struct Siday: ParsableCommand {
         for (format, tally) in tallies.sorted(by: { $0.key < $1.key }) {
             for note in tally.notes.sorted() { print("\(format): \(note)") }
         }
-        print("format     ok  silent  rejected  bad")
+        print("format     ok  silent  rejected  bad  marked")
         for (format, tally) in tallies.sorted(by: { $0.key < $1.key }) {
-            print(String(format: "%-6@ %6d  %6d  %8d  %3d", format as NSString, tally.ok, tally.silent, tally.rejected, tally.bad))
+            print(String(format: "%-6@ %6d  %6d  %8d  %3d  %6d", format as NSString, tally.ok, tally.silent, tally.rejected, tally.bad, tally.marked))
         }
     }
 

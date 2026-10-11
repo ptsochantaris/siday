@@ -29,6 +29,32 @@ enum AMFFile {
         var note = FT2Note()
         /// A place for the channel, where the row sets one.
         var place: UInt8?
+        /// True if the row has had a command that another then took the place of.
+        var crowded = false
+    }
+
+    /// What is met in a file that FastTracker cannot do, for `ForeignModule.shortfalls`.
+    private struct Found {
+        /// Notes below the lowest that FastTracker has, and above its highest.
+        var tooLow = 0, tooHigh = 0
+        var surround = false
+        /// True if some row has more commands for a channel than there is room for.
+        var crowded = false
+        var cutShort = Shortfall.CutShort()
+
+        var sentences: [String] {
+            var sentences: [String] = []
+            if tooLow > 0 {
+                sentences.append(Shortfall.some(tooLow, one: "notes is below FastTracker's lowest, and is not heard.", many: "notes are below FastTracker's lowest, and are not heard."))
+            }
+            if tooHigh > 0 {
+                sentences.append(Shortfall.some(tooHigh, one: "notes is above FastTracker's highest, and is not heard.", many: "notes are above FastTracker's highest, and are not heard."))
+            }
+            if surround { sentences.append("Its surround sound is played in the middle.") }
+            if crowded { sentences.append("Some of its rows have more commands for a channel than FastTracker has room for, and the rest are left out.") }
+            if let sentence = cutShort.sentence { sentences.append(sentence) }
+            return sentences
+        }
     }
 
     private struct SampleHeader {
@@ -64,12 +90,14 @@ enum AMFFile {
         // one of 200 XM files.)
         module.loudness = 0.64
         module.orders = (0 ..< orders).map { UInt8($0) }
+        var found = Found()
 
         var at = version >= 9 ? 41 : 40
         if version >= 11 {
             // Where each channel is, from 64 to the left of the middle to 64 to the right; and 100
             // for DSMI's surround sound, which here is the middle.
             module.panning = (0 ..< channels).map { place(file[at + $0]) }
+            found.surround = (0 ..< channels).contains { file[at + $0] == 100 }
             at += version >= 12 ? 32 : 16
         } else {
             // An older file does not say, and has its channels to the left and to the right in turn.
@@ -170,9 +198,9 @@ enum AMFFile {
                     let from = tracks[track - 1].start + event * 3
                     // (An event on a row the pattern has not got ends the track, as its own mark of three FFs does.)
                     guard Int(data[from]) < rows else { break }
-                    happen(data[from + 1], data[from + 2], to: &cells[Int(data[from])])
+                    happen(data[from + 1], data[from + 2], to: &cells[Int(data[from])], &found)
                 }
-                for row in 0 ..< rows { notes[row * channels + channel] = fitted(cells[row]) }
+                for row in 0 ..< rows { notes[row * channels + channel] = fitted(cells[row], &found) }
             }
             module.patterns.append(ForeignModule.Pattern(rows: rows, notes: notes))
         }
@@ -185,6 +213,7 @@ enum AMFFile {
                 while module.samples.count <= index { module.samples.append(nil) }
                 var sample = ForeignModule.Sample()
                 sample.data = file.sample(at: at, length: header.length)
+                found.cutShort.add(length: header.length, there: data.count - at)
                 for i in 0 ..< sample.data.count { sample.data[i] ^= 0x80 }
                 read = min(header.length, sample.data.count)
                 if header.exists, header.repeatEnd > header.repeatStart + 2, header.repeatEnd <= header.length {
@@ -199,6 +228,7 @@ enum AMFFile {
         }
         // (A sample past the 128th is one FastTracker has no room for, and is refused with the rest.)
         while module.samples.count < sampleCount { module.samples.append(nil) }
+        module.shortfalls = found.sentences
         return module
     }
 
@@ -213,8 +243,10 @@ enum AMFFile {
     }
 
     /// One event of a track, added to what its row has so far.
-    private static func happen(_ kind: UInt8, _ value: UInt8, to cell: inout Cell) {
+    private static func happen(_ kind: UInt8, _ value: UInt8, to cell: inout Cell, _ found: inout Found) {
         func command(_ number: UInt8, _ data: UInt8) {
+            // (The same command given again is the converter repeating itself, and nothing is lost.)
+            if cell.note.effTyp != 0 || cell.note.eff != 0, cell.note.effTyp != number || cell.note.eff != data { cell.crowded = true }
             cell.note.effTyp = number
             cell.note.eff = data
         }
@@ -226,7 +258,7 @@ enum AMFFile {
                 cell.note.vol = 0x10
             } else {
                 // The note in the middle of the keyboard is 60; FastTracker's lowest is an octave above DSMI's.
-                if kind >= 12, kind <= 107 { cell.note.ton = kind - 11 }
+                if kind >= 12, kind <= 107 { cell.note.ton = kind - 11 } else if kind < 12 { found.tooLow += 1 } else { found.tooHigh += 1 }
                 // With its volume, or FF for the volume the channel has.
                 if value != 0xFF { cell.note.vol = 0x10 + min(64, value) }
             }
@@ -259,7 +291,9 @@ enum AMFFile {
         // The tempo, in beats a minute.
         case 0x95: command(0xF, max(32, value))
         case 0x96: if signed != 0 { command(33, signed > 0 ? 0x20 | low : 0x10 | (0 &- value) & 0x0F) }
-        case 0x97: cell.place = place(value)
+        case 0x97:
+            cell.place = place(value)
+            if value == 100 { found.surround = true }
         // The two that nobody knows the meaning of, and anything else.
         default: break
         }
@@ -268,14 +302,17 @@ enum AMFFile {
     /// A row of a track as FastTracker has room for it: a note, a volume and one command. A place
     /// for the channel is a command, if the row has no other, and otherwise goes where the volume
     /// would, if the row has none, at one of sixteen places.
-    private static func fitted(_ cell: Cell) -> FT2Note {
+    private static func fitted(_ cell: Cell, _ found: inout Found) -> FT2Note {
         var note = cell.note
+        if cell.crowded { found.crowded = true }
         guard let place = cell.place else { return note }
         if note.effTyp == 0, note.eff == 0 {
             note.effTyp = 8
             note.eff = place
         } else if note.vol == 0 {
             note.vol = 0xC0 | place >> 4
+        } else {
+            found.crowded = true
         }
         return note
     }

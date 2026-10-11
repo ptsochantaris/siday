@@ -42,7 +42,9 @@ public final class ITRenderer: Renderer, ReferenceComparable {
 
     /// A module as Impulse Tracker holds one, wherever it came from: an IT file, or a file of another
     /// tracker's that this replayer is to play (see `IT2ForeignModule`), which says what kind it is.
-    init(module: IT2Module, format: String, author: String = "", options: LoadOptions) {
+    /// - Parameter shortfalls: for a module of another tracker's, what its loader left out or made do
+    ///   for; nil for an IT file, which is looked over here for what later trackers added to it.
+    init(module: IT2Module, format: String, author: String = "", shortfalls: [String]? = nil, options: LoadOptions) {
         self.module = module
         mono = options.stereo == .mono
 
@@ -77,6 +79,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         info.title = module.title
         info.author = author
         info.detail = module.madeWith
+        info.shortfalls = shortfalls ?? module.shortfalls()
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is.

@@ -51,6 +51,7 @@ enum MTMFile {
         module.panning = (0 ..< channels).map { (data[34 + $0] & 15) * 17 }
 
         var setsSpeed = false, setsTempo = false, setsBothOnOneRow = false
+        var leftOut = Shortfall.Kinds()
         for pattern in 0 ..< patterns {
             var notes = [FT2Note](repeating: FT2Note(), count: rows * channels)
             for channel in 0 ..< channels {
@@ -59,7 +60,7 @@ enum MTMFile {
                 guard track >= 1, track <= tracks else { continue }
                 let start = trackData + (track - 1) * trackLength
                 for row in 0 ..< rows {
-                    notes[row * channels + channel] = note(data[start + row * 3], data[start + row * 3 + 1], data[start + row * 3 + 2])
+                    notes[row * channels + channel] = note(data[start + row * 3], data[start + row * 3 + 1], data[start + row * 3 + 2], &leftOut)
                 }
             }
             for row in 0 ..< rows {
@@ -82,6 +83,7 @@ enum MTMFile {
         module.speedAndTempoUndoEachOther = setsSpeed && setsTempo && !setsBothOnOneRow
 
         var at = comment + commentLength
+        var cutShort = Shortfall.CutShort()
         for index in 0 ..< min(samples, 128) {
             let header = sampleHeaders + index * sampleHeaderLength
             let length = file.size32le(header + 22)
@@ -90,6 +92,7 @@ enum MTMFile {
             sample.sixteenBit = sixteenBit
             // The sample is unsigned in the file.
             sample.data = file.sample(at: at, length: length)
+            cutShort.add(length: length, there: data.count - at)
             let top = sixteenBit ? 1 : 0, step = sixteenBit ? 2 : 1
             for i in stride(from: top, to: sample.data.count, by: step) { sample.data[i] ^= 0x80 }
             at += min(length, sample.data.count)
@@ -110,12 +113,24 @@ enum MTMFile {
             sample.volume = min(64, data[header + 35])
             module.samples.append(sample.data.isEmpty ? nil : sample)
         }
+        // Many who wrote MTM files wrote them for other players, which had these commands.
+        if let sentence = Shortfall.commandsLeftOut(leftOut.named(Self.commandsLeftOut), why: "which MultiTracker did not have") {
+            module.shortfalls.append(sentence)
+        }
+        if let sentence = cutShort.sentence { module.shortfalls.append(sentence) }
         return module
     }
 
+    /// The commands of ProTracker's that MultiTracker does not have and a tune would be heard to
+    /// lack, in the order `note` counts them in. (Two more that it lacks do nothing in FastTracker
+    /// either: the Amiga's filter, and the turning of a sample inside out.)
+    private static let commandsLeftOut = ["sliding by semitones", "the shape of a vibrato", "a loop within a pattern", "the shape of a tremolo"]
+
     /// The three bytes of a note: six bits of note, six of instrument, four of command, and a byte
     /// for the command.
-    private static func note(_ first: UInt8, _ second: UInt8, _ value: UInt8) -> FT2Note {
+    /// - Parameter leftOut: which of `commandsLeftOut` have been met and passed over; those that
+    ///   ask for nothing but what is so anyway are not counted.
+    private static func note(_ first: UInt8, _ second: UInt8, _ value: UInt8, _ leftOut: inout Shortfall.Kinds) -> FT2Note {
         var note = FT2Note()
         // (Note 12 is the lowest note an Amiga's MOD file has, and note 24 the C in the middle.)
         if first >> 2 != 0 { note.ton = (first >> 2) + 25 }
@@ -143,7 +158,8 @@ enum MTMFile {
         case 0xE:
             switch value >> 4 {
             // The commands MultiTracker does not have.
-            case 0x0, 0x3, 0x4, 0x6, 0x7, 0xF: break
+            case 0x0, 0x3, 0x4, 0x6, 0x7, 0xF:
+                if value & 15 != 0, let kind = [0x3, 0x4, 0x6, 0x7].firstIndex(of: value >> 4) { leftOut.note(kind) }
             // One of the sixteen places, which FastTracker has as a command of its own.
             case 0x8:
                 note.effTyp = 8

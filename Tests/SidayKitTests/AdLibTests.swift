@@ -201,7 +201,9 @@ private func played(_ file: [UInt8], banks: [[UInt8]] = [], seconds: Double = 1)
 
     // And one that is nowhere is silent, and said to be missing.
     let none = try played(rol(instrument: "NOSUCH1"), banks: [loud])
-    #expect(none.renderer.info.detail == "AdLib Visual Composer, 9 voices, 1 instrument not found")
+    #expect(none.renderer.info.detail == "AdLib Visual Composer, 9 voices")
+    #expect(none.renderer.info.shortfalls == ["One of its instruments is in no bank that was found, and is silent."])
+    #expect(own.renderer.info.shortfalls.isEmpty)
     #expect(loudest(none.sound[...]) < 0.001)
     #expect(BuiltInAdLibBank.instrument(named: Array("NOSUCH1".utf8)) == nil)
     #expect(BuiltInAdLibBank.instrument(named: []) == nil)
@@ -213,6 +215,7 @@ private func played(_ file: [UInt8], banks: [[UInt8]] = [], seconds: Double = 1)
     let cut = try played(Array(whole.prefix(whole.count - 400)), banks: [bank([("SINE", 0)])])
     #expect(loudest(cut.sound[4800...]) > 0.05)
     #expect(cut.renderer.knownLength != nil)
+    #expect(cut.renderer.info.shortfalls == ["The file is cut short, and is played as far as it goes."])
     #expect(throws: TuneError.self) { try TuneLoader.load([UInt8](repeating: 0x41, count: 4000), format: .rol) }
     // A tempo of nothing is not waited on for ever.
     var still = rol()

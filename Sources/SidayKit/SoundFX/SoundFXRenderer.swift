@@ -65,6 +65,7 @@ public final class SoundFXRenderer: Renderer {
         model = options.amigaModel
         side = options.stereo == .mono ? 0 : Float(max(0, min(1, options.amigaSeparation))) * 0.5
         info = TuneInfo(format: "SoundFX")
+        info.shortfalls = module.shortfalls
 
         // A song's length needs no finding: every line is six ticks, every pattern 64 lines, and a
         // tick is as long as the file says.
