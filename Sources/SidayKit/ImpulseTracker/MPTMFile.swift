@@ -1027,7 +1027,7 @@ enum MPTMFile {
         var silentInstruments = Set<Int>(), elsewhereInstruments = Set<Int>(), usedInstruments = Set<Int>()
         // The plug-ins that are not OpenMPT's own, and so are not played.
         let leftOut = plugins.filter { sound.plugIns[$0 - 1].kind == nil }
-        var smoothMacros = 0, smoothPlugInMacros = 0, bends = 0, reverbs = 0, speakerCommands = 0
+        var smoothPlugInMacros = 0, bends = 0, reverbs = 0, speakerCommands = 0
         // The file's MIDI macros, for telling one that sets a filter from one that sets a plug-in:
         // sixteen that a command chooses among and gives a value, and 128 with a value of their own.
         let macros = file.midiData ?? IT2Module.defaultMIDIData()
@@ -1159,11 +1159,9 @@ enum MPTMFile {
                     if cell.hasCommand {
                         switch cell.command & 31 {
                         case Own.smoothMacro:
-                            // A macro sent a little at a time over the row is sent whole at its start.
-                            cell.set(command: Own.Z, cell.value)
-                            if played[index] {
-                                if macroIsForPlugIn(cell.value < 0x80 ? 9 + chosenMacro[channel] : 25 + Int(cell.value & 0x7F)) { smoothPlugInMacros += 1 } else { smoothMacros += 1 }
-                            }
+                            // A macro sent a little at a time over the row: the filter comes to
+                            // what it sets that way, and a plug-in's setting is moved at once.
+                            if played[index], macroIsForPlugIn(cell.value < 0x80 ? 9 + chosenMacro[channel] : 25 + Int(cell.value & 0x7F)) { smoothPlugInMacros += 1 }
                         case Own.bend, Own.smoothBend:
                             cell.clearCommand()
                             if played[index] { bends += 1 }
@@ -1218,7 +1216,6 @@ enum MPTMFile {
                 one: "One of its instruments has a filter that changes at random from note to note, and that is not done.",
                 many: " of its instruments have filters that change at random from note to note, and that is not done.")
         }
-        if smoothMacros > 0 { shortfalls.append("Where it slides its filter over a row, the filter is moved in one step at the row's start.") }
         if smoothPlugInMacros > 0, plugins.count > leftOut.count {
             shortfalls.append("Where it slides a plug-in's setting over a row, the setting is moved in one step at the row's start.")
         }

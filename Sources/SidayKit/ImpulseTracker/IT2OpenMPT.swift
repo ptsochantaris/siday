@@ -191,6 +191,41 @@ extension IT2Player {
         if delayed, hc.pointee.Flags & HF_ALWAYS_UPDATE_EFX == 0 { beginCut(hc) }
     }
 
+    /// The command after Z, in a file of ModPlug Tracker's or OpenMPT's: Z's macro, sent on every
+    /// tick of the row, and what it sets the filter to come to a little at a time, so that the
+    /// filter is where the macro puts it only on the row's last tick. (What it sets of a plug-in
+    /// is set at once.)
+    func InitCommandSmoothMacro(_ hc: IT2HostPointer) {
+        InitCommandZ(hc, comingTo: true)
+        hc.pointee.Flags |= HF_ALWAYS_UPDATE_EFX
+    }
+
+    func CommandSmoothMacro(_ hc: IT2HostPointer) {
+        sendMacro(hc, comingTo: true)
+    }
+
+    /// Sends the macro a channel's Z or its like asks for.
+    /// - Parameter comingTo: true to bring the filter only as far towards what the macro sets it
+    ///   to as the ticks left of the row allow: a part of the way that is one over their number.
+    func sendMacro(_ hc: IT2HostPointer, comingTo: Bool) {
+        // (The voice is whichever the channel last had, playing or not.)
+        let sc = hc.pointee.SlaveChnPtr
+        let channel = Int(hc.pointee.HostChnNum) & 63
+        let cutoff = FilterParameters[channel], resonance = FilterParameters[64 + channel]
+        if hc.pointee.CmdVal >= 0x80 {
+            MIDITranslate(hc, sc, 0x320 + (UInt16(hc.pointee.CmdVal & 0x7F) << 5))
+        } else {
+            MIDITranslate(hc, sc, 0x120 + (UInt16(hc.pointee.EfxMem_SFx & 0xF) << 5))
+        }
+        let left = Int(CurrentTick) + (RowDelayOn ? (Int(RowDelay) - 1) * Int(CurrentSpeed) : 0)
+        guard comingTo, left > 1 else { return }
+        func nearer(_ from: UInt8, _ to: UInt8) -> UInt8 {
+            UInt8(max(0, min(127, Int(Float(from) + Float(Int(to) - Int(from)) / Float(left)))))
+        }
+        FilterParameters[channel] = nearer(cutoff, FilterParameters[channel])
+        FilterParameters[64 + channel] = nearer(resonance, FilterParameters[64 + channel])
+    }
+
     /// What S9x does in an MPTM file beyond surround: S9E and S9F play the channel's sample
     /// forwards and backwards. (The rest are to do with OpenMPT's reverb and its ways of putting
     /// sound between four speakers, which are not here.)

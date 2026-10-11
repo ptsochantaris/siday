@@ -108,6 +108,8 @@ final class IT2Module {
     /// things otherwise than Impulse Tracker, and a file of theirs is played as they played it
     /// where that is known to matter: an instrument with a MIDI channel plays its sample.
     var madeByModPlug: Bool { madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) }
+    /// True if the file says Impulse Tracker itself made it.
+    var madeByImpulseTracker: Bool { madeWith.utf8.starts(with: "Impulse Tracker".utf8) }
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.

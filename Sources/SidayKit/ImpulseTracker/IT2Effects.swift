@@ -49,6 +49,7 @@ extension IT2Player {
         case 24: InitCommandX(hc)
         case 25: InitCommandY(hc)
         case 26: InitCommandZ(hc)
+        case 28 where smoothMacros: InitCommandSmoothMacro(hc) // ModPlug Tracker's \xx
         case 29 where module.openMPT != nil: InitCommandDelayCut(hc) // an MPTM file's :xy
         default: InitNoCommand(hc)
         }
@@ -75,6 +76,7 @@ extension IT2Player {
         case 20: CommandT(hc)
         case 23: CommandW(hc)
         case 25: CommandY(hc)
+        case 28 where smoothMacros: CommandSmoothMacro(hc)
         case 29 where module.openMPT != nil: CommandDelayCut(hc)
         default: NoCommand(hc)
         }
@@ -1053,6 +1055,9 @@ extension IT2Player {
                 } else {
                     OpenMPTCommandS9(hc, val)
                 }
+            } else if playsBackwards, val >= 0xE {
+                // And so do those two in an IT file that a later tracker made.
+                OpenMPTCommandS9(hc, val)
             }
 
         case 0xA0: // the high part of Oxx's offset
@@ -1234,17 +1239,9 @@ extension IT2Player {
 
     /// Zxx: one of the MIDI settings' macros is sent, which is how a tune sets the filter. From Z80
     /// up it is a macro of its own; below, the one SFx chose, with xx as its value.
-    func InitCommandZ(_ hc: IT2HostPointer) {
+    func InitCommandZ(_ hc: IT2HostPointer, comingTo: Bool = false) {
         InitNoCommand(hc)
-
-        // (The voice is whichever the channel last had, playing or not.)
-        let sc = hc.pointee.SlaveChnPtr
-
-        if hc.pointee.CmdVal >= 0x80 {
-            MIDITranslate(hc, sc, 0x320 + (UInt16(hc.pointee.CmdVal & 0x7F) << 5))
-        } else {
-            MIDITranslate(hc, sc, 0x120 + (UInt16(hc.pointee.EfxMem_SFx & 0xF) << 5))
-        }
+        sendMacro(hc, comingTo: comingTo)
     }
 
     // MARK: Effects on the ticks after

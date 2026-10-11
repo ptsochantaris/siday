@@ -151,14 +151,72 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
 
 // MARK: What is not played as the file asks
 
+/// A file as OpenMPT 1.29 would sign it: the tracker a file says made it is two bytes of its header.
+private func byOpenMPT(_ file: [UInt8]) -> [UInt8] {
+    var file = file
+    file[40 ... 41] = [0x29, 0x51]
+    return file
+}
+
+@Test func itFromALaterTrackerPlaysASampleBackwards() throws {
+    /// The file with its square wave made a ramp that climbs from the bottom of the range to the
+    /// top: forwards the note begins by climbing, and backwards by falling. (It is a loop of 32
+    /// samples, and a loop is gone through backwards once and then forwards as before, so it is
+    /// the first of the note that tells: 32 samples of the wave are 180 of the sound.)
+    func ramp(_ file: [UInt8]) -> [UInt8] { Array(file.dropLast(32)) + (0 ..< 32).map { UInt8(truncatingIfNeeded: $0 * 8 - 128) } }
+    /// How much the sound climbs from one sample to the next, over the first of the note.
+    func climb(_ sound: [Float]) -> Float { (sound[150] - sound[30]) / 120 }
+    let row: [UInt8] = [0x81, 0x0B, 60, 1, 19, 0x9F]
+    let forwards = climb(stereo(try TuneLoader.load(ramp(byOpenMPT(it())), format: .it), seconds: 0.1).left)
+    #expect(forwards > 0.0005)
+    // S9F on the note's row, in a file that OpenMPT made.
+    let renderer = try #require(try TuneLoader.load(ramp(byOpenMPT(it(row: row))), format: .it) as? ITRenderer)
+    let backwards = climb(stereo(renderer, seconds: 0.1).left)
+    #expect(backwards < -0.0005 && abs(backwards + forwards) < forwards * 0.2)
+    // In a file that Impulse Tracker made it is nothing, as it is to Impulse Tracker; and so it is
+    // in the other when that is played as the player this is ported from plays it.
+    let itsOwn = climb(stereo(try TuneLoader.load(ramp(it(row: row)), format: .it), seconds: 0.1).left)
+    #expect(abs(itsOwn - forwards) < forwards * 0.05)
+    let raw = renderer.renderRaw(frames: 4800)
+    #expect(climb(stride(from: 0, to: raw.count, by: 2).map { Float(raw[$0]) }) > 0)
+}
+
+@Test func itFromModPlugSlidesItsFilterOverARow() throws {
+    // The filter closed to some 160 Hz on the note's row, as in the test above: at once with Z,
+    // and with the command after it a little at a time, over the six ticks of the row, so that
+    // the note begins nearly as bright as it would have been and ends as dull.
+    func sound(_ command: UInt8, _ file: ([UInt8]) -> [UInt8] = byOpenMPT) throws -> [Float] {
+        stereo(try TuneLoader.load(file(it(row: [0x81, 0x0B, 60, 1, command, 0x08])), format: .it), seconds: 1).left
+    }
+    let open = stereo(try TuneLoader.load(byOpenMPT(it()), format: .it), seconds: 1).left
+    let atOnce = try sound(26), slid = try sound(28)
+    // The first tick is a fiftieth of a second, 960 samples.
+    #expect(loudness(slid[200 ..< 900]) > loudness(atOnce[200 ..< 900]) * 1.5)
+    #expect(loudness(slid[200 ..< 900]) > loudness(open[200 ..< 900]) * 0.6)
+    // By the end of the row, and from then on, the two are the same.
+    #expect(abs(loudness(slid[9600...]) - loudness(atOnce[9600...])) < loudness(atOnce[9600...]) * 0.05)
+    #expect(loudness(slid[9600...]) < loudness(open[9600...]) * 0.7)
+    // In a file that Impulse Tracker made, the command is nothing.
+    let itsOwn = try sound(28) { $0 }
+    #expect(abs(loudness(itsOwn[9600...]) - loudness(open[9600...])) < loudness(open[9600...]) * 0.02)
+}
+
 @Test func itFromALaterTrackerSaysWhatImpulseTrackerDoesNotPlay() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .it).info.shortfalls }
     #expect(try shortfalls(it()).isEmpty)
     #expect(try shortfalls(it(emptySample: true)).isEmpty)
 
-    // ModPlug Tracker's command to play a sample backwards, which Impulse Tracker has not got.
-    #expect(try shortfalls(it(row: [0x81, 0x0B, 60, 1, 19, 0x9F]))
-        == ["One of its commands is left out, which Impulse Tracker did not have: playing a sample backwards."])
+    // ModPlug Tracker's command to play a sample backwards is nothing to Impulse Tracker, and is
+    // nothing here in a file of Impulse Tracker's; in a file of a later tracker's it is played.
+    #expect(try shortfalls(it(row: [0x81, 0x0B, 60, 1, 19, 0x9F])).isEmpty)
+    #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x9F]))).isEmpty)
+    // Its command to send a macro a little at a time is played in a file of its own, and left out
+    // of one that some other tracker made.
+    #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 28, 0x08]))).isEmpty)
+    var schism = it(row: [0x81, 0x0B, 60, 1, 28, 0x08])
+    schism[40 ... 41] = [0x00, 0x10]
+    #expect(try shortfalls(schism)
+        == ["One of its commands is left out, which Impulse Tracker did not have: a smooth change to a filter or a plug-in's setting."])
     // A sample kept in a form that is not read (here, with its bytes the other way round), which a
     // note plays; and the same sample with no note to play it, which is nobody's loss.
     var odd = it()

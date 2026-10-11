@@ -569,11 +569,11 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
     // What is said is only what the file uses.
     let unused = mptm([Pattern([(0, 0, .note())])], samples: [.sound(square, loops: true), .fm], instruments: [(1, [], 0), (2, [], 0)])
     #expect(try player(unused).info.shortfalls.isEmpty)
-    // A command that bends a pitch is taken out, and a macro slid over a row is sent at once.
+    // A command that bends a pitch is taken out. (A macro slid over a row is played, and so is
+    // nothing to speak of.)
     let commands = Pattern([(0, 0, .note()), (1, 0, Cell(command: "^", value: 1)), (2, 0, .command("\\", 0x10)), (3, 0, .command("S", 0x99))])
     let said = try player(mptm([commands])).info.shortfalls
-    #expect(said == ["Where it slides its filter over a row, the filter is moved in one step at the row's start.",
-                     "One command that bends a note's pitch is left out.", "Its reverb is left out."])
+    #expect(said == ["One command that bends a note's pitch is left out.", "Its reverb is left out."])
 }
 
 @Test func mptmFileThatIsMostlyNotHeardIsRefused() throws {

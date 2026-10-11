@@ -52,8 +52,9 @@ extension IT2Module {
                 }
                 if mask & 0x88 != 0 {
                     let command = lastCommands[channel], value = lastValues[channel]
-                    if command == 19, value == 0x9F { commands.note(0) }
-                    if command == 28 { commands.note(1) }
+                    // (Playing a sample backwards, S9F, is nothing to Impulse Tracker, and is done
+                    // for a file that another tracker made. The command after Z is ModPlug Tracker's.)
+                    if command == 28, !madeByModPlug { commands.note(1) }
                     if command == 27 || (command >= 29 && command <= 31) { commands.note(2) }
                 }
             }

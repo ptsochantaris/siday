@@ -1249,6 +1249,12 @@ final class IT2Player {
     /// by ModPlug Tracker or OpenMPT, which did so, unless it is to be played as Impulse Tracker
     /// itself would play it.
     private let samplesPlayForMIDI: Bool
+    /// True if S9E and S9F play a sample forwards and backwards, which they do in the trackers that
+    /// came after Impulse Tracker and do not in it: for a file that says another tracker made it.
+    let playsBackwards: Bool
+    /// True if the command after Z in the alphabet sends a macro a little at a time over its row
+    /// (see `CommandSmoothMacro`): for a file of ModPlug Tracker's or OpenMPT's, whose command it is.
+    let smoothMacros: Bool
     /// The file's plug-ins and FM instruments, if it has any that are played and is not to be played
     /// as Impulse Tracker would play it; and the FM chip, if it has instruments for that.
     let sound: ModPlugSound?
@@ -1271,6 +1277,8 @@ final class IT2Player {
     init(_ module: IT2Module, order: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0, asImpulseTracker: Bool = false,
          forSound: Bool = false) {
         samplesPlayForMIDI = module.madeByModPlug && !asImpulseTracker
+        playsBackwards = module.openMPT != nil || !module.madeByImpulseTracker && !asImpulseTracker
+        smoothMacros = module.openMPT != nil || module.madeByModPlug && !asImpulseTracker
         sound = asImpulseTracker ? nil : module.sound
         adLib = sound?.adLib.map { OpenMPTAdLib(behaviour: $0) }
         fineFMPitch = adLib != nil && module.Flags & ITF_LINEAR_FRQ != 0

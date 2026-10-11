@@ -674,7 +674,12 @@ vibrato has the "ramp up" wave, which OpenMPT added and Impulse Tracker has not 
 where it2play reads past the end of its three. And where it2play would read sound from outside a
 sample, which a few files lead it to do, there is silence.
 
-And one thing is done as the tracker that made the file did it, where that was not Impulse Tracker.
+And some things are done as the tracker that made the file did them, where that was not Impulse
+Tracker. Two are commands. S9F plays a sample backwards, and S9E forwards again, in every tracker
+that came after Impulse Tracker, to which they are nothing: they are played in a file that says
+another tracker made it. And the command after Z in the alphabet is ModPlug Tracker's, a Z whose
+macro is sent a little at a time, so that a filter slides over the row to where Z would have put
+it at once: it is played in a file of ModPlug Tracker's or OpenMPT's. The third is about instruments.
 An instrument can be given a MIDI channel, and Impulse Tracker then sends its notes to a synthesiser
 and plays no sample for them. ModPlug Tracker and OpenMPT played the sample all the same, and their
 composers often left a channel set, on the drums of a tune brought in from a MIDI file above all:
