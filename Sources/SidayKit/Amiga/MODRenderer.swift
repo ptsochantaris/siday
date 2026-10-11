@@ -17,7 +17,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     public var subsongCount: Int { songList.count }
     public private(set) var currentSubsong = 0
     public var defaultSubsong: Int { ModuleSongs.first(of: songList.map { $0.empty }) }
-    public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length) } }
+    public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length, empty: $0.empty) } }
     public var knownLength: Double? { songList[currentSubsong].length }
     public var endsByLooping: Bool { true }
     public var isPlayedOnAnAmiga: Bool { true }

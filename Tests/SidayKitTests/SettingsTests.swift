@@ -15,6 +15,12 @@ import Testing
     #expect(PlaybackPolicy.playedInTurn([1, 2, 3], shortest: 5) == [true, true, true])
     #expect(PlaybackPolicy.playedInTurn([3], shortest: 5) == [true])
     #expect(PlaybackPolicy.playedInTurn([], shortest: 5) == [])
+    // A song with nothing in it is passed over however long it is, unless there is no other; and
+    // if the songs that are left are all short, they are played all the same.
+    #expect(PlaybackPolicy.playedInTurn([10, 132, 16, 3], empty: [true, false, false, false], shortest: 5) == [false, true, true, false])
+    #expect(PlaybackPolicy.playedInTurn([10, 132], empty: [true, false], shortest: 0) == [false, true])
+    #expect(PlaybackPolicy.playedInTurn([10, 3, 2], empty: [true, false, false], shortest: 5) == [false, true, true])
+    #expect(PlaybackPolicy.playedInTurn([10, 20], empty: [true, true], shortest: 5) == [true, true])
 }
 
 @Test func settingsAsTheyComeAreTheCommandLinesOwn() {

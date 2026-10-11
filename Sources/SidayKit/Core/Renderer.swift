@@ -29,10 +29,14 @@ public struct SongInfo: Sendable, Equatable {
     public var title: String
     /// Its length in seconds, where the file or a database gives one.
     public var length: Double?
+    /// True if it is known that there is nothing to it: a stretch of a module in which no note is
+    /// played, which has a length all the same.
+    public var empty: Bool
 
-    public init(title: String = "", length: Double? = nil) {
+    public init(title: String = "", length: Double? = nil, empty: Bool = false) {
         self.title = title
         self.length = length
+        self.empty = empty
     }
 }
 

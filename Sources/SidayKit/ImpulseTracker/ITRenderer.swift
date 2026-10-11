@@ -17,7 +17,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     public var subsongCount: Int { songList.count }
     public private(set) var currentSubsong = 0
     public var defaultSubsong: Int { ModuleSongs.first(of: songList.map { $0.empty }) }
-    public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length) } }
+    public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length, empty: $0.empty) } }
     public var knownLength: Double? { songList[currentSubsong].length }
     let module: IT2Module
     let songList: [ModuleSongs.Song]

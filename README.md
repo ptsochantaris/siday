@@ -117,7 +117,9 @@ when the setting has anything to do with it, and goes on from where it was. Two 
 page's own, and are about a file with several songs. Its songs can all be played in turn, which is
 how it comes, or only the one the file names as its main song, as the command line does. And when
 they are played in turn, songs shorter than five seconds are passed over, or than some other
-length, or none are: a game's file often has a tune or two and a dozen sound effects. Passed-over
+length, or none are: a game's file often has a tune or two and a dozen sound effects. So is a song
+of a module in which no note is played, however long it is: a stretch of empty patterns at the top
+of a file, kept there to hold its samples or for no reason at all. Passed-over
 songs are fainter in the list and can still be pressed, and a file with nothing longer in it plays
 them all.
 

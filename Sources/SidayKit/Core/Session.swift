@@ -36,17 +36,22 @@ public struct PlaybackPolicy: Sendable {
     }
 
     public func playedInTurn(of renderer: any Renderer) -> [Bool] {
-        Self.playedInTurn(renderer.songs.map { $0.length }, shortest: shortestSong)
+        let songs = renderer.songs
+        return Self.playedInTurn(songs.map { $0.length }, empty: songs.map { $0.empty }, shortest: shortestSong)
     }
 
     /// Which of a tune's songs are played when they are played in turn, from how long each is where
     /// that is known: all but those shorter than `shortest` seconds. A song of unknown length is
     /// played, since it cannot be said to be short. And if none of them is as long as that, all
-    /// are: a file of nothing but sound effects is there to be heard as much as any other. The
-    /// rule is here, and in this form, so that a front end that only has the lengths can use it.
-    public static func playedInTurn(_ lengths: [Double?], shortest: Double) -> [Bool] {
-        let longEnough = lengths.map { $0.map { $0 >= shortest } ?? true }
-        return longEnough.contains(true) ? longEnough : lengths.map { _ in true }
+    /// are: a file of nothing but sound effects is there to be heard as much as any other. A song
+    /// that is known to have nothing in it (see `SongInfo.empty`) is passed over however long it
+    /// is, so long as there is another to play. The rule is here, and in this form, so that a
+    /// front end that only has the lengths can use it.
+    public static func playedInTurn(_ lengths: [Double?], empty: [Bool] = [], shortest: Double) -> [Bool] {
+        let something = lengths.indices.map { !($0 < empty.count && empty[$0]) }
+        guard something.contains(true) else { return lengths.map { _ in true } }
+        let longEnough = lengths.indices.map { something[$0] && (lengths[$0].map { $0 >= shortest } ?? true) }
+        return longEnough.contains(true) ? longEnough : something
     }
 }
 

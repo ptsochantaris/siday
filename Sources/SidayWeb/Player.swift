@@ -22,6 +22,8 @@ struct Tune {
     struct Song {
         var title: String
         var length: Double?
+        /// True if there is known to be nothing in it: it is passed over when songs are played in turn.
+        var empty = false
     }
 
     /// True when the file names its songs, and not only numbers them.
@@ -379,9 +381,10 @@ final class Player {
         var list: [Tune.Song] = []
         if songs > 1 {
             for index in 0 ..< songs {
-                let fields = line(4 + index).split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+                let fields = line(4 + index).split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
                 let milliseconds = fields.first.flatMap { Int($0) }
-                list.append(Tune.Song(title: fields.count > 1 ? String(fields[1]) : "", length: milliseconds.map { Double($0) / 1000 }))
+                list.append(Tune.Song(title: fields.count > 2 ? String(fields[2]) : "", length: milliseconds.map { Double($0) / 1000 },
+                                      empty: fields.count > 1 && fields[1] == "1"))
             }
             // A song whose file gives no length has it found when it is played. What was found for the
             // songs of this tune played before this one is kept.
@@ -439,7 +442,8 @@ final class Player {
     /// main song is to be played. The rule is the engine's own, which chooses the first by it.
     func songsInTurn(of tune: Tune) -> [Bool] {
         guard value(of: .songs) == 0 else { return tune.songs.map { _ in false } }
-        return PlaybackPolicy.playedInTurn(tune.songs.map { $0.length }, shortest: Setting.shortestSong.amount(of: value(of: .shortestSong)))
+        return PlaybackPolicy.playedInTurn(tune.songs.map { $0.length }, empty: tune.songs.map { $0.empty },
+                                           shortest: Setting.shortestSong.amount(of: value(of: .shortestSong)))
     }
 
     /// True if a song of a tune is one that is passed over when its songs are played in turn.

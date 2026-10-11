@@ -110,7 +110,8 @@ final class WebPlayer {
         blockLength = 0
         blockCursor = 0
         // One line each: format, title, author, detail. Then a line for each song when there are several:
-        // its length in milliseconds, if that is known, a tab, and its name, if it has one. Then a
+        // its length in milliseconds, if that is known, a tab, a 1 if there is known to be nothing
+        // in it and a 0 if not, a tab, and its name, if it has one. Then a
         // line for each thing the file asks for that is not played as it asks (`TuneInfo.shortfalls`):
         // an exclamation mark, which no song's line begins with, and the sentence. The page takes
         // them apart again.
@@ -119,7 +120,7 @@ final class WebPlayer {
         var lines = [info.format, info.title, info.author, info.detail].map(tidy)
         if renderer.subsongCount > 1 {
             for song in renderer.songs {
-                lines.append("\(song.length.map { String(Int($0 * 1000)) } ?? "")\t\(tidy(song.title))")
+                lines.append("\(song.length.map { String(Int($0 * 1000)) } ?? "")\t\(song.empty ? 1 : 0)\t\(tidy(song.title))")
             }
         }
         for shortfall in info.shortfalls { lines.append("!" + tidy(shortfall)) }
