@@ -137,6 +137,9 @@ final class IT2Mixer {
     var levels = TickLevels(voices: 64)
     /// And what each is playing.
     var notes = TickNotes(voices: 64)
+    /// And where each channel's note lies between the two sides, from -1 on the left to 1 on the
+    /// right: that of the voice it last had hold of.
+    private(set) var sides = [Float](repeating: 0, count: 64)
     private var swing = Swing<Float>(from: -4, to: 4)
 
     // The filter's tables.
@@ -471,6 +474,10 @@ final class IT2Mixer {
                 // still has hold of, and not of the ones it has let go to die away.
                 let channel = Int(sc.pointee.HostChnNum & 63)
                 if sc.pointee.Flags & SF_NEW_NOTE != 0 { notes.struck[channel] = true }
+                if sc.pointee.HostChnNum & CHN_DISOWNED == 0 {
+                    // (Surround is on both sides alike.)
+                    sides[channel] = !stereoOutput || sc.pointee.FinalPan == PAN_SURROUND ? 0 : max(-1, min(1, (Float(sc.pointee.FinalPan) - 32) / 32))
+                }
                 if sc.pointee.HostChnNum & CHN_DISOWNED == 0, sc.pointee.Frequency > 0 {
                     notes.pitches[channel] = ChannelPitch.note(ofRate: Double(sc.pointee.Frequency))
                     // (A note for the FM chip may have its rate kept finer: see `OpenMPTAdLib.fineShift`.)

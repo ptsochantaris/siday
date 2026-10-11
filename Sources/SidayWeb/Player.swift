@@ -166,17 +166,19 @@ final class Player {
                 // (A move to another place in the song is no time at all, and neither is a long wait.)
                 let fall = Self.lightFall * max(0, min(0.1, seconds - position))
                 position = seconds
-                let voices = max(0, min(numbers.count / 3, voices))
-                let count = (numbers.count - voices * 3) / 2
+                let voices = max(0, min(numbers.count / 4, voices))
+                let count = (numbers.count - voices * 4) / 2
                 bars = numbers[..<count].map { $0 / 255 }
                 caps = numbers[count ..< count * 2].map { $0 / 255 }
                 let levels = numbers[(count * 2) ..< (count * 2 + voices)].map { $0 / 255 }
                 lights = levels.count == lights.count ? levels.indices.map { max(levels[$0], lights[$0] - fall) } : levels
                 // The picture is told all of it: how loud each voice is, its pitch, which comes in
-                // half semitones, and whether a note has just been struck.
+                // half semitones, whether a note has just been struck, and the side it is heard
+                // from, which comes as 1 for the left to 255 for the right.
                 visualiser.hear(levels: levels.map { Float($0) },
                                 pitches: numbers[(count * 2 + voices) ..< (count * 2 + voices * 2)].map { Float($0) / 2 },
-                                struck: numbers[(count * 2 + voices * 2) ..< (count * 2 + voices * 3)].map { $0 != 0 })
+                                struck: numbers[(count * 2 + voices * 2) ..< (count * 2 + voices * 3)].map { $0 != 0 },
+                                sides: numbers[(count * 2 + voices * 3) ..< (count * 2 + voices * 4)].map { Float($0 - 128) / 127 })
             },
             { [self] seconds, length in
                 rendered = seconds
@@ -503,11 +505,6 @@ final class Player {
         picture = mode
         visualiser.mode = mode
         try? sidayPicture(mode.rawValue)
-    }
-
-    /// Other colours for the picture, come by chance.
-    func shuffleColours() {
-        visualiser.shuffle()
     }
 
     /// Changes what tunes are heard through.

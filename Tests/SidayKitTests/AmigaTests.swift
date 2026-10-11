@@ -288,6 +288,11 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     #expect(levels[1] > 0.3)
     #expect(levels[2] == 0)
     #expect(levels[3] == 0)
+    // The Amiga has its first and last voices on the left and the two between on the right, and
+    // that is where they are said to be, though this is being heard in mono.
+    var sides = [Float](repeating: 9, count: 4)
+    sides.withUnsafeMutableBufferPointer { renderer.takeChannelSides(into: $0.baseAddress!) }
+    #expect(sides == [-1, 1, 1, -1])
 }
 
 @Test func moduleVoicesTellTheirNotes() throws {

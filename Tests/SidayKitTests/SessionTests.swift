@@ -56,6 +56,11 @@ extension Tune {
         sounded = false
     }
 
+    /// On the right, a little.
+    func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        sides[0] = 0.25
+    }
+
     /// The A above middle C while it sounds, struck where it starts to.
     func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
         pitches[0] = soundedForNotes ? 69 : 0
@@ -154,6 +159,7 @@ private func faithful(_ sound: [Float], to tune: Tune, until seconds: Double) ->
         if level > 0, !sounds { litInSilence += 1 }
         if level == 0, sounds { darkInSound += 1 }
         if session.channelStruck[0] { struck += 1 }
+        #expect(session.channelSides[0] == 0.25)
         if session.channelPitches[0] > 0, !sounds { pitchedInSilence += 1 }
         if session.channelPitches[0] == 0, sounds { unpitchedInSound += 1 }
     }

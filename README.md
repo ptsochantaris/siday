@@ -94,8 +94,8 @@ to WebAssembly.
 - Small buttons in the player's corner put the spectrum analyser, the lights and the list of tunes
   away and bring them back, for as much or as little to look at as is wanted. That is remembered as
   well.
-- A fourth of them brings out a picture to listen by: a lava lamp, a mirror ball, an aurora, a pond
-  or a fire. It is away until it is asked for.
+- A fourth of them brings out a picture to listen by: a lava lamp, a mirror ball, an aurora, a pond,
+  a fire, a fountain or rain. It is away until it is asked for.
 - A fifth opens the settings: the command-line player's options, for how long tunes are played and
   on what. They are remembered, and one button puts them all back.
 - The keys are the command-line player's.
@@ -160,11 +160,19 @@ way there is, the heat at each place being the mean of the heat below it, less a
 fountain sends a light up from the middle of the bottom of the picture for every note that is
 struck, as a firework goes up, though nothing bursts: to come down at a place come by chance, as
 high as the note is loud, and in the note's colour, as the flame's lamps are. Each is a small light with a short tail, which
-slows, turns over and falls away. A voice sends up no more than eight a second. It is meant to be calm.
+slows, turns over and falls away. A voice sends up no more than eight a second. The rain lets a
+drop fall for every note that is struck, straight down from a place along the top come by chance.
+Where it meets the bottom it bounces, as high as the note is loud, to the side the tune has the note
+on (the left or the right as chance has it, for a note in the middle or a tune with no sides, and
+whatever the tune is being listened to through), and as fast sideways as the note is high; it turns
+back at the sides, and each bounce is some half as high as the last, and a little dimmer, until it
+falls out of the picture. A drop is in the note's colour,
+and is drawn as the way it has come in the last moment: a thin line with round ends, as bright at
+its tail as at its head, long where the drop is fast and bent where it has just bounced. It is meant to be calm.
 Nothing in it changes at once: a voice is followed a little behind, so the loudest note there is
 brightens the picture over several frames and not in one; the kind of picture never changes of its
-own accord; and its colours change when "shuffle colours" is pressed, over a few seconds, or, in all
-but the aurora, the flame and the fountain, by themselves and too slowly to see: once round the colour wheel in
+own accord; and its colours change, in all but the flame, the fountain and the rain, where a note's colour says
+how high it is, only by themselves and too slowly to see: once round the colour wheel in
 five minutes or more. It can fill the screen (the button, or `f`), where its controls and the pointer go out of
 sight when the pointer is left still. The picture is painted in Swift like everything else, a small
 one of some 370 dots by 210 that the browser stretches, which is what makes it soft; a frame takes

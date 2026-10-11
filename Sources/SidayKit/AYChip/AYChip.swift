@@ -115,6 +115,8 @@ struct AYChip: ~Copyable {
     /// True when every channel is equally loud in both ears: the right output is then the left one, and
     /// only the left is worked out.
     private var mono = false
+    /// True if it is the second channel that is on the right, and not the third.
+    private var swapped = false
 
     /// Oversampled steps per second: writes can be timed to this resolution.
     let innerRate: Double
@@ -145,6 +147,7 @@ struct AYChip: ~Copyable {
         case .mono: pan(&a, 146, 146); pan(&b, 146, 146); pan(&c, 146, 146)
         }
         mono = a.panLeft == a.panRight && b.panLeft == b.panRight && c.panLeft == c.panRight
+        swapped = layout == .acb
     }
 
     mutating func reset() {
@@ -257,6 +260,16 @@ struct AYChip: ~Copyable {
         let left = levelA * a.panLeft + levelB * b.panLeft + levelC * c.panLeft
         if mono { return (left, left) }
         return (left, levelA * a.panRight + levelB * b.panRight + levelC * c.panRight)
+    }
+
+    /// Where each channel lies between the two sides, from -1 on the left to 1 on the right: where
+    /// it is heard, if the chip is heard in stereo, and if it is not, where it would be the usual
+    /// way round, the first channel on the left and the last on the right.
+    func sides(into sides: UnsafeMutablePointer<Float>) {
+        let apart = Float((255.0 - 13.0) / (255.0 + 13.0))
+        sides[0] = -apart
+        sides[1] = swapped ? apart : 0
+        sides[2] = swapped ? 0 : apart
     }
 
     /// How far each channel has swung since this was last asked, where 1 is from silence to full volume.

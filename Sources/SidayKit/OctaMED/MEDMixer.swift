@@ -71,8 +71,8 @@ struct MEDMixer: ~Copyable {
         var end = 0, restart = 0
         /// A waveform to go over to when this one comes round: nought for none.
         var nextSample = 0, nextEnd = 0
-        /// How much of it each side is given.
-        var leftGain: Float = 0, rightGain: Float = 0
+        /// How much of it each side is given, and where that puts it: from -1 on the left to 1.
+        var leftGain: Float = 0, rightGain: Float = 0, side: Float = 0
         /// The volume without the place between the sides, for the lights.
         var loudness: Float = 0
         var rate = 0
@@ -249,6 +249,7 @@ struct MEDMixer: ~Copyable {
             channels[track].rightGain = gain
         } else {
             let place = max(-16, min(16, place))
+            channels[track].side = Float(place) / 16
             channels[track].leftGain = gain * Float(16 - place) / 32
             channels[track].rightGain = gain * Float(16 + place) / 32
         }
@@ -299,6 +300,9 @@ struct MEDMixer: ~Copyable {
     }
 
     // MARK: The lights
+
+    /// Where a track lies between the two sides, from -1 on the left to 1 on the right.
+    func side(of track: Int) -> Float { track < count ? channels[track].side : 0 }
 
     mutating func takeLevels(into levels: inout [Float]) {
         for track in 0 ..< min(count, levels.count) {

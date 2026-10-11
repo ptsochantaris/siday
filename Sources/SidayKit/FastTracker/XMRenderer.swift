@@ -133,6 +133,13 @@ public final class XMRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { Int(module.song.antChn) }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        // Where each channel's note is, with what its instrument's envelope does to that.
+        for channel in 0 ..< channelCount {
+            sides[channel] = max(-1, min(1, (Float(player.stm[channel].finalPan) - 128) / 127))
+        }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         player.levels.take(into: levels)
     }

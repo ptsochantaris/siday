@@ -257,8 +257,8 @@ struct SettingRow {
     }
 }
 
-/// The picture to listen by, and under it what kind of picture it is, a button for other colours, and
-/// one to fill the screen with it. The picture itself is painted elsewhere, many times a second: see
+/// The picture to listen by, and under it what kind of picture it is and a button to fill the screen
+/// with it. The picture itself is painted elsewhere, many times a second: see
 /// `Visualiser`, and `frame` in Browser.swift.
 @View
 struct Picture {
@@ -277,8 +277,6 @@ struct Picture {
                 .onInput { event in
                     if let mode = event.targetValue.flatMap({ Visualiser.Mode(rawValue: $0) }) { player.show(mode) }
                 }
-                button(.title("Other colours, come by chance")) { "shuffle colours" }
-                    .onClick { player.shuffleColours() }
                 button(.class("whole"), .title("Fill the screen with it, or put it back (f)")) { "full screen" }
                     .onClick { try? sidayFillScreen() }
             }

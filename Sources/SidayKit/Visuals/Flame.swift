@@ -25,9 +25,9 @@
 /// fineness. The fire is moved on so many times a second whatever the screen's rate, on a grid half
 /// as fine as the picture.
 final class Flame: VisualScene {
-    /// The colours of the analyser's bars, to begin with. Other colours are other stretches of the wheel.
+    /// The colours of the analyser's bars.
     let look = VisualLook.ofNotes
-    /// A note keeps its colour until other colours are asked for.
+    /// A note keeps its colour.
     let drift: Float = 0
 
     /// How long heat takes to rise the height of the picture, in seconds: a flame's heat rises a

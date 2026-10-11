@@ -150,6 +150,10 @@ public final class HVLRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { module.channels }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        for voice in 0 ..< module.channels { sides[voice] = replayer.side(ofVoice: voice) }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         self.levels.take(into: levels)
     }

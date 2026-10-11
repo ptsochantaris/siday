@@ -151,6 +151,10 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         }
     }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        for light in lights.indices { sides[light] = player.mixer.sides[lights[light]] }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         // The mixer has all 64 channels; the ones in use are picked out of them.
         withUnsafeTemporaryAllocation(of: Float.self, capacity: 64) { all in

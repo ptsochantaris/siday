@@ -294,6 +294,9 @@ struct Paula: ~Copyable {
         lightFilter = on
     }
 
+    /// The side a voice is on: -1 for the left, which the first and last are, and 1 for the right.
+    static func side(ofVoice voice: Int) -> Float { voice & 3 == 0 || voice & 3 == 3 ? -1 : 1 }
+
     /// How far each voice has swung since this was last asked, where 1 is as far as a voice at full
     /// volume can.
     mutating func takeLevels(into levels: inout [Float]) {

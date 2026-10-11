@@ -1093,6 +1093,9 @@ struct HVLReplayer: ~Copyable {
 
     // MARK: Lights
 
+    /// Where a voice lies between the two sides, from -1 on the left to 1 on the right.
+    func side(ofVoice v: Int) -> Float { max(-1, min(1, (Float(voices[v].pan & 255) - 128) / 127)) }
+
     /// How far each voice swung in the tick just mixed, where 1 is as far as a voice at full
     /// volume can.
     func takeLevels(into levels: inout [Float]) {

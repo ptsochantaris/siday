@@ -801,6 +801,15 @@ struct OktalyzerPlayer: ~Copyable {
 
     // MARK: The lights
 
+    /// The side each track is on, -1 for the left and 1 for the right: that of the voice it is
+    /// played on, which two tracks may share.
+    func sides(into sides: UnsafeMutablePointer<Float>) {
+        for v in 0 ..< 4 {
+            sides[voices[v].track] = Paula.side(ofVoice: v)
+            if voices[v].split { sides[voices[v].track + 1] = Paula.side(ofVoice: v) }
+        }
+    }
+
     /// How far each track has swung since this was last asked, where 1 is as far as a voice at
     /// full volume can.
     mutating func takeLevels(into levels: inout [Float]) {

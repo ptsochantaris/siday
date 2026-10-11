@@ -537,6 +537,12 @@ public final class AYFileRenderer: Renderer {
     public var channelCount: Int { 4 }
     public var channelsAlwaysShown: Int { 0 }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        chip.pointee.sides(into: sides)
+        // The beeper is in the middle.
+        sides[3] = 0
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         chip.pointee.takeLevels(into: levels)
         // The beeper is in or out, with nothing between: it is sounding if it is moving.

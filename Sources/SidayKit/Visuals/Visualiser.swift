@@ -6,9 +6,9 @@
 // they add up to. They are painted here, into a small picture that whoever shows it stretches to fit.
 //
 // They are meant to be calm: a lava lamp, not a strobe. So nothing in them changes at once. What a
-// voice is doing is followed a little behind; colours change when they are asked to, over some
-// seconds, or of themselves so slowly that the change is not seen happening; and nothing changes of
-// its own accord from one kind of picture to another.
+// voice is doing is followed a little behind; colours change of themselves, if they do, so slowly
+// that the change is not seen happening; and nothing changes of its own accord from one kind of
+// picture to another.
 
 /// A voice as the pictures see it: what it is doing, followed smoothly.
 struct VisualVoice {
@@ -23,6 +23,9 @@ struct VisualVoice {
     var pitched = false
     /// 1 when a note is struck, and dying away at once.
     var kick: Float = 0
+    /// Which side it was last heard from: from -1 on the left to 1 on the right, and 0 for the
+    /// middle, or for a voice of a tune that has no sides.
+    var heardSide: Float = 0
 }
 
 /// The colours a picture is painted in. They are places on the colour wheel, from 0 round to 1.
@@ -99,7 +102,7 @@ protocol VisualScene: AnyObject {
     /// The colours it starts in.
     var look: VisualLook { get }
     /// How fast its colours go round the wheel by themselves, in turns a second; nought if they stay
-    /// as they are until they are asked to change.
+    /// as they are.
     var drift: Float { get }
     func paint(_ frame: VisualFrame)
 }
@@ -107,7 +110,7 @@ protocol VisualScene: AnyObject {
 public final class Visualiser {
     /// The kinds of picture there are.
     public enum Mode: String, CaseIterable, Sendable {
-        case lava, ball, aurora, pond, flame, fountain
+        case lava, ball, aurora, pond, flame, fountain, rain
 
         public var title: String {
             switch self {
@@ -117,6 +120,7 @@ public final class Visualiser {
             case .pond: "Pond"
             case .flame: "Flame"
             case .fountain: "Fountain"
+            case .rain: "Rain"
             }
         }
     }
@@ -139,11 +143,9 @@ public final class Visualiser {
     private var lowestPitch: Float = 48, highestPitch: Float = 84
     private var time: Float = 0
     private var lastSeconds: Double?
-    private var seed: UInt64
 
-    public init(mode: Mode = .lava, seed: UInt64 = 0x5EED_1DEA) {
+    public init(mode: Mode = .lava) {
         self.mode = mode
-        self.seed = seed | 1
         scene = Self.scene(for: mode)
         look = scene.look
         lookWanted = look
@@ -161,15 +163,8 @@ public final class Visualiser {
         case .pond: Pond()
         case .flame: Flame()
         case .fountain: Fountain()
+        case .rain: Rain()
         }
-    }
-
-    /// A number from 0 up to 1, different each time.
-    private func chance() -> Float {
-        seed ^= seed << 13
-        seed ^= seed >> 7
-        seed ^= seed << 17
-        return Float(seed >> 40) / Float(1 << 24)
     }
 
     /// The size of picture that suits a space of so many points by so many: small enough to paint
@@ -192,13 +187,15 @@ public final class Visualiser {
     }
 
     /// What the tune's voices are doing now: how loud each is, from 0 to 1, its pitch as a note
-    /// number or 0 for none, and whether a note has just been started on it.
-    public func hear(levels: [Float], pitches: [Float], struck: [Bool]) {
+    /// number or 0 for none, whether a note has just been started on it, and which side it is heard
+    /// from, from -1 on the left to 1 on the right, if it is known.
+    public func hear(levels: [Float], pitches: [Float], struck: [Bool], sides: [Float] = []) {
         if voices.count != levels.count { voices = [VisualVoice](repeating: VisualVoice(), count: levels.count) }
         for voice in voices.indices {
             voices[voice].heardLevel = max(0, min(1, levels[voice]))
             voices[voice].heardPitch = voice < pitches.count ? pitches[voice] : 0
             if voice < struck.count, struck[voice] { voices[voice].kick = 1 }
+            voices[voice].heardSide = voice < sides.count ? max(-1, min(1, sides[voice])) : 0
         }
     }
 
@@ -211,11 +208,6 @@ public final class Visualiser {
     public func newTune() {
         lowestPitch = 48
         highestPitch = 84
-    }
-
-    /// Other colours, come by chance. They are gone to over a few seconds.
-    public func shuffle() {
-        lookWanted = VisualLook(hue: chance(), spread: 0.06 + 0.5 * chance() * chance())
     }
 
     /// Paints the picture as it is at a time, in seconds by any clock that only goes forward.
@@ -242,8 +234,9 @@ public final class Visualiser {
                 }
             }
         }
-        // The colours, on their way to where they are wanted: the short way round the wheel. Where
-        // the picture's colours drift, where they are wanted moves on all the time.
+        // The colours, on their way to where they are wanted, which after another kind of picture
+        // has been chosen is that picture's own: the short way round the wheel. Where the picture's
+        // colours drift, where they are wanted moves on all the time.
         lookWanted.hue += scene.drift * elapsed
         lookWanted.hue -= lookWanted.hue.rounded(.down)
         var turn = lookWanted.hue - look.hue

@@ -9,9 +9,12 @@
 /// The light is kept as red, green and blue for each dot, with no upper limit, and squeezed into what
 /// a screen can show only as it is painted: so that bands that cross add up as light does.
 final class Aurora: VisualScene {
-    /// Green through to violet, to begin with, and until other colours are asked for.
+    /// Green through to violet, to begin with.
     let look = VisualLook(hue: 0.47, spread: 0.42)
-    let drift: Float = 0
+    /// And then every colour in turn, bands and sky together, as the lava lamp's go: once round the
+    /// wheel in five minutes. Light keeps the colour it was drawn in, so what has drifted to the far
+    /// side of the sky is a shade behind what is new.
+    let drift: Float = 1.0 / 300
 
     private var light: [Float] = []
     /// How loud each voice is, followed more slowly than the other pictures follow it: a band of

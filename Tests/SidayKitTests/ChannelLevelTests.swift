@@ -171,3 +171,18 @@ import Testing
     #expect(struck[0])
     #expect(pitches[0] == 0)
 }
+
+@Test func ayChannelsHaveSidesWhateverTheyAreHeardThrough() {
+    /// Where a chip says its three channels are.
+    func sides(_ layout: StereoLayout) -> [Float] {
+        let chip = AYChip(type: .ay, clockHz: 1_773_400, sampleRate: 48000, stereo: layout)
+        var sides = [Float](repeating: 9, count: 3)
+        sides.withUnsafeMutableBufferPointer { chip.sides(into: $0.baseAddress!) }
+        return sides.map { ($0 * 10).rounded() / 10 }
+    }
+    // The first on the left, and the last on the right or the one before it: and heard in mono,
+    // they are where they would be the usual way round.
+    #expect(sides(.abc) == [-0.9, 0, 0.9])
+    #expect(sides(.acb) == [-0.9, 0.9, 0])
+    #expect(sides(.mono) == [-0.9, 0, 0.9])
+}

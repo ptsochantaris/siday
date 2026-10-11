@@ -18,7 +18,7 @@
 final class Fountain: VisualScene {
     /// The colours of the analyser's bars, as the flame has them.
     let look = VisualLook.ofNotes
-    /// A note keeps its colour until other colours are asked for.
+    /// A note keeps its colour.
     let drift: Float = 0
 
     /// How fast a light gains speed downward: by so many heights of the picture a second, each

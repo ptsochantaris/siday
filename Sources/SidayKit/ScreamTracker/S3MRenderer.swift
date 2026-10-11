@@ -208,6 +208,10 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { lights.count }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        for light in lights.indices { sides[light] = player.cards.side(of: player.zchn[lights[light]]) }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         self.levels.take(into: levels)
     }

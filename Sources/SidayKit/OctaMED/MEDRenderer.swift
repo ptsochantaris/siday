@@ -321,6 +321,19 @@ public final class MEDRenderer: Renderer {
     /// song in mixing mode has.
     public var channelCount: Int { lights }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        for track in 0 ..< lights {
+            if player.mode == .mixing {
+                // Where the song puts it.
+                sides[track] = player.mixer.side(of: track)
+            } else {
+                // The Amiga's own sides, however near they are brought to one another here. (Of
+                // eight tracks, the fifth shares the first's voice, and so on.)
+                sides[track] = Paula.side(ofVoice: track)
+            }
+        }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         self.levels.take(into: levels)
     }

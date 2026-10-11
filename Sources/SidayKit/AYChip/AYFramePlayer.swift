@@ -189,6 +189,10 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
 
     public var channelCount: Int { chipCount * 3 }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        for chip in 0 ..< chipCount { chips[chip].sides(into: sides + chip * 3) }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         for chip in 0 ..< chipCount { chips[chip].takeLevels(into: levels + chip * 3) }
     }

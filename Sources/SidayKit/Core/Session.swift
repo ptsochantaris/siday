@@ -88,10 +88,14 @@ public final class TuneSession {
     /// See `Renderer.takeChannelNotes`.
     public private(set) var channelPitches: [Float]
     public private(set) var channelStruck: [Bool]
+    /// Which side each voice was heard from in those frames, from -1 on the left to 1 on the right.
+    /// See `Renderer.takeChannelSides`.
+    public private(set) var channelSides: [Float]
     /// The same for the block in which the sound came back after a silence, kept with it.
     private var levelsAhead: [Float]
     private var pitchesAhead: [Float]
     private var struckAhead: [Bool]
+    private var sidesAhead: [Float]
 
     public init(renderer: any Renderer, policy: PlaybackPolicy) {
         self.renderer = renderer
@@ -102,6 +106,8 @@ public final class TuneSession {
         pitchesAhead = channelLevels
         channelStruck = [Bool](repeating: false, count: renderer.channelCount)
         struckAhead = channelStruck
+        channelSides = channelLevels
+        sidesAhead = channelLevels
     }
 
     deinit {
@@ -161,20 +167,21 @@ public final class TuneSession {
                 channelLevels[voice] = levelsAhead[voice]
                 channelPitches[voice] = pitchesAhead[voice]
                 channelStruck[voice] = struckAhead[voice]
+                channelSides[voice] = sidesAhead[voice]
                 // (A note is struck once, though the block it was struck in may be given out in parts.)
                 struckAhead[voice] = false
             }
         }
         if done < frames {
             renderer.render(into: buffer + done * 2, frames: frames - done)
-            takeVoices(levels: &channelLevels, pitches: &channelPitches, struck: &channelStruck, over: done > 0)
+            takeVoices(levels: &channelLevels, pitches: &channelPitches, struck: &channelStruck, sides: &channelSides, over: done > 0)
         }
     }
 
     /// Asks the renderer how loud its voices have been and what they are playing. Where some of the
     /// frames these are for came from somewhere else, each voice keeps the louder of what it has and
-    /// what the renderer says, the later pitch, and a note struck in either.
-    private func takeVoices(levels: inout [Float], pitches: inout [Float], struck: inout [Bool], over: Bool = false) {
+    /// what the renderer says, the later pitch and side, and a note struck in either.
+    private func takeVoices(levels: inout [Float], pitches: inout [Float], struck: inout [Bool], sides: inout [Float], over: Bool = false) {
         let count = levels.count
         guard count > 0 else { return }
         withUnsafeTemporaryAllocation(of: Float.self, capacity: count * 2) { numbers in
@@ -187,6 +194,8 @@ public final class TuneSession {
                     if !over || taken[count + voice] > 0 { pitches[voice] = taken[count + voice] }
                     struck[voice] = marks[voice] || (over && struck[voice])
                 }
+                renderer.takeChannelSides(into: taken)
+                for voice in 0 ..< count { sides[voice] = taken[voice] }
             }
         }
     }
@@ -205,7 +214,7 @@ public final class TuneSession {
         var ahead = 0
         while Double(ahead) / rate < Self.longestPause, Double(framesRendered + ahead) / rate < over {
             renderer.render(into: block, frames: Self.aheadFrames)
-            takeVoices(levels: &levelsAhead, pitches: &pitchesAhead, struck: &struckAhead)
+            takeVoices(levels: &levelsAhead, pitches: &pitchesAhead, struck: &struckAhead, sides: &sidesAhead)
             // Sound from after the place where the tune goes round is the tune beginning again.
             if renderer.hasEnded || renderer.loopCount >= max(1, policy.loops) { return false }
             if Self.swing(block, frames: Self.aheadFrames) >= 0.0005 {

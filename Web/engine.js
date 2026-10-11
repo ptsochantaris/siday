@@ -127,8 +127,8 @@ function render() {
   // Asked for first, as below.
   const taken = core.siday_lights();
   const count = shown.length;
-  // Three rows: a light for each voice, its pitch, and whether a note was started on it.
-  const voices = new Uint8Array(core.memory.buffer, taken, count * 3).slice();
+  // Four rows: a light for each voice, its pitch, whether a note was started on it, and its side.
+  const voices = new Uint8Array(core.memory.buffer, taken, count * 4).slice();
   for (let voice = 0; voice < count; voice++) if (voices[voice] >= heard) shown[voice] = true;
   kept.push({ samples, position: core.siday_position(), last, voices });
   if (last) finish();

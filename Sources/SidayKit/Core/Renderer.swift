@@ -76,6 +76,13 @@ public protocol Renderer: AnyObject {
     /// What each voice is playing: its pitch now (see `ChannelPitch`; nought for a voice with none),
     /// and whether a note has been started on it since this was last asked. `channelCount` of each.
     func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>)
+    /// Which side the tune has each voice on now: from -1, all on the left, to 1, all on the right.
+    /// Nought is the middle, and is what every voice has in a tune that has no sides. `channelCount`
+    /// of them. A module's voices are where the module puts them, and an Amiga's where the Amiga
+    /// has them, whether or not the tune is being heard in mono or with its sides brought nearer
+    /// together; the AY chip's three are where they are heard, or would be if it were heard in
+    /// stereo. None of it depends on what the tune is being listened to through.
+    func takeChannelSides(into sides: UnsafeMutablePointer<Float>)
 }
 
 public extension Renderer {
@@ -97,6 +104,9 @@ public extension Renderer {
             pitches[voice] = 0
             struck[voice] = false
         }
+    }
+    func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        for voice in 0 ..< channelCount { sides[voice] = 0 }
     }
 }
 

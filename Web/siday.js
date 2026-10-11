@@ -284,7 +284,7 @@ function heard(message) {
         shownFor = asked;
         // (One list and not two: handed two, the Swift side gets them the wrong way round.)
         const voices = message.voices ?? [];
-        listeners?.progress(message.position, [...message.bars, ...voices], voices.length / 3);
+        listeners?.progress(message.position, [...message.bars, ...voices], voices.length / 4);
       }, seconds * 1000);
       break;
     }

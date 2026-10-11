@@ -247,6 +247,23 @@ final class ST3Cards {
         }
     }
 
+    /// Where a channel of samples lies between the two sides, from -1 on the left to 1 on the right.
+    func side(of ch: ST3Channel) -> Float {
+        let channel = Int(ch.channelnum)
+        guard stereo, channel < 16 else { return 0 }
+        switch card {
+        case .gus:
+            let balance = ch.apanpos >= 0xF0 ? ch.apanpos & 0x0F : stchannelpan[channel]
+            return (Float(balance) - 7.5) / 7.5
+        case .sb:
+            // The Sound Blaster has a channel on one side or the other, or on both.
+            let mixtype = ch.amixtype
+            if mixtype == 0 || mixtype == 2 { return channel >= 8 ? -1 : 1 }
+            if mixtype == 1 || mixtype == 3 { return channel < 8 ? -1 : 1 }
+            return 0
+        }
+    }
+
     /// After a tick: what has changed on a channel is told to the card.
     func gusUpdate(_ ch: ST3Channel, stereo: Bool) {
         if ch.aguschannel >= 0 {

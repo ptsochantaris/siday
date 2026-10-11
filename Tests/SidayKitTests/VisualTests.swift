@@ -170,18 +170,35 @@ private func copy(_ visualiser: Visualiser) -> [UInt8] {
     #expect(later.green > 180 && later.green > later.red + 60)
 }
 
-@Test func coloursAskedForComeSlowly() {
-    let visualiser = Visualiser(mode: .lava)
+@Test func auroraChangesColourByItselfTooSlowlyToSee() {
+    let visualiser = Visualiser(mode: .aurora)
     visualiser.resize(width: 160, height: 92)
-    watch(visualiser, seconds: 5, levels: [0.8, 0.8], pitches: [55, 70])
-    func difference(_ a: [UInt8], _ b: [UInt8]) -> Int { zip(a, b).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) } }
-    let settled = copy(visualiser)
-    visualiser.shuffle()
-    visualiser.paint(at: 5)
-    // The frame after asking is all but the same picture.
-    #expect(difference(settled, copy(visualiser)) < 160 * 92 * 3 * 4)
-    watch(visualiser, from: 5, seconds: 8, levels: [0.8, 0.8], pitches: [55, 70])
-    #expect(difference(settled, copy(visualiser)) > 160 * 92 * 3 * 4)
+    /// The colour of the band: the mean red, green and blue of the bright dots.
+    func band() -> (red: Int, green: Int, blue: Int) {
+        let picture = copy(visualiser)
+        var red = 0, green = 0, blue = 0, count = 0
+        for at in stride(from: 0, to: picture.count, by: 4) where max(picture[at], picture[at + 1], picture[at + 2]) > 110 {
+            red += Int(picture[at])
+            green += Int(picture[at + 1])
+            blue += Int(picture[at + 2])
+            count += 1
+        }
+        return count > 0 ? (red / count, green / count, blue / count) : (0, 0, 0)
+    }
+    // Long enough for the band to have crossed the sky.
+    watch(visualiser, seconds: 16, levels: [0.8], pitches: [60])
+    // It starts out green, and is by now a little on the way to blue: green and blue, and little red.
+    let first = band()
+    #expect(first.green > 100 && first.blue > 100 && min(first.green, first.blue) > first.red + 50)
+    // A second on, it is as good as the same colour.
+    watch(visualiser, from: 16, seconds: 1, levels: [0.8], pitches: [60])
+    let next = band()
+    #expect(abs(next.red - first.red) < 8 && abs(next.green - first.green) < 8 && abs(next.blue - first.blue) < 8)
+    // A minute and a half on it is three tenths of the way further round the wheel, where there
+    // is red and blue, and little green.
+    watch(visualiser, from: 17, seconds: 90, levels: [0.8], pitches: [60])
+    let later = band()
+    #expect(later.red > 100 && later.blue > 100 && min(later.red, later.blue) > later.green + 50)
 }
 
 @Test func auroraFadesToItsEdges() {
@@ -646,4 +663,277 @@ private func flight(_ visualiser: Visualiser, from start: Double = 0, seconds: D
     // They leave by a spout in the middle, and come down all along the picture.
     #expect(leaving.count > 4 && leaving.lowerBound > 85 && leaving.upperBound < 115)
     #expect(landing.lowerBound < 50 && landing.upperBound > 150)
+}
+
+/// What there is of the rain's drops in the picture: how many dots are lit, the rows and columns
+/// they lie within, and the column they are balanced about.
+private func rain(_ visualiser: Visualiser) -> (dots: Int, top: Int, bottom: Int, left: Int, right: Int, middle: Double) {
+    guard let pixels = visualiser.pixels else { return (0, 0, 0, 0, 0, 0) }
+    var dots = 0, top = visualiser.height, bottom = -1, left = visualiser.width, right = -1, columns = 0
+    for row in 0 ..< visualiser.height {
+        for column in 0 ..< visualiser.width {
+            let at = (row * visualiser.width + column) * 4
+            guard max(pixels[at], pixels[at + 1], pixels[at + 2]) > 70 else { continue }
+            dots += 1
+            top = min(top, row)
+            bottom = max(bottom, row)
+            left = min(left, column)
+            right = max(right, column)
+            columns += column
+        }
+    }
+    return (dots, top, bottom, left, right, dots > 0 ? Double(columns) / Double(dots) : 0)
+}
+
+/// Strikes a note on the rain's one voice and watches its drop for some seconds, at thirty frames
+/// a second: what is seen of it in each frame.
+private func drop(_ visualiser: Visualiser, from start: Double = 0, seconds: Double, level: Float, then later: Float? = nil,
+                  pitch: Float = 60, side: Float = 0, sideThen: Float? = nil) -> [(dots: Int, top: Int, bottom: Int, left: Int, right: Int, middle: Double)] {
+    (0 ..< Int(seconds * 30)).map { frame in
+        visualiser.hear(levels: [frame == 0 ? level : later ?? level], pitches: [pitch], struck: [frame == 0], sides: [frame == 0 ? side : sideThen ?? side])
+        visualiser.paint(at: start + Double(frame) / 30)
+        return rain(visualiser)
+    }
+}
+
+/// The places where a row of numbers turns: each least and each most of them in turn, taking no
+/// notice of a turn of less than three.
+private func turns(_ numbers: [Double]) -> (least: [Double], most: [Double]) {
+    guard var extreme = numbers.first else { return ([], []) }
+    var least: [Double] = [], most: [Double] = []
+    var falling: Bool?
+    for number in numbers {
+        switch falling {
+        case nil:
+            if number <= extreme - 3 { falling = true } else if number >= extreme + 3 { falling = false } else { continue }
+            extreme = number
+        case true?:
+            if number < extreme {
+                extreme = number
+            } else if number >= extreme + 3 {
+                least.append(extreme)
+                falling = false
+                extreme = number
+            }
+        case false?:
+            if number > extreme {
+                extreme = number
+            } else if number <= extreme - 3 {
+                most.append(extreme)
+                falling = true
+                extreme = number
+            }
+        }
+    }
+    return (least, most)
+}
+
+@Test func rainFallsFromTheTopForANoteStruck() {
+    let visualiser = Visualiser(mode: .rain)
+    visualiser.resize(width: 160, height: 100)
+    // Nothing while nothing sounds, and nothing for a voice that only holds what it has.
+    watch(visualiser, seconds: 1, levels: [0], pitches: [0])
+    #expect(rain(visualiser).dots == 0)
+    watch(visualiser, from: 1, seconds: 1, levels: [1], pitches: [60])
+    #expect(rain(visualiser).dots == 0)
+    // A note struck is a drop at the top of the picture, a thin one, and it falls straight down:
+    // it is at the bottom in two thirds of a second.
+    let fall = drop(visualiser, from: 2, seconds: 0.6, level: 1)
+    let begun = fall[5], later = fall[14]
+    #expect(begun.dots > 6 && begun.top < 20 && begun.bottom < 40)
+    #expect(later.dots > 6 && later.top > 40 && later.bottom < 99)
+    for seen in fall.dropFirst() { #expect(seen.right - seen.left < 5 && abs(seen.middle - begun.middle) < 1) }
+    #expect(drop(visualiser, from: 2.6, seconds: 0.1, level: 1).last?.bottom == 99)
+}
+
+@Test func rainDropIsAsBrightAtItsTailAsAtItsHead() {
+    // A drop is its way of the last moment, all of one brightness: of the rows it is in as it
+    // falls, all but those at its two round ends are as bright as anything in it.
+    let visualiser = Visualiser(mode: .rain)
+    visualiser.resize(width: 160, height: 100)
+    _ = drop(visualiser, seconds: 0.4, level: 1)
+    guard let pixels = visualiser.pixels else { return }
+    var lit = 0, bright = 0
+    for row in 0 ..< 100 {
+        let most = (0 ..< 160).map { column in max(pixels[(row * 160 + column) * 4], pixels[(row * 160 + column) * 4 + 1], pixels[(row * 160 + column) * 4 + 2]) }.max() ?? 0
+        if most > 70 { lit += 1 }
+        if most > 235 { bright += 1 }
+    }
+    #expect(lit >= 10 && lit < 30 && bright >= lit - 3)
+}
+
+@Test func rainBouncesAsHighAsItsNoteIsLoud() {
+    /// The highest row a drop reaches once it has met the bottom.
+    func top(level: Float, then later: Float? = nil) -> Int {
+        let visualiser = Visualiser(mode: .rain)
+        visualiser.resize(width: 160, height: 100)
+        return drop(visualiser, seconds: 4, level: level, then: later).dropFirst(23).map(\.top).min() ?? 0
+    }
+    let loud = top(level: 1), less = top(level: 0.8), quiet = top(level: 0.3)
+    #expect(loud < 15)
+    // As in the fountain, it is the loudest notes that are furthest apart.
+    #expect(less > 40 && less < 65)
+    #expect(quiet > 80 && quiet < 95)
+    // A note that is louder a moment after it is struck than at the moment itself bounces as high
+    // as it has turned out to be loud.
+    #expect(top(level: 0.2, then: 1) < 15)
+}
+
+@Test func rainBouncesLessHighEachTimeAndFallsAway() {
+    let visualiser = Visualiser(mode: .rain)
+    visualiser.resize(width: 160, height: 100)
+    let seen = drop(visualiser, seconds: 9, level: 1)
+    // The tops of its bounces, one after another, as far as they are well clear of the bottom:
+    // each is lower in the picture than the last, by nearly half. (A drop at the bottom of the
+    // picture has its top edge in row 97.)
+    let tops = turns(seen.dropFirst(23).prefix { $0.dots > 0 }.map { Double($0.top) }).least
+    #expect(tops.count >= 5)
+    for (higher, lower) in zip(tops.prefix(4), tops.dropFirst()) {
+        #expect((97 - lower) < (97 - higher) * 0.65 && (97 - lower) > (97 - higher) * 0.45)
+    }
+    // It is there for some six seconds, and then it is gone, out of the bottom of the picture.
+    #expect(seen[180].dots > 0)
+    #expect(seen[240].dots == 0 && seen[269].dots == 0)
+}
+
+@Test func rainGoesFasterSidewaysTheHigherItsNote() {
+    /// How far a drop goes from side to side in the first second after it has met the bottom, in a
+    /// tune that goes from 40 to 90.
+    func travel(of pitch: Float) -> Double {
+        let visualiser = Visualiser(mode: .rain)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        let seen = drop(visualiser, from: 0.2, seconds: 2, level: 1, pitch: pitch).map(\.middle)
+        return zip(seen[24 ..< 54], seen[25 ..< 55]).reduce(0) { $0 + abs($1.1 - $1.0) }
+    }
+    // A tenth of the picture's height a second for the lowest note, all of it for the highest.
+    let low = travel(of: 40), middle = travel(of: 65), high = travel(of: 90)
+    #expect(low > 5 && low < 15)
+    #expect(middle > 40 && middle < 65)
+    #expect(high > 80 && high < 110)
+}
+
+@Test func rainBouncesToEitherSide() {
+    // Sixteen notes, each after the last one's drop has gone: some go off to the left and some to the right.
+    let visualiser = Visualiser(mode: .rain)
+    visualiser.resize(width: 160, height: 100)
+    var left = 0, right = 0
+    for note in 0 ..< 16 {
+        let seen = drop(visualiser, from: Double(note) * 3, seconds: 3, level: 0.6)
+        #expect(seen[89].dots == 0)
+        if seen[27].middle < seen[22].middle - 1 { left += 1 }
+        if seen[27].middle > seen[22].middle + 1 { right += 1 }
+    }
+    #expect(left + right == 16 && left >= 4 && right >= 4)
+}
+
+@Test func rainBouncesToTheSideItsNoteIsHeardFrom() {
+    /// How many of sixteen notes' drops go off to the left, and how many to the right.
+    func ways(side: Float, then later: Float? = nil) -> (left: Int, right: Int) {
+        let visualiser = Visualiser(mode: .rain)
+        visualiser.resize(width: 160, height: 100)
+        var left = 0, right = 0
+        for note in 0 ..< 16 {
+            let seen = drop(visualiser, from: Double(note) * 3, seconds: 3, level: 0.6, side: side, sideThen: later)
+            if seen[27].middle < seen[22].middle - 1 { left += 1 }
+            if seen[27].middle > seen[22].middle + 1 { right += 1 }
+        }
+        return (left, right)
+    }
+    // All one way for a note on one side, however little; as chance has it for one in the middle.
+    #expect(ways(side: -1) == (16, 0))
+    #expect(ways(side: 1) == (0, 16))
+    #expect(ways(side: -0.2) == (16, 0))
+    #expect(ways(side: 0.2) == (0, 16))
+    let middle = ways(side: 0.02)
+    #expect(middle.left >= 4 && middle.right >= 4)
+    // A note is not always where it will be at the moment it is struck: it is where it has turned
+    // out to be that counts.
+    #expect(ways(side: -1, then: 1) == (0, 16))
+}
+
+@Test func rainDropIsDimmerAfterEachBounce() {
+    // The brightest there is of a drop: as bright as can be until it has bounced twice, and then
+    // less so with each bounce, though never all at once, and never dark.
+    let visualiser = Visualiser(mode: .rain)
+    visualiser.resize(width: 160, height: 100)
+    var brightest: [Int] = []
+    for frame in 0 ..< 200 {
+        visualiser.hear(levels: [1], pitches: [60], struck: [frame == 0])
+        visualiser.paint(at: Double(frame) / 30)
+        let seen = fountain(visualiser)
+        brightest.append(max(seen.red, seen.green, seen.blue))
+    }
+    // It meets the bottom at two thirds of a second, and again two seconds after that.
+    #expect(brightest[10] > 240 && brightest[70] > 240)
+    #expect(brightest[110] < 215 && brightest[110] > 180)
+    #expect(brightest[190] < 130 && brightest[190] > 60)
+    for (before, after) in zip(brightest.dropFirst(20), brightest.dropFirst(21)) { #expect(after <= before + 6 && after >= before - 14) }
+}
+
+@Test func rainTurnsBackAtTheSides() {
+    // The highest note there is, in a picture no wider than it is tall, which it would cross in a
+    // second: it is never lost at a side, and goes back and forth for as long as it bounces.
+    let visualiser = Visualiser(mode: .rain)
+    visualiser.resize(width: 100, height: 100)
+    let seen = drop(visualiser, seconds: 6, level: 1, pitch: 82)
+    for one in seen.dropFirst() { #expect(one.dots > 6 && one.left >= 0 && one.right <= 99) }
+    let sides = turns(seen.dropFirst(23).map(\.middle))
+    #expect(sides.least.count >= 2 && sides.most.count >= 2)
+    for side in sides.least { #expect(side < 12) }
+    for side in sides.most { #expect(side > 88) }
+}
+
+@Test func rainDropIsTheColourOfItsNote() {
+    /// The colour of the drop of a note, in a tune that goes from 40 to 90.
+    func colour(of pitch: Float) -> (dots: Int, top: Int, red: Int, green: Int, blue: Int) {
+        let visualiser = Visualiser(mode: .rain)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        watch(visualiser, from: 0.2, seconds: 0.4, levels: [1], pitches: [pitch], strike: true)
+        return fountain(visualiser)
+    }
+    // As the fountain's lights are: red at the bottom, green in the middle, violet at the top, and
+    // pale for what has no pitch.
+    let low = colour(of: 40), middle = colour(of: 65), high = colour(of: 90), drum = colour(of: 0)
+    #expect(low.red > 200 && low.red > low.green + 80 && low.red > low.blue + 120)
+    #expect(middle.green > 200 && middle.green > middle.red + 120 && middle.green > middle.blue + 80)
+    #expect(high.blue > 200 && high.blue > high.red + 20 && high.blue > high.green + 120)
+    #expect(drum.red > 120 && abs(drum.red - drum.green) < 30 && abs(drum.red - drum.blue) < 30)
+}
+
+@Test func rainLetsNoMoreThanEightDropsFallASecond() {
+    /// How many drops are falling half a second after a voice begins striking a note every so many
+    /// frames: how many separate things are lit, each of them all in one piece.
+    func drops(every frames: Int) -> Int {
+        let visualiser = Visualiser(mode: .rain)
+        visualiser.resize(width: 160, height: 200)
+        for frame in 0 ..< 30 {
+            visualiser.hear(levels: [1], pitches: [60], struck: [frame % frames == 0])
+            visualiser.paint(at: Double(frame) / 60)
+        }
+        guard let pixels = visualiser.pixels else { return 0 }
+        var lit = (0 ..< 160 * 200).map { max(pixels[$0 * 4], pixels[$0 * 4 + 1], pixels[$0 * 4 + 2]) > 70 }
+        var pieces = 0
+        for start in lit.indices where lit[start] {
+            pieces += 1
+            var waiting = [start]
+            lit[start] = false
+            while let at = waiting.popLast() {
+                let row = at / 160, column = at % 160
+                for nextRow in max(0, row - 1) ... min(199, row + 1) {
+                    for nextColumn in max(0, column - 1) ... min(159, column + 1) where lit[nextRow * 160 + nextColumn] {
+                        lit[nextRow * 160 + nextColumn] = false
+                        waiting.append(nextRow * 160 + nextColumn)
+                    }
+                }
+            }
+        }
+        return pieces
+    }
+    // Four notes a second are two drops in half a second. Thirty a second are four, and not one or fifteen.
+    #expect(drops(every: 15) == 2)
+    #expect(drops(every: 2) == 4)
 }

@@ -183,6 +183,11 @@ public final class AHXRenderer: Renderer, ReferenceComparable {
     /// Paula's four voices.
     public var channelCount: Int { 4 }
 
+    public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        // The Amiga's own sides, however near they are brought to one another here.
+        for voice in 0 ..< 4 { sides[voice] = Paula.side(ofVoice: voice) }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         self.levels.take(into: levels)
     }
