@@ -49,6 +49,11 @@ final class ST3Module {
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An S3M file
     /// from a later tracker may have what Scream Tracker never had.
     private(set) var shortfalls: [String] = []
+    /// The samples that are in stereo: which they are, and each as Scream Tracker has it, its left
+    /// side alone, and with its two sides mixed into one. See `playStereoSamples`.
+    /// (And where the file says a loop of it was last written out again, which putting a sample
+    /// in order changes.)
+    private var inStereo: [(instrument: Int, left: [Int16], mixed: [Int16], lend512: UInt16)] = []
 
     deinit {
         samples.deallocate()
@@ -156,16 +161,14 @@ final class ST3Module {
         samples.initialize(repeating: 0, count: samplesCount)
         let unsigned = ffv != 1
         for i in 0 ..< insnum where ins[i].baseptr >= 0 {
-            let base = ins[i].baseptr, from = offsets[i]
-            if ins[i].flags & 4 != 0 {
-                for k in 0 ..< Int(ins[i].length) {
-                    let value = UInt16(f[from + k * 2]) | UInt16(f[from + k * 2 + 1]) << 8
-                    samples[base + k] = Int16(bitPattern: unsigned ? value ^ 0x8000 : value)
-                }
-            } else {
-                for k in 0 ..< Int(ins[i].length) {
-                    samples[base + k] = Int16(Int8(bitPattern: unsigned ? f[from + k] ^ 0x80 : f[from + k])) << 8
-                }
+            let base = ins[i].baseptr, length = Int(ins[i].length), sixteenBit = ins[i].flags & 4 != 0
+            let left = Self.side(f, from: offsets[i], length: length, sixteenBit: sixteenBit, unsigned: unsigned)
+            for k in 0 ..< length { samples[base + k] = left[k] }
+            // A sample in stereo has its right side after its left, if the file goes on that far.
+            let bytes = length * (sixteenBit ? 2 : 1)
+            if ins[i].flags & 2 != 0, length > 0, offsets[i] + bytes * 2 <= data.count {
+                let right = Self.side(f, from: offsets[i] + bytes, length: length, sixteenBit: sixteenBit, unsigned: unsigned)
+                inStereo.append((i, left, (0 ..< length).map { k in Int16((Int(left[k]) + Int(right[k])) >> 1) }, ins[i].lend512))
             }
         }
 
@@ -185,6 +188,35 @@ final class ST3Module {
         noteWhatIsNotPlayed(f, insoff)
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         for i in 0 ..< Self.mostInstruments { checkins(i) }
+        playStereoSamples(asScreamTracker: false)
+    }
+
+    /// Says how samples in stereo are to be played. Scream Tracker knows nothing of them, and no
+    /// file of its own has one: it plays the left side, which comes first in the file, and never
+    /// gets to the right. The trackers that came after it, which are the ones that make such
+    /// samples, play the two sides together, and that is how they are played here, mixed into one
+    /// since Scream Tracker's sound cards have no way to keep them apart. They can be had as
+    /// Scream Tracker has them for setting what is played beside the player this is ported from.
+    func playStereoSamples(asScreamTracker: Bool) {
+        for one in inStereo {
+            let base = ins[one.instrument].baseptr, sides = asScreamTracker ? one.left : one.mixed
+            // As the file has it, with nothing after its end, and then put in order afresh.
+            for k in 0 ..< sides.count { samples[base + k] = sides[k] }
+            for k in sides.count ..< sides.count + 512 + 2 { samples[base + k] = 0 }
+            ins[one.instrument].lend512 = one.lend512
+            checkins(one.instrument)
+        }
+    }
+
+    /// One side of a sample, as it lies in the file from a place on.
+    private static func side(_ f: ByteReader, from: Int, length: Int, sixteenBit: Bool, unsigned: Bool) -> [Int16] {
+        if sixteenBit {
+            return (0 ..< length).map { k in
+                let value = UInt16(f[from + k * 2]) | UInt16(f[from + k * 2 + 1]) << 8
+                return Int16(bitPattern: unsigned ? value ^ 0x8000 : value)
+            }
+        }
+        return (0 ..< length).map { k in Int16(Int8(bitPattern: unsigned ? f[from + k] ^ 0x80 : f[from + k])) << 8 }
     }
 
     /// The commands of later trackers that are found in S3M files and that Scream Tracker passes
@@ -218,19 +250,19 @@ final class ST3Module {
                 }
             }
         }
-        // A sample in stereo has its right side after its left in the file, and Scream Tracker,
-        // which knows nothing of it, plays the left. A packed one it reads as if it were not.
+        // A sample in stereo is not played as two: see `playStereoSamples`. A packed one is read
+        // as if it were not.
         var stereo = 0, packed = 0, drums = 0
         for i in 0 ..< insnum where used[i + 1] {
             let o = insoff[i] << 4
             if ins[i].type == 1, ins[i].length > 0, ins[i].baseptr >= 0 {
-                if ins[i].flags & 2 != 0 { stereo += 1 }
+                if inStereo.contains(where: { $0.instrument == i }) { stereo += 1 }
                 if f[o + 30] != 0 { packed += 1 }
             }
             if ins[i].type >= 3, ins[i].type <= 7 { drums += 1 }
         }
         if stereo > 0 {
-            shortfalls.append(Shortfall.some(stereo, one: "samples is in stereo, and only its left side is played.", many: "samples are in stereo, and only their left sides are played."))
+            shortfalls.append(Shortfall.some(stereo, one: "samples is in stereo, and is heard with its two sides mixed into one.", many: "samples are in stereo, and are heard with their two sides mixed into one."))
         }
         if packed > 0 {
             shortfalls.append(Shortfall.some(packed, one: "samples is packed, which Scream Tracker's never were: it is not heard as it should be.",

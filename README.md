@@ -401,9 +401,13 @@ which are the same thing to a module) has its two sides brought most of the way 
 of the Amiga's separation, which is what pt2-clone does unless told otherwise;
 `--amiga-separation 100` gives the Amiga's own, and mono or a television brings them together entirely. Files from other trackers of the family have the few effects they meant differently turned
 into ProTracker's as they are read. One effect is left out, as it is in pt2-clone: E8x, which filters
-a sample in place, because nearly every module that has it means something else by it. A tune ends
+a sample in place, because nearly every module that has it means something else by it. ProTracker has
+room for 64 KB of each sample and plays no more of a longer one. No file of its own has one, but
+files from other trackers do, since the Amiga's sound chip can be told to play twice that and the
+routines that played modules outside the tracker did so: a longer sample is played whole. A tune ends
 where it would play a row it has played before. `siday --raw file.raw tune.mod` writes the tune as
-pt2-clone writes one to a file, sixteen bits with its dither, and the two agree to the sample.
+pt2-clone writes one to a file, sixteen bits with its dither and a long sample cut off where ProTracker
+cuts it, and the two agree to the sample.
 
 A MED module is played as OctaMED played it. The players here are not ports: OctaMED's own are not
 free to copy, so these were written afresh and then held to them. OctaMED's players were run in an
@@ -619,8 +623,10 @@ which card it was saved with, and is played on that one; any other is played on 
 `--s3m-card` asks for either. Scream Tracker's samples were eight bits and no longer than 64,000
 bytes; files from later trackers have sixteen-bit and longer ones, which are played as they stand,
 and samples tuned higher than Scream Tracker had room to write down, which are played at the pitch
-they say and not at the highest Scream Tracker could have given them.
-`siday --raw file.raw tune.s3m` writes what st3play writes to a file. The two agree to the sample when
+they say and not at the highest Scream Tracker could have given them. They have samples in stereo
+too, the right side after the left, of which Scream Tracker would play the left alone: the two are
+played together, mixed into one, since its cards have no way to keep them apart.
+`siday --raw file.raw tune.s3m` writes what st3play writes to a file, a stereo sample's left side only. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.
 

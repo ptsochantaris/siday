@@ -242,6 +242,12 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and
     /// right in turn, with that player's dither. For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {
+        // (That player has a sample in stereo as Scream Tracker has it: its left side alone.)
+        module.playStereoSamples(asScreamTracker: true)
+        defer {
+            module.playStereoSamples(asScreamTracker: false)
+            restart()
+        }
         restart()
         var output: [Int16] = []
         output.reserveCapacity(frames * 2)
@@ -261,7 +267,6 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
                 tickPosition += 1
             }
         }
-        restart()
         return output
     }
 }

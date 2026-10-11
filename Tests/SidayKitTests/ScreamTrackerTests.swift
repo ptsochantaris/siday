@@ -74,6 +74,30 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     zip(samples, samples.dropFirst()).count { $0 < 0 && $1 >= 0 }
 }
 
+@Test func s3mSampleInStereoIsPlayedWithItsSidesTogether() throws {
+    // The square wave said to be in stereo, with a right side after it in the file that is low
+    // where the left is high and high where it is low. Played as the trackers that make such
+    // samples play them, the two together are silence; played as Scream Tracker would, which
+    // knows only of the left, it is the square wave still.
+    for sixteen in [false, true] {
+        var file = s3m(sixteen: sixteen)
+        file[0x70 + 31] |= 2
+        let side = sixteen ? 64 : 32
+        for k in 0 ..< side { file[0x200 + side + k] = file[0x200 + k] ^ 0xFF }
+        let renderer = try #require(try TuneLoader.load(file, format: .s3m) as? S3MRenderer)
+        #expect(stereoSound(renderer, seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
+        #expect(renderer.renderRaw(frames: 24000).map { abs(Int($0)) }.max()! > 500)
+        // And afterwards it is played as before.
+        #expect(stereoSound(renderer, seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
+    }
+    // A file that ends before the right side does has only the left, and that is played.
+    var short = s3m()
+    short[0x70 + 31] |= 2
+    short = Array(short[..<0x230])
+    let sound = stereoSound(try TuneLoader.load(short, format: .s3m), seconds: 0.5).left
+    #expect(sound[4800...].map(abs).max()! > 0.02)
+}
+
 @Test func s3mNoteSoundsAtItsPitchOnTheCardItWasWrittenFor() throws {
     // C-4 plays a sample at 8363 samples a second, and the square wave is 32 of them: 261 Hz.
     let gus = try TuneLoader.load(s3m(), format: .s3m)
@@ -225,7 +249,7 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     var stereo = s3m()
     stereo[0x70 + 31] |= 2
     stereo[0xC0 + 31] |= 2
-    #expect(try shortfalls(stereo) == ["One of its samples is in stereo, and only its left side is played."])
+    #expect(try shortfalls(stereo) == ["One of its samples is in stereo, and is heard with its two sides mixed into one."])
     // One of the AdLib card's drums, which Scream Tracker never came to play.
     var drum = s3m(row: [0x20, 0x40, 2], fm: true)
     drum[0xC0] = 3
