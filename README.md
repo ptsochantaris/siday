@@ -576,7 +576,13 @@ instrument between the speakers where the module says. FastTracker itself reads 
 channels and only an even number; files from later trackers have any number, and are played the same
 way. One thing is done as those later trackers did it. A sample can be in stereo in a file of theirs,
 its two sides one after the other, and to FastTracker that is one long sample: here the two sides are
-played together, mixed into one, since that mixer has no way to keep them apart. A tune ends where it
+played together, mixed into one, since that mixer has no way to keep them apart. And they have a
+command to sweep a channel from side to side, Y, with X5 to choose its wave, which is played as
+OpenMPT plays it. That is for a file that gives itself away as another tracker's: by saying so, or,
+where it says FastTracker as ModPlug Tracker's files do, by a name padded with nothing instead of
+spaces or by what ModPlug Tracker writes after all that FastTracker reads. FastTracker lets any
+letter be typed for a command, and in a file of its own a letter it has no command for is
+nothing, as it was to FastTracker: often a mark for a demo to keep time by. A tune ends where it
 would play a row it has played before. `siday --raw file.raw tune.xm` writes
 what ft2play writes to a file, stereo samples as it has them, and the two agree to the sample.
 

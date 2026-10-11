@@ -90,9 +90,10 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
-    private func restart() {
+    /// - Parameter asFastTracker: as the player this is ported from plays the file, for `renderRaw`.
+    private func restart(asFastTracker: Bool = false) {
         let song = songList[currentSubsong]
-        player = FT2Player(module, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
+        player = FT2Player(module, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asFastTracker: asFastTracker)
         tickFrames = 0
         tickPosition = 0
         loopCount = 0
@@ -157,7 +158,7 @@ public final class XMRenderer: Renderer, ReferenceComparable {
             module.playStereoSamples(asFastTracker: false)
             restart()
         }
-        restart()
+        restart(asFastTracker: true)
         var output: [Int16] = []
         output.reserveCapacity(frames * 2)
         while output.count < frames * 2 {

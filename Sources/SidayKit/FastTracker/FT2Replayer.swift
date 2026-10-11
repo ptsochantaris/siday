@@ -80,6 +80,11 @@ final class FT2Channel {
     var volKolVol: UInt8 = 0, tonNr: UInt8 = 0, envPPos: UInt8 = 0, eVibPos: UInt8 = 0, envVPos: UInt8 = 0
     var realVol: UInt8 = 0, oldVol: UInt8 = 0, outVol: UInt8 = 0
     var oldPan: UInt8 = 0, outPan: UInt8 = 0, finalPan: UInt8 = 0
+    /// For a file that a later tracker made (see `FT2Player.playsLaterCommands`): a sweep from
+    /// side to side, how far through its wave it is, how fast it goes and how far, which wave it
+    /// is, and whether the last tick was swept.
+    var sweepPos: UInt8 = 0, sweepSpeed: UInt8 = 0, sweepDepth: UInt8 = 0, sweepWave: UInt8 = 0
+    var swept = false
     var envSustainActive = false
     var envVIPValue: Int16 = 0, envPIPValue: Int16 = 0
     var outPeriod: UInt16 = 0, realPeriod: UInt16 = 0, finalPeriod: UInt16 = 0, finalVol: UInt16 = 0
@@ -558,6 +563,8 @@ extension FT2Player {
     func xFinePorta(_ ch: FT2Channel, _ value: UInt8) {
         let type = value >> 4
         var param = value & 0x0F
+        // (X5x in a later tracker's file chooses the wave of a sweep from side to side.)
+        if type == 0x5, playsLaterCommands { ch.sweepWave = param & 7 }
         if type == 0x1 {
             if param == 0 { param = ch.ePortaUpSpeed }
             ch.ePortaUpSpeed = param
@@ -645,8 +652,40 @@ extension FT2Player {
         case 16: setGlobaVol(param)
         case 21: setEnvelopePos(ch, param)
         case 33: xFinePorta(ch, param)
+        case 34:
+            // Yxy in a later tracker's file: a sweep from side to side, x its speed and y its depth,
+            // and a digit of nothing the last there was.
+            if playsLaterCommands {
+                if param & 0x0F != 0 { ch.sweepDepth = param & 0x0F }
+                if param & 0xF0 != 0 { ch.sweepSpeed = param >> 4 }
+            }
         default: break
         }
+    }
+
+    /// A sweep from side to side, in a file that a later tracker made, as OpenMPT plays one in an
+    /// XM file: on every tick of a row that has the command, the channel is moved from where it
+    /// is by the wave's height there (of 127) times the depth, over eight; and the wave is gone
+    /// through a quarter as fast as the speed says, of the 64 places it has.
+    func sweepFromSideToSide(_ ch: FT2Channel) {
+        guard ch.effTyp == 34 else {
+            // (Where it was before the sweep is where it is again, and the mixer is told so.)
+            if ch.swept { ch.status |= IS_Pan }
+            ch.swept = false
+            return
+        }
+        let place = ((Int(ch.sweepPos) + 0x10) >> 2) & 0x3F
+        let height: Int
+        switch ch.sweepWave & 3 {
+        case 1: height = (place < 32 ? 0 : 255) - place * 4
+        case 2: height = place < 32 ? 127 : -127
+        case 3: height = Int(ft2SweepRandom[place])
+        default: height = Int(ft2SweepSine[place])
+        }
+        ch.sweepPos &+= ch.sweepSpeed
+        ch.finalPan = UInt8(max(0, min(255, Int(ch.finalPan) + (height * Int(ch.sweepDepth) + 2) / 8)))
+        ch.status |= IS_Pan
+        ch.swept = true
     }
 
     func fixTonePorta(_ ch: FT2Channel, _ p: FT2Note, _ inst: UInt8) {
@@ -860,6 +899,7 @@ extension FT2Player {
         } else {
             ch.finalPan = ch.outPan
         }
+        if playsLaterCommands { sweepFromSideToSide(ch) }
 
         if ins.vibDepth > 0 {
             var autoVibAmp: UInt16

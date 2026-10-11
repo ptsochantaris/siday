@@ -27,6 +27,13 @@ final class FT2Module {
     /// True for a module in which setting the speed puts the tempo back to 125, and setting the
     /// tempo puts the speed back to 6: MultiTracker's way, and no other tracker's.
     private(set) var speedAndTempoUndoEachOther = false
+    /// True unless the file is an XM file that gives itself away as some other tracker's than
+    /// FastTracker 2: by what it says made it, or, where it says FastTracker, as ModPlug Tracker's
+    /// files do, by a song name padded out with nothing in place of spaces or by what ModPlug
+    /// Tracker writes after all that FastTracker reads. (These are the first of the signs OpenMPT
+    /// goes by. FastTracker lets any letter be typed for a command, and a letter it has no command
+    /// for in a file of its own is nothing: a mark for a demo to keep time by, as often as not.)
+    private(set) var madeByFastTracker = true
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An XM file
     /// from a later tracker may have what FastTracker never had, and is read as FastTracker reads it.
     private(set) var shortfalls: [String] = []
@@ -156,7 +163,14 @@ final class FT2Module {
                 }
             }
         }
-        if !isMOD { noteWhatLaterTrackersAdded(data, after: f.at) }
+        if !isMOD {
+            let saysFastTracker = Array(h[38 ..< 58]) == Array("FastTracker v2.00   ".utf8) && reader.u32le(60) == 276
+            let extras = ByteReader(data)
+            let modPlugWroteMore = f.at + 8 <= data.count && [0x74_78_65_74, 0x49_44_49_4D, 0x4D_41_4E_50, 0x4D_41_4E_43, 0x58_46_48_43, 0x4D_50_54_58, 0x4D_50_54_53]
+                .contains(extras.u32le(f.at)) || (f.at + 4 <= data.count && extras[f.at] == 0x46 && extras[f.at + 1] == 0x58)
+            madeByFastTracker = saysFastTracker && (reader.u16le(58) < 0x0104 || !h[17 ..< 37].contains(0) && !modPlugWroteMore)
+            noteWhatLaterTrackersAdded(data, after: f.at)
+        }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         if song.repS > song.len { song.repS = 0 }
         song.timer = 1
@@ -194,11 +208,12 @@ final class FT2Module {
         for case let pattern? in patt {
             for note in pattern {
                 if note.instr != 0 { used[Int(note.instr)] = true }
-                if note.effTyp == 34 { commands.note(0) }
-                if note.effTyp == 35 || note.effTyp == 36 { commands.note(1) }
+                // (A sweep from side to side, 34, is played in a file that is not FastTracker's
+                // own; and in one that is, both of these are nothing, as they were to FastTracker.)
+                if note.effTyp == 35 || note.effTyp == 36, !madeByFastTracker { commands.note(0) }
             }
         }
-        if let sentence = Shortfall.commandsLeftOut(commands.named(["a sweep from side to side", "the setting of a filter or a plug-in"]),
+        if let sentence = Shortfall.commandsLeftOut(commands.named(["the setting of a filter or a plug-in"]),
                                                     why: "which FastTracker 2 did not have") {
             shortfalls.append(sentence)
         }

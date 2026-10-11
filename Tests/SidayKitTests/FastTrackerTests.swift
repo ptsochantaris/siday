@@ -207,6 +207,41 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     #expect(stereo(try TuneLoader.load(wide, format: .xm), seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
 }
 
+/// A file as FastTracker 2 itself would write it: it says so, and its name is padded with spaces.
+private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
+    var file = file
+    file.replaceSubrange(17 ..< 37, with: Array("a square wave       ".utf8))
+    file.replaceSubrange(38 ..< 58, with: Array("FastTracker v2.00   ".utf8))
+    return file
+}
+
+@Test func xmFromALaterTrackerSweepsFromSideToSide() throws {
+    var options = LoadOptions()
+    options.stereo = .abc
+    /// How loud each side is over the ticks of the first row after the first, and after the row.
+    func sides(_ file: [UInt8]) throws -> (during: (left: Float, right: Float), after: (left: Float, right: Float)) {
+        let sound = stereo(try TuneLoader.load(file, format: .xm, options: options), seconds: 0.5)
+        func peak(_ side: [Float], _ range: Range<Int>) -> Float { side[range].map(abs).max()! }
+        return ((peak(sound.left, 1500 ..< 5500), peak(sound.right, 1500 ..< 5500)), (peak(sound.left, 12000 ..< 24000), peak(sound.right, 12000 ..< 24000)))
+    }
+    // Y8F on the note's row: the wave begins by going to the right, as far as there is.
+    let swept = xm(notes: [0x9B, 49, 1, 34, 0x8F, 0x80])
+    let heard = try sides(swept)
+    #expect(heard.during.right > heard.during.left * 3)
+    // After the row the note is in the middle again.
+    #expect(abs(heard.after.right - heard.after.left) < heard.after.left * 0.02)
+    // In a file of FastTracker's own the letter is nothing, as it is to FastTracker.
+    let itsOwn = try sides(byFastTracker(swept))
+    #expect(abs(itsOwn.during.right - itsOwn.during.left) < itsOwn.during.left * 0.02)
+    #expect(try TuneLoader.load(byFastTracker(swept), format: .xm).info.shortfalls.isEmpty)
+    // And so it is in the other when that is played as the player this is ported from plays it.
+    let renderer = try #require(try TuneLoader.load(swept, format: .xm, options: options) as? XMRenderer)
+    let raw = renderer.renderRaw(frames: 5500)
+    let left = stride(from: 3000, to: raw.count, by: 2).map { abs(Int(raw[$0])) }.max()!
+    let right = stride(from: 3001, to: raw.count, by: 2).map { abs(Int(raw[$0])) }.max()!
+    #expect(left > 100 && abs(left - right) < left / 50)
+}
+
 @Test func xmFromALaterTrackerSaysWhatFastTrackerDoesNotPlay() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .xm).info.shortfalls }
     #expect(try shortfalls(xm()).isEmpty)
@@ -220,9 +255,11 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     packed[packed.count - 32 - 40 + 17] = 0xAD
     #expect(try shortfalls(packed).first?.hasPrefix("One of its samples is packed in a way of ModPlug Tracker's own") == true)
 
-    // A command of ModPlug Tracker's: Z, which is its 35th.
+    // A command of ModPlug Tracker's: Z, which is its 35th. In a file of FastTracker's own it is
+    // a letter that means nothing, and nothing is said of it.
     #expect(try shortfalls(xm(notes: [0x9B, 49, 1, 35, 0x40, 0x80]))
         == ["One of its commands is left out, which FastTracker 2 did not have: the setting of a filter or a plug-in."])
+    #expect(try shortfalls(byFastTracker(xm(notes: [0x9B, 49, 1, 35, 0x40, 0x80]))).isEmpty)
 
     // An instrument sent through a plug-in, which is written after all that FastTracker reads: it
     // has a sample, and that is heard. Sent through a place with no plug-in in it, it loses nothing.

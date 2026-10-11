@@ -35,6 +35,9 @@ final class FT2Player {
     /// Three things that are so only for a module of another tracker's, read into FastTracker's shape:
     /// see `FT2Module.channelPanning`, `FT2Module.speedAndTempoUndoEachOther` and `FT2Module.foreign`.
     let panningIsOfChannels: Bool
+    /// True if commands are played that FastTracker 2 has not got and the trackers after it
+    /// have: for an XM file that another tracker made. So far, a sweep from side to side.
+    let playsLaterCommands: Bool
     let speedAndTempoUndoEachOther: Bool
     /// True if a loop inside a pattern is not to leave the next pattern starting on its row.
     let loopsLeaveNothingBehind: Bool
@@ -86,7 +89,11 @@ final class FT2Player {
     ///   - position: where in the list of patterns to start.
     ///   - firstPlayedBy: for a file of several songs, which of them first played each row.
     ///   - songNumber: which of them this is.
-    init(_ module: FT2Module, position: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0) {
+    ///   - asFastTracker: with nothing done for a file because another tracker made it: what the
+    ///     player this is ported from does, for setting the two side by side.
+    init(_ module: FT2Module, position: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0,
+         asFastTracker: Bool = false) {
+        playsLaterCommands = !module.madeByFastTracker && !asFastTracker
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
         self.module = module

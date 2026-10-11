@@ -483,6 +483,22 @@ one by one, only the few that the source names are followed. Used under the BSD 
 out below, under "OpenMPT — FM Tracker files": Copyright (c) 2004-2026 OpenMPT Project Developers and
 Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
 
+## OpenMPT — commands of later trackers in IT, S3M and XM files
+
+A file of one of the old trackers' kinds that a later tracker made may have commands its own
+tracker never had. Some of them are played, by OpenMPT's rules (`soundlib/Snd_fx.cpp`,
+`Sndmix.cpp`): in an IT file, a sample played backwards and a macro sent a little at a time over a
+row (`IT2OpenMPT.swift`, as for an MPTM file); in an S3M file, a channel's volume, a slide of it and
+a slide of the whole tune's (`laterCommand` in `Sources/SidayKit/ScreamTracker/ST3Effects.swift`);
+in an XM file, a sweep from side to side (`sweepFromSideToSide` in
+`Sources/SidayKit/FastTracker/FT2Replayer.swift`, with its two tables of 64 numbers in
+`FT2Tables.swift`, which are OpenMPT's `ModSinusTable` and `ModRandomTable` from
+`soundlib/Tables.cpp`). The first of the signs by which an XM file is taken not to be FastTracker's
+own are those of `soundlib/Load_xm.cpp`. Changed from the original: carried over from C++ to Swift,
+and each set into another tracker's replayer, which plays the rest as that tracker would. Used
+under the BSD 3-Clause licence set out below, under "OpenMPT — FM Tracker files": Copyright (c)
+2004-2026 OpenMPT Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
+
 ## OpenMPT — FM instruments and built-in plug-ins
 
 Three more things in this player are made from OpenMPT (https://openmpt.org), and are for the files
