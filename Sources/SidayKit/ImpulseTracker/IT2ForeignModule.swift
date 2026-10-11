@@ -129,24 +129,33 @@ enum IT2ForeignModule {
 
     /// The volume column's way of doing what a command does, where it has one that does exactly
     /// that: its slides of volume and of pitch go by one to nine and no more, its slide to a note at
-    /// nine speeds, and its vibrato sets a depth and not a speed.
-    static func volumeColumn(command: UInt8, _ value: UInt8) -> UInt8? {
+    /// nine speeds, and its vibrato sets a depth and not a speed, and no depth over four of the
+    /// command's (with "old effects", as these files are played, the command's depths are twice
+    /// the column's).
+    /// - Parameter nearest: true to have the nearest thing the volume column can do, where it
+    ///   cannot do the very thing: a slide at its fastest for one that is faster, a slide of pitch
+    ///   to the nearest four, a slide to a note at the next speed up, a vibrato of the depth
+    ///   asked for, or the deepest it has, at whatever speed the last had, and a vibrato that
+    ///   only goes on, which beside a note does not start its wave again as the command's does.
+    static func volumeColumn(command: UInt8, _ value: UInt8, nearest: Bool = false) -> UInt8? {
         let high = value >> 4, low = value & 15
         switch command {
         case Command.D:
-            if low == 0, high >= 1, high <= 9 { return 85 + high }
-            if high == 0, low >= 1, low <= 9 { return 95 + low }
-            if low == 15, high >= 1, high <= 9 { return 65 + high }
-            if high == 15, low >= 1, low <= 9 { return 75 + low }
-        case Command.E:
-            if value & 3 == 0, value >= 4, value <= 36 { return 105 + value >> 2 }
-        case Command.F:
-            if value & 3 == 0, value >= 4, value <= 36 { return 115 + value >> 2 }
+            if low == 0, high >= 1, high <= 9 || nearest { return 85 + min(high, 9) }
+            if high == 0, low >= 1, low <= 9 || nearest { return 95 + min(low, 9) }
+            if low == 15, high >= 1, high <= 9 || nearest { return 65 + min(high, 9) }
+            if high == 15, low >= 1, low <= 9 || nearest { return 75 + min(low, 9) }
+        case Command.E, Command.F:
+            let base: UInt8 = command == Command.E ? 105 : 115
+            if value & 3 == 0, value >= 4, value <= 36 { return base + value >> 2 }
+            if nearest, value >= 1, value < 0xE0 { return base + UInt8(max(1, min(9, (Int(value) + 2) / 4))) }
         case Command.G:
             if value == 0 { return 193 }
             if let setting = slideToNoteSpeeds.firstIndex(of: value) { return 194 + UInt8(setting) }
+            if nearest { return 194 + UInt8(slideToNoteSpeeds.firstIndex { $0 >= value } ?? 8) }
         case Command.H:
-            if high == 0, low >= 1, low <= 9 { return 203 + low }
+            if value == 0, nearest { return 203 }
+            if high == 0 || nearest, low >= 1, low <= 4 || nearest { return 203 + min(low * 2, 9) }
         default: break
         }
         return nil
@@ -156,13 +165,20 @@ enum IT2ForeignModule {
     /// and whatever the volume column can do. The first that the volume column cannot do has the
     /// command's place, and the volume column takes another if it is free and can; a place between
     /// the speakers goes wherever is left. Says how many had nowhere to go.
-    static func place(commands: [(command: UInt8, value: UInt8)], pan: UInt8?, in cell: inout Cell) -> Int {
+    /// - Parameter nearest: true to let the volume column do the nearest thing it can for a
+    ///   command that would otherwise be left out (see `volumeColumn(command:_:nearest:)`).
+    static func place(commands: [(command: UInt8, value: UInt8)], pan: UInt8?, in cell: inout Cell, nearest: Bool = false) -> Int {
         var left = 0
         if !commands.isEmpty {
-            let main = commands.firstIndex { volumeColumn(command: $0.command, $0.value) == nil } ?? 0
+            var main = commands.firstIndex { volumeColumn(command: $0.command, $0.value) == nil } ?? 0
+            // (Of two that the volume column cannot do exactly, the one it cannot do at all has the command's place.)
+            if nearest, commands.count > 1, volumeColumn(command: commands[main].command, commands[main].value, nearest: true) != nil,
+               let other = commands.indices.first(where: { $0 != main && volumeColumn(command: commands[$0].command, commands[$0].value, nearest: true) == nil }) {
+                main = other
+            }
             cell.set(command: commands[main].command, commands[main].value)
             for (index, other) in commands.enumerated() where index != main {
-                if !cell.hasVolume, let column = volumeColumn(command: other.command, other.value) {
+                if !cell.hasVolume, let column = volumeColumn(command: other.command, other.value, nearest: nearest) {
                     cell.set(volume: column)
                 } else {
                     left += 1
@@ -233,9 +249,14 @@ enum IT2ForeignModule {
     ///     as ProTracker did, so that setting its volume again brought it back. Impulse Tracker ends
     ///     the note. But an instrument named with no note after that is, for once, just what brings
     ///     Impulse Tracker to play the note again, from its start: so there it is left to.
+    ///   - instrumentAloneStays: true to leave in its cell an instrument named with no note that is
+    ///     the one Impulse Tracker has been told of already, where its volume would have been put
+    ///     in the volume column in its place. That leaves the volume column free for another thing,
+    ///     and is only to be asked for a module whose replayer has been told that an instrument
+    ///     alone starts nothing (`IT2Module.instrumentAloneStartsNothing`).
     ///   - ownVolume: the volume of an instrument, by its number; nil if the file has none such.
     static func settle(_ cell: inout Cell, _ memory: inout ChannelMemory, slideStartsNote: Bool = true, cutIsSilence: Bool = false,
-                       ownVolume: (UInt8) -> UInt8?) {
+                       instrumentAloneStays: Bool = false, ownVolume: (UInt8) -> UInt8?) {
         let wasCut = memory.cut && cutIsSilence && memory.started
         if cell.hasNote || (wasCut && cell.hasInstrument) { memory.cut = false }
         if cell.hasCommand, cell.command == Command.S, cell.value & 0xF0 == 0xC0 { memory.cut = true }
@@ -256,6 +277,8 @@ enum IT2ForeignModule {
                 memory.told = cell.instrument
                 // (An instrument with no volume of its own leaves the channel's as it was.)
                 if !cell.hasVolume, ownVolume(cell.instrument) == nil { cell.set(volume: memory.volume) }
+            } else if instrumentAloneStays, cell.instrument == memory.told, !cell.hasVolume, ownVolume(cell.instrument) != nil {
+                // The instrument alone, left to the replayer, which makes it the same thing.
             } else {
                 // The instrument alone: its volume, unless the row has one of its own.
                 cell.mask &= ~2
@@ -317,8 +340,10 @@ enum IT2ForeignModule {
     ///   - rate: how many samples a second it plays at for C-5, the note numbered 60.
     ///   - loopEnd: the first sample beyond the part that repeats.
     ///   - pan: where it puts its channel, from 0 to 64 or `PAN_SURROUND`; nil to leave the channel where it is.
+    ///   - whileHeld: true if it goes round only for as long as its note's key is held, and plays on
+    ///     to its end when the key is let go.
     static func sample(sound8: [Int8] = [], sound16: [Int16] = [], volume: UInt8, rate: UInt32, loops: Bool = false, backAndForth: Bool = false,
-                       loopStart: Int = 0, loopEnd: Int = 0, pan: UInt8? = nil) -> IT2Sample {
+                       loopStart: Int = 0, loopEnd: Int = 0, pan: UInt8? = nil, whileHeld: Bool = false) -> IT2Sample {
         let s = IT2Sample()
         s.GlobVol = 64
         s.Vol = min(volume, 64)
@@ -344,9 +369,15 @@ enum IT2ForeignModule {
         // A loop that is not within the sample, or has nothing in it, is no loop.
         let end = min(loopEnd, frames)
         if loops, loopStart >= 0, loopStart < end {
-            s.LoopBegin = UInt32(loopStart)
-            s.LoopEnd = UInt32(end)
-            s.Flags |= SMPF_USE_LOOP | (backAndForth ? SMPF_LOOP_PINGPONG : 0)
+            if whileHeld {
+                s.SustainLoopBegin = UInt32(loopStart)
+                s.SustainLoopEnd = UInt32(end)
+                s.Flags |= SMPF_USE_SUSTAINLOOP | (backAndForth ? SMPF_SUSTAINLOOP_PINGPONG : 0)
+            } else {
+                s.LoopBegin = UInt32(loopStart)
+                s.LoopEnd = UInt32(end)
+                s.Flags |= SMPF_USE_LOOP | (backAndForth ? SMPF_LOOP_PINGPONG : 0)
+            }
         }
         return s
     }

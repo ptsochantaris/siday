@@ -410,8 +410,9 @@ the replayer (`IT2Player.swift`, `IT2Effects.swift`, `IT2Tables.swift`), the rea
 the unpacking of their compressed samples (`IT2Module.swift`), and the sound driver it2play adds to
 Impulse Tracker's own, which mixes in floating point through a windowed sinc and has the resonant
 filter (`IT2Mixer.swift`). Impulse Tracker's own drivers, and it2play's reading of S3M and MMCMP
-files, are not ported. (`IT2ForeignModule.swift`, `GDMFile.swift` and `PTMFile.swift` in that folder are
-not from it2play: they are what gives that replayer two other kinds of file to play, and are below.
+files, are not ported. (`IT2ForeignModule.swift`, `GDMFile.swift`, `PTMFile.swift` and `ULTFile.swift`
+in that folder are not from it2play: they are what gives that replayer three other kinds of file to
+play, and are below.
 Nor are `MPTMFile.swift`, `IT2OpenMPT.swift` and `IT2AdLib.swift`, which give it OpenMPT's own kind
 of file, and what that kind of file asks of it that an IT file does not; they are below too, and the
 few lines in the replayer and its mixer that are there for them say so where they stand.)
@@ -460,17 +461,17 @@ Composer 669 and UNIS 669, the Swift and the README say which is followed and wh
 under the licences set out above, under "libxmp and OpenMPT — reading MTM, DTM and AMF files", and
 below, under "OpenMPT — FM Tracker files".
 
-## libxmp and OpenMPT — GDM and PTM files
+## libxmp and OpenMPT — GDM, PTM and ULT files
 
-`Sources/SidayKit/ImpulseTracker/GDMFile.swift` and `PTMFile.swift`, which read GDM and PTM files
-into the shape Impulse Tracker's replayer plays, are made after the loaders of those formats in
-libxmp (https://github.com/libxmp/libxmp, `src/loaders/gdm_load.c` and `ptm_load.c`) and in OpenMPT
-(https://openmpt.org, `soundlib/Load_gdm.cpp` and `Load_ptm.cpp`): the layout of the files, and what
-each of their commands is taken to mean. Neither library's player is used. Both are used under the
-licences set out above, under "libxmp and OpenMPT — reading MTM, DTM and AMF files": libxmp's the MIT
-licence, Copyright (C) 1996-2026 Claudio Matsuoka and Hipolito Carraro Jr, and OpenMPT's the BSD
-3-Clause licence, Copyright (c) 2004-2026 OpenMPT Project Developers and Contributors and Copyright
-(c) 1997-2003 Olivier Lapicque.
+`Sources/SidayKit/ImpulseTracker/GDMFile.swift`, `PTMFile.swift` and `ULTFile.swift`, which read GDM,
+PTM and ULT files into the shape Impulse Tracker's replayer plays, are made after the loaders of
+those formats in libxmp (https://github.com/libxmp/libxmp, `src/loaders/gdm_load.c`, `ptm_load.c`
+and `ult_load.c`) and in OpenMPT (https://openmpt.org, `soundlib/Load_gdm.cpp`, `Load_ptm.cpp` and
+`Load_ult.cpp`): the layout of the files, and what each of their commands is taken to mean. Neither
+library's player is used. Both are used under the licences set out above, under "libxmp and OpenMPT —
+reading MTM, DTM and AMF files": libxmp's the MIT licence, Copyright (C) 1996-2026 Claudio Matsuoka
+and Hipolito Carraro Jr, and OpenMPT's the BSD 3-Clause licence, Copyright (c) 2004-2026 OpenMPT
+Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
 
 ## OpenMPT — MPTM files
 

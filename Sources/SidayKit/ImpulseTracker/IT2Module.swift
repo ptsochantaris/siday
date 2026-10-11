@@ -173,6 +173,13 @@ final class IT2Module {
 
     let modPlug: ModPlugWays
     var filter: Filter { modPlug.filter }
+    /// True for a module of a tracker in which a slide to a note, once begun, goes on by itself
+    /// on the rows after, until it gets there or the channel has another note. UltraTracker's is one.
+    var slidesToNotesCarryOn = false
+    /// True for a module of a tracker in which an instrument named on a row with no note never
+    /// started one, and was that instrument's volume and no more. Impulse Tracker starts the note
+    /// again if the channel has stopped playing it.
+    var instrumentAloneStartsNothing = false
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
@@ -612,7 +619,10 @@ final class IT2Module {
     ///   - patterns: packed as an IT file packs them, and `rows` how many rows each has; at least
     ///     `MAX_PATTERNS` of each.
     init(title: String, madeWith: String, orders: [UInt8], flags: UInt16, globalVolume: UInt8, mixVolume: UInt8, speed: UInt8, tempo: UInt8,
-         channelPans: [UInt8], samples: [IT2Sample], patterns: [[UInt8]?], rows: [UInt16]) {
+         channelPans: [UInt8], samples: [IT2Sample], patterns: [[UInt8]?], rows: [UInt16], slidesToNotesCarryOn: Bool = false,
+         instrumentAloneStartsNothing: Bool = false) {
+        self.slidesToNotesCarryOn = slidesToNotesCarryOn
+        self.instrumentAloneStartsNothing = instrumentAloneStartsNothing
         self.title = title
         self.madeWith = madeWith
         var Orders = [UInt8](repeating: 255, count: Self.MAX_ORDERS)

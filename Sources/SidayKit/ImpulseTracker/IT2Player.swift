@@ -104,6 +104,8 @@ final class IT2Player {
     let midiSample: UInt8, midiVoiceSample: UInt8
     private let sampleLimit: Int
     var LastSlaveChannel: IT2SlavePointer?
+    /// The channels that have a slide to a note going on by itself: see `carryOnSlideToNote`.
+    private var slidesCarried: UInt64 = 0
     /// True if that voice's key had been let go, or it was fading, before the new note came.
     private var lastWasLetGo = false
 
@@ -909,6 +911,31 @@ final class IT2Player {
         }
     }
 
+    /// For a module whose slides to a note go on by themselves (`IT2Module.slidesToNotesCarryOn`):
+    /// takes note of a slide that a row begins, or of the note that ends one; and on a row that
+    /// does neither, while one is going, gives the row the slide, as the command if it has none
+    /// and else as the volume column's if that is free.
+    private func carryOnSlideToNote(_ hc: IT2HostPointer) {
+        let bit: UInt64 = 1 << UInt64(hc.pointee.HostChnNum & 63)
+        let mask = hc.pointee.NotePackMask
+        let hasCommand = mask & 0x88 != 0, hasVolume = mask & 0x44 != 0
+        let slides = hasCommand && (hc.pointee.Cmd == 7 || hc.pointee.Cmd == 12) || hasVolume && hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
+        if slides {
+            slidesCarried |= bit
+        } else if mask & 0x11 != 0 {
+            slidesCarried &= ~bit
+        } else if slidesCarried & bit != 0 {
+            if !hasCommand {
+                hc.pointee.NotePackMask |= 8
+                hc.pointee.Cmd = 7
+                hc.pointee.CmdVal = 0
+            } else if !hasVolume {
+                hc.pointee.NotePackMask |= 4
+                hc.pointee.RawVolColumn = 193
+            }
+        }
+    }
+
     /// Reads a row's worth of what each channel is told into `hc`, and says which channel.
     @inline(__always) private func readChannel(_ chnNum: UInt8, command: Bool) -> IT2HostPointer {
         let hc = hChn + ((Int(chnNum & 0x7F) - 1) & 63)
@@ -969,12 +996,27 @@ final class IT2Player {
             hChn[i].Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX | HF_ROW_UPDATED | HF_UPDATE_VOLEFX_IF_CHAN_ON)
         }
         let orderBefore = ProcessOrder, breakBefore = BreakRow
+        var onTheRow: UInt64 = 0
         while true {
             let chnNum = patternByte()
             if chnNum == 0 { break }
             let hc = readChannel(chnNum, command: true)
             if hc.pointee.NotePackMask & 1 != 0, hc.pointee.RawNote < 120 { playedNote = true }
+            if module.slidesToNotesCarryOn {
+                onTheRow |= 1 << UInt64(hc.pointee.HostChnNum & 63)
+                carryOnSlideToNote(hc)
+            }
             PreInitCommand(hc)
+        }
+        // (A channel that has a slide to a note going, and nothing on this row, has the slide.)
+        if slidesCarried & ~onTheRow != 0 {
+            for i in 0 ..< MAX_HOST_CHANNELS where (slidesCarried & ~onTheRow) & (1 << UInt64(i)) != 0 {
+                let hc = hChn + i
+                hc.pointee.NotePackMask = 8
+                hc.pointee.Cmd = 7
+                hc.pointee.CmdVal = 0
+                PreInitCommand(hc)
+            }
         }
         // In Impulse Tracker a jump on the row of a loop that goes back ends the loop. In OpenMPT,
         // unless a file asks for Impulse Tracker's way, the loop goes back and the jump is forgotten.

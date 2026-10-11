@@ -5,7 +5,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
     case vtx, ym, ay, sid, sndh, mod, med, ahx, hvl, xm, s3m, it, cmf, rol, fmt
     case mtm, dtm, amf
-    case gdm, ptm
+    case gdm, ptm, ult
     case mptm
     case sfx, okt
     case composer669 = "669"
@@ -101,6 +101,8 @@ public enum TuneLoader {
             return try GDMFile.renderer(data, options: options)
         case .ptm:
             return try PTMFile.renderer(data, options: options)
+        case .ult:
+            return try ULTFile.renderer(data, options: options)
         case .mptm:
             // OpenMPT's own kind of file, which is an IT file with more after it: Impulse Tracker's
             // replayer plays as much of it as it has been taught to.

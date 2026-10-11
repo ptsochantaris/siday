@@ -420,6 +420,11 @@ extension IT2Player {
                 return
             }
         }
+        // (Nor does it ever, in a module of a tracker where it never did: not Impulse Tracker's own.)
+        if module.instrumentAloneStartsNothing, hc.pointee.NotePackMask & 0x11 == 0 {
+            NoOldEffect(hc, hcFlags)
+            return
+        }
 
         // With a slide to the note in the volume column, the note is where to slide to.
         let volColumnPortamento = hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
