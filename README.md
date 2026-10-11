@@ -649,7 +649,15 @@ is said to begin at the very end of the file has no sound, where it2play gives u
 that is how ModPlug Tracker wrote an empty sample, in one file of twenty-five. A sample whose own
 vibrato has the "ramp up" wave, which OpenMPT added and Impulse Tracker has not got, gets that wave,
 where it2play reads past the end of its three. And where it2play would read sound from outside a
-sample, which a few files lead it to do, there is silence. The filter is the one place where the web
+sample, which a few files lead it to do, there is silence.
+
+And one thing is done as the tracker that made the file did it, where that was not Impulse Tracker.
+An instrument can be given a MIDI channel, and Impulse Tracker then sends its notes to a synthesiser
+and plays no sample for them. ModPlug Tracker and OpenMPT played the sample all the same, and their
+composers often left a channel set, on the drums of a tune brought in from a MIDI file above all:
+such a file, if it says one of those two made it, has those instruments' samples played, as its
+composer heard them. A file Impulse Tracker made is played as Impulse Tracker played it, and `--raw`
+writes every file so, to set beside it2play. The filter is the one place where the web
 player and the Mac's do not agree to the last bit: each asks its own maths library for a power of two.
 
 A GDM file and a PTM file are played by Impulse Tracker's replayer too, which is not their own: as

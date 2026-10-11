@@ -104,6 +104,10 @@ final class IT2Module {
     /// What wrote the file, as far as its header says. (Other programs write Impulse Tracker's own
     /// numbers there, so this is what the file claims and no more.)
     let madeWith: String
+    /// True for a file that says ModPlug Tracker or OpenMPT made it. Those trackers played some
+    /// things otherwise than Impulse Tracker, and a file of theirs is played as they played it
+    /// where that is known to matter: an instrument with a MIDI channel plays its sample.
+    var madeByModPlug: Bool { madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) }
     // The header, by its own names.
     let OrdNum: Int, InsNum: Int, SmpNum: Int, PatNum: Int
     let Cwtv: UInt16, Cmwt: UInt16, Flags: UInt16, Special: UInt16

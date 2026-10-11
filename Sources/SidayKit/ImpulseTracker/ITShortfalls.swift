@@ -73,9 +73,10 @@ extension IT2Module {
                 }
                 if extras.playsThroughPlugIn(instrument: number - 1) {
                     if hasSample { bare += 1 } else { unheard += 1 }
-                } else if instrument.MIDIChn >= 1, instrument.MIDIChn <= 17 {
+                } else if instrument.MIDIChn >= 1, instrument.MIDIChn <= 17, !madeByModPlug {
                     // (Impulse Tracker sends such an instrument's notes to the synthesiser and
-                    // plays no sample for them, whether it has one or not.)
+                    // plays no sample for them, whether it has one or not. ModPlug Tracker and
+                    // OpenMPT played the sample, and so a file of theirs has it played.)
                     midi += 1
                 }
             }

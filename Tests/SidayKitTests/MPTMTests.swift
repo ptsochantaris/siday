@@ -603,3 +603,28 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
     #expect(TuneFormat(fileExtension: "MPTM") == .mptm)
     #expect(!Setting.chip.changes(.mptm) && Setting.loops.changes(.mptm))
 }
+
+@Test func itFileIsPlayedAsTheTrackerThatMadeItPlayedIt() throws {
+    // An IT file with one instrument, which has a MIDI channel as well as a sample. Impulse Tracker
+    // sends such an instrument's notes to a synthesiser and plays no sample for them; ModPlug
+    // Tracker and OpenMPT played the sample all the same.
+    func file(madeBy tracker: [UInt8]) throws -> [UInt8] {
+        var file = mptm([Pattern([(0, 0, .note(60, instrument: 1))])], instruments: [(1, [], 0)])
+        file.replaceSubrange(file.count - 4 ..< file.count, with: [0, 0, 0, 0])
+        file.replaceSubrange(0x28 ..< 0x2C, with: tracker)
+        let instrument = try #require(file.firstRange(of: Array("IMPI".utf8))).lowerBound
+        file[instrument + 0x3C] = 10
+        return file
+    }
+    // Made by Impulse Tracker 2.14: no sound, and the file says why.
+    let own = try TuneLoader.load(try file(madeBy: word(0x0214) + word(0x0200)), format: .it)
+    #expect(own.info.shortfalls == ["One of its instruments is sent to a MIDI synthesiser, and is not heard."])
+    #expect(loudness(stereo(own, seconds: 0.5).left[4800...]) < 0.0001)
+    // Made by OpenMPT 1.30: its sample is heard, and there is nothing to say.
+    let later = try #require(try TuneLoader.load(try file(madeBy: word(0x5130) + word(0x0214)), format: .it) as? ITRenderer)
+    #expect(later.info.detail.hasPrefix("OpenMPT"))
+    #expect(later.info.shortfalls.isEmpty)
+    #expect(loudness(stereo(later, seconds: 0.5).left[4800...]) > 0.01)
+    // But written out for setting beside the player this is ported from, it is as that plays it.
+    #expect(later.renderRaw(frames: 24000).allSatisfy { abs(Int($0)) < 4 })
+}

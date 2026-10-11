@@ -791,8 +791,11 @@ final class IT2Player {
                 let ins = module.instrument(Int(hc.pointee.Ins) - 1)
                 let entry = ins.SmpNoteTable[Int(hc.pointee.RawNote)]
                 hc.pointee.TranslatedNote = UInt8(entry & 0xFF)
-                // (Over 128 is a plug-in of ModPlug Tracker's, not a MIDI channel.)
-                if ins.MIDIChn == 0 || ins.MIDIChn > 128 {
+                // (Over 128 is a plug-in of ModPlug Tracker's, not a MIDI channel.) An instrument
+                // with a MIDI channel is one Impulse Tracker sends to a synthesiser, and plays no
+                // sample for. ModPlug Tracker and OpenMPT went on playing its sample, and a file
+                // of theirs is played as they played it: see `samplesPlayForMIDI`.
+                if ins.MIDIChn == 0 || ins.MIDIChn > 128 || samplesPlayForMIDI {
                     hc.pointee.Smp = UInt8(entry >> 8)
                 } else {
                     hc.pointee.MIDIChn = ins.MIDIChn == 17 ? (hc.pointee.HostChnNum & 0x0F) + 1 : ins.MIDIChn
@@ -1217,11 +1220,19 @@ final class IT2Player {
 
     // MARK: Starting
 
+    /// True if an instrument that has a MIDI channel plays its sample all the same: for a file made
+    /// by ModPlug Tracker or OpenMPT, which did so, unless it is to be played as Impulse Tracker
+    /// itself would play it.
+    private let samplesPlayForMIDI: Bool
+
     /// - Parameters:
     ///   - order: where in the list of patterns to start.
     ///   - firstPlayedBy: for a file of several songs, which of them first played each row.
     ///   - songNumber: which of them this is.
-    init(_ module: IT2Module, order: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0) {
+    ///   - asImpulseTracker: with nothing done for a file because another tracker made it: what the
+    ///     player this is ported from does, for setting the two side by side.
+    init(_ module: IT2Module, order: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0, asImpulseTracker: Bool = false) {
+        samplesPlayForMIDI = module.madeByModPlug && !asImpulseTracker
         self.module = module
         midiSample = module.midiSample
         midiVoiceSample = module.midiVoiceSample

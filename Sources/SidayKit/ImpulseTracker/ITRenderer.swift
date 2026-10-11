@@ -118,9 +118,10 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
-    private func restart() {
+    /// - Parameter asImpulseTracker: as the player this is ported from plays the file, for `renderRaw`.
+    private func restart(asImpulseTracker: Bool = false) {
         let song = songList[currentSubsong]
-        player = IT2Player(module, order: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
+        player = IT2Player(module, order: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asImpulseTracker: asImpulseTracker)
         tickFrames = 0
         tickPosition = 0
         loopCount = 0
@@ -183,7 +184,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and
     /// right in turn. For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {
-        restart()
+        restart(asImpulseTracker: true)
         var output = [Int16](repeating: 0, count: frames * 2)
         var done = 0
         output.withUnsafeMutableBufferPointer { out in
