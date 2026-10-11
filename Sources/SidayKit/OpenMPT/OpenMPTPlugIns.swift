@@ -169,6 +169,7 @@ final class OpenMPTPlugIns {
         voicesMixed = false
         for place in played {
             guard let slot = slots[place] else { continue }
+            slot.effect.tickFrames = frames
             var p = slot.input
             var left = slot.clickL, right = slot.clickR
             if left == 0, right == 0 {

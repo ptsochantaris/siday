@@ -522,8 +522,9 @@ chorus and both flangers), `OpenMPTGargle.swift`, `OpenMPTWavesReverb.swift`,
 `OpenMPTI3DL2Reverb.swift`, `OpenMPTDistortion.swift`, `OpenMPTParamEq.swift` and
 `OpenMPTCompressor.swift`, with `OpenMPTDMOUtils.swift`, from `soundlib/plugins/dmo/Echo.cpp`,
 `Chorus.cpp`, `Flanger.cpp`, `Gargle.cpp`, `WavesReverb.cpp`, `I3DL2Reverb.cpp`, `Distortion.cpp`,
-`ParamEq.cpp`, `Compressor.cpp` and `DMOUtils.cpp`; and `OpenMPTDigiBoosterEcho.swift` from
-`soundlib/plugins/DigiBoosterEcho.cpp`. `OpenMPTEffect.swift` is what they have in common
+`ParamEq.cpp`, `Compressor.cpp` and `DMOUtils.cpp`; `OpenMPTDigiBoosterEcho.swift` from
+`soundlib/plugins/DigiBoosterEcho.cpp`; and `OpenMPTSymMODEcho.swift` from
+`soundlib/plugins/SymMODEcho.cpp`. `OpenMPTEffect.swift` is what they have in common
 (`soundlib/plugins/PlugInterface.h`). Changed from the originals: carried over from C++ to Swift,
 each as a class that is given sound and gives sound back and knows nothing of OpenMPT's mixer; their
 delay lines are laid out once and nothing is allocated while they play; the six powers of 0.93 that

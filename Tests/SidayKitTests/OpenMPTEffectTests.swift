@@ -146,6 +146,38 @@ private func goldenCases() -> [Golden] { [
 
 // MARK: Which plug-in
 
+@Test func symMODEchoGoesRoundInTicksOfTheTune() {
+    /// A click on the left, and what an echo of two ticks of 100 frames makes of it.
+    func echo(_ type: UInt8, feedback: UInt8 = 1) -> (left: [Float], right: [Float]) {
+        let effect = OpenMPTSymMODEcho()
+        #expect(effect.restore(chunk: Array("Echo".utf8) + [type, 2, feedback]))
+        effect.resume()
+        effect.tickFrames = 100
+        var click = [Float](repeating: 0, count: 1000)
+        click[0] = 1
+        return played(effect, (click, [Float](repeating: 0, count: 1000)), block: 128)
+    }
+    func heard(_ side: [Float]) -> [Int: Float] { Dictionary(uniqueKeysWithValues: side.indices.filter { side[$0] != 0 }.map { ($0, side[$0]) }) }
+    // Each side to itself: the click again every two ticks, half as loud each time.
+    let normal = echo(1)
+    #expect(heard(normal.left) == [0: 1, 200: 0.5, 400: 0.25, 600: 0.125, 800: 0.0625] && heard(normal.right).isEmpty)
+    // Each side to the other: from side to side.
+    let cross = echo(2)
+    #expect(heard(cross.left) == [0: 1, 400: 0.25, 800: 0.0625] && heard(cross.right) == [200: 0.5, 600: 0.125])
+    // That again turned down the other way: by a quarter, where the same setting was a half.
+    #expect(heard(echo(3).right) == [200: 0.75, 600: 0.421875])
+    // Both sides as one, in the middle.
+    let center = echo(4)
+    #expect(heard(center.left) == [0: 1, 200: 0.25, 400: 0.125, 600: 0.0625, 800: 0.03125] && heard(center.right) == [200: 0.25, 400: 0.125, 600: 0.0625, 800: 0.03125])
+    // And none at all.
+    #expect(heard(echo(0).left) == [0: 1])
+    // It is one of OpenMPT's own, and found by its numbers.
+    var plugIn = ModPlugPlugIn()
+    plugIn.first = 0x4D6D_7953
+    plugIn.second = 0x6F68_6345
+    #expect(plugIn.kind == .symMODEcho)
+}
+
 @Test func plugInIsFoundAsOpenMPTFindsIt() {
     func kind(_ first: UInt32, _ second: UInt32, _ name: String) -> ModPlugPlugIn.Kind? {
         var plugIn = ModPlugPlugIn()

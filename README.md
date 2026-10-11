@@ -773,9 +773,12 @@ Half the MPTM files to hand use plug-ins. A plug-in is somebody's program, and n
 here; but OpenMPT has a few of its own built in, which it plays on any machine, and four files in
 five that use plug-ins use only those: an echo, two reverbs, a chorus, two flangers, a compressor,
 a distortion, an equaliser and a gargle, all made after the effects that came with Windows, and the
-echo of DigiBooster. Those are here, each carried over from OpenMPT's own and set beside it: given
+echoes of two Amiga trackers, DigiBooster and Symphonie. Those are here, each carried over from
+OpenMPT's own. All but the last were set beside it: given
 the same sound and the same settings (every setting that the files to hand keep among them), each
-gives what OpenMPT's class gives, to the last bit, when that is built to round as Swift does. They
+gives what OpenMPT's class gives, to the last bit, when that is built to round as Swift does. (The
+one built-in that is not here is its LFO, which makes no sound of its own and is there to move
+another plug-in's settings: in the files to hand, somebody else's plug-in every time.) They
 are wired as the file wires them. A voice goes to the plug-in of its instrument, or failing that of
 its channel; what a plug-in makes goes to the listener or on to another plug-in; a plug-in can be
 put on the whole sound; and how much of what it was given is heard beside what it makes, how the

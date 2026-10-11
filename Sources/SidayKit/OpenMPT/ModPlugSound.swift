@@ -16,7 +16,7 @@
 struct ModPlugPlugIn {
     /// OpenMPT's own effects, in the order it looks through them.
     enum Kind {
-        case chorus, compressor, distortion, echo, flanger, gargle, i3dl2Reverb, paramEq, wavesReverb, flangerLegacy, digiBoosterEcho
+        case chorus, compressor, distortion, echo, flanger, gargle, i3dl2Reverb, paramEq, wavesReverb, flangerLegacy, digiBoosterEcho, symMODEcho
     }
 
     private static let dmo: UInt32 = 0x4458_4D4F // "DXMO"
@@ -26,6 +26,7 @@ struct ModPlugPlugIn {
         (dmo, 0xEF98_5E71, "I3DL2Reverb", .i3dl2Reverb), (dmo, 0x120C_ED89, "ParamEq", .paramEq), (dmo, 0x87FC_0268, "WavesReverb", .wavesReverb),
         (dmo, 0xEFCA_3D92, "Flanger (Legacy)", .flangerLegacy),
         (0x304D_4244, 0x6F68_6345, "DigiBooster Pro Echo", .digiBoosterEcho), // "DBM0", "Echo"
+        (0x4D6D_7953, 0x6F68_6345, "SymMOD Echo", .symMODEcho), // "SymM", "Echo"
     ]
 
     // Routing flags.
@@ -149,6 +150,7 @@ struct ModPlugPlugIn {
         case .paramEq: effect = OpenMPTParamEq()
         case .wavesReverb: effect = OpenMPTWavesReverb()
         case .digiBoosterEcho: effect = OpenMPTDigiBoosterEcho()
+        case .symMODEcho: effect = OpenMPTSymMODEcho()
         }
         // Its settings: in a form of its own, or a nought and then each setting as a number, which
         // are taken only if they are all there.

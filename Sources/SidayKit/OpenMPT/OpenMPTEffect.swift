@@ -17,6 +17,9 @@
 /// is how OpenMPT keeps them, how a file stores them, and how a tune changes them as it plays. An effect
 /// starts with the settings OpenMPT gives a new one.
 class OpenMPTEffect {
+    /// How many frames the tick of the tune that is being played is: what OpenMPT keeps for all
+    /// its effects to ask, and one of them, an echo that counts its time in ticks, does.
+    var tickFrames = 0
     /// How many settings it has, each a number from nought to one as OpenMPT keeps and files them.
     var parameterCount: Int { 0 }
     func parameter(_ index: Int) -> Float { 0 }
