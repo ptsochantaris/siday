@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, AHX, HVL, XM, S3M and IT modules and CMF and ROL tunes for the AdLib from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, AHX, HVL, XM, S3M and IT modules and CMF and ROL tunes for the AdLib from files and folders.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
@@ -283,6 +283,61 @@ struct Siday: ParsableCommand {
             if let apart = ProcessInfo.processInfo.environment["SIDAY_AHX_AS_HIVELY"].flatMap({ Int($0) }),
                scan.files[0].pathExtension.lowercased() == "ahx" {
                 renderer = try HVLRenderer([UInt8](try Data(contentsOf: scan.files[0])), options: tuneFiles.options, ahxStereo: apart)
+            }
+            // OctaMED's player for its mixing mode gets three things wrong, which this one puts
+            // right. To compare the sound of the two, a MED file is played with them wrong.
+            if ProcessInfo.processInfo.environment["SIDAY_MED_AS_OCTAMED"] != nil, let med = renderer as? MEDRenderer {
+                med.makesOctaMEDsMistakes = true
+            }
+            if let trace = ProcessInfo.processInfo.environment["SIDAY_MED_TRACE"], let med = renderer as? MEDRenderer {
+                // What the player tells the sound chip, a line a tick, for setting beside what
+                // OctaMED's own player tells it: the tick's number, how long the tick before it
+                // lasted in the chip's clocks, where the tune was (block, line and tick of the line),
+                // and for each voice its period, its volume, and where a note was started and is to
+                // go on from (an instrument, a place in it, and words).
+                // The variable's value is which of the file's own songs, counting from 1, to be
+                // played from its top; or the song asked for by number is, if one is.
+                if let subsong { renderer.select(subsong: subsong - 1) }
+                let fileSong = subsong == nil ? Int(trace).map { max(0, $0 - 1) } : nil
+                // (A song in mixing mode has no sound chip to be told anything. What is written for
+                // it is what the mixer is told, in order, a line for each thing: what it was (the
+                // kinds of `MEDMixEvent`, numbered from nought), which track, and six numbers; after
+                // a first line of what the song says of its mixing.)
+                let events = med.mixEvents(seconds: maxTime.flatMap(parseTime) ?? 20, fileSong: fileSong)
+                if !events.isEmpty {
+                    var lines = "mix " + med.mixSettings.map(String.init).joined(separator: " ") + "\n"
+                    for event in events {
+                        lines += "\(event.kind.rawValue) \(event.track) \(event.a) \(event.b) \(event.c) \(event.d) \(event.e) \(event.f)\n"
+                    }
+                    FileHandle.standardOutput.write(Data(lines.utf8))
+                    return
+                }
+                var text = ""
+                var before = 0
+                // (And for a module of five to eight channels, what was mixed for each voice on each
+                // tick, as bytes one after another, is written to the file SIDAY_MED_MIXED names:
+                // for each tick and each voice, how many bytes, in two bytes, and then the bytes.)
+                var mixed = Data()
+                func place(_ stretch: MEDRegisterTick.Stretch) -> String {
+                    (stretch.instrument == 0 ? "z" : "\(stretch.instrument)+\(stretch.offset)") + ":\(stretch.words)"
+                }
+                for (number, tick) in med.registerTicks(seconds: maxTime.flatMap(parseTime) ?? 20, fileSong: fileSong).enumerated() {
+                    let voices = tick.voices.map { voice in
+                        "P\(voice.period.map(String.init) ?? "-") V\(voice.volume.map(String.init) ?? "-")"
+                            + (voice.start.map { " S" + place($0) } ?? "") + (voice.loop.map { " L" + place($0) } ?? "")
+                            + (voice.waveform.map { " W\($0.place):\($0.words)" } ?? "")
+                    }
+                    text += "\(number) \(before) \(tick.block):\(tick.line).\(tick.tickOfLine) | " + voices.joined(separator: " | ")
+                        + (tick.mixedWords != 0 ? " | M\(tick.mixedWords)" : "") + "\n"
+                    before = tick.clocks
+                    for voice in tick.mixed where tick.mixedWords != 0 {
+                        mixed.append(contentsOf: [UInt8(voice.count & 0xFF), UInt8(voice.count >> 8)])
+                        mixed.append(contentsOf: voice.map { UInt8(bitPattern: $0) })
+                    }
+                }
+                FileHandle.standardOutput.write(Data(text.utf8))
+                if let path = ProcessInfo.processInfo.environment["SIDAY_MED_MIXED"] { try mixed.write(to: URL(fileURLWithPath: path)) }
+                return
             }
             if let atari = renderer as? any ReferenceComparable {
                 // The machine's own sixteen-bit output as the reference player writes it: one channel, or

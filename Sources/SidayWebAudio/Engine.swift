@@ -78,7 +78,7 @@ final class WebPlayer {
             renderer = loaded
             self.format = format
             layout = format == .sid || format == .sndh || format == .cmf || format == .rol ? nil : options.stereo
-            ownStereo = format == .mod || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
+            ownStereo = format == .mod || format == .med || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {
@@ -132,8 +132,8 @@ final class WebPlayer {
         settings = Setting.allCases.map { $0.settled($0.rawValue < values.count ? values[$0.rawValue] : $0.standard) }
         Setting.apply(settings, to: &options, &policy)
         let placedOtherwise = placeChannels()
-        guard let format, renderer != nil else { return false }
-        return placedOtherwise || Setting.allCases.contains { settings[$0.rawValue] != before[$0.rawValue] && $0.changes(format) }
+        guard let format, let renderer else { return false }
+        return placedOtherwise || Setting.allCases.contains { settings[$0.rawValue] != before[$0.rawValue] && $0.changes(format, played: renderer) }
     }
 
     /// Changes what tunes are heard through. Returns true if the tune that is loaded has to be loaded

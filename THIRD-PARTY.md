@@ -126,6 +126,13 @@ its way of halving the sample rate (`Paula.swift`). The band-limited steps in Pa
 `PowerPacker.swift` follows the depacker in the same source, which says it is taken from Heikki
 Orsila's amigadepack.
 
+The player of MED modules (`Sources/SidayKit/OctaMED`) is not a port of anything: it was written for
+this project, to do what OctaMED's own players do, and none of their code is in it; nor is its
+mixer for OctaMED Soundstudio's mixing mode taken from anywhere. Its modules for the Amiga's voices
+play on the Paula above, its renderer (`MEDRenderer.swift`) is made after `MODRenderer.swift`, and
+its table of periods is built from the table in `ProTrackerReplayer.swift`, so those parts of it
+stand on pt2-clone as the rest of this folder does.
+
 ```
 BSD 3-Clause License
 

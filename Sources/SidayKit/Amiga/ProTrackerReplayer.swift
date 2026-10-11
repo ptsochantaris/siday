@@ -8,7 +8,7 @@
 /// up to +7, and from -8 back up to -1. Each list ends in a zero. An arpeggio on a sample tuned to -1
 /// reads past the end of them all, into what ProTracker happened to keep after its table, and what it
 /// found there is what such a tune sounds like: so that is here too.
-private let proTrackerPeriods: [Int16] = [
+let proTrackerPeriods: [Int16] = [
     856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, 428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226,
     214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113, 0,
     850, 802, 757, 715, 674, 637, 601, 567, 535, 505, 477, 450, 425, 401, 379, 357, 337, 318, 300, 284, 268, 253, 239, 225,

@@ -21,6 +21,7 @@ public final class AHXRenderer: Renderer, ReferenceComparable {
     public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length) } }
     public var knownLength: Double? { songList[currentSubsong].length }
     public var endsByLooping: Bool { true }
+    public var isPlayedOnAnAmiga: Bool { true }
     public var hasEnded: Bool { replayer.stopped }
 
     private struct Song {

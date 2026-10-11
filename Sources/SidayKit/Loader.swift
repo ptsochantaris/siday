@@ -3,11 +3,17 @@
 
 public enum TuneFormat: String, CaseIterable, Sendable {
     case pt3, pt2, pt1, stc, stp, asc, sqt, psc, ftc, fxm, psm, gtr
-    case vtx, ym, ay, sid, sndh, mod, ahx, hvl, xm, s3m, it, cmf, rol
+    case vtx, ym, ay, sid, sndh, mod, med, ahx, hvl, xm, s3m, it, cmf, rol
 
-    /// The format a file name's extension stands for, in any case.
+    /// The format a file name's extension stands for, in any case. A MED module is as often named
+    /// for the four letters it begins with as it is called MED.
     public init?(fileExtension: String) {
-        self.init(rawValue: fileExtension.lowercased())
+        let name = fileExtension.lowercased()
+        if name == "mmd0" || name == "mmd1" || name == "mmd2" || name == "mmd3" {
+            self = .med
+        } else {
+            self.init(rawValue: name)
+        }
     }
 }
 
@@ -45,13 +51,19 @@ public enum TuneLoader {
             return try SNDHRenderer(data, options: options)
         case .mod:
             // A module of the Amiga's four channels is ProTracker's to play. One of more is a PC
-            // tracker's, and FastTracker 2 plays those.
+            // tracker's, and FastTracker 2 plays those. (And a MED module that has been named as if
+            // it were a MOD file says in its first letters what it is.)
+            if data.count > 4, data[0] == 0x4D, data[1] == 0x4D, data[2] == 0x44, data[3] >= 0x30, data[3] <= 0x33 {
+                return try MEDRenderer(data, options: options)
+            }
             do {
                 return try MODRenderer(data, options: options)
             } catch let error as TuneError {
                 guard case .unsupported = error, let more = try? XMRenderer(data, options: options) else { throw error }
                 return more
             }
+        case .med:
+            return try MEDRenderer(data, options: options)
         case .ahx, .hvl:
             // HivelyTracker reads both its own files and AHX's, so a file of either may be found
             // under the other's name. Each says which it is in its first three letters.

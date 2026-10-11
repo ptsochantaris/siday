@@ -278,6 +278,12 @@ struct Paula: ~Copyable {
         }
     }
 
+    /// Marks a voice as having begun a note, for one that begins it without being started: a voice
+    /// left playing whose sound changes under it.
+    mutating func noteStruck(_ voice: Int) {
+        voices[voice].struck = true
+    }
+
     mutating func stop(voices mask: UInt16) {
         for voice in 0 ..< 4 where mask & (1 << voice) != 0 { voices[voice].active = false }
     }

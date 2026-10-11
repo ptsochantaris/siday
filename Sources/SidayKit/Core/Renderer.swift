@@ -52,6 +52,9 @@ public protocol Renderer: AnyObject {
     var endsByLooping: Bool { get }
     /// True once a tune that does not loop has finished.
     var hasEnded: Bool { get }
+    /// True if the tune is played on an Amiga's sound chip, so that which Amiga it is, and how far
+    /// apart its two sides are kept, are part of how it sounds.
+    var isPlayedOnAnAmiga: Bool { get }
     /// Renders `frames` stereo frames (2 × frames floats).
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int)
     /// How many voices the tune is made of, for showing how loud each is: a chip's channels, a
@@ -79,6 +82,7 @@ public extension Renderer {
     var hasEnded: Bool { false }
     var loopCount: Int { 0 }
     var endsByLooping: Bool { false }
+    var isPlayedOnAnAmiga: Bool { false }
     var channelCount: Int { 0 }
     var channelsAlwaysShown: Int { channelCount }
     func takeChannelLevels(into _: UnsafeMutablePointer<Float>) {}
