@@ -19,10 +19,24 @@ struct ModPlugExtras {
     /// What the song's own extras say of how loud it is, where they say: which of OpenMPT's ways
     /// of adding up, its "sample pre-amp" and its "synth volume".
     private(set) var mixLevels: Int?, preAmp: Int?, synthVolume: Int?
+    /// True if the song has extras of its own at all; then which of OpenMPT's ways of playing it
+    /// asks for, by their numbers (none if it does not say), and the version of OpenMPT that last
+    /// saved it, a byte for each of its four parts, if it says.
+    private(set) var hasSongExtras = false
+    private(set) var behaviours: [Bool] = []
+    private(set) var savedWith: Int?
+    /// True if what is where a file's plug-ins would be says BeRoTracker wrote it.
+    private(set) var byBeRoTracker = false
     /// The plug-in each channel is sent through, counted from 1; nought for none.
     private(set) var channelPlugIns: [Int] = []
     /// And the one each instrument plays through, the first instrument first.
     private(set) var instrumentPlugIns: [Int] = []
+    /// How far each instrument's cutoff and resonance are moved at random from note to note, of 64:
+    /// the first instrument first, and nothing for a file that has no such instruments.
+    private(set) var cutoffSwings: [UInt8] = [], resonanceSwings: [UInt8] = []
+    /// Which way up each instrument's filter is, where the file says: 1 for one that lets the high
+    /// through and not the low, 0 for the low, and anything else to leave it as it was.
+    private(set) var filterModes: [UInt8] = []
 
     private static func name(_ text: StaticString) -> Int {
         text.withUTF8Buffer { Int($0[0]) | Int($0[1]) << 8 | Int($0[2]) << 16 | Int($0[3]) << 24 }
@@ -105,6 +119,8 @@ struct ModPlugExtras {
                 }
             } else if code == Self.name("MIDI") {
                 macros = (body, length)
+            } else if code == Self.name("MODU") {
+                byBeRoTracker = true
             } else if code != Self.name("text"), code != Self.name("PNAM"), code != Self.name("CNAM") {
                 break
             }
@@ -133,6 +149,7 @@ struct ModPlugExtras {
         var at = data.count - 4
         while at >= 0, !(data[at] == 0x53 && data[at + 1] == 0x54 && data[at + 2] == 0x50 && data[at + 3] == 0x4D) { at -= 1 }
         guard at >= 0 else { return }
+        hasSongExtras = true
         at += 4
         while at + 6 <= data.count {
             let code = file.u16le(at) | file.u16le(at + 2) << 16
@@ -140,6 +157,13 @@ struct ModPlugExtras {
             guard (0 ..< 4).allSatisfy({ data[at + $0] >= 0x20 && data[at + $0] < 0x7F }), at + 6 + size <= data.count else { break }
             let value = size >= 4 ? file.u16le(at + 6) | min(file.u16le(at + 8), 0x3FFF) << 16 : size >= 2 ? file.u16le(at + 6) : size == 1 ? Int(data[at + 6]) : 0
             if code == Self.name(".MMP") { mixLevels = value } else if code == Self.name(".APS") { preAmp = value } else if code == Self.name("VTSV") { synthVolume = value }
+            if code == Self.name("VWSL"), value != 0 { savedWith = value }
+            if code == Self.name(".FSM") {
+                behaviours = []
+                for i in 0 ..< size {
+                    for bit in 0 ..< 8 { behaviours.append(data[at + 6 + i] & (1 << UInt8(bit)) != 0) }
+                }
+            }
             at += 6 + size
         }
     }
@@ -163,6 +187,13 @@ struct ModPlugExtras {
             if code == Self.name(".PiM"), size >= 1 {
                 for instrument in 0 ..< instruments where at + instrument * size < data.count {
                     set(plugIn: Int(data[at + instrument * size]), ofInstrument: instrument)
+                }
+            } else if code == Self.name("..MF"), size >= 1 {
+                filterModes = (0 ..< instruments).map { at + $0 * size < data.count ? data[at + $0 * size] : 255 }
+            } else if code == Self.name("..SC") || code == Self.name("..SR"), size >= 1 {
+                let swings = (0 ..< instruments).map { at + $0 * size < data.count ? min(data[at + $0 * size], 64) : 0 }
+                if swings.contains(where: { $0 != 0 }) {
+                    if code == Self.name("..SC") { cutoffSwings = swings } else { resonanceSwings = swings }
                 }
             }
             at += size * instruments

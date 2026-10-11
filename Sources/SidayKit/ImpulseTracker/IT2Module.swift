@@ -110,6 +110,69 @@ final class IT2Module {
     var madeByModPlug: Bool { madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) }
     /// True if the file says Impulse Tracker itself made it.
     var madeByImpulseTracker: Bool { madeWith.utf8.starts(with: "Impulse Tracker".utf8) }
+    /// Whose resonant filter a file was made to be heard through.
+    ///
+    /// ModPlug Tracker had a filter of its own, which rings less than Impulse Tracker's for the
+    /// same setting and went by other rules: a note has it from its start only if its cutoff is
+    /// below the top, and once a voice has it, by that or by a macro or an envelope, it keeps it
+    /// until its next note, wide open and all, when it still takes the top off the sound at five
+    /// kilohertz. OpenMPT kept that filter for the files made with it, and so does this: a file
+    /// goes on sounding as it did to whoever made it. OpenMPT took up Impulse Tracker's filter in
+    /// its version 1.20, for files that ask to be played as Impulse Tracker would play them; and
+    /// even then it uses its own curve where a file asks for the wider range of cutoffs, which
+    /// Impulse Tracker's has not.
+    enum Filter {
+        /// Impulse Tracker's.
+        case impulseTrackers
+        /// OpenMPT's curve, on and off as Impulse Tracker's is.
+        case openMPTsCurve
+        /// ModPlug Tracker's and OpenMPT's own.
+        case openMPTs
+    }
+
+    /// The ways of ModPlug Tracker's and OpenMPT's own that a file of theirs is played in, where
+    /// it does not ask for Impulse Tracker's. A file of any other tracker's has none of them.
+    struct ModPlugWays {
+        var filter = Filter.impulseTrackers
+        /// True if a note's random swing of its filter is added to whatever the filter is set to
+        /// while the note lasts, as OpenMPT had it before its version 1.17.02.50, and has it still
+        /// for a file made then.
+        var oldFilterSwing = false
+        /// True if an envelope that is to carry on from the note before does so as ModPlug Tracker
+        /// had it: not after a note whose key has been let go or that is fading, if the row names
+        /// its instrument.
+        var ownEnvelopeCarry = false
+        /// True if a slide to a note on a row that names the instrument starts the instrument's
+        /// envelopes again when it has none for volume, as it did before OpenMPT's version 1.19.
+        var slideRestartsEnvelopes = false
+
+        init() {}
+
+        /// Those of a file that lists these of Impulse Tracker's ways (see `ModPlugExtras.behaviours`)
+        /// and was last saved by this version of OpenMPT, a byte for each of its four parts.
+        init(asked behaviours: [Bool], savedWith: Int, wideRange: Bool) {
+            func listed(_ behaviour: Int) -> Bool { behaviour < behaviours.count && behaviours[behaviour] }
+            // (Before there was a way to ask for each by itself, they all came with "compatible
+            // play", each from the version of OpenMPT that first had it.)
+            func asks(_ behaviour: Int, since: Int) -> Bool {
+                if listed(Self.compatiblePlay), savedWith < 0x0126_0000 { return savedWith >= since || savedWith == since & 0x7FFF_0000 }
+                return listed(behaviour)
+            }
+            filter = !asks(Self.filterBehaviour, since: 0x0120_0035) ? .openMPTs : wideRange ? .openMPTsCurve : .impulseTrackers
+            oldFilterSwing = listed(Self.oldSwing)
+            ownEnvelopeCarry = !asks(Self.envelopeReset, since: 0x0117_0251)
+            slideRestartsEnvelopes = !asks(Self.portamentoInstrument, since: 0x0119_0001)
+        }
+
+        /// OpenMPT's numbers for the ways of playing that are looked at: "compatible play", its
+        /// own old way with what is random in an instrument, and Impulse Tracker's ways with when
+        /// an envelope starts again, with an instrument named beside a slide to a note, and with
+        /// the filter.
+        static let compatiblePlay = 0, oldSwing = 1, envelopeReset = 19, portamentoInstrument = 32, filterBehaviour = 36
+    }
+
+    let modPlug: ModPlugWays
+    var filter: Filter { modPlug.filter }
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
@@ -296,6 +359,15 @@ final class IT2Module {
             extras.readSongExtras(reader)
         }
 
+        let ways = Self.modPlugWays(data, Cwtv: Cwtv, Cmwt: Cmwt, OrdNum: OrdNum, extras: &extras, extrasRead: byModPlug)
+        let wideRange = Flags & ITF_MPT_EXT_FILTER_RANGE != 0
+        var modPlug = ModPlugWays()
+        if let asked = ways.asked {
+            modPlug = ModPlugWays(asked: asked, savedWith: ways.savedWith, wideRange: wideRange)
+        } else if wideRange {
+            modPlug.filter = .openMPTsCurve
+        }
+
         // (The song's message is not kept.)
 
         // MARK: Instruments
@@ -475,6 +547,30 @@ final class IT2Module {
         self.rows = rows
         self.openMPT = nil
 
+        // (An OpenMPT that reads a file of before its version 1.17.02.50 with anything random
+        // in its instruments plays what is random as it was played then.)
+        if ways.savedWith < 0x0117_0250, (0 ..< InsNum).contains(where: { instruments[$0].RandVol | instruments[$0].RandPan != 0 }) || !extras.cutoffSwings.isEmpty
+            || !extras.resonanceSwings.isEmpty {
+            modPlug.oldFilterSwing = true
+        }
+        self.modPlug = modPlug
+
+        // (And an envelope for pitch or the filter as it was played before 1.20, by a file that
+        // did not ask for Impulse Tracker's ways, or asked before 1.17.03.02.)
+        if let asked = ways.asked, ways.savedWith < 0x0120_0000 {
+            let compatible = asked.first == true && !(ways.savedWith < 0x0117_0246 && ways.savedWith != 0x0117_0000)
+            if !compatible || ways.savedWith < 0x0117_0302 {
+                for i in 0 ..< InsNum {
+                    instruments[i].PitchEnvAsModPlug = MPTMFile.asFastTrackerLooped(instruments[i].PitchEnv)
+                    // (OpenMPT goes no further than the first instrument with anything random
+                    // in it, in a file of before 1.17.02.50: the rest are left as they are.)
+                    let random = instruments[i].RandVol | instruments[i].RandPan | (i < extras.cutoffSwings.count ? extras.cutoffSwings[i] : 0)
+                        | (i < extras.resonanceSwings.count ? extras.resonanceSwings[i] : 0)
+                    if ways.savedWith < 0x0117_0250, random != 0 { break }
+                }
+            }
+        }
+
         // MARK: Plug-ins and FM
 
         // What a file of ModPlug Tracker's or OpenMPT's has to hear besides samples (see
@@ -485,7 +581,12 @@ final class IT2Module {
             sound.plugIns = extras.plugIns
             sound.channelPlugIns = Array(extras.channelPlugIns.prefix(MAX_HOST_CHANNELS))
             let plugInOf = (0 ..< InsNum).map { $0 < extras.instrumentPlugIns.count ? extras.instrumentPlugIns[$0] : 0 }
-            for i in 0 ..< InsNum { instruments[i].MixPlug = UInt8(max(0, min(255, plugInOf[i]))) }
+            for i in 0 ..< InsNum {
+                instruments[i].MixPlug = UInt8(max(0, min(255, plugInOf[i])))
+                if i < extras.cutoffSwings.count { instruments[i].CutSwing = extras.cutoffSwings[i] }
+                if i < extras.filterModes.count, extras.filterModes[i] <= 1 { instruments[i].FilterMode = extras.filterModes[i] }
+                if i < extras.resonanceSwings.count { instruments[i].ResSwing = extras.resonanceSwings[i] }
+            }
             // How loud OpenMPT plays it, by which of its ways of adding up the file asks for:
             // ModPlug Tracker's own unless it says, for a file that tracker made, and the one that
             // is like Impulse Tracker's for a file OpenMPT made. (See `MPTMFile`, where this is told at length.)
@@ -543,6 +644,7 @@ final class IT2Module {
         samplesNotRead = []
         cutShort = Shortfall.CutShort()
         extras = ModPlugExtras()
+        modPlug = ModPlugWays()
         openMPT = nil
         sound = nil
     }
@@ -552,7 +654,7 @@ final class IT2Module {
     /// place (see `MPTMFile`). The list may be longer than Impulse Tracker's 256 places. The samples
     /// and instruments are `file`'s own, changed where they stand before this is made.
     init(openMPT song: OpenMPTSong, sound: ModPlugSound?, file: IT2Module, madeWith: String, orders: [UInt8], mixVolume: UInt8, speed: UInt8, tempo: UInt8,
-         channelPans: [UInt8], channelVolumes: [UInt8], patterns: [[UInt8]?], rows: [UInt16]) {
+         channelPans: [UInt8], channelVolumes: [UInt8], patterns: [[UInt8]?], rows: [UInt16], ways: ModPlugWays) {
         self.sound = sound
         title = file.title
         self.madeWith = madeWith
@@ -580,6 +682,7 @@ final class IT2Module {
         samples = file.samples
         self.patterns = patterns
         self.rows = rows
+        modPlug = ways
         openMPT = song
         samplesNotRead = file.samplesNotRead
         cutShort = file.cutShort
@@ -950,6 +1053,48 @@ final class IT2Module {
 
     /// The name of what wrote a file, from the two versions in its header: of the tracker that made
     /// it, and of the oldest that can read it.
+    /// Which of Impulse Tracker's ways an IT file asks for, if it is one that OpenMPT takes for
+    /// ModPlug Tracker's or its own, which it knows by these signs; nil for any other, which is
+    /// played in all of Impulse Tracker's ways. And the version of OpenMPT it was last saved
+    /// with, a byte for each of its four parts, or a number greater than any for another tracker's file.
+    private static func modPlugWays(_ data: [UInt8], Cwtv: UInt16, Cmwt: UInt16, OrdNum: Int, extras: inout ModPlugExtras,
+                                    extrasRead: Bool) -> (asked: [Bool]?, savedWith: Int) {
+        let file = ByteReader(data)
+        let reserved = file.u16le(0x3C) | file.u16le(0x3E) << 16
+        let byOpenMPT = Cwtv & 0xF000 == 0x5000
+        var savedWith = 0
+        var byModPlug = false
+        if byOpenMPT {
+            savedWith = Int(Cwtv & 0x0FFF) << 16
+            // ("OMPT" there is a file saved as OpenMPT plays; without it, one saved to be played as Impulse Tracker would.)
+            if reserved == 0x5450_4D4F { byModPlug = true } else if savedWith >= 0x0129_0000 { savedWith |= reserved & 0xFFFF }
+        } else if Cmwt == 0x0888 || Cwtv == 0x0888 {
+            byModPlug = true
+            savedWith = 0x0117_0000
+        } else if Cwtv == 0x0214, Cmwt == 0x0202, reserved == 0 {
+            byModPlug = true
+            savedWith = 0x0109_0000
+        } else if Cwtv == 0x0300, Cmwt == 0x0300, reserved == 0, OrdNum == 256, file[0x34] == 128, file[0x35] == 0 {
+            byModPlug = true
+            savedWith = 0x0117_0220
+        } else if Cwtv == 0x0217, Cmwt == 0x0200, reserved == 0, !extras.byBeRoTracker {
+            byModPlug = true
+            savedWith = 0x0116_0000
+        }
+        // (The letters that begin a song's extras turn up by chance in other trackers' files.)
+        guard byModPlug || byOpenMPT else { return (nil, Int(Int32.max)) }
+        if !extrasRead { extras.readSongExtras(file) }
+        // A file saved to be played as Impulse Tracker would play it asks for all of its ways, as
+        // far as the OpenMPT that saved it had them; any other asks for those it lists, and for
+        // none if it has no list.
+        var asked = byModPlug && !extras.byBeRoTracker ? [] : [Bool](repeating: true, count: 64)
+        if extras.hasSongExtras {
+            asked = extras.behaviours
+            if let saved = extras.savedWith { savedWith = saved }
+        }
+        return (asked, savedWith)
+    }
+
     private static func tracker(Cwtv: UInt16, Cmwt: UInt16) -> String {
         let minor = hex2(Int(Cwtv & 0xFF))
         // ModPlug Tracker gave itself away by pairs of versions Impulse Tracker never wrote.

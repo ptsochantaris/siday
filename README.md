@@ -30,10 +30,10 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer. SFX, the modules of SoundFX, a tracker of the Amiga's first years, with fifteen samples and a tempo that is a count for the Amiga's timer, and all the songs of a file that holds several. OKT, the modules of Oktalyzer, of four to eight tracks: each voice of the chip is whole or is split in two, and the two tracks of a split voice are mixed into it as Oktalyzer mixed them; packed with PowerPacker or not. Both played as their trackers' own routines played them, on the same chip |
-| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter; and an IT file that ModPlug Tracker or OpenMPT made is heard through those of its plug-ins that are OpenMPT's own |
+| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter; and an IT file that ModPlug Tracker or OpenMPT made is heard through that tracker's own filter, where it was made with it, and through those of its plug-ins that are OpenMPT's own |
 | Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
 | Modules of other trackers, on Impulse Tracker's replayer | GDM, the files of the BWSB sound system, each of them another tracker's module (an S3M, a MOD, and others) written out again; and PTM, the modules of PolyTracker, with up to 32 channels, samples of sixteen bits and loops that go back and forth. This player has no replayer of either: each is read into what Impulse Tracker plays and played by its replayer, every channel in its own place between the speakers |
-| OpenMPT's own modules, on Impulse Tracker's replayer | MPTM, the format OpenMPT keeps for what an IT file has no room for: an IT file with more written after it. Played by Impulse Tracker's replayer, which has been given what such a file asks beyond an IT file as far as that can honestly be given: OpenMPT's three ways of keeping time, its swing, tempos that are fractions or above 255, patterns of up to 1024 rows, lists of patterns of any length and several to a file (which are its songs), longer envelopes with a place to go when a key is let go, a filter that lets the high through, samples played backwards and from cue points, and OpenMPT's louder way of adding channels up. An instrument that is a patch for the AdLib's FM chip is played on that chip, as OpenMPT plays it. The plug-ins that are OpenMPT's own (its echo, two reverbs, chorus, flangers, compressor, distortion, equaliser and gargle, and DigiBooster's echo) are played, wired as the file wires them; a plug-in that is somebody else's program is left out, and an instrument that is only such a plug-in is not heard |
+| OpenMPT's own modules, on Impulse Tracker's replayer | MPTM, the format OpenMPT keeps for what an IT file has no room for: an IT file with more written after it. Played by Impulse Tracker's replayer, which has been given what such a file asks beyond an IT file as far as that can honestly be given: OpenMPT's three ways of keeping time, its swing, tempos that are fractions or above 255, patterns of up to 1024 rows, lists of patterns of any length and several to a file (which are its songs), longer envelopes with a place to go when a key is let go, OpenMPT's own filter for a file that does not ask for Impulse Tracker's, a filter that lets the high through and one that is moved at random from note to note, samples played backwards and from cue points, and OpenMPT's louder way of adding channels up. An instrument that is a patch for the AdLib's FM chip is played on that chip, as OpenMPT plays it. The plug-ins that are OpenMPT's own (its echo, two reverbs, chorus, flangers, compressor, distortion, equaliser and gargle, and DigiBooster's echo) are played, wired as the file wires them; a plug-in that is somebody else's program is left out, and an instrument that is only such a plug-in is not heard |
 | AdLib and Sound Blaster FM tunes | CMF, Creative's music files for the Sound Blaster, played by the driver that came with the card. ROL, the piano rolls of AdLib's Visual Composer, played by AdLib's sound driver, with the instruments of the bank beside the file or of the bank built into the player. FMT, the songs of Davey W Taylor's FM Tracker, a tracker of eight voices for the AdLib card, played as OpenMPT reads them |
 
 Not supported: RSID tunes that need the C64 BASIC ROM, and Compute!'s Sidplayer (MUS) data.
@@ -703,7 +703,48 @@ which OpenMPT has since built into itself, and some eight hundred IT files to ha
 the same effects, wired the same way, as for an MPTM file (see below), and a plug-in that is
 anybody else's is left out and said to be. Set beside libopenmpt, three hundred of those files
 agree in spectrum to 0.983 for the middle one, where without the plug-ins it was 0.960. (An XM file
-of those trackers can have plug-ins too, and is still played without them.) A file Impulse Tracker
+of those trackers can have plug-ins too, and is still played without them.)
+
+The fourth is the filter itself. ModPlug Tracker had a filter of its own before it had Impulse
+Tracker's. It is the same kind of filter, but it rings half as much for the same resonance, and it
+goes by other rules. A note starts with it only if its cutoff is below the top; a macro or an
+envelope that sets it puts it on; and once on, it stays on until the next note. So a filter set
+wide open still takes the top off the sound, at five kilohertz, where to Impulse Tracker a filter
+wide open is no filter at all. OpenMPT kept that filter for the files that were made with it. It
+took up Impulse Tracker's in its version 1.20, and only for a file that asks to be played as
+Impulse Tracker would play it; and it uses its own curve even then if the file asks for ModPlug
+Tracker's wider range of cutoffs, which Impulse Tracker's has not. So a file is played here with
+the filter it was made with. Which that is is told by the signs OpenMPT goes by (who the file says
+made it, the version that last saved it, and the ways of playing it lists), and of the 21,189 IT
+and MPTM files to hand that are read at all, there is not one where the two choose differently.
+That filter is heard in 1,236 of the IT files and 215 of the MPTM files.
+
+With it come some smaller things of ModPlug Tracker's, each for a file that tracker or OpenMPT
+made. An instrument's filter can be the other way up, letting the high through and not the low,
+and it can be moved at random from one note to the next, the cutoff or the resonance or both, by
+as much as its instrument says. (An older file goes on adding a note's random move to whatever a
+command sets the filter to while the note lasts; a newer one does not.) And three things about
+envelopes are done ModPlug Tracker's way in a file that does not ask for Impulse Tracker's: in a
+file from before OpenMPT 1.20, an envelope for pitch or for the filter goes round its loop a tick
+sooner; an envelope that is to carry on from the note before does not, after a note whose key was
+let go, if the row names the instrument; and a slide to a note starts the envelopes again if the
+instrument has none for volume. (OpenMPT stops making the first of those changes at the first
+instrument that has anything random in it, in a file from before its version 1.17.02.50, and
+leaves the instruments after it as they are. So does this.)
+
+All of that was checked by setting every sounding channel's filter beside libopenmpt's on every
+tick of a file's first minute: whether it is on, and the three numbers it is worked by. Of the 215
+MPTM files, 186 have nothing random about their filters, and in 179 of those the two are the same
+on every tick, give or take one step of 512 in an envelope, which the two round differently. Of
+300 of the IT files taken at random, 295 have nothing random; the two players go through the same
+rows tick for tick in 291 of them, and in 279 of those the filters are the same on every tick. What
+is left is mostly envelopes that carry on, or do not, about a slide to a note. What is heard was set beside libopenmpt
+before and after: of the 300 IT files 139 are nearer and 9 further, and of the 215 MPTM files 86
+and 5; the spectrum of the middle IT file agrees to 0.981 where it was 0.975, and that of the
+middle MPTM file to 0.994 where it was 0.991. A file with a filter moved at random cannot be set
+beside anything, since no two playings of it are alike.
+
+A file Impulse Tracker
 made is played as Impulse Tracker played it, and `--raw`
 writes every file so, to set beside it2play. The filter is the one place where the web
 player and the Mac's do not agree to the last bit: each asks its own maths library for a power of two.
@@ -748,7 +789,9 @@ so. A tempo can be a fraction, or above 255. A pattern can have 1024 rows, the l
 be longer than 256, and a file can have several lists, which are its songs. A command's value can
 go on into the rows below it; a note can be delayed and cut by one command, started at a place its
 sample names, and played backwards. An envelope can have more than 25 points, and a point to go to
-when its key is let go. A filter can let the high through instead of the low. And a file can ask
+when its key is let go. A filter can let the high through instead of the low, and can be moved at
+random from note to note; and it is OpenMPT's own filter unless the file asks for Impulse
+Tracker's (see above, where the same is told of an IT file). And a file can ask
 for OpenMPT's own way of adding its channels up, which is twice as loud as Impulse Tracker's and
 puts a channel that is to one side at no more than one in the middle.
 
@@ -810,13 +853,12 @@ one, where a pattern that jumps about within itself is taken to have come round 
 takes it to. (That was before the files with FM were played, and they have not been counted
 again.) What is heard was set beside libopenmpt as it plays, plug-ins and all, by the same two
 measures as above, for the first minute of each file. For the files with no plug-ins the spectrum
-agrees to 0.996 for the middle file and 0.976 for the file a tenth of the way up from the worst;
-for those whose plug-ins are all OpenMPT's own, to 0.993 and 0.957, where without the plug-ins it
+agrees to 0.997 for the middle file and 0.976 for the file a tenth of the way up from the worst;
+for those whose plug-ins are all OpenMPT's own, to 0.994 and 0.959, where without the plug-ins it
 was 0.972 and 0.894; and for those with a plug-in that is left out, which libopenmpt leaves out
-too, to 0.997 and 0.976. The files with FM come to 0.983 and 0.957. The rest of the difference is
-OpenMPT's filter, whose cutoff is not Impulse Tracker's unless the file asks; slides in a tune that
-uses the Amiga's; a pitch that OpenMPT rounds where Impulse Tracker does not; and whatever an
-instrument does at random.
+too, to 0.997 and 0.979. The files with FM come to 0.984 and 0.957. The rest of the difference is
+slides in a tune that uses the Amiga's; a pitch that OpenMPT rounds where Impulse Tracker does
+not; and whatever an instrument does at random.
 
 A CMF file is a tune for the FM chip alone: its instruments, each the handful of numbers the chip
 wants for one, and the music as MIDI. It was Creative's format, and what played it was SBFMDRV,

@@ -145,12 +145,38 @@ final class IT2Mixer {
     // The filter's tables.
     private let QualityFactorTable: UnsafeMutablePointer<Float>
     private let FreqParameterMultiplier: Float, FreqMultiplier: Float
+    /// Whose filter the voices have (see `IT2Module.Filter`), and for OpenMPT's: how many steps of
+    /// the cutoff make an octave, and the rate the sound is made at.
+    private let filter: IT2Module.Filter
+    private let ownFilterStep: Float, ownFilterRate: Float
 
     private let fSincLUT: UnsafeMutablePointer<Float>
     /// What the voice last mixed last added to each side.
     private var fLastLeftValue: Float = 0, fLastRightValue: Float = 0
 
-    init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>, sound: ModPlugSound? = nil) {
+    /// Sets a voice's filter as OpenMPT sets its own (`SetupChannelFilter`, where a file does not
+    /// ask for Impulse Tracker's): the same kind of filter, of two poles, with half the ring to it
+    /// for the same resonance, and a cutoff held between 120 hertz and 20,000.
+    /// - Parameters:
+    ///   - cutoff: from 0 to 127.
+    ///   - envelope: what the filter's envelope is at, of 512.
+    @inline(__always)
+    private func setOwnFilter(_ sc: UnsafeMutablePointer<IT2SlaveChannel>, cutoff: Int32, envelope: Int32, resonance: UInt8) {
+        let damping = QualityFactorTable[Int(min(resonance, 127))]
+        let frequency = min(ownFilterRate * 0.5, max(120, min(20000, 110 * exp2f(0.25 + Float(cutoff * envelope) / (ownFilterStep * 512)))))
+        let r = frequency * (2 * Float.pi) / ownFilterRate
+        let d = (2 * damping - min(2, (1 - 2 * damping) * r)) / r
+        let e = 1 / (r * r)
+        let a: Float = 1 / (1 + d + e)
+        let b: Float = (d + e + e) * a
+        sc.pointee.fFiltera = sc.pointee.HighPass ? 1 - a : a
+        sc.pointee.fFilterb = b
+        sc.pointee.fFilterc = 1 - a - b
+    }
+
+    init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>, sound: ModPlugSound? = nil,
+         filter: IT2Module.Filter = .impulseTrackers) {
+        self.filter = filter
         globalVolumeAtMaster = sound?.globalVolumeAtMaster ?? false
         sChn = voices
         FilterParameters = filterParameters
@@ -191,11 +217,13 @@ final class IT2Mixer {
         let filterStep = module.Flags & ITF_MPT_EXT_FILTER_RANGE != 0 ? 20.0 : 24.0
         QualityFactorTable = .allocate(capacity: 128)
         for i in 0 ..< 128 {
-            QualityFactorTable[i] = Float(pow(10.0, (Double(-i) * filterStep) / (128.0 * 20.0)))
+            QualityFactorTable[i] = Float(pow(10.0, (Double(-i) * (filter == .impulseTrackers ? filterStep : 24.0)) / (128.0 * 20.0)))
         }
         FreqParameterMultiplier = Float(-1.0 / (filterStep * 256.0))
         let exp2Quarter = 0x1.306fe0a31b715p+0 // exp2(0.25)
         FreqMultiplier = Float((1.0 / (2.0 * Double.pi * 110.0 * exp2Quarter)) * Double(mixingFrequency))
+        ownFilterStep = Float(filterStep)
+        ownFilterRate = Float(mixingFrequency)
 
         // and the gain.
         MixGain = Self.mixGain(of: module)
@@ -548,7 +576,30 @@ final class IT2Mixer {
                 // What the filter's envelope is at (0 to 255) by the cutoff (0 to 127).
                 let cutoff = Int32(UInt16(bitPattern: sc.pointee.VolEnvState.CurNode) >> 8)
                 let FilterFreqValue = UInt16(truncatingIfNeeded: Int32(sc.pointee.MIDIBank & 0x00FF) &* cutoff)
-                if FilterFreqValue != 127 * 255 || FilterQ != 0 {
+                if filter != .impulseTrackers {
+                    // OpenMPT's own: on by Impulse Tracker's rule, or by its own, which is that a
+                    // note starts with it if its cutoff is below the top, that a macro or an
+                    // envelope that sets it puts it on, and that once on it stays on.
+                    let on: Bool
+                    if filter == .openMPTsCurve {
+                        on = FilterFreqValue != 127 * 255 || FilterQ != 0
+                    } else {
+                        if sc.pointee.Flags & SF_NEW_NOTE != 0 { sc.pointee.FilterOn = sc.pointee.FilterFromStart }
+                        if sc.pointee.FilterSet { sc.pointee.FilterOn = true }
+                        on = sc.pointee.FilterOn
+                    }
+                    if on {
+                        // The envelope is at so much of 512, which is finer than Impulse Tracker
+                        // has it; with none, at all of it.
+                        var envelope: Int32 = 512
+                        if sc.pointee.FilterEnvelope {
+                            envelope = max(0, min(512, (sc.pointee.PitchEnvState.Value + (32 << 16) + (1 << 12)) >> 13))
+                        } else if filter == .openMPTsCurve, sc.pointee.MIDIBank & 0x00FF != 255 {
+                            envelope = Int32(sc.pointee.MIDIBank & 0x00FF) * 2
+                        }
+                        setOwnFilter(sc, cutoff: cutoff, envelope: envelope, resonance: FilterQ)
+                    }
+                } else if FilterFreqValue != 127 * 255 || FilterQ != 0 {
                     let r = exp2f(Float(FilterFreqValue) * FreqParameterMultiplier) * FreqMultiplier
                     // (A resonance above 127 would have the original read past its table.)
                     let p = QualityFactorTable[Int(min(FilterQ, 127))]

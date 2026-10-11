@@ -104,6 +104,8 @@ final class IT2Player {
     let midiSample: UInt8, midiVoiceSample: UInt8
     private let sampleLimit: Int
     var LastSlaveChannel: IT2SlavePointer?
+    /// True if that voice's key had been let go, or it was fading, before the new note came.
+    private var lastWasLetGo = false
 
     func RecalculateAllVolumes() {
         for i in 0 ..< NumChannels { sChn[i].Flags |= SF_RECALC_PAN | SF_RECALC_VOL }
@@ -168,11 +170,21 @@ final class IT2Player {
                 if MIDIInterpretType >= 2 {
                     modPlugMacro(hc, code: MIDIInterpretType, value: Data)
                 } else if MIDIInterpretType == 1 {
-                    FilterParameters[(64 + Int(hc.pointee.HostChnNum)) & 127] = Data
+                    // (As OpenMPT once had it, a note's random swing goes on being added to
+                    // whatever its filter is set to; as it has it now, the swing is over with.)
+                    let swing = oldFilterSwing ? Int(hc.pointee.ResSwing) : 0
+                    FilterParameters[(64 + Int(hc.pointee.HostChnNum)) & 127] = UInt8(max(0, min(127, Int(Data) + swing)))
+                    hc.pointee.RestoreResonance = swing != 0 ? Data + 1 : 0
                 } else {
-                    FilterParameters[Int(hc.pointee.HostChnNum) & 127] = Data
+                    let swing = oldFilterSwing ? Int(hc.pointee.CutSwing) : 0
+                    FilterParameters[Int(hc.pointee.HostChnNum) & 127] = UInt8(max(0, min(127, Int(Data) + swing)))
+                    hc.pointee.RestoreCutoff = swing != 0 ? Data + 1 : 0
                 }
-                if let sc { sc.pointee.Flags |= SF_UPDATE_MIXERVOL }
+                if let sc {
+                    sc.pointee.Flags |= SF_UPDATE_MIXERVOL
+                    // (The voice is the last the channel had, which another channel may have by now.)
+                    if MIDIInterpretType < 2, sc.pointee.HostChnNum == hc.pointee.HostChnNum { sc.pointee.FilterSet = true }
+                }
             }
             MIDIInterpretState = 0
         }
@@ -324,7 +336,7 @@ final class IT2Player {
         sc.pointee.PitchEnvState.NextTick = 0
         sc.pointee.PitchEnvState.CurNode = 0
         sc.pointee.ReleaseLevel = -1
-        if ins.FilterMode != IT2Instrument.sameFilter { hc.pointee.HighPass = ins.FilterMode == 1 }
+        if ins.FilterMode != IT2Instrument.sameFilter, modPlugInstruments { hc.pointee.HighPass = ins.FilterMode == 1 }
         sc.pointee.HighPass = hc.pointee.HighPass
 
         sc.pointee.Flags = SF_CHAN_ON + SF_RECALC_PAN + SF_RECALC_VOL + SF_FREQ_CHANGE + SF_NEW_NOTE
@@ -332,7 +344,10 @@ final class IT2Player {
         if ins.PanEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_PANENV_ON }
         if ins.PitchEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_PITCHENV_ON }
 
-        if let lastSC = LastSlaveChannel {
+        // (As ModPlug Tracker had it, nothing carries on from a note whose key has been let go
+        // or that is fading, if the row names its instrument.)
+        let startsAgain = ownEnvelopeCarry && hc.pointee.NotePackMask & 0x22 != 0 && lastWasLetGo
+        if let lastSC = LastSlaveChannel, !startsAgain {
             // An envelope that carries on from the note before.
             if ins.VolEnv.Flags & (ENVF_ENABLED | ENVF_CARRY) == ENVF_ENABLED + ENVF_CARRY { sc.pointee.VolEnvState = lastSC.pointee.VolEnvState }
             if ins.PanEnv.Flags & (ENVF_ENABLED | ENVF_CARRY) == ENVF_ENABLED + ENVF_CARRY { sc.pointee.PanEnvState = lastSC.pointee.PanEnvState }
@@ -341,6 +356,7 @@ final class IT2Player {
 
         hc.pointee.Flags |= HF_APPLY_RANDOM_VOL
 
+        restoreFilter(hc)
         if hc.pointee.MIDIChn == 0 {
             sc.pointee.MIDIBank = 0x00FF // the filter wide open and without resonance
             if ins.FilterCutoff & 0x80 != 0 { SetFilterCutoff(hc, sc, ins.FilterCutoff & 0x7F) }
@@ -350,6 +366,31 @@ final class IT2Player {
                 SetFilterResonance(hc, sc, filterQ)
             }
         }
+        // (What an instrument sets its filter to is not a macro's doing.)
+        sc.pointee.FilterSet = false
+        sc.pointee.FilterEnvelope = false
+        sc.pointee.FilterFromStart = FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
+    }
+
+    /// Starts a voice's envelopes again from their beginnings, those its instrument has.
+    func restartEnvelopes(_ sc: IT2SlavePointer, _ ins: IT2Instrument) {
+        sc.pointee.VolEnvState = IT2EnvState(Value: 64 << 16, CurNode: sc.pointee.VolEnvState.CurNode & Int16(bitPattern: 0xFF00))
+        sc.pointee.PanEnvState = IT2EnvState()
+        sc.pointee.PitchEnvState = IT2EnvState()
+        if ins.VolEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_VOLENV_ON }
+        if ins.PanEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_PANENV_ON }
+        if ins.PitchEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_PITCHENV_ON }
+    }
+
+    /// Puts a channel's filter back as it was before the last note's random swing moved it.
+    private func restoreFilter(_ hc: IT2HostPointer) {
+        let channel = Int(hc.pointee.HostChnNum) & 63
+        if hc.pointee.RestoreCutoff > 0 { FilterParameters[channel] = hc.pointee.RestoreCutoff - 1 }
+        if hc.pointee.RestoreResonance > 0 { FilterParameters[64 + channel] = hc.pointee.RestoreResonance - 1 }
+        hc.pointee.RestoreCutoff = 0
+        hc.pointee.RestoreResonance = 0
+        hc.pointee.CutSwing = 0
+        hc.pointee.ResSwing = 0
     }
 
     /// A voice for a note of a tune that has samples and no instruments: each channel has its own.
@@ -370,6 +411,10 @@ final class IT2Player {
         sc.pointee.FadeOut = 1024
         sc.pointee.VolEnvState.Value = (64 << 16) | (sc.pointee.VolEnvState.Value & 0xFFFF)
         sc.pointee.MIDIBank = 0x00FF
+        restoreFilter(hc)
+        sc.pointee.FilterSet = false
+        sc.pointee.FilterEnvelope = false
+        sc.pointee.FilterFromStart = FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
         sc.pointee.Note = hc.pointee.RawNote
         sc.pointee.Ins = hc.pointee.Ins
         sc.pointee.Flags = SF_CHAN_ON + SF_RECALC_PAN + SF_RECALC_VOL + SF_FREQ_CHANGE + SF_NEW_NOTE
@@ -474,7 +519,10 @@ final class IT2Player {
         var scInitialized = false
         if hcFlags & UInt8(HF_CHAN_ON) != 0, let playing = hc.pointee.SlaveChnPtr {
             sc = playing
-            if sc.pointee.InsPtr === ins { LastSlaveChannel = sc }
+            if sc.pointee.InsPtr === ins {
+                LastSlaveChannel = sc
+                lastWasLetGo = sc.pointee.Flags & (SF_NOTE_OFF | SF_FADEOUT) != 0
+            }
             NNA = sc.pointee.NNA
             if NNA != NNA_NOTE_CUT { sc.pointee.HostChnNum |= CHN_DISOWNED }
             scInitialized = true
@@ -710,6 +758,26 @@ final class IT2Player {
             sc.pointee.Pan = UInt8(max(0, min(64, pan)))
             sc.pointee.PanSet = sc.pointee.Pan
         }
+        // ModPlug Tracker's and OpenMPT's: the filter, by as much as so many 64ths of where it is.
+        // (What it was is kept, to be put back for the next note.)
+        guard ins.CutSwing | ins.ResSwing != 0, modPlugInstruments else { return }
+        let channel = Int(hc.pointee.HostChnNum) & 63
+        func swing(_ most: UInt8, of setting: UInt8) -> Int {
+            guard most != 0 else { return 0 }
+            return (Int(most) * (Int(Int8(bitPattern: Random())) + 1) / 128 * Int(setting) + 1) / 128
+        }
+        let cutoff = FilterParameters[channel], resonance = FilterParameters[64 + channel]
+        hc.pointee.CutSwing = Int16(swing(ins.CutSwing, of: cutoff))
+        hc.pointee.ResSwing = Int16(swing(ins.ResSwing, of: resonance))
+        if ins.CutSwing != 0 {
+            hc.pointee.RestoreCutoff = cutoff + 1
+            FilterParameters[channel] = UInt8(max(0, min(127, Int(cutoff) + Int(hc.pointee.CutSwing))))
+        }
+        if ins.ResSwing != 0 {
+            hc.pointee.RestoreResonance = resonance + 1
+            FilterParameters[64 + channel] = UInt8(max(0, min(127, Int(resonance) + Int(hc.pointee.ResSwing))))
+        }
+        sc.pointee.Flags |= SF_UPDATE_MIXERVOL
     }
 
     // MARK: Slides of pitch, in whole numbers as Impulse Tracker had them before its version 2.15
@@ -1078,7 +1146,8 @@ final class IT2Player {
                 }
 
                 // The envelope that is for pitch, or for the filter.
-                if sc.pointee.Flags & SF_PITCHENV_ON != 0, UpdateEnvelope(ins.PitchEnv, &sc.pointee.PitchEnvState, SustainReleased) {
+                let followed = sc.pointee.Flags & SF_PITCHENV_ON != 0
+                if followed, UpdateEnvelope(asImpulseTracker ? ins.PitchEnv : ins.PitchEnvAsModPlug ?? ins.PitchEnv, &sc.pointee.PitchEnvState, SustainReleased) {
                     sc.pointee.Flags &= ~SF_PITCHENV_ON
                 }
                 if ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
@@ -1094,6 +1163,10 @@ final class IT2Player {
                     if UInt16(bitPattern: EnvVal) & 0xFF00 != 0 { EnvVal &-= 1 }
                     sc.pointee.MIDIBank = (sc.pointee.MIDIBank & 0xFF00) | UInt16(UInt8(truncatingIfNeeded: EnvVal))
                     sc.pointee.Flags |= SF_UPDATE_MIXERVOL
+                    if followed {
+                        sc.pointee.FilterSet = true
+                        sc.pointee.FilterEnvelope = true
+                    }
                 }
 
                 if sc.pointee.Flags & SF_PANENV_ON != 0 {
@@ -1255,6 +1328,14 @@ final class IT2Player {
     /// True if the command after Z in the alphabet sends a macro a little at a time over its row
     /// (see `CommandSmoothMacro`): for a file of ModPlug Tracker's or OpenMPT's, whose command it is.
     let smoothMacros: Bool
+    let oldFilterSwing: Bool
+    /// See `IT2Module.ModPlugWays`.
+    let ownEnvelopeCarry: Bool, slideRestartsEnvelopes: Bool
+    /// True if nothing is done for a file because another tracker than Impulse Tracker made it.
+    let asImpulseTracker: Bool
+    /// True unless what ModPlug Tracker and OpenMPT add to an IT file's instruments is to be
+    /// left out: a filter the other way up, and one moved at random.
+    let modPlugInstruments: Bool
     /// The file's plug-ins and FM instruments, if it has any that are played and is not to be played
     /// as Impulse Tracker would play it; and the FM chip, if it has instruments for that.
     let sound: ModPlugSound?
@@ -1279,6 +1360,11 @@ final class IT2Player {
         samplesPlayForMIDI = module.madeByModPlug && !asImpulseTracker
         playsBackwards = module.openMPT != nil || !module.madeByImpulseTracker && !asImpulseTracker
         smoothMacros = module.openMPT != nil || module.madeByModPlug && !asImpulseTracker
+        oldFilterSwing = module.modPlug.oldFilterSwing
+        ownEnvelopeCarry = module.modPlug.ownEnvelopeCarry && !asImpulseTracker
+        slideRestartsEnvelopes = module.modPlug.slideRestartsEnvelopes && !asImpulseTracker
+        self.asImpulseTracker = asImpulseTracker
+        modPlugInstruments = !asImpulseTracker || module.openMPT != nil
         sound = asImpulseTracker ? nil : module.sound
         adLib = sound?.adLib.map { OpenMPTAdLib(behaviour: $0) }
         fineFMPitch = adLib != nil && module.Flags & ITF_LINEAR_FRQ != 0
@@ -1301,7 +1387,7 @@ final class IT2Player {
         FilterParameters.initialize(repeating: 0, count: 128)
         visited = .allocate(capacity: Self.rowsInAll(of: module))
         visited.initialize(repeating: false, count: Self.rowsInAll(of: module))
-        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound)
+        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound, filter: asImpulseTracker ? .impulseTrackers : module.filter)
         mixer.adLib = adLib
         if forSound { mixer.playsPlugIns() }
 

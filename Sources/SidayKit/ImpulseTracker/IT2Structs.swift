@@ -100,6 +100,13 @@ final class IT2Instrument {
     /// which is all an IT file's instrument does.
     var FilterMode: UInt8 = IT2Instrument.sameFilter
     static let sameFilter: UInt8 = 255
+    /// For an instrument of ModPlug Tracker's or OpenMPT's only: how far its filter's cutoff and
+    /// resonance are moved at random from one note to the next, of 64 (see `ApplyRandomValues`).
+    var CutSwing: UInt8 = 0, ResSwing: UInt8 = 0
+    /// For an instrument of an IT file that ModPlug Tracker or an OpenMPT before 1.20 made: its
+    /// envelope for pitch or the filter as that tracker played it, which was as FastTracker plays
+    /// one (see `MPTMFile.asFastTrackerLooped`). Nil for any other.
+    var PitchEnvAsModPlug: IT2Envelope?
     /// For an MPTM file's instrument only, and of those only one tuned to a scale of its own that is
     /// near enough the usual one to be played (see `MPTMFile`): what each of the 120 notes is to
     /// middle C, where the usual tuning has a semitone between each and the next. Nil for the usual.
@@ -166,6 +173,11 @@ struct IT2HostChannel {
     var OffsetMemory: UInt32 = 0
     /// For an MPTM file only: true if its filter lets the high through. See `IT2Instrument`.
     var HighPass = false
+    /// For an instrument whose filter is moved at random (see `IT2Instrument.CutSwing`): what the
+    /// channel's cutoff and resonance were before the note's were moved, and one more, to be put
+    /// back when the next note comes, or nought for nothing to put back; and how far they were moved.
+    var RestoreCutoff: UInt8 = 0, RestoreResonance: UInt8 = 0
+    var CutSwing: Int16 = 0, ResSwing: Int16 = 0
 }
 
 /// Where an envelope has got to.
@@ -190,6 +202,14 @@ struct IT2SlaveChannel {
     var ReleaseLevel: Int16 = -1
     /// For an MPTM file only: its channel's `HighPass` as it was when the note began.
     var HighPass = false
+    /// For a file played with OpenMPT's own filter only (see `IT2Module.Filter`). `FilterSet` is
+    /// true once a macro or the instrument's envelope has set the voice's filter since its note
+    /// began, and `FilterEnvelope` once that envelope has been followed; `FilterOn` is the mixer's,
+    /// and true from when the voice's filter is first on, after which it is not off again.
+    var FilterSet = false, FilterEnvelope = false, FilterOn = false
+    /// And true if the note began with its channel's cutoff below the top, which is when a note
+    /// has that filter from its start.
+    var FilterFromStart = false
     /// How many notes the voice has been given, as far as a byte counts: for telling a new note
     /// on it from the note it had. Only what plays the FM chip looks.
     var Started: UInt8 = 0

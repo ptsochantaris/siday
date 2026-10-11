@@ -201,6 +201,84 @@ private func byOpenMPT(_ file: [UInt8]) -> [UInt8] {
     #expect(abs(loudness(itsOwn[9600...]) - loudness(open[9600...])) < loudness(open[9600...]) * 0.02)
 }
 
+/// A file as ModPlug Tracker signed one, and as an OpenMPT of these two figures (0x29 for 1.29)
+/// signs one that it saves to be played as it plays it itself.
+private func byModPlugTracker(_ file: [UInt8]) -> [UInt8] {
+    var file = file
+    file[40 ... 43] = [0x14, 0x02, 0x02, 0x02]
+    return file
+}
+
+private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
+    var file = file
+    file[40 ... 41] = [version, 0x51]
+    file[60 ... 63] = Array("OMPT".utf8)[...]
+    return file
+}
+
+@Test func itIsPlayedWithTheFilterOfTheTrackerThatMadeIt() throws {
+    func filter(_ file: [UInt8]) throws -> IT2Module.Filter { try #require(try TuneLoader.load(file, format: .it) as? ITRenderer).module.filter }
+    #expect(try filter(it()) == .impulseTrackers)
+    // ModPlug Tracker had a filter of its own, and OpenMPT has it still for a file that does not
+    // ask to be played as Impulse Tracker would play it; a file saved to be played so asks for
+    // Impulse Tracker's filter if the OpenMPT that saved it had it, which is from 1.20.
+    #expect(try filter(byModPlugTracker(it())) == .openMPTs)
+    #expect(try filter(asOpenMPTPlays(it(), version: 0x29)) == .openMPTs)
+    #expect(try filter(byOpenMPT(it())) == .impulseTrackers)
+    var before = byOpenMPT(it())
+    before[40] = 0x19
+    #expect(try filter(before) == .openMPTs)
+    // And the wider range of cutoffs, which is ModPlug Tracker's, is on OpenMPT's curve whoever asks.
+    var wide = it()
+    wide[45] |= 0x10
+    #expect(try filter(wide) == .openMPTsCurve)
+    #expect(try filter(byModPlugTracker(wide)) == .openMPTs)
+
+    // What the file lists settles it, where it has a list: "compatible play" alone, from a
+    // version before 1.26, asks for whatever of Impulse Tracker's ways that version had.
+    typealias Ways = IT2Module.ModPlugWays
+    func asked(_ behaviours: [Int]) -> [Bool] { (0 ..< 64).map { behaviours.contains($0) } }
+    #expect(Ways(asked: asked([0]), savedWith: 0x0122_0000, wideRange: false).filter == .impulseTrackers)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0119_0400, wideRange: false).filter == .openMPTs)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0128_0000, wideRange: false).filter == .openMPTs)
+    #expect(Ways(asked: asked([0, 36]), savedWith: 0x0128_0000, wideRange: false).filter == .impulseTrackers)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0118_0000, wideRange: false).ownEnvelopeCarry == false)
+    #expect(Ways(asked: asked([]), savedWith: 0x0118_0000, wideRange: false).ownEnvelopeCarry)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0118_0000, wideRange: false).slideRestartsEnvelopes)
+    #expect(Ways().filter == .impulseTrackers && !Ways().ownEnvelopeCarry && !Ways().slideRestartsEnvelopes)
+}
+
+@Test func itFromModPlugTrackerIsHeardThroughModPlugTrackersFilter() throws {
+    /// The steepest step from one sample of a sound to the next: how sharp its edges are.
+    func edge(_ samples: ArraySlice<Float>) -> Float { zip(samples, samples.dropFirst()).map { abs($1 - $0) }.max() ?? 0 }
+    // Z7F on the note's row: the filter wide open, which to Impulse Tracker is no filter, and to
+    // ModPlug Tracker one that takes the top off the sound at five kilohertz.
+    let row: [UInt8] = [0x81, 0x0B, 60, 1, 26, 0x7F]
+    let open = stereo(try TuneLoader.load(it(), format: .it), seconds: 0.5).left
+    #expect(stereo(try TuneLoader.load(it(row: row), format: .it), seconds: 0.5).left == open)
+    let renderer = try #require(try TuneLoader.load(byModPlugTracker(it(row: row)), format: .it) as? ITRenderer)
+    let without = try #require(try TuneLoader.load(byModPlugTracker(it()), format: .it) as? ITRenderer)
+    let dulled = stereo(renderer, seconds: 0.5).left, plain = stereo(without, seconds: 0.5).left
+    #expect(edge(dulled[4800...]) < edge(plain[4800...]) * 0.75)
+    #expect(abs(loudness(dulled[4800...]) - loudness(plain[4800...])) < loudness(plain[4800...]) * 0.1)
+    // Played as the player this is ported from plays it, the command is nothing in that file too.
+    #expect(renderer.renderRaw(frames: 9600) == without.renderRaw(frames: 9600))
+}
+
+@Test func modPlugsExtrasSayHowAnInstrumentsFilterIsSet() {
+    // The instruments' extras, as they are at the end of an IT file of three instruments: which
+    // way up each one's filter is, and how far its cutoff and its resonance are moved at random.
+    var bytes = Array("XTPM".utf8)
+    bytes += Array("..MF".utf8) + word(1) + [1, 0xFF, 0]
+    bytes += Array("..SC".utf8) + word(1) + [0, 40, 99]
+    bytes += Array("..SR".utf8) + word(1) + [0, 0, 0]
+    var extras = ModPlugExtras()
+    extras.readInstrumentExtras(ByteReader(bytes), from: 0, instruments: 3)
+    #expect(extras.filterModes == [1, 0xFF, 0])
+    #expect(extras.cutoffSwings == [0, 40, 64])
+    #expect(extras.resonanceSwings.isEmpty)
+}
+
 @Test func itFromALaterTrackerSaysWhatImpulseTrackerDoesNotPlay() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .it).info.shortfalls }
     #expect(try shortfalls(it()).isEmpty)

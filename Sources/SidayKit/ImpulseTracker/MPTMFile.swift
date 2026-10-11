@@ -338,7 +338,7 @@ enum MPTMFile {
     /// An envelope that an OpenMPT before 1.20 played as FastTracker plays one, made into one that
     /// Impulse Tracker plays the same: with no loop it holds its last point, and a loop is a tick
     /// shorter, which is made so by a point put in a tick before its end.
-    private static func asFastTrackerLooped(_ from: IT2Envelope) -> IT2Envelope {
+    static func asFastTrackerLooped(_ from: IT2Envelope) -> IT2Envelope {
         var envelope = from
         let count = min(Int(envelope.Num), envelope.Tick.count, envelope.Magnitude.count)
         if envelope.SustainLoopBegin > envelope.LoopEnd, envelope.Flags & ENVF_LOOP != 0 { envelope.Flags &= ~ENVF_SUSTAINLOOP }
@@ -756,6 +756,12 @@ enum MPTMFile {
             if saved < since, saved != since & 0x7FFF_0000 { set(behaviour, false) }
         }
 
+        // (And with anything random in an instrument, what is random is played as it was before 1.17.02.50.)
+        if saved < 0x0117_0250, (0 ..< header.instruments).contains(where: {
+            let ins = file.instrument($0), extras = instrumentExtras[$0]
+            return ins.RandVol | ins.RandPan != 0 || extras.cutoffSwing | extras.resonanceSwing != 0
+        }) { set(Behaviour.oldSwing, true) }
+
         for index in 0 ..< header.instruments {
             let ins = file.instrument(index)
             if ins.MIDIChn >= 128, instrumentExtras[index].plugin == 0 { instrumentExtras[index].plugin = Int(ins.MIDIChn) - 128 }
@@ -764,6 +770,8 @@ enum MPTMFile {
             for note in 0 ..< 120 where ins.SmpNoteTable[note] & 0xFF >= 120 { ins.SmpNoteTable[note] = ins.SmpNoteTable[note] & 0xFF00 | UInt16(note) }
             let extras = instrumentExtras[index]
             if extras.filterMode <= 1 { ins.FilterMode = UInt8(extras.filterMode) }
+            ins.CutSwing = UInt8(min(64, extras.cutoffSwing & 0xFF))
+            ins.ResSwing = UInt8(min(64, extras.resonanceSwing & 0xFF))
             for which in 0 ..< 3 where extras.points[which] >= 0 || !extras.ticks[which].isEmpty || !extras.levels[which].isEmpty {
                 // An envelope given again in the extras, which is how one of more points than an IT
                 // file has room for is given at all: how many points, and then the ticks and the
@@ -1212,9 +1220,6 @@ enum MPTMFile {
 
             say(used.filter { instrumentExtras[$0 - 1].pitchTempoLock != 0 }.count, one: "One of its instruments is tied to the tempo, and is played at its own pitch whatever the tempo.",
                 many: " of its instruments are tied to the tempo, and are played at their own pitch whatever the tempo.")
-            say(used.filter { instrumentExtras[$0 - 1].cutoffSwing != 0 || instrumentExtras[$0 - 1].resonanceSwing != 0 }.count,
-                one: "One of its instruments has a filter that changes at random from note to note, and that is not done.",
-                many: " of its instruments have filters that change at random from note to note, and that is not done.")
         }
         if smoothPlugInMacros > 0, plugins.count > leftOut.count {
             shortfalls.append("Where it slides a plug-in's setting over a row, the setting is moved in one step at the row's start.")
@@ -1284,9 +1289,15 @@ enum MPTMFile {
             }
             madeWith += " \((song.savedWith >> 24) & 0x7F)." + part(song.savedWith >> 16) + "." + part(song.savedWith >> 8)
         }
+        var ways = file.modPlug
+        if song.found {
+            ways = IT2Module.ModPlugWays(asked: song.behaviours ?? [], savedWith: song.savedWith, wideRange: file.Flags & ITF_MPT_EXT_FILTER_RANGE != 0)
+            ways.oldFilterSwing = asks(Behaviour.oldSwing)
+        }
         let module = IT2Module(openMPT: openMPT, sound: heard ? sound : nil, file: file, madeWith: madeWith, orders: orders, mixVolume: UInt8(min(preAmp, 128)),
                                speed: openMPT.sequences[0].speed, tempo: UInt8(min(255, openMPT.sequences[0].tempo / OpenMPTSong.tempoUnit)),
-                               channelPans: pans, channelVolumes: volumes, patterns: packed, rows: rowCounts)
+                               channelPans: pans, channelVolumes: volumes, patterns: packed, rows: rowCounts,
+                               ways: ways)
         return ITRenderer(module: module, format: "MPTM", shortfalls: shortfalls, options: options)
     }
 

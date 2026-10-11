@@ -631,6 +631,12 @@ extension IT2Player {
                 if oldSCFlags & SF_CHAN_ON != 0 { sc.pointee.Flags &= ~SF_NEW_NOTE }
 
                 sc.pointee.SmpVol = UInt8(truncatingIfNeeded: (Int(ins.GlobVol) * Int(sc.pointee.SmpVol)) >> 7)
+            } else if slideRestartsEnvelopes, module.Flags & (ITF_INSTR_MODE | ITF_COMPAT_GXX) == ITF_INSTR_MODE, hc.pointee.Ins >= 1, hc.pointee.Ins != 255,
+                      sc.pointee.Flags & SF_CHAN_ON != 0 {
+                // (As ModPlug Tracker had it, the envelopes of an instrument that has none for
+                // volume start again, though the note slides on.)
+                let ins = module.instrument(Int(hc.pointee.Ins) - 1)
+                if ins.VolEnv.Flags & ENVF_ENABLED == 0 { restartEnvelopes(sc, ins) }
             }
         }
 

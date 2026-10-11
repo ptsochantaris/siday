@@ -488,7 +488,15 @@ Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
 A file of one of the old trackers' kinds that a later tracker made may have commands its own
 tracker never had. Some of them are played, by OpenMPT's rules (`soundlib/Snd_fx.cpp`,
 `Sndmix.cpp`): in an IT file, a sample played backwards and a macro sent a little at a time over a
-row (`IT2OpenMPT.swift`, as for an MPTM file); in an S3M file, a channel's volume, a slide of it and
+row (`IT2OpenMPT.swift`, as for an MPTM file); and such a file, and an MPTM file, is heard through
+ModPlug Tracker's own filter where it was made with it (`setOwnFilter` and the rule for when a voice
+has it in `Sources/SidayKit/ImpulseTracker/IT2Mixer.swift`, after `SetupChannelFilter` in
+`soundlib/Snd_flt.cpp` and `HandleNoteChangeFilter` in `Sndmix.cpp`; the signs by which a file is
+known for one, and the ways of playing it asks for, in `modPlugWays` and `ModPlugWays` in
+`IT2Module.swift`, after `soundlib/Load_it.cpp` and `UpgradeModule.cpp`), with its filter moved at
+random from note to note (`ApplyRandomValues` in `IT2Player.swift`, after `NoteChange` in
+`Snd_fx.cpp`) and its envelopes carried on and started again by ModPlug Tracker's rules
+(`InstrumentChange` there); in an S3M file, a channel's volume, a slide of it and
 a slide of the whole tune's (`laterCommand` in `Sources/SidayKit/ScreamTracker/ST3Effects.swift`);
 in an XM file, a sweep from side to side (`sweepFromSideToSide` in
 `Sources/SidayKit/FastTracker/FT2Replayer.swift`, with its two tables of 64 numbers in

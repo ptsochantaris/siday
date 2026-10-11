@@ -131,13 +131,14 @@ private struct Song {
 ///   - channelPlugIns: the plug-in each channel is sent through, counted from 1.
 ///   - parameterNotes: the rows of a pattern that change a plug-in's setting, as OpenMPT packs them.
 ///   - macros: MIDI macros that are other than the tracker's own, by their places among the 153.
+///   - carry: whether a note's volume envelope carries on from where the note before had got to.
 private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? = nil,
                   sequences: [(orders: [Int], restart: Int?, speed: Int, tempo: Int)]? = nil, samples: [Sample] = [.sound(square, loops: true)],
                   instruments: [(sample: UInt8, volumeEnvelope: [(tick: Int, level: Int)], fade: Int)] = [],
                   instrumentExtras: [(name: String, size: Int, values: [[UInt8]])] = [], patternExtras: [Int: (rowsPerBeat: Int, swing: [Int])] = [:],
                   cues: [Int: [Int]] = [:], tunings: [(name: String, steps: Int)] = [], tuned: [Int] = [], plugins: Int = 0, cutoff: UInt8 = 0,
                   temperament: [Float] = [], plugInPieces: [[UInt8]] = [], channelPlugIns: [Int] = [], parameterNotes: [Int: [UInt8]] = [:],
-                  macros: [Int: String] = [:]) -> [UInt8] {
+                  macros: [Int: String] = [:], carry: Bool = false) -> [UInt8] {
     let orders = orders ?? patterns.indices.map { UInt8($0) }
     var file = text("IMPM") + padded(text("a square wave"), to: 26) + [UInt8(song.rowsPerBeat), 16]
     file += word(orders.count) + word(instruments.count) + word(samples.count) + word(patterns.count) + word(0x0891) + word(0x0888)
@@ -172,7 +173,7 @@ private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? =
         for note in 0 ..< 120 { bytes += [UInt8(note), instrument.sample] }
         for which in 0 ..< 3 {
             let points = which == 0 ? instrument.volumeEnvelope : []
-            bytes += [points.isEmpty ? 0 : 1, UInt8(min(points.count, 25)), 0, 0, 0, 0]
+            bytes += [points.isEmpty ? 0 : carry ? 9 : 1, UInt8(min(points.count, 25)), 0, 0, 0, 0]
             for index in 0 ..< 25 { bytes += index < points.count ? [UInt8(points[index].level)] + word(points[index].tick) : [0, 0, 0] }
             bytes.append(0)
         }
@@ -553,6 +554,95 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
     let whole = stereo(try player(mptm([pattern], instruments: [(1, [], 0)]), options: options), seconds: 0.5).left
     let together = zip(low, high).map { $0 + $1 }
     #expect(zip(whole[4800...], together[4800...]).allSatisfy { abs($0 - $1) < 0.01 })
+}
+
+/// The steepest step from one sample of a sound to the next: how sharp its edges are.
+private func edge(_ samples: ArraySlice<Float>) -> Float {
+    zip(samples, samples.dropFirst()).map { abs($1 - $0) }.max() ?? 0
+}
+
+/// OpenMPT's ways of playing that the files here ask for, less some.
+private func ways(without left: Int...) -> Song {
+    var song = Song()
+    song.behaviours.removeAll { left.contains($0) }
+    return song
+}
+
+@Test func mptmThatDoesNotAskForImpulseTrackersFilterHasOpenMPTsOwn() throws {
+    var options = LoadOptions()
+    options.stereo = .abc
+    // Z7F on a note's row sets the filter wide open. To Impulse Tracker that is no filter; to
+    // OpenMPT's own, which a file has unless it asks for the other (its way of playing 36), it is
+    // a filter that takes the top off the sound at five kilohertz, and a square wave's edges with it.
+    let pattern = Pattern([(0, 0, .note(60, "Z", 0x7F))])
+    let asked = stereo(try player(mptm([pattern]), options: options), seconds: 0.5).left
+    let plain = stereo(try player(mptm([Pattern([(0, 0, .note())])]), options: options), seconds: 0.5).left
+    let own = stereo(try player(mptm([pattern], song: ways(without: 36)), options: options), seconds: 0.5).left
+    #expect(asked == plain)
+    #expect(edge(own[4800...]) < edge(plain[4800...]) * 0.75)
+    #expect(abs(loudness(own[4800...]) - loudness(plain[4800...])) < loudness(plain[4800...]) * 0.1)
+    // Without the command the note has no filter in either, for its cutoff is at the top.
+    #expect(stereo(try player(mptm([Pattern([(0, 0, .note())])], song: ways(without: 36)), options: options), seconds: 0.5).left == plain)
+
+    // Set low, the two are not the same filter: OpenMPT's own lets less through about its cutoff.
+    func low(_ song: Song) throws -> [Float] {
+        stereo(try player(mptm([Pattern([(0, 0, .note(36))])], song: song, instruments: [(1, [], 0)], cutoff: 0x80 | 30), options: options), seconds: 0.5).left
+    }
+    let impulseTrackers = try low(Song()), openMPTs = try low(ways(without: 36))
+    #expect(loudness(openMPTs[4800...]) < loudness(impulseTrackers[4800...]) * 0.95)
+    #expect(loudness(openMPTs[4800...]) > loudness(impulseTrackers[4800...]) * 0.5)
+}
+
+@Test func mptmFilterIsMovedAtRandomFromNoteToNote() throws {
+    var options = LoadOptions()
+    options.stereo = .abc
+    // Four notes of an instrument whose filter is set a little above them. With a random swing of
+    // its cutoff ("CS..", of 64) they are not all as loud as each other; without, they are.
+    let pattern = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.note()) })
+    func notes(_ extras: [(name: String, size: Int, values: [[UInt8]])]) throws -> [Float] {
+        let file = mptm([pattern], instruments: [(1, [], 0)], instrumentExtras: extras, cutoff: 0x80 | 30)
+        #expect(try player(file).info.shortfalls.isEmpty)
+        let sound = stereo(try player(file, options: options), seconds: 2).left
+        // (A row is 0.12 seconds, 5760 samples.)
+        return (0 ..< 4).map { loudness(sound[($0 * 4 + 1) * 5760 ..< ($0 * 4 + 3) * 5760]) }
+    }
+    let steady = try notes([]), swung = try notes([("CS..", 1, [[64]])])
+    #expect(steady.allSatisfy { abs($0 - steady[0]) < steady[0] * 0.001 })
+    #expect(swung.max()! > swung.min()! * 1.01)
+    #expect(swung.allSatisfy { $0 > 0.001 })
+    // What the cutoff is for each note, a quarter of the way through it: as the instrument has
+    // it, and moved by as much as a half of that either way.
+    func cutoffs(_ extras: [(name: String, size: Int, values: [[UInt8]])]) throws -> [UInt8] {
+        let player = IT2Player(try player(mptm([pattern], instruments: [(1, [], 0)], instrumentExtras: extras, cutoff: 0x80 | 30)).module)
+        var seen: [UInt8] = []
+        for tick in 0 ..< 96 {
+            player.Update()
+            if tick % 24 == 6 { seen.append(player.FilterParameters[0]) }
+        }
+        return seen
+    }
+    #expect(try cutoffs([]) == [30, 30, 30, 30])
+    let moved = try cutoffs([("CS..", 1, [[64]])])
+    #expect(Set(moved).count >= 3 && moved.allSatisfy { $0 >= 15 && $0 <= 45 })
+}
+
+@Test func mptmEnvelopeCarriesOnAsTheFileAsks() throws {
+    var options = LoadOptions()
+    options.stereo = .abc
+    // A volume envelope that grows slowly from nothing, and is to carry on from the note before.
+    // The first note's key is let go, and then comes another: as Impulse Tracker has it (OpenMPT's
+    // way of playing 19) the second goes on from where the first had got to, and as ModPlug Tracker
+    // had it a note after one that was let go starts again.
+    let envelope = [(tick: 0, level: 0), (tick: 60, level: 64), (tick: 61, level: 64)]
+    let pattern = Pattern([(0, 0, .note()), (6, 0, Cell(note: 255)), (8, 0, .note())])
+    func second(_ song: Song) throws -> Float {
+        let sound = stereo(try player(mptm([pattern], song: song, instruments: [(1, envelope, 0)], carry: true), options: options), seconds: 1.2).left
+        // (The second note's first row.)
+        return loudness(sound[8 * 5760 + 600 ..< 9 * 5760])
+    }
+    let carried = try second(Song()), begun = try second(ways(without: 19))
+    #expect(carried > 0.02)
+    #expect(begun < carried * 0.3)
 }
 
 // MARK: What is not played
