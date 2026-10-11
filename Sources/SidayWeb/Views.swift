@@ -32,9 +32,8 @@ struct PlayerView {
             footer {
                 p { "Keys: space pause · n or → next · p or ← previous · + and − song · f picture on the whole screen" }
                 p {
-                    "Plays "
+                    "Supports: "
                     TuneFormat.allCases.map { $0.rawValue.uppercased() }.joined(separator: ", ")
-                    " files."
                 }
                 p {
                     "SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first."
