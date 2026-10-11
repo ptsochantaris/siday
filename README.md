@@ -255,6 +255,32 @@ output, terminal keys and options (via swift-argument-parser).
 
 ### PT3 and the other AY trackers, VTX and AY files — the ZX Spectrum and the Amstrad CPC
 
+The AY-3-8910 is a sound chip that General Instrument made from 1978: three voices of square wave,
+one source of noise for the three to share, and one envelope, shared too. It is the sound of the ZX
+Spectrum 128, the Amstrad CPC and the MSX, and, as Yamaha's YM2149, of the Atari ST. Music for it
+is a matter of what is written to its fourteen registers, fifty times a second, and the files
+played here are three ways of keeping that.
+
+The first is a tracker's module: the notes, with the ornaments and the "samples" (lists of
+volumes and tones, a tick at a time) that the tracker's own player turns into register writes.
+The trackers are the Spectrum's, and most are from Russia and its neighbours, where the Spectrum
+and the machines copied from it were the home computer for years after the rest of the world had
+put it away: Sound Tracker (STC) and Sound Tracker Pro (STP), Pro Tracker 1, 2 and 3 (PT1, PT2,
+PT3), ASC Sound Master (ASC), SQ-Tracker (SQT), Pro Sound Creator (PSC), Fast Tracker (FTC), Pro
+Sound Maker (PSM), Global Tracker (GTR), and Fuxoft's AY Language (FXM), which is a program more
+than a module. Pro Tracker 3 is the one most of the music is in, and
+music is still written in it. TurboSound is two of the chips in one Spectrum, and a tune for it is
+two modules played together. Each tracker's player here is Sergey Bulba's, from Ay_Emul, the
+program this music has been kept and listened to with on the PC for twenty years and more.
+
+The second is a recording: a VTX file is what a tune wrote to the registers, tick after tick,
+packed. The third is not music at all but the part of a game that played its music: an AY file is
+Z80 code, lifted out of a game or a demo with the memory it needs, and it is run here on a Z80 as
+it ran on the machine. That is also the one way to keep beeper music, which is older than the
+chip: the first Spectrum had a loudspeaker that its processor could push out or pull back and
+nothing more, and its music is the processor doing that at the right moments, hundreds or
+thousands of times a second, and nothing else while it did.
+
 Where a reference player and Ay_Emul's source disagreed, the source was followed. Three deliberate
 departures from Ay_Emul are marked in the code: old-format PSC modules start with version-correct sample
 and ornament tables; an AY file only counts as Amstrad CPC once it writes a register through the CPC's
@@ -266,6 +292,11 @@ bounds-checked, so a corrupt file plays wrongly or is skipped but does not crash
 
 ### YM — recordings of two machines' chips
 
+The YM file is Arnaud Carré's, made for his player ST-Sound: what an Atari ST's tune wrote to the
+chip, recorded from an emulator fifty times a second and packed. Later kinds of the file (YM5, YM6)
+say besides which of the ST's timer effects were running, since no list of registers can hold
+those; and the name came to be used for plain recordings of the same chip in other machines.
+
 A YM file is played one of two ways. One recorded on an Atari ST goes to the ST's chip and timers
 (`STYMRenderer`): that is every YM2 and YM3, which are the ST's by definition, and a YM5 or YM6 that
 gives the ST's clock of 2 MHz or uses the effects. Any other is a plain recording of an AY or YM chip
@@ -274,6 +305,16 @@ a chip, a clock or a frame rate by name (`--chip`, `--clock`, `--frame-rate`) ge
 whatever the file is.
 
 ### SNDH — the Atari ST and STE
+
+The Atari ST of 1985 had the chip too, Yamaha's make of it, and no other sound. Its musicians got
+more from it than three square waves, by writing to it far more often than fifty times a second,
+from the interrupts of the ST's timers: a voice's volume switched fast enough to be a wave of its
+own, which they called a SID voice for the Commodore's chip; samples played as a stream of
+volumes, which were their drums; and the envelope started again and again in step with a note,
+which makes a buzz no register setting gives. The STE of 1989 added two channels of real samples.
+An SNDH file is such a tune as it was: the 68000 code that played it, lifted out of its game or
+demo, with a header in front that names it and says how its songs are started and how often it is
+to be called. The SNDH archive has kept the ST's music that way, some thousands of tunes.
 
 An Atari ST tune is the program that played it, so the machine is there to run it: a 68000, four
 megabytes, the sound hardware, and the few things such a program asks of the operating system. It is
@@ -286,7 +327,47 @@ out: the chip's 250,000 steps a second come down to the output's rate through a 
 not a plain average, which keeps out tones that were never played. `siday --raw file.raw tune.sndh`
 writes the plain average, which is what agrees with AtariAudio to the sample.
 
+### SID — the Commodore 64
+
+A SID file is named for the chip, the Sound Interface Device, the 6581 that Bob Yannes designed for
+the Commodore 64 in 1981. It has three voices, each of which can be a triangle, a sawtooth, a pulse
+of any width or noise, with an envelope of its own; a voice can be locked to its neighbour's pitch
+or multiplied by it; and any of them can be sent through one filter, which is analogue, and was
+never quite the same in two chips. Nothing else in a home computer sounded like it. The 8580 that
+took its place in later machines is cleaner, has a filter of another character, and is quieter at
+one thing the 6581 did by accident: a click on every change of the volume, which programmers
+turned into a fourth voice that played samples.
+
+Like an AY file or an SNDH file, a SID file is neither a recording nor a score but the program:
+the 6502 code that played the tune in a game or a demo, lifted out, with a header that says where
+it goes in memory, what to call to start each of its songs, and what to call fifty times a second
+after that. The format began with PlaySID, a player for the Amiga, in 1990. The High Voltage SID
+Collection, which has gathered the Commodore's music since 1996, kept it and added a second kind,
+RSID, for the tunes that will only run with a real Commodore 64 around them: their own
+interrupts, the timers of its two CIA chips, the raster of its video chip.
+
+So there is a 6510 here, the Commodore's 6502, written for this project and checked on every
+opcode and every cycle of the bus; as much of the machine around it as tunes ask for, with a
+start-up state and a driver for PSID files that are libsidplayfp's; and the chip. The chip is
+reSIDfp, the emulation in libsidplayfp, which works out the filter and the mixing of the
+waveforms as the circuits they were. reSID 1.0, Dag Lem's, which reSIDfp descends from, is here
+as well (`--sid-engine resid`): it is lighter, and its 6581 filter is drier. Both are ports,
+checked bit for bit against the C++ on the same streams of register writes, and what the tune's
+code writes to the chip was checked against what libsidplayfp has it write. A tune is played on
+the chip it asks for unless `--sid-model` says otherwise, and `--sid-filter-curve` moves the
+6581's filter between its bright chips and its dark ones.
+
+A SID file does not say how long its songs are. The collection keeps a list of the lengths, found
+by people who listened, and the list of its release 85 is built in; a newer `Songlengths.md5`
+can be given to be asked first.
+
 ### MOD — ProTracker and the Amiga
+
+The module began on the Amiga in 1987, with Karsten Obarski's Ultimate Soundtracker: four tracks,
+one for each voice of the Amiga's sound chip, patterns of 64 rows, and fifteen samples, all in one
+file, the instruments with the tune, which is what made it a module. Others took it up and
+carried it on, with 31 samples and more commands, NoiseTracker and then ProTracker among them, and
+ProTracker's file became the one every later tracker's descends from.
 
 A module is played as ProTracker played it. The replayer is ProTracker 2.3D's, by way of pt2-clone's
 port of it to C, and keeps ProTracker's mistakes, because tunes were written by ear against them. What
@@ -309,6 +390,12 @@ pt2-clone writes one to a file, sixteen bits with its dither and a long sample c
 cuts it, and the two agree to the sample.
 
 ### MED — MED and OctaMED
+
+MED was Teijo Kinnunen's tracker for the Amiga, from 1989, and a rival to the Soundtracker family
+with ideas of its own: several songs in a file, sounds made from short waves and a list of
+instructions as well as samples, and notes for a MIDI synthesiser. OctaMED, soon after, played
+eight tracks on the Amiga's four voices, and OctaMED Soundstudio, in the middle of the 1990s, mixed
+any number.
 
 A MED module is played as OctaMED played it. The players here are not ports: OctaMED's own are not
 free to copy, so these were written afresh and then held to them. OctaMED's players were run in an
@@ -420,6 +507,10 @@ the file `SIDAY_OKT_MIXED` names, and `SIDAY_OKT_WORDS` names a file of the leng
 
 ### AHX
 
+AHX is by Martin Wodok and Manfred Linzner, Dexter and Pink of the group Abyss, from the middle of
+the 1990s, and was made so that a tune for a small intro could be a few kilobytes: it sets out to
+sound like the Commodore 64's chip, on an Amiga, with no samples at all.
+
 An AHX file is played as AHX played it. AHX is a tracker for the Amiga with no samples. An instrument
 is a few numbers: an envelope, a vibrato, and a short list of things to do as its note goes on, which
 is where it says what wave it is (a triangle, a sawtooth, a square of some width, or noise) and can
@@ -474,6 +565,11 @@ the five octaves there are has no pitch to slide from, and a wave other than the
 silence.
 
 ### XM — FastTracker 2
+
+FastTracker 2 came out in 1994, written by Fredrik Huss and Magnus Högdahl of the group Triton, and
+was for some years the tracker most PC music was made in. Its XM file took the module past the
+Amiga's limits: up to 32 channels, samples of sixteen bits, and instruments that are more than a
+sample, with several samples across the keyboard and envelopes for volume and for place.
 
 An XM file, and a MOD file of more channels than the Amiga has, is played as FastTracker 2 played
 it: the replayer and the mixer are FastTracker 2.09's, by way of ft2play's port of them to C. The mixer
@@ -534,6 +630,11 @@ European Amiga. And each kind is as loud as XM files are, by measure: the middle
 of the kind is the middle one of 200 XM files.
 
 ### S3M — Scream Tracker 3
+
+Scream Tracker 3 is Sami Tammilehto's, Psi of Future Crew, and came out in 1994, after the group
+had used it for the music of its own demos. It was the first tracker many PC musicians had with
+more than four channels and a card that could do them justice: sixteen channels of samples, and
+beside them, for those who wanted it, the nine FM voices of the AdLib card.
 
 An S3M file is played as Scream Tracker 3 played it, and that depended on the sound card. With a
 Gravis Ultrasound the card did the mixing: the tracker told it, a tick at a time, what each voice was
@@ -621,6 +722,12 @@ Interface Kit made of an STM, is not played. The files are as loud as XM files a
 the middle one of each is the same.
 
 ### IT — Impulse Tracker, and ModPlug Tracker after it
+
+Impulse Tracker is Jeffrey Lim's, from 1995, and was added to until 1999. It looks like Scream
+Tracker 3, on purpose, and does a great deal more: instruments in the sense FastTracker has them
+and beyond, and what no tracker before it had, a note that does not stop when the next one
+starts. Years later its author published its source, which is how a replayer like this one can be
+the tracker's own.
 
 An IT file is played as Impulse Tracker 2 played it, by way of it2play's port of its replayer: 64
 channels, each of which can have many notes sounding at once, since an instrument says what becomes
