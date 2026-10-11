@@ -24,6 +24,9 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     public var hasEnded: Bool { replayer.stopped }
 
     private let module: ProTrackerModule
+    /// The file, kept if it has a sample longer than ProTracker has room for: for `renderRaw`,
+    /// which has such a sample as ProTracker has it.
+    private let longFile: [UInt8]?
     private let songList: [ModuleSongs.Song]
     /// Which song first played each row. See `ModuleSongs`.
     private let firstPlayedBy: UnsafeMutablePointer<UInt8>
@@ -55,6 +58,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
 
     public init(_ data: [UInt8], options: LoadOptions) throws {
         module = try ProTrackerModule(data)
+        longFile = module.hasLongSamples ? data : nil
         model = options.amigaModel
         side = options.stereo == .mono ? 0 : Float(max(0, min(1, options.amigaSeparation))) * 0.5
         left = .allocate(capacity: Self.tickSpace)
@@ -105,7 +109,9 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
-    private func restart() {
+    /// - Parameter other: the file read some other way, to be played in place of the module.
+    private func restart(playing other: ProTrackerModule? = nil) {
+        let module = other ?? module
         module.restoreSamples()
         let song = songList[currentSubsong]
         replayer = ProTrackerReplayer(module, model: model, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
@@ -185,7 +191,8 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// right in turn, with that player's dither, and the two sides as far apart as they are listened
     /// to here (for mono, as far as the Amiga has them). For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {
-        restart()
+        // (That player is ProTracker, and cuts a sample off where ProTracker's room for it ends.)
+        restart(playing: longFile.flatMap { try? ProTrackerModule($0, asProTracker: true) })
         var output: [Int16] = []
         output.reserveCapacity(frames * 2)
 

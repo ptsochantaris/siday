@@ -5,7 +5,8 @@
 // (see THIRD-PARTY.md).
 
 /// A four-channel Amiga module, read into the shape ProTracker keeps one in: up to a hundred patterns
-/// of 64 rows, and 31 samples, each with 64 KB of memory to itself.
+/// of 64 rows, and 31 samples, each with 64 KB of memory to itself. (A file with a sample longer
+/// than that, which is not ProTracker's but which the Amiga can play, has twice the memory for each.)
 ///
 /// Files with 31 samples say which tracker they are from in four letters; the oldest files, with 15
 /// samples, say nothing and are told by their shape. What trackers other than ProTracker meant by a
@@ -49,11 +50,17 @@ final class ProTrackerModule {
     static let rows = 64
     static let channels = 4
     static let mostPatterns = 100
-    /// The memory each sample has, which is also the longest a sample can be.
-    static let sampleSpace = 65534
+    /// The longest a sample of ProTracker's can be, and the longest that a file can say one is: the
+    /// most the Amiga's sound chip can be told to play.
+    static let proTrackersSpace = 65534, mostSpace = 131_070
+    /// The memory each sample has, which is also the longest a sample can be: ProTracker's 64 KB,
+    /// unless the file has a sample longer than that, and it is not being read as ProTracker reads it.
+    let sampleSpace: Int
+    /// True if the file has a sample longer than ProTracker has room for.
+    let hasLongSamples: Bool
     /// After the samples' memory: silence, for a voice with nothing to play.
-    static let silence = (31 + 2) * sampleSpace
-    static let memorySize = silence + 0xFFFF * 2
+    var silence: Int { (31 + 2) * sampleSpace }
+    var memorySize: Int { silence + 0xFFFF * 2 }
 
     let kind: Kind
     /// How many of the four channels the file has notes for.
@@ -94,7 +101,10 @@ final class ProTrackerModule {
         patterns[(pattern * Self.rows + row) * Self.channels + channel]
     }
 
-    init(_ packed: [UInt8]) throws {
+    /// - Parameter asProTracker: true to cut a sample that is longer than ProTracker has room for
+    ///   off at 64 KB, as ProTracker does. Such a file is some other tracker's, made to be played
+    ///   by the Amiga's routines, which play the whole of it, or by a player on another machine.
+    init(_ packed: [UInt8], asProTracker: Bool = false) throws {
         var data = packed
         if PowerPacker.isPacked(packed) {
             guard let unpacked = PowerPacker.unpack(packed) else { throw TuneError.malformed("a PowerPacker file that does not unpack") }
@@ -145,10 +155,18 @@ final class ProTrackerModule {
         self.kind = kind ?? .soundtracker
         self.channelCount = channelCount
 
+        // How long the file says its longest sample is.
+        var longest = 0
+        for i in 0 ..< sampleCount { longest = max(longest, file.u16be(20 + i * 30 + 22) * 2) }
+        hasLongSamples = longest > Self.proTrackersSpace
+        let space = hasLongSamples && !asProTracker ? Self.mostSpace : Self.proTrackersSpace
+        sampleSpace = space
+        let memorySize = (31 + 2) * space + 0xFFFF * 2
+
         patterns = .allocate(capacity: Self.mostPatterns * Self.rows * Self.channels)
         patterns.initialize(repeating: Note(), count: Self.mostPatterns * Self.rows * Self.channels)
-        memory = .allocate(capacity: Self.memorySize)
-        memory.initialize(repeating: 0, count: Self.memorySize)
+        memory = .allocate(capacity: memorySize)
+        memory.initialize(repeating: 0, count: memorySize)
 
         // The song's name: anything that is not plain text becomes a space.
         title = Self.text(file, at: 0, length: 20)
@@ -161,7 +179,7 @@ final class ProTrackerModule {
             p += 22
             realLengths[i] = file.u16be(p) * 2
             p += 2
-            samples[i].length = min(realLengths[i], Self.sampleSpace)
+            samples[i].length = min(realLengths[i], space)
             if kind == nil {
                 // Only the later Soundtrackers could hold a sample of more than 9999 bytes.
                 if samples[i].length > 9999 { late = true }
@@ -187,7 +205,7 @@ final class ProTrackerModule {
                 }
             }
         }
-        for i in 0 ..< 31 { samples[i].offset = Self.sampleSpace * i }
+        for i in 0 ..< 31 { samples[i].offset = space * i }
 
         var songLength = Int(file[p])
         p += 1
@@ -318,18 +336,18 @@ final class ProTrackerModule {
                     p += samples[i].loopStart
                     samples[i].loopStart = 0
                 }
-                if realLengths[i] > Self.sampleSpace { skip = realLengths[i] - Self.sampleSpace }
+                if realLengths[i] > space { skip = realLengths[i] - space }
                 let loopEnd = samples[i].loopStart + samples[i].loopLength
                 if loopEnd > 2, samples[i].length > loopEnd {
                     skip += samples[i].length - loopEnd
                     samples[i].length = loopEnd
                 }
-            } else if realLengths[i] > Self.sampleSpace {
-                skip = realLengths[i] - Self.sampleSpace
+            } else if realLengths[i] > space {
+                skip = realLengths[i] - space
             }
             sources[i] = (p, samples[i].length)
             cutShort.add(length: samples[i].length, there: size - p)
-            if realLengths[i] > Self.sampleSpace, used[i + 1] { tooLong += 1 }
+            if realLengths[i] > space, used[i + 1] { tooLong += 1 }
             p += samples[i].length + skip
         }
         if tooLong > 0 {
@@ -340,17 +358,17 @@ final class ProTrackerModule {
 
         // And the samples made safe to play.
         for i in 0 ..< 31 {
-            if samples[i].length > Self.sampleSpace { samples[i].length = Self.sampleSpace }
+            if samples[i].length > space { samples[i].length = space }
             if UInt8(bitPattern: samples[i].volume) > 64 { samples[i].volume = 64 }
             if samples[i].loopLength < 2 { samples[i].loopLength = 2 }
-            if samples[i].loopStart > Self.sampleSpace || samples[i].loopStart + samples[i].loopLength > Self.sampleSpace {
+            if samples[i].loopStart > space || samples[i].loopStart + samples[i].loopLength > space {
                 samples[i].loopStart = 0
                 samples[i].loopLength = 2
             }
             // A loop that runs past the end of its sample is given the room, where there is room.
             if samples[i].length > 0, samples[i].loopLength > 2, samples[i].loopStart + samples[i].loopLength > samples[i].length {
                 let over = samples[i].loopStart + samples[i].loopLength - samples[i].length
-                if samples[i].length + over <= Self.sampleSpace {
+                if samples[i].length + over <= space {
                     samples[i].length += over
                 } else {
                     samples[i].loopStart = 0
@@ -364,7 +382,7 @@ final class ProTrackerModule {
     /// Puts the samples back as the file has them. Two of ProTracker's effects rewrite a sample while
     /// it plays, so a tune that has been played is not the tune that was loaded.
     func restoreSamples() {
-        memory.update(repeating: 0, count: Self.memorySize)
+        memory.update(repeating: 0, count: memorySize)
         for i in 0 ..< 31 {
             let (from, count) = sources[i]
             for k in 0 ..< count { memory[samples[i].offset + k] = Int8(bitPattern: file[from + k]) }

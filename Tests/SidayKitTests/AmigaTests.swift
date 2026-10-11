@@ -319,6 +319,30 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     #expect(abs(pitches[2] - 71.84) < 0.05)
 }
 
+@Test func moduleSampleLongerThanProTrackerHasRoomForIsPlayedWhole() throws {
+    // A sample of 80,000 bytes, which does not repeat: silence as far as ProTracker's 65,534, and
+    // a square wave after that. At the highest note there is, the silence lasts 2.1 seconds.
+    var file = module(notes: [(0, 0, note(period: 113))])
+    file[20 + 22 ... 20 + 23] = [0x9C, 0x40]
+    file[20 + 26 ... 20 + 29] = [0, 0, 0, 1]
+    file.removeLast(32)
+    file += [UInt8](repeating: 0, count: 65534)
+    for _ in 0 ..< (80000 - 65534) / 32 { file += [UInt8](repeating: 0x7F, count: 16) + [UInt8](repeating: 0x81, count: 16) }
+    file += [UInt8](repeating: 0, count: 80000 - (file.count - 1084 - 1024))
+    let renderer = try #require(try TuneLoader.load(file, format: .mod) as? MODRenderer)
+    let sound = stereo(renderer, seconds: 2.5)
+    #expect(sound.left[..<96000].map(abs).max()! < 0.001)
+    #expect(sound.left[105_600...].map(abs).max()! > 0.05)
+    // As the player this is ported from has it, which is ProTracker, there is only the silence.
+    let asProTracker = renderer.renderRaw(frames: 120_000)
+    #expect(asProTracker.map { abs(Int($0)) }.max()! < 40)
+    // And an ordinary module is in every way as it was: its samples have the memory they had.
+    let ordinary = try ProTrackerModule(module(notes: []))
+    #expect(!ordinary.hasLongSamples && ordinary.sampleSpace == 65534 && ordinary.samples[1].offset == 65534)
+    #expect(try ProTrackerModule(file).sampleSpace == 131_070)
+    #expect(try ProTrackerModule(file, asProTracker: true).sampleSpace == 65534)
+}
+
 // MARK: What is not played as the file asks
 
 @Test func moduleThatIsCutShortOrHasASampleTooLongSaysSo() throws {
@@ -328,11 +352,12 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     #expect(try TuneLoader.load(Array(whole.dropLast(2)), format: .mod).info.shortfalls.isEmpty)
     #expect(try TuneLoader.load(Array(whole.dropLast(32)), format: .mod).info.shortfalls == ["The file is cut short: one of its samples is missing, and is silent."])
 
-    // A sample of more than 64 KB, from a tracker that had the room: ProTracker plays what it can hold.
+    // A sample of more than 64 KB, from a tracker that had the room, is played whole: there is
+    // nothing to say of it.
     var long = whole
     long[20 + 22] = 0x90
     long += [UInt8](repeating: 0x40, count: 0x9000 * 2 - 32)
-    #expect(try TuneLoader.load(long, format: .mod).info.shortfalls == ["One of its samples is longer than ProTracker has room for, and is cut off at 64 KB."])
+    #expect(try TuneLoader.load(long, format: .mod).info.shortfalls.isEmpty)
 
     // And a module of more channels, which FastTracker plays, says the same of a file cut short.
     // (Its sample here is of 4,096 bytes, of which the file has the first 2,000.)

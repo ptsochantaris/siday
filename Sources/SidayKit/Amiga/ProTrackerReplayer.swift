@@ -123,7 +123,7 @@ struct ProTrackerReplayer: ~Copyable {
         self.songNumber = songNumber
         self.module = module
         paula = Paula(rate: Double(outputSampleRate * 2), model: model, memory: UnsafePointer(module.memory),
-                      size: ProTrackerModule.memorySize, silence: ProTrackerModule.silence)
+                      size: module.memorySize, silence: module.silence)
         periods = .allocate(capacity: proTrackerPeriods.count)
         for i in 0 ..< proTrackerPeriods.count { periods[i] = proTrackerPeriods[i] }
         visited = .allocate(capacity: 128 * ProTrackerModule.rows)
@@ -166,7 +166,7 @@ struct ProTrackerReplayer: ~Copyable {
             channels[c].waveStart = channels[c].loopStart
         }
         let at = channels[c].waveStart
-        if at >= 0, at < ProTrackerModule.memorySize { module.memory[at] = -1 &- module.memory[at] }
+        if at >= 0, at < module.memorySize { module.memory[at] = -1 &- module.memory[at] }
     }
 
     private mutating func jumpLoop(_ c: Int) {
@@ -532,8 +532,8 @@ struct ProTrackerReplayer: ~Copyable {
             }
             // A voice that has never been given anything to play is given silence.
             if channels[c].length == 0 {
-                channels[c].loopStart = ProTrackerModule.silence
-                channels[c].waveStart = ProTrackerModule.silence
+                channels[c].loopStart = module.silence
+                channels[c].waveStart = module.silence
             }
         }
 
