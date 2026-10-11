@@ -151,6 +151,12 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and
     /// right in turn, clipped where it is too loud for them. For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {
+        // (That player has a sample in stereo as FastTracker has it: one side after the other.)
+        module.playStereoSamples(asFastTracker: true)
+        defer {
+            module.playStereoSamples(asFastTracker: false)
+            restart()
+        }
         restart()
         var output: [Int16] = []
         output.reserveCapacity(frames * 2)
@@ -163,7 +169,6 @@ public final class XMRenderer: Renderer, ReferenceComparable {
                 tickPosition += 1
             }
         }
-        restart()
         return output
     }
 

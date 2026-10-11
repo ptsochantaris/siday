@@ -34,6 +34,9 @@ final class FT2Module {
     /// ends before the end of, samples in stereo, and samples ModPlug Tracker packed its own way.
     private var cutShort = Shortfall.CutShort()
     private var stereoSamples = 0, packedSamples = 0
+    /// The samples that are in stereo, each as FastTracker has it, one side after the other, and
+    /// with its two sides mixed into one: see `playStereoSamples`.
+    private var inStereo: [(instrument: Int, sample: Int, plain: FT2Sample, mixed: FT2Sample)] = []
     private var allocations: [UnsafeMutableRawPointer] = []
 
     deinit {
@@ -161,15 +164,24 @@ final class FT2Module {
         upDateInstrs()
     }
 
+    /// Says how samples in stereo are to be played. FastTracker 2 knows nothing of them, and no
+    /// file of its own has one: to it a sample's two sides, which lie one after the other in the
+    /// file, are one long sample. The trackers that came after it, which are the ones that make
+    /// such samples, play the two sides together, and that is how they are played here, mixed
+    /// into one since FastTracker's mixer has no way to keep them apart. They can be had as
+    /// FastTracker has them for setting what is played beside the player this is ported from.
+    func playStereoSamples(asFastTracker: Bool) {
+        for one in inStereo { instr[one.instrument]?.samp[one.sample] = asFastTracker ? one.plain : one.mixed }
+    }
+
     /// Looks over an XM file for what a later tracker put in it that FastTracker does not play,
     /// and says so in `shortfalls`. Nothing that is played is changed by it.
     /// - Parameter end: where in the file the last of what FastTracker reads ended.
     private func noteWhatLaterTrackersAdded(_ data: [UInt8], after end: Int) {
-        // FastTracker knows nothing of a sample in stereo: its two sides, which lie one after the
-        // other in the file, are one long sample to it.
+        // FastTracker knows nothing of a sample in stereo: see `playStereoSamples`.
         if stereoSamples > 0 {
-            shortfalls.append(Shortfall.some(stereoSamples, one: "samples is in stereo, and is played one side after the other.",
-                                             many: "samples are in stereo, and are played one side after the other."))
+            shortfalls.append(Shortfall.some(stereoSamples, one: "samples is in stereo, and is heard with its two sides mixed into one.",
+                                             many: "samples are in stereo, and are heard with their two sides mixed into one."))
         }
         if packedSamples > 0 {
             shortfalls.append(Shortfall.some(packedSamples, one: "samples is packed in a way of ModPlug Tracker's own, which is not read: it is not heard as it should be, and nor are the samples after it.",
@@ -350,7 +362,9 @@ final class FT2Module {
             if Int(ins.samp[j].len) - left > Self.mostMissing { ins.samp[j].len = Int32(left & ~(ins.samp[j].typ & 16 != 0 ? 1 : 0)) }
             if ins.samp[j].len > 0 {
                 // A sample is stored as the differences between one value and the next.
-                var bytes = f.read(Int(ins.samp[j].len))
+                let stored = f.read(Int(ins.samp[j].len))
+                if ins.samp[j].typ & 32 != 0 { inStereo.append((i, j, ins.samp[j], mixedToOne(ins.samp[j], stored))) }
+                var bytes = stored
                 if ins.samp[j].typ & 16 != 0 {
                     var old: UInt16 = 0
                     for k in 0 ..< bytes.count / 2 {
@@ -368,7 +382,45 @@ final class FT2Module {
                 ins.samp[j].pek = sampleMemory(bytes)
             }
             checkSampleRepeat(&ins.samp[j])
+            if let last = inStereo.last, last.instrument == i, last.sample == j {
+                inStereo[inStereo.count - 1].plain = ins.samp[j]
+                ins.samp[j] = last.mixed
+            }
         }
+    }
+
+    /// A sample in stereo with its two sides mixed into one, from the bytes of it in the file: the
+    /// left side and then the right, each stored as differences of its own. It is half as long,
+    /// and what it repeats is where it was in each side.
+    private func mixedToOne(_ sample: FT2Sample, _ stored: [UInt8]) -> FT2Sample {
+        var mixed = sample
+        let sixteenBit = sample.typ & 16 != 0
+        let half = sixteenBit ? (stored.count / 2) & ~1 : stored.count / 2
+        var bytes = [UInt8](repeating: 0, count: half)
+        if sixteenBit {
+            var left: UInt16 = 0, right: UInt16 = 0
+            for k in stride(from: 0, to: half, by: 2) {
+                left &+= UInt16(stored[k]) | UInt16(stored[k + 1]) << 8
+                right &+= UInt16(stored[half + k]) | UInt16(stored[half + k + 1]) << 8
+                let both = (Int(Int16(bitPattern: left)) + Int(Int16(bitPattern: right))) >> 1
+                bytes[k] = UInt8(truncatingIfNeeded: both)
+                bytes[k + 1] = UInt8(truncatingIfNeeded: both >> 8)
+            }
+        } else {
+            var left: UInt8 = 0, right: UInt8 = 0
+            for k in 0 ..< half {
+                left &+= stored[k]
+                right &+= stored[half + k]
+                bytes[k] = UInt8(truncatingIfNeeded: (Int(Int8(bitPattern: left)) + Int(Int8(bitPattern: right))) >> 1)
+            }
+        }
+        let even: Int32 = sixteenBit ? ~1 : ~0
+        mixed.len = Int32(half)
+        mixed.repS = (sample.repS / 2) & even
+        mixed.repL = (sample.repL / 2) & even
+        mixed.pek = sampleMemory(bytes)
+        checkSampleRepeat(&mixed)
+        return mixed
     }
 
     private func loadPatterns(_ f: inout File, _ antPtn: Int) throws {
@@ -450,43 +502,50 @@ final class FT2Module {
     private func upDateInstrs() {
         for ins in instr {
             guard let ins else { continue }
-            for j in 0 ..< 16 {
-                checkSampleRepeat(&ins.samp[j])
-                let s = ins.samp[j]
-                guard let pek = s.pek else {
-                    ins.samp[j].len = 0
-                    ins.samp[j].repS = 0
-                    ins.samp[j].repL = 0
-                    continue
-                }
-                let sixteen = s.typ & 16 != 0
-                var len = Int(s.len), loopStart = Int(s.repS), loopEnd = Int(s.repS) + Int(s.repL)
-                if sixteen {
-                    len >>= 1
-                    loopStart >>= 1
-                    loopEnd >>= 1
-                }
-                guard len >= 1 else { continue }
-                // Asked in this order, which matters where a sample says it loops both ways at once.
-                if sixteen {
-                    let p = pek.assumingMemoryBound(to: Int16.self)
-                    if s.typ & 1 != 0 {
-                        p[loopEnd] = p[loopStart]
-                    } else if s.typ & 2 != 0 {
-                        p[loopEnd] = loopEnd > 0 ? p[loopEnd - 1] : 0
-                    } else {
-                        p[len] = 0
-                    }
-                } else {
-                    let p = pek.assumingMemoryBound(to: Int8.self)
-                    if s.typ & 1 != 0 {
-                        p[loopEnd] = p[loopStart]
-                    } else if s.typ & 2 != 0 {
-                        p[loopEnd] = loopEnd > 0 ? p[loopEnd - 1] : 0
-                    } else {
-                        p[len] = 0
-                    }
-                }
+            for j in 0 ..< 16 { putInOrder(&ins.samp[j]) }
+        }
+        // A sample in stereo is there twice over, and both are put in order.
+        for index in inStereo.indices {
+            putInOrder(&inStereo[index].plain)
+            if let mixed = instr[inStereo[index].instrument]?.samp[inStereo[index].sample] { inStereo[index].mixed = mixed }
+        }
+    }
+
+    private func putInOrder(_ sample: inout FT2Sample) {
+        checkSampleRepeat(&sample)
+        let s = sample
+        guard let pek = s.pek else {
+            sample.len = 0
+            sample.repS = 0
+            sample.repL = 0
+            return
+        }
+        let sixteen = s.typ & 16 != 0
+        var len = Int(s.len), loopStart = Int(s.repS), loopEnd = Int(s.repS) + Int(s.repL)
+        if sixteen {
+            len >>= 1
+            loopStart >>= 1
+            loopEnd >>= 1
+        }
+        guard len >= 1 else { return }
+        // Asked in this order, which matters where a sample says it loops both ways at once.
+        if sixteen {
+            let p = pek.assumingMemoryBound(to: Int16.self)
+            if s.typ & 1 != 0 {
+                p[loopEnd] = p[loopStart]
+            } else if s.typ & 2 != 0 {
+                p[loopEnd] = loopEnd > 0 ? p[loopEnd - 1] : 0
+            } else {
+                p[len] = 0
+            }
+        } else {
+            let p = pek.assumingMemoryBound(to: Int8.self)
+            if s.typ & 1 != 0 {
+                p[loopEnd] = p[loopStart]
+            } else if s.typ & 2 != 0 {
+                p[loopEnd] = loopEnd > 0 ? p[loopEnd - 1] : 0
+            } else {
+                p[len] = 0
             }
         }
     }

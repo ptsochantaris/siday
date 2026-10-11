@@ -568,8 +568,11 @@ works in whole numbers, with FastTracker's interpolation between one sample and 
 ramping of volumes, both switched on as they were when the tracker was new, and it places each
 instrument between the speakers where the module says. FastTracker itself reads no more than 32
 channels and only an even number; files from later trackers have any number, and are played the same
-way. A tune ends where it would play a row it has played before. `siday --raw file.raw tune.xm` writes
-what ft2play writes to a file, and the two agree to the sample.
+way. One thing is done as those later trackers did it. A sample can be in stereo in a file of theirs,
+its two sides one after the other, and to FastTracker that is one long sample: here the two sides are
+played together, mixed into one, since that mixer has no way to keep them apart. A tune ends where it
+would play a row it has played before. `siday --raw file.raw tune.xm` writes
+what ft2play writes to a file, stereo samples as it has them, and the two agree to the sample.
 
 An MTM, a DTM or an AMF file is not played as its own tracker played it. MultiTracker was a tracker
 for the PC and the Gravis Ultrasound, Digital Tracker one for the Atari Falcon, and AMF is what

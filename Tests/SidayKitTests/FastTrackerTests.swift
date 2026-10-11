@@ -182,14 +182,39 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
 
 // MARK: What is not played as the file asks
 
+@Test func xmSampleInStereoIsPlayedWithItsSidesTogether() throws {
+    // The square wave made twice as long and said to be in stereo: its left side is then the
+    // wave's first half, which is high, and its right the second, which is low. Played as the
+    // trackers that make such samples play them, the two together are silence; played as
+    // FastTracker would, one after the other, they are the square wave still.
+    var file = xm()
+    file[file.count - 32 - 40 + 14] |= 0x20
+    // (Each side is stored as differences of its own, so the right side begins at -128 and stays.)
+    file[file.count - 16] = 0x80
+    let renderer = try #require(try TuneLoader.load(file, format: .xm) as? XMRenderer)
+    let heard = stereo(renderer, seconds: 0.5)
+    #expect(heard.left[4800...].map(abs).max()! < 0.001)
+    let asFastTracker = renderer.renderRaw(frames: 24000)
+    #expect(asFastTracker.map { abs(Int($0)) }.max()! > 1000)
+    // And afterwards it is played as before.
+    #expect(stereo(renderer, seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
+
+    // Sixteen bits to a sample: two samples to a side, and the same again.
+    var wide = xm()
+    wide[wide.count - 32 - 40 + 14] |= 0x30
+    wide.removeLast(32)
+    wide += word(20000) + word(0) + word(0) + word(0) + [UInt8](repeating: 0, count: 8) + word(-20000 & 0xFFFF) + [UInt8](repeating: 0, count: 14)
+    #expect(stereo(try TuneLoader.load(wide, format: .xm), seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
+}
+
 @Test func xmFromALaterTrackerSaysWhatFastTrackerDoesNotPlay() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .xm).info.shortfalls }
     #expect(try shortfalls(xm()).isEmpty)
 
-    // A sample said to be in stereo, which FastTracker takes for one long sample.
+    // A sample said to be in stereo, which FastTracker's mixer has no way to play as two.
     var stereo = xm()
     stereo[stereo.count - 32 - 40 + 14] |= 0x20
-    #expect(try shortfalls(stereo) == ["One of its samples is in stereo, and is played one side after the other."])
+    #expect(try shortfalls(stereo) == ["One of its samples is in stereo, and is heard with its two sides mixed into one."])
     // One packed as ModPlug Tracker packed them.
     var packed = xm()
     packed[packed.count - 32 - 40 + 17] = 0xAD
