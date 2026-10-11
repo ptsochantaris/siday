@@ -402,6 +402,24 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## st2play — Scream Tracker 2
+
+`Sources/SidayKit/ScreamTracker2` is a Swift port of st2play (https://github.com/viiri/st2play), a C
+port of the replayer and the mixing of Scream Tracker 2: `ST2Player.swift` is the `st2play.c` of its
+branch for version 2.3, and `ST2Module.swift` its `stmload.c`. Changed from the original: carried
+over from C to Swift; a pattern, a place in the list or a sample that a file has none of is read as
+nothing, where the original reads whatever is in memory; a number in the list of patterns that is
+neither a pattern's nor a mark of the end is taken for the end; a sample that is to go round from
+past its own end is read on into what follows it in the file, where the original brings the end in
+(it is brought in for `--raw`); a file is held to OpenMPT's checks before it is taken for an STM
+file; and the player is told which rows it has played, so that a tune's length can be found.
+`STMRenderer.swift`, which brings the sound to the player's rate, is not from st2play.
+
+- Copyright 2017 Sergei "x0r" Kolzun
+- Apache License, Version 2.0, the text of which is below, under "fmdrv — Creative's driver for CMF
+  files", with what that licence means for this project as a whole
+- Source: https://github.com/viiri/st2play
+
 ## it2play — Impulse Tracker 2
 
 `Sources/SidayKit/ImpulseTracker` is a Swift port of it2play (https://github.com/8bitbubsy/it2play),

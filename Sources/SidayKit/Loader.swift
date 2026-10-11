@@ -9,6 +9,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case mptm
     case sfx, okt
     case composer669 = "669"
+    case stm
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED.
@@ -75,6 +76,8 @@ public enum TuneLoader {
             return try OktalyzerRenderer(data, options: options)
         case .composer669:
             return try Composer669Renderer(data, options: options)
+        case .stm:
+            return try STMRenderer(data, options: options)
         case .ahx, .hvl:
             // HivelyTracker reads both its own files and AHX's, so a file of either may be found
             // under the other's name. Each says which it is in its first three letters.

@@ -30,7 +30,7 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE program rips | SNDH, packed with Ice or not: the sound chip with the timer effects ST musicians got out of it (SID voices, digi-drums, sync-buzzer), and the STE's samples |
 | C64 | SID (PSID and RSID) |
 | Amiga modules | MOD of four channels: ProTracker's, and those of the trackers it descends from and sat beside (Soundtracker's files of 15 samples, NoiseTracker, Startrekker), packed with PowerPacker or not. Played by ProTracker's own replayer on the Amiga's sound chip, in stereo. MED, the modules of MED and OctaMED (MMD0 to MMD3), with all the songs of a file that has several, its synthetic and hybrid sounds, and all three of its ways of playing: on the Amiga's own four voices; with five to eight tracks mixed in pairs into those voices, as crudely as OctaMED mixed them; and in OctaMED Soundstudio's mixing mode, of up to 64 tracks with samples of sixteen bits and in stereo, each track where the song puts it between the speakers. Played as OctaMED's players played them, the first two on the same chip. AHX, the files of a tracker that has no samples and makes its instruments up as it plays, played by AHX's own replayer on the same chip. HVL, the files of HivelyTracker, which is AHX carried on to sixteen voices, each with its own place between the speakers, played by HivelyTracker's own replayer and mixer. SFX, the modules of SoundFX, a tracker of the Amiga's first years, with fifteen samples and a tempo that is a count for the Amiga's timer, and all the songs of a file that holds several. OKT, the modules of Oktalyzer, of four to eight tracks: each voice of the chip is whole or is split in two, and the two tracks of a split voice are mixed into it as Oktalyzer mixed them; packed with PowerPacker or not. Both played as their trackers' own routines played them, on the same chip |
-| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter; and an IT file that ModPlug Tracker or OpenMPT made is heard through that tracker's own filter, where it was made with it, and through those of its plug-ins that are OpenMPT's own |
+| PC modules | XM, FastTracker 2's own format, and MOD files of more than four channels, played by FastTracker 2's replayer and mixer. S3M, Scream Tracker 3's format, played by Scream Tracker's replayer on either of its sound cards, the Gravis Ultrasound or the Sound Blaster Pro, with the AdLib card beside it for FM channels. STM, the format of Scream Tracker 2, the tracker before that one: four channels, played by its own replayer and its own mixing, which was eight bits and one channel. IT, Impulse Tracker's format, played by Impulse Tracker's replayer, with its instruments, its many voices to a channel and its resonant filter; and an IT file that ModPlug Tracker or OpenMPT made is heard through that tracker's own filter, where it was made with it, and through those of its plug-ins that are OpenMPT's own |
 | Modules of other trackers, on FastTracker 2's replayer | MTM, the modules of MultiTracker; DTM, those of Digital Tracker, from the Atari Falcon, with its samples of eight bits and sixteen at rates of their own; and AMF, the form that DSMI and its Dual Module Player turned every module into (versions 1.0 to 1.4 and those before). This player has no replayer of any of the three: each is read into what FastTracker 2 plays and played by its replayer and mixer, every channel in its own place between the speakers |
 | Modules of other trackers, on Impulse Tracker's replayer | GDM, the files of the BWSB sound system, each of them another tracker's module (an S3M, a MOD, and others) written out again; PTM, the modules of PolyTracker, with up to 32 channels, samples of sixteen bits and loops that go back and forth; and ULT, the modules of UltraTracker, with as many channels and two commands beside each note. This player has no replayer of any of them: each is read into what Impulse Tracker plays and played by its replayer, every channel in its own place between the speakers |
 | OpenMPT's own modules, on Impulse Tracker's replayer | MPTM, the format OpenMPT keeps for what an IT file has no room for: an IT file with more written after it. Played by Impulse Tracker's replayer, which has been given what such a file asks beyond an IT file as far as that can honestly be given: OpenMPT's three ways of keeping time, its swing, tempos that are fractions or above 255, patterns of up to 1024 rows, lists of patterns of any length and several to a file (which are its songs), longer envelopes with a place to go when a key is let go, OpenMPT's own filter for a file that does not ask for Impulse Tracker's, a filter that lets the high through and one that is moved at random from note to note, samples played backwards and from cue points, and OpenMPT's louder way of adding channels up. An instrument that is a patch for the AdLib's FM chip is played on that chip, as OpenMPT plays it. The plug-ins that are OpenMPT's own (its echo, two reverbs, chorus, flangers, compressor, distortion, equaliser and gargle, and DigiBooster's echo) are played, wired as the file wires them; a plug-in that is somebody else's program is left out, and an instrument that is only such a plug-in is not heard |
@@ -660,6 +660,54 @@ a note let go and struck again in one tick is heard to be. The samples of a tune
 loud as in any other tune: st3play turns them down by a third at the card's first note, to leave room
 for it.
 
+An STM file is from Scream Tracker 2, the same author's tracker of 1990, from when no sound card
+did any mixing: four channels, 31 samples of eight bits, and the program adding the four
+together itself, a sample at a time, for a Sound Blaster or a converter on the printer port. It is
+played by a port of st2play, which Sergei Kolzun made from the program itself and calls very
+accurate, and which is the whole of how Scream Tracker 2 made sound, since its replayer and its
+mixing are one loop. The four channels are added into eight bits with nothing between one sample of
+a sound and the next, a channel at its loudest has six of those bits, and there is one channel of
+output: that is how an STM file sounded, rougher than anything else here, and it is the same in
+both ears. It is made at 23,863 samples a second, the highest rate Scream Tracker 2 could be set to
+mix at, and brought to the player's rate as an S3M file's Sound Blaster is. The rate is part of the
+tune, a little: a tick is a whole number of those samples.
+
+st2play has the replayers of three versions of the program, 2.21, 2.24 and 2.3, and they are not
+alike. Set beside the first, 2.3 plays a fifth of a semitone higher and a fiftieth faster, its
+vibrato is half as deep, it goes on with the last vibrato or the last slide to a note when it is
+given one with no value, and its arpeggio plays three notes, where 2.24's plays two and 2.21 has
+none. A file does not say which of them it was made with: every one says 2.21, which is the
+version of the file's layout. It is 2.3 that is ported, the last, because that is what the files to
+hand ask for. Eight have arpeggios, and in five of them those are chords of three notes, written as
+a MOD's are; four carry a vibrato on with no value; and eleven have samples at 8,192 a second, which
+is 2.3's number for its C, where the earlier versions' was 8,448. A tune made with an earlier version is played by
+2.3 all the same, as it was in its day by anybody who had 2.3.
+
+Much of what Scream Tracker 2 does is its own, and is kept. A slide's value counts in tens of the
+units other trackers use. A slide to a note that is let go before it gets there is there at once.
+A place in the list that a row asks for is gone to when the pattern ends, and not before. A tempo
+has two halves, the ticks to a row and a number that makes each tick longer by an amount that
+depends on the first. A volume over 64, which a row can ask for, is silence. An arpeggio on a B
+reads past the end of the table of notes, and plays what it finds there, which st2play's author
+wrote down from the program's memory.
+
+The port agrees with st2play to the sample, over half an hour of each of the 63 STM files to hand,
+on 62 of them, with st2play given empty patterns where a file has none. That is one of three
+things done here that st2play does not do, each for what a file means. Scream Tracker 2 seems
+not to have saved the empty patterns after a tune's last, for eleven of these files have such a
+pattern in their lists: it is played as a pattern with nothing in it, so that the notes before it
+ring on, where st2play plays whatever its memory holds and OpenMPT passes the place over. A number
+in the list that is neither a pattern's nor a mark of the end is taken for the end, and nothing
+after the first end of a list is played: one file has such a number, and it is the one that
+differs. And a sample that is to go round from past its own end goes on into what follows it in the
+file, the next sample, which is what OpenMPT's authors found Scream Tracker 2 to do: there are 21
+such samples, most of them over by one byte. st2play brings the end in, and `siday --raw file.raw tune.stm`, which writes what
+st2play makes, a sample for each of its own, does so too. A sample with no volume of its own is
+not loaded, as in st2play, and its notes are silence. One file named for the format is something
+else, and is refused; and an STX file, which is what a converter for the Scream Tracker Music
+Interface Kit made of an STM, is not played. The files are as loud as XM files are, by measure:
+the middle one of each is the same.
+
 An IT file is played as Impulse Tracker 2 played it, by way of it2play's port of its replayer: 64
 channels, each of which can have many notes sounding at once, since an instrument says what becomes
 of its note when the next one comes (cut, left to play on, released or faded), up to 256 voices in
@@ -1090,6 +1138,9 @@ What it is made from:
 - [st3play](https://github.com/8bitbubsy/st3play), also by Olav Sørensen: Scream Tracker 3's replayer,
   its Gravis Ultrasound driver, Sound Blaster mixing and AdLib driver, and the emulation of the GUS's
   sound chip. Scream Tracker 3 is by Sami Tammilehto (Psi) of Future Crew.
+- [st2play](https://github.com/viiri/st2play) by Sergei "x0r" Kolzun: Scream Tracker 2's replayer and
+  mixing, which he ported from the program, version by version. Scream Tracker 2 is Sami
+  Tammilehto's too.
 - [it2play](https://github.com/8bitbubsy/it2play), also by Olav Sørensen: Impulse Tracker 2's
   replayer, ported by him from the tracker's own assembly, the reading of IT files, and the sound
   driver, which is his own. Impulse Tracker is by Jeffrey Lim.
