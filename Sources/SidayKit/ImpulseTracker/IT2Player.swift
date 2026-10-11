@@ -1485,6 +1485,8 @@ final class IT2Player {
             CurrentSpeed = UInt16(sequence.speed)
             Tempo = UInt16(sequence.tempo / OpenMPTSong.tempoUnit)
             TempoFraction = UInt32(sequence.tempo % OpenMPTSong.tempoUnit)
+        } else {
+            restartOrder = module.restartOrder
         }
         CurrentOrder = UInt16(order)
         ProcessOrder = UInt16(truncatingIfNeeded: order - 1)

@@ -82,7 +82,7 @@ final class WebPlayer {
             layout = format == .sid || format == .sndh || format == .cmf || format == .rol || format == .fmt || format == .stm ? nil : options.stereo
             ownStereo = format == .mod || format == .med || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
                 || format == .mtm || format == .dtm || format == .amf
-                || format == .gdm || format == .ptm || format == .ult
+                || format == .gdm || format == .ptm || format == .ult || format == .c67
                 || format == .mptm
                 || format == .sfx || format == .okt
                 || format == .composer669 || format == .far

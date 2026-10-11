@@ -28,7 +28,7 @@ siday ~/Music/chiptunes --shuffle
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's on its own mixer) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
-| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -889,6 +889,16 @@ through its row, which OpenMPT takes to mean every so many ticks and so does thi
 tempo faster than the fastest, which nothing says the speed of; a file that asks for it is left
 at the tempo it had, and says so. Two of the files have commands that neither program is said to
 have had. They are left out, and those files say so too.
+
+A C67 file is from Composer 670, which is Composer 669 with an AdLib card beside it: four channels
+of samples and nine FM voices, and no commands at all, only notes, volumes and a speed. There is
+nothing in that which Impulse Tracker's replayer has not got, so it plays these files, with the FM
+chip beside it played as OpenMPT plays it, as for an MPTM file. OpenMPT is the only other player of
+them, and the pitches, the tempo and how loud the chip is against the samples are as it has them.
+All 34 files to hand are played. Beside libopenmpt the two are at the same row on every tick, and
+alike on 212,060 ticks of 216,154: the rest are the ends of samples, the tick on which a tune comes
+round, and the highest FM notes, which OpenMPT keeps as periods too coarse for them. What is heard
+agrees to 0.96 for the middle file, the two having different emulations of the chip.
 
 A FAR file is from Farandole Composer, which Daniel Potter wrote for the PC and the Gravis
 Ultrasound in 1994: sixteen channels, patterns as long as they like, slides counted in the steps of

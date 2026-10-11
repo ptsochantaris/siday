@@ -180,6 +180,9 @@ final class IT2Module {
     /// started one, and was that instrument's volume and no more. Impulse Tracker starts the note
     /// again if the channel has stopped playing it.
     var instrumentAloneStartsNothing = false
+    /// Where in the list a module of another tracker's goes on from when it has come to the end.
+    /// (An MPTM file's songs each have their own: see `OpenMPTSong`.)
+    var restartOrder = 0
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
@@ -620,9 +623,10 @@ final class IT2Module {
     ///     `MAX_PATTERNS` of each.
     init(title: String, madeWith: String, orders: [UInt8], flags: UInt16, globalVolume: UInt8, mixVolume: UInt8, speed: UInt8, tempo: UInt8,
          channelPans: [UInt8], samples: [IT2Sample], patterns: [[UInt8]?], rows: [UInt16], slidesToNotesCarryOn: Bool = false,
-         instrumentAloneStartsNothing: Bool = false) {
+         instrumentAloneStartsNothing: Bool = false, restart: Int = 0, sound: ModPlugSound? = nil) {
         self.slidesToNotesCarryOn = slidesToNotesCarryOn
         self.instrumentAloneStartsNothing = instrumentAloneStartsNothing
+        restartOrder = restart < orders.count && orders[restart] < 200 ? restart : 0
         self.title = title
         self.madeWith = madeWith
         var Orders = [UInt8](repeating: 255, count: Self.MAX_ORDERS)
@@ -656,7 +660,7 @@ final class IT2Module {
         extras = ModPlugExtras()
         modPlug = ModPlugWays()
         openMPT = nil
-        sound = nil
+        self.sound = sound
     }
 
     /// An MPTM file's module: what its IT file's part gave, which `file` is, with the list of

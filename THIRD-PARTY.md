@@ -497,6 +497,14 @@ reading MTM, DTM and AMF files": libxmp's the MIT licence, Copyright (C) 1996-20
 and Hipolito Carraro Jr, and OpenMPT's the BSD 3-Clause licence, Copyright (c) 2004-2026 OpenMPT
 Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
 
+## OpenMPT — C67 files
+
+`Sources/SidayKit/ImpulseTracker/C67File.swift`, which reads a Composer 670 module into the shape
+Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
+(`soundlib/Load_c67.cpp`): the layout of the file, the checks it is held to, and what its notes and
+volumes are taken to mean. It is used under OpenMPT's licence, the BSD 3-Clause, set out below under
+"OpenMPT — FM Tracker files".
+
 ## OpenMPT — MPTM files
 
 `Sources/SidayKit/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,
