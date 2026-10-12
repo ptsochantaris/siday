@@ -21,9 +21,11 @@ import JavaScriptKit
 ///     length in seconds.
 ///   - progress: where the playing song has got to, in seconds; then, in one list of numbers from 0
 ///     to 255, the spectrum analyser's bars (the height of each, low notes to high, and then the
-///     height of each bar's cap) and what the tune's voices are doing, in three rows: a light for each
+///     height of each bar's cap) and what the tune's voices are doing, in five rows: a light for each
 ///     voice that has one (how bright it is), each one's pitch in half semitones (120 is middle C; 0
-///     for none), and 1 for each that a note has just been started on; and how many voices there are.
+///     for none), 1 for each that a note has just been started on, the side each is heard from (1
+///     for the left to 255 for the right), and 1 for each that is playing a sample; and how many
+///     voices there are.
 ///   - rendered: how much of the playing song is ready to be moved about in, in seconds from its start;
 ///     and the song's length, when the file did not give one and the song, now rendered to its end,
 ///     has turned out shorter than the time it was allowed (0 at any other time).

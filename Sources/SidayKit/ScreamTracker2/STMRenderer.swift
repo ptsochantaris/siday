@@ -141,6 +141,9 @@ public final class STMRenderer: Renderer, ReferenceComparable {
         notes.take(pitches: pitches, struck: struck)
     }
 
+    /// Every voice plays samples.
+    public var channelsAreSampled: Bool { true }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for channel in 0 ..< ST2Module.channels { sides[channel] = 0 }
     }

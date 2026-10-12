@@ -326,6 +326,9 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
         }
     }
 
+    /// Every voice plays samples.
+    public var channelsAreSampled: Bool { true }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         // A voice at full volume goes 8,192 either side of nothing, and a digi-mix twice as far.
         let full: Float = kind == .mix ? 32768 : 16384

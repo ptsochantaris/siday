@@ -242,6 +242,12 @@ struct MEDPlayer: ~Copyable {
     private let song: MEDModule.Song
     private let songIndex: Int
     private let tracks: UnsafeMutablePointer<Track>
+
+    /// True if what a track was last given to play is a sample, or a hybrid, which is one too: not
+    /// a synthetic sound, which is made of waveforms drawn in the tracker.
+    func playsSample(_ track: Int) -> Bool {
+        track < 0 || track >= MEDModule.mostTracks || tracks[track].soundKind <= 0
+    }
     private let periods: UnsafeMutablePointer<UInt16>
     private let sine: UnsafeMutablePointer<Int8>
     private let visited: UnsafeMutablePointer<Bool>

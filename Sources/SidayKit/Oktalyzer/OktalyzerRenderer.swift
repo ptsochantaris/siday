@@ -159,6 +159,9 @@ public final class OktalyzerRenderer: Renderer {
     /// A light for each track: four, and one more for each voice that is split.
     public var channelCount: Int { module.trackCount }
 
+    /// Every voice plays samples.
+    public var channelsAreSampled: Bool { true }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         // The Amiga's own sides, however near they are brought to one another here.
         player.sides(into: sides)

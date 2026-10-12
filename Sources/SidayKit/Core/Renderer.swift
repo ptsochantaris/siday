@@ -87,6 +87,13 @@ public protocol Renderer: AnyObject {
     /// together; the AY chip's three are where they are heard, or would be if it were heard in
     /// stereo. None of it depends on what the tune is being listened to through.
     func takeChannelSides(into sides: UnsafeMutablePointer<Float>)
+    /// Which voices are playing a recording of a sound, a sample, and not a sound a chip makes of
+    /// itself (a square wave, an FM voice, a waveform drawn in a tracker): true for those.
+    /// `channelCount` of them. A voice that may play either says which it is playing now.
+    func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>)
+    /// True if the tune's voices play samples: what `takeChannelsSampled` says of every one of
+    /// them, for a player that does not say it voice by voice.
+    var channelsAreSampled: Bool { get }
 }
 
 public extension Renderer {
@@ -111,6 +118,11 @@ public extension Renderer {
     }
     func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for voice in 0 ..< channelCount { sides[voice] = 0 }
+    }
+    var channelsAreSampled: Bool { false }
+    func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
+        let all = channelsAreSampled
+        for voice in 0 ..< channelCount { sampled[voice] = all }
     }
 }
 

@@ -595,6 +595,20 @@ button:disabled {
   pointer-events: none;
 }
 
+/* A voice that is playing a sample has a blue lamp: the red ones are sounds a chip makes of itself. */
+.light.sampled::before {
+  background: radial-gradient(circle at 38% 32%, #16306e, #0b1a40 55%, #070f26);
+}
+
+.light.sampled .glow {
+  background: radial-gradient(
+    circle,
+    #58a6ff 0%, #2b82ff 20%, #1266f2 32%,
+    rgb(34 120 255 / 0.62) 37%, rgb(34 120 255 / 0.38) 42%, rgb(34 120 255 / 0.22) 48%,
+    rgb(34 120 255 / 0.12) 54%, rgb(34 120 255 / 0.05) 61%, rgb(34 120 255 / 0) 70%
+  );
+}
+
 .fill {
   height: 100%;
   background: var(--accent);

@@ -209,6 +209,11 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { lights.count }
 
+    /// The sound card's sixteen channels play samples, and the AdLib's nine are FM.
+    public func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
+        for light in lights.indices { sampled[light] = lights[light] < 16 }
+    }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for light in lights.indices { sides[light] = player.cards.side(of: player.zchn[lights[light]]) }
     }

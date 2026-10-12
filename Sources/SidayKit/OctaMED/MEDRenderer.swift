@@ -321,6 +321,12 @@ public final class MEDRenderer: Renderer {
     /// song in mixing mode has.
     public var channelCount: Int { lights }
 
+    /// A track plays samples, unless the sound it was last given is a synthetic one, made of
+    /// waveforms drawn in the tracker. (A hybrid is a sample that a synthetic sound's lists shape.)
+    public func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
+        for track in 0 ..< lights { sampled[track] = player.playsSample(track) }
+    }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for track in 0 ..< lights {
             if player.mode == .mixing {

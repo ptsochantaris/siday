@@ -140,6 +140,9 @@ final class IT2Mixer {
     /// And where each channel's note lies between the two sides, from -1 on the left to 1 on the
     /// right: that of the voice it last had hold of.
     private(set) var sides = [Float](repeating: 0, count: 64)
+    /// For each channel, whether the voice it has hold of plays a sample, and not an FM instrument:
+    /// nil, until it has had hold of one.
+    private(set) var sampled = [Bool?](repeating: nil, count: 64)
     private var swing = Swing<Float>(from: -4, to: 4)
 
     // The filter's tables.
@@ -505,6 +508,7 @@ final class IT2Mixer {
                 if sc.pointee.HostChnNum & CHN_DISOWNED == 0 {
                     // (Surround is on both sides alike.)
                     sides[channel] = !stereoOutput || sc.pointee.FinalPan == PAN_SURROUND ? 0 : max(-1, min(1, (Float(sc.pointee.FinalPan) - 32) / 32))
+                    sampled[channel] = sc.pointee.SmpPtr?.AdLib == nil
                 }
                 if sc.pointee.HostChnNum & CHN_DISOWNED == 0, sc.pointee.Frequency > 0 {
                     notes.pitches[channel] = ChannelPitch.note(ofRate: Double(sc.pointee.Frequency))

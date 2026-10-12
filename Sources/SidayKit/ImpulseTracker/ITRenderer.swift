@@ -29,6 +29,9 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     private var started = false
     /// For the lights: which of the 64 channels some pattern has a note on, in order.
     private let lights: [Int]
+    /// For each of those, whether the first instrument its patterns give it is a sample, and not one
+    /// of OpenMPT's FM instruments: what the channel is taken to play until it has played something.
+    private let startsWithSamples: [Bool]
 
     /// A tune that has not come round after this many ticks is taken not to.
     private static let mostTicks = 50 * 60 * 120
@@ -51,7 +54,11 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         mono = options.stereo == .mono
 
         // The channels that some pattern has a note or an instrument on, and that are not switched off.
+        // And for each, the first instrument a pattern gives it and the note it is given with: by
+        // that, a channel is known for one of samples or of FM before it has played anything.
         var used = [Bool](repeating: false, count: 64)
+        var first = [(note: UInt8, instrument: UInt8)?](repeating: nil, count: 64)
+        var notes = [UInt8](repeating: 60, count: 64)
         for index in 0 ..< module.patternLimit where module.hasPattern(index) {
             let pattern = module.pattern(index)
             var masks = [UInt8](repeating: 0, count: 64)
@@ -70,12 +77,22 @@ public final class ITRenderer: Renderer, ReferenceComparable {
                 }
                 // A note or an instrument, given here or said to be the same as last time.
                 if masks[channel] & 0x33 != 0 { used[channel] = true }
+                if masks[channel] & 1 != 0, at < pattern.data.count, pattern.data[at] < 120 { notes[channel] = pattern.data[at] }
+                let after = at + (masks[channel] & 1 != 0 ? 1 : 0)
+                if masks[channel] & 2 != 0, after < pattern.data.count, pattern.data[after] != 0, first[channel] == nil {
+                    first[channel] = (notes[channel], pattern.data[after])
+                }
                 at += (masks[channel] & 1 != 0 ? 1 : 0) + (masks[channel] & 2 != 0 ? 1 : 0) + (masks[channel] & 4 != 0 ? 1 : 0)
                     + (masks[channel] & 8 != 0 ? 2 : 0)
             }
         }
         let places = module.ChnlPan
         lights = (0 ..< 64).filter { used[$0] && places[$0] & 128 == 0 }
+        startsWithSamples = lights.map { channel in
+            guard let (note, instrument) = first[channel] else { return true }
+            let sample = module.usesInstruments ? Int(module.instrument(Int(instrument) - 1).SmpNoteTable[Int(note)] >> 8) : Int(instrument)
+            return module.sample(sample - 1)?.AdLib == nil
+        }
 
         var info = TuneInfo(format: format)
         info.title = module.title
@@ -149,6 +166,11 @@ public final class ITRenderer: Renderer, ReferenceComparable {
                 }
             }
         }
+    }
+
+    /// A channel plays samples, unless what it has hold of is one of OpenMPT's FM instruments.
+    public func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
+        for light in lights.indices { sampled[light] = player.mixer.sampled[lights[light]] ?? startsWithSamples[light] }
     }
 
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {

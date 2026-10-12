@@ -135,6 +135,9 @@ public final class Composer669Renderer: Renderer {
         notes.take(pitches: pitches, struck: struck)
     }
 
+    /// Every voice plays samples.
+    public var channelsAreSampled: Bool { true }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for channel in 0 ..< Composer669Module.channels { sides[channel] = player.mixer.side(of: channel) }
     }

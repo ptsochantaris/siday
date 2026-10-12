@@ -56,11 +56,13 @@ final class WebPlayer {
     /// bright its light has been, from 0 to 255; its pitch, in half semitones (120 is middle C), or 0
     /// for none; 1 if a note was started on it; and the side it is heard from, from 1 for the left
     /// through 128 for the middle to 255 for the right. And what was handed over the last time they
-    /// were taken: all the lights, then all the pitches, then all the marks, then all the sides.
+    /// were taken: all the lights, then all the pitches, then all the marks, then all the sides,
+    /// then for each voice whether it is playing a sample.
     private var lights: [UInt8] = []
     private var pitches: [UInt8] = []
     private var struck: [UInt8] = []
     private var sides: [UInt8] = []
+    private var sampled: [UInt8] = []
     private(set) var voicesTaken: [UInt8] = []
     var voiceCount: Int { lights.count }
 
@@ -106,7 +108,8 @@ final class WebPlayer {
         pitches = lights
         struck = lights
         sides = [UInt8](repeating: 128, count: lights.count)
-        voicesTaken = lights + lights + lights + sides
+        sampled = lights
+        voicesTaken = lights + lights + lights + sides + lights
         settle()
         blockLength = 0
         blockCursor = 0
@@ -195,6 +198,7 @@ final class WebPlayer {
                     if pitch > 0 { pitches[voice] = UInt8(max(1, min(255, (pitch * 2).rounded()))) }
                     if session.channelStruck[voice] { struck[voice] = 1 }
                     sides[voice] = UInt8(max(1, min(255, (128 + session.channelSides[voice] * 127).rounded())))
+                    sampled[voice] = session.channelsSampled[voice] ? 1 : 0
                 }
                 if blockLength == 0 { break }
             }
@@ -223,6 +227,7 @@ final class WebPlayer {
             voicesTaken[count + voice] = pitches[voice]
             voicesTaken[count * 2 + voice] = struck[voice]
             voicesTaken[count * 3 + voice] = sides[voice]
+            voicesTaken[count * 4 + voice] = sampled[voice]
             lights[voice] = 0
             pitches[voice] = 0
             struck[voice] = 0
@@ -369,10 +374,11 @@ public func sidaySpectrumBands() -> Int32 {
 }
 
 /// What is known of each voice of the tune, for the sound rendered since this was last called. There
-/// are `siday_lights_count` voices, and four bytes for each, kept as four rows: first a light for
+/// are `siday_lights_count` voices, and five bytes for each, kept as five rows: first a light for
 /// each voice, from 0, dark, to 255; then each voice's pitch in half semitones, 120 being middle C,
 /// or 0 for a voice with none; then 1 for each voice a note was started on; then the side each is
-/// heard from, 1 for the left, 128 for the middle, 255 for the right. Nil if there are no voices.
+/// heard from, 1 for the left, 128 for the middle, 255 for the right; then 1 for each voice that is
+/// playing a sample, and 0 for one whose sound a chip makes of itself. Nil if there are no voices.
 @_expose(wasm, "siday_lights")
 @_cdecl("siday_lights")
 public func sidayLights() -> UnsafePointer<UInt8>? {

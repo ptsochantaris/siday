@@ -123,6 +123,9 @@ final class Player {
     /// goes out over a moment, as a lamp does. (As many as the audio side sends: none, for a tune
     /// whose voices cannot be told apart.)
     private(set) var lights: [Double] = []
+    /// For each of those voices, whether it is playing a sample and not a sound a chip makes of
+    /// itself: the first has a blue light, and the second a red one.
+    private(set) var sampled: [Bool] = []
     /// How fast a light goes out, in brightnesses a second: from full to dark in about a seventh of one.
     private static let lightFall = 6.5
     /// The picture to listen by, which is painted from what the voices are doing: see `Visualiser`.
@@ -202,12 +205,16 @@ final class Player {
                 // (A move to another place in the song is no time at all, and neither is a long wait.)
                 let fall = Self.lightFall * max(0, min(0.1, seconds - position))
                 position = seconds
-                let voices = max(0, min(numbers.count / 4, voices))
-                let count = (numbers.count - voices * 4) / 2
+                let voices = max(0, min(numbers.count / 5, voices))
+                let count = (numbers.count - voices * 5) / 2
                 bars = numbers[..<count].map { $0 / 255 }
                 caps = numbers[count ..< count * 2].map { $0 / 255 }
                 let levels = numbers[(count * 2) ..< (count * 2 + voices)].map { $0 / 255 }
                 lights = levels.count == lights.count ? levels.indices.map { max(levels[$0], lights[$0] - fall) } : levels
+                // Whether each voice is playing a sample, which is told by its light's colour. (Told
+                // to the page only when it changes, which is seldom.)
+                let kinds = numbers[(count * 2 + voices * 4) ..< (count * 2 + voices * 5)].map { $0 != 0 }
+                if kinds != sampled { sampled = kinds }
                 // The picture is told all of it: how loud each voice is, its pitch, which comes in
                 // half semitones, whether a note has just been struck, and the side it is heard
                 // from, which comes as 1 for the left to 255 for the right.

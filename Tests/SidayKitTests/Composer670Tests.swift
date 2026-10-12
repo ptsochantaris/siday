@@ -143,3 +143,21 @@ private let row = 6 * 2.5 / 143
         play(file)
     }
 }
+
+@Test func c67VoicesSayWhetherTheyPlaySamples() throws {
+    // A sample on the first channel and the FM chip on the fifth: the lights of the two are told apart.
+    let renderer = try TuneLoader.load(c67([[.note(channel: 0), .note(channel: 4), .rows(32)]]), format: .c67)
+    #expect(renderer.channelCount == 2)
+    var sound = [Float](repeating: 0, count: 9600)
+    var sampled = [Bool](repeating: false, count: renderer.channelCount)
+    // Which is which is known from the patterns, before a note of it has been played.
+    sampled.withUnsafeMutableBufferPointer { renderer.takeChannelsSampled(into: $0.baseAddress!) }
+    #expect(sampled == [true, false])
+    sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 4800) }
+    sampled.withUnsafeMutableBufferPointer { renderer.takeChannelsSampled(into: $0.baseAddress!) }
+    #expect(sampled == [true, false])
+    // And a session hands the same on, with the levels.
+    let session = TuneSession(renderer: try TuneLoader.load(c67([[.note(channel: 0), .note(channel: 4), .rows(32)]]), format: .c67), policy: PlaybackPolicy())
+    _ = sound.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 4800) }
+    #expect(session.channelsSampled == [true, false])
+}

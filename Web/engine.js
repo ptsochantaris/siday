@@ -40,7 +40,8 @@ let tune = 0;
 let file;
 /// The song as far as it has been rendered: { samples, position, last, voices } for each chunk, in
 /// order, the sound as the chip made it and what its voices were doing in it: for each, how bright
-/// its light is, its pitch, and whether a note was started on it. The last chunk of the song is marked.
+/// its light is, its pitch, whether a note was started on it, its side, and whether it is playing a
+/// sample. The last chunk of the song is marked.
 let kept = [];
 /// Which of the tune's voices have a light on the page. Some voices are ones a tune may never use (a
 /// ZX Spectrum's beeper, the samples played on a SID's volume), and get a light once they have been
@@ -127,8 +128,9 @@ function render() {
   // Asked for first, as below.
   const taken = core.siday_lights();
   const count = shown.length;
-  // Four rows: a light for each voice, its pitch, whether a note was started on it, and its side.
-  const voices = new Uint8Array(core.memory.buffer, taken, count * 4).slice();
+  // Five rows: a light for each voice, its pitch, whether a note was started on it, its side, and
+  // whether it is playing a sample.
+  const voices = new Uint8Array(core.memory.buffer, taken, count * 5).slice();
   for (let voice = 0; voice < count; voice++) if (voices[voice] >= heard) shown[voice] = true;
   kept.push({ samples, position: core.siday_position(), last, voices });
   if (last) finish();

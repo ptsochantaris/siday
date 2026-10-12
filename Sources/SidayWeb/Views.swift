@@ -165,7 +165,7 @@ struct NowPlaying {
             }
 
             if !player.lights.isEmpty, player.shows(.lights) {
-                Lights(levels: player.lights)
+                Lights(levels: player.lights, sampled: player.sampled)
             }
         }
     }
@@ -339,11 +339,13 @@ struct Analyser {
 @View
 struct Lights {
     var levels: [Double]
+    /// Which of the voices are playing samples: their lights are blue, and the others' red.
+    var sampled: [Bool]
 
     var body: some View {
         div(.class("lights")) {
             ForEach(Array(levels.indices), key: { String($0) }) { index in
-                div(.class("light")) {
+                div(.class(index < sampled.count && sampled[index] ? "light sampled" : "light")) {
                     div(.class("glow"), .style(["opacity": "\(glow(levels[index]))", "transform": "scale(\(size(levels[index])))"])) {}
                 }
             }

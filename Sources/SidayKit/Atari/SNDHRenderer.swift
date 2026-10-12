@@ -95,6 +95,11 @@ public final class SNDHRenderer: Renderer {
     public var channelCount: Int { 4 }
     public var channelsAlwaysShown: Int { 3 }
 
+    /// The chip's three make their own sound; the fourth is the STE's samples.
+    public func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
+        for voice in 0 ..< 4 { sampled[voice] = voice == 3 }
+    }
+
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         machine.takeLevels(into: levels)
     }

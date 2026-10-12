@@ -181,6 +181,9 @@ public final class SoundFXRenderer: Renderer {
     /// Paula's four voices.
     public var channelCount: Int { 4 }
 
+    /// Every voice plays samples.
+    public var channelsAreSampled: Bool { true }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         // The Amiga's own sides, however near they are brought to one another here.
         for voice in 0 ..< 4 { sides[voice] = Paula.side(ofVoice: voice) }

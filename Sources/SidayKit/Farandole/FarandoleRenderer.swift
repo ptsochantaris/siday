@@ -138,6 +138,9 @@ public final class FarandoleRenderer: Renderer {
         notes.take(pitches: pitches, struck: struck)
     }
 
+    /// Every voice plays samples.
+    public var channelsAreSampled: Bool { true }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for channel in 0 ..< FarandoleModule.channels { sides[channel] = player.mixer.side(of: channel) }
     }

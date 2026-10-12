@@ -134,6 +134,9 @@ public final class XMRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { Int(module.song.antChn) }
 
+    /// Every voice plays samples.
+    public var channelsAreSampled: Bool { true }
+
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         // Where each channel's note is, with what its instrument's envelope does to that.
         for channel in 0 ..< channelCount {
