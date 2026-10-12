@@ -56,16 +56,18 @@ func sidayListen(
 /// - Parameters:
 ///   - sought: the tunes that the playlists about to be read are to be found among: their names, one
 ///     to a line. Empty when the reading is done, and they need not be kept.
-///   - listed: a playlist's file, as text with a letter for each of its bytes. The answer is in
-///     lines: first how many tunes it names and how many of those were not among the ones given to
-///     `sought`, with a space between; then a line for each that was, in the list's order: its place
-///     among them, counted from 0, a tab, and what the list says about it.
+///   - listed: a playlist's name, as its tunes' names were given to `sought`, and its file, as text
+///     with a letter for each of its bytes. The answer is in lines: first how many tunes it names
+///     and how many of those were not among the ones given to `sought`, with a space between; then
+///     a line for each that was, in the list's order: its place among them, counted from 0, a tab,
+///     1 if it is a tune beside the list or below it and 0 if it is one from somewhere else, a tab,
+///     and what the list says about it.
 ///   - missed: playlists have been read, and this is how they came out: how many of the tunes they
 ///     name could not be found, how many they name, and the name of the list if it was a single one.
 @JSFunction(from: .global)
 func sidayPlaylists(
     _ sought: @escaping (String) -> Void,
-    _ listed: @escaping (String) -> String,
+    _ listed: @escaping (String, String) -> String,
     _ missed: @escaping (Int, Int, String) -> Void
 ) throws(JSException)
 

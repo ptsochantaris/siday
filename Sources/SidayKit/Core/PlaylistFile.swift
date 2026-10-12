@@ -156,6 +156,16 @@ public struct PlaylistFile: Sendable {
             path.utf8.split(separator: 0x2F).map { PlaylistFile.plain(String(decoding: Array($0), as: UTF8.self)) }
         }
 
+        /// The place of the file a list's entry means when it is a tune beside the list or below it,
+        /// and where the list itself is among the paths is known: the file at just that path. Nil
+        /// if the entry is of a tune somewhere else, or there is no such file.
+        public func place(of entry: Entry, besideList list: String) -> Int? {
+            guard !entry.absolute, !entry.path.contains("..") else { return nil }
+            let wanted = Self.parts(list).dropLast() + entry.path.map { PlaylistFile.plain($0) }
+            guard let file = wanted.last, let candidates = named[file] else { return nil }
+            return candidates.first { Self.parts(paths[$0]).elementsEqual(wanted) }
+        }
+
         /// The place, in the paths this was made with, of the file a list's entry means; nil if none
         /// of them is it.
         public func place(of entry: Entry) -> Int? {

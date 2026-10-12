@@ -83,5 +83,12 @@ private func list(_ lines: [String], version: String = "1.6") -> [UInt8] {
     #expect(place(["..", "Authors", "Zbigniew N.", "Solidarnosc.stc"]) == 2)
     #expect(place(["Authors", "Davos", "Boy.pt2"]) == nil)
     #expect(place([]) == nil)
+    // A tune beside the list or below it is the file at just that path, when the list's own is known.
+    func beside(_ list: String, _ path: [String]) -> Int? { finder.place(of: PlaylistFile.Entry(path: path), besideList: list) }
+    #expect(beside("other/all.ayl", ["Authors", "Davos", "GIRL.pt2"]) == 4)
+    #expect(beside("music/Authors/Davos/one.ayl", ["girl.pt2"]) == 1)
+    #expect(beside("list.ayl", ["Loose.pt3"]) == 3)
+    #expect(beside("music/all.ayl", ["Davos", "Girl.pt2"]) == nil)
+    #expect(beside("music/Authors/Alos/link.ayl", ["..", "Davos", "Girl.pt2"]) == nil)
     #expect(PlaylistFile.Finder([]).place(of: PlaylistFile.Entry(path: ["Girl.pt2"])) == nil)
 }

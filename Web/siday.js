@@ -362,10 +362,11 @@ async function again(tune) {
 /// it. (A tune taken out of the list is still here.)
 const given = new Map();
 
-/// The tunes that playlists name, in their order, found among some that are known: each with what
-/// its list says about it. With them, how many tunes the lists name in all and how many of those
-/// were not found. The lists are read on the Swift side, which is told what there is to find among
-/// and then given each list as text with a letter for each of its bytes.
+/// The tunes that playlists name, found among some that are known: for each list its tunes in its
+/// order, each with what the list says about it and whether it is a tune beside the list or below
+/// it. With them, how many tunes the lists name in all and how many of those were not found. The
+/// lists are read on the Swift side, which is told what there is to find among and then given each
+/// list as text with a letter for each of its bytes.
 async function listed(lists, known) {
   const texts = await Promise.all(
     lists.map(async (list) => {
@@ -375,19 +376,19 @@ async function listed(lists, known) {
       return text;
     }),
   );
-  const found = { tunes: [], named: 0, missing: 0 };
+  const found = { lists: lists.map(() => []), named: 0, missing: 0 };
   if (!playlists) return found;
   playlists.sought(known.map((item) => item.name).join("\n"));
-  for (const text of texts) {
-    const [counts, ...lines] = playlists.listed(text).split("\n");
+  texts.forEach((text, which) => {
+    const [counts, ...lines] = playlists.listed(lists[which].name, text).split("\n");
     const [named, missing] = counts.split(" ").map(Number);
     found.named += named;
     found.missing += missing;
     for (const line of lines) {
-      const tab = line.indexOf("\t");
-      if (tab > 0) found.tunes.push({ ...known[Number(line.slice(0, tab))], note: line.slice(tab + 1) });
+      const [place, below, note] = line.split("\t");
+      if (note !== undefined) found.lists[which].push({ ...known[Number(place)], note, below: below === "1" });
     }
-  }
+  });
   playlists.sought("");
   return found;
 }
@@ -399,10 +400,13 @@ async function add(chosen) {
     songLengths = await database.file.arrayBuffer();
     if (sound) (await sound).engine.postMessage({ type: "songlengths", bytes: songLengths });
   }
-  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-  const kinds = chosen.map((item) => listeners?.kind(item.name) ?? 0);
-  const tunesHere = chosen.filter((_, place) => kinds[place] === 1).sort(byName);
-  const lists = chosen.filter((_, place) => kinds[place] === 2).sort(byName);
+  // Tunes and playlists, in the order of their names.
+  const sorted = chosen
+    .map((item) => ({ ...item, kind: listeners?.kind(item.name) ?? 0 }))
+    .filter((item) => item.kind > 0)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+  const tunesHere = sorted.filter((item) => item.kind === 1);
+  const lists = sorted.filter((item) => item.kind === 2);
   const own = lists.filter((item) => item.own);
   const known = () => [...tunesHere, ...Array.from(given, ([name, file]) => ({ name, file }))];
   let accepted = tunesHere;
@@ -412,14 +416,28 @@ async function add(chosen) {
     // folder dropped with it is where its tunes are looked for, and is not itself added to the list;
     // tunes dropped with it, each for itself, come after the list's, but for those it has named.
     found = await listed(own, known());
-    const named = new Set(found.tunes.map((item) => item.file));
-    accepted = [...found.tunes, ...tunesHere.filter((item) => item.own && !named.has(item.file))];
-  } else if (lists.length > 0 && (given.size > 0 || tunesHere.length === 0)) {
-    // The playlists of a folder add the tunes they name that the folder does not itself hold, which
-    // here can only be tunes the page was given before.
+    const named = new Set(found.lists.flat().map((item) => item.file));
+    accepted = [...found.lists.flat(), ...tunesHere.filter((item) => item.own && !named.has(item.file))];
+  } else if (lists.length > 0) {
+    // A folder is played in the order of its names, and a playlist in it is the order of the tunes
+    // beside it and below it: those it names come where the list is, as it has them. The tunes a
+    // list names from somewhere else are added only if the folder does not hold them, which here
+    // can only be tunes the page was given before.
     found = await listed(lists, known());
-    const held = new Set(tunesHere.map((item) => item.file));
-    accepted = [...tunesHere, ...found.tunes.filter((item) => !held.has(item.file) && held.add(item.file))];
+    const below = new Map(lists.map((list, which) => [list, found.lists[which].filter((item) => item.below)]));
+    const ordered = new Set(Array.from(below.values()).flat().map((item) => item.file));
+    const held = new Set();
+    accepted = [];
+    const take = (item) => {
+      if (held.has(item.file)) return;
+      held.add(item.file);
+      accepted.push(item);
+    };
+    for (const item of sorted) {
+      if (item.kind === 2) below.get(item).forEach(take);
+      else if (!ordered.has(item.file)) take(item);
+    }
+    found.lists.flat().filter((item) => !item.below).forEach(take);
   }
   for (const item of tunesHere) given.set(item.name, item.file);
   if (accepted.length > 0) {

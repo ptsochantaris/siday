@@ -424,7 +424,7 @@ struct Playlist {
         section(.class("list")) {
             if player.files.isEmpty {
                 // With no tunes in it yet, the list says how they are put there.
-                p(.class("empty")) { "Drop tunes, a whole folder of them, or a playlist with the folder its tunes are in, anywhere on the page, or add them with the buttons below. They stay on your computer." }
+                p(.class("empty")) { "Drop tunes, a whole folder of them, or a playlist with its tunes, anywhere on the page, or add them with the buttons below. They stay on your computer." }
             } else {
                 div(.class("search")) {
                     input(.type(.search), .placeholder("Search \(player.files.count) tunes"))

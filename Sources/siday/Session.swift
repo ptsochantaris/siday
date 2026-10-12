@@ -17,10 +17,11 @@ struct Scanner {
     }
 
     /// A playlist that is named is played as it is written: its tunes, in its order. A folder is
-    /// played as its tunes in the order of their names, and the playlists in it add only the tunes
-    /// they name that the folder does not itself hold. (A collection kept as one folder of tunes
-    /// and many of lists is then played once through and not once for every list, and a folder of
-    /// nothing but lists is played too.)
+    /// played as its tunes in the order of their names. A playlist in it is the order of the tunes
+    /// that are beside it and below it: those it names are played where the list is, as it has
+    /// them. The tunes a list names that are somewhere else are added only if the folder does not
+    /// itself hold them. (A collection kept as one folder of tunes and many of lists is then played
+    /// once through and not once for every list, and a folder of nothing but lists is played too.)
     func scan(_ paths: [String]) -> Result {
         var result = Result()
         let manager = FileManager.default
@@ -58,24 +59,43 @@ struct Scanner {
                         lists.append(file)
                     }
                 }
-                found.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-                for file in found { consider(file, explicit: false) }
-                guard !lists.isEmpty else { continue }
+                func key(_ file: URL) -> String { file.standardizedFileURL.path.lowercased() }
+                // What each list says of the tunes in its own folder and below, and what tunes it
+                // names that are somewhere else.
+                var below: [URL: [(tune: URL, note: String)]] = [:]
+                var elsewhere: [(folder: URL, entry: PlaylistFile.Entry)] = []
+                var ordered = Set<String>()
                 lists.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-                var held = Set(found.map { $0.standardizedFileURL.path.lowercased() })
                 for list in lists {
                     let folder = list.deletingLastPathComponent()
-                    let above = folder.standardizedFileURL.path.split(separator: "/").map { String($0) }
                     for entry in playlist(list)?.entries ?? [] {
-                        // Most are the folder's own, and are known for that without a look at the disk.
-                        var parts = entry.absolute ? [] : above
-                        for part in entry.path {
-                            if part != ".." { parts.append(part) } else if !parts.isEmpty { parts.removeLast() }
+                        if entry.absolute || entry.path.contains("..") {
+                            elsewhere.append((folder, entry))
+                        } else if let tune = Self.find(entry, from: folder) {
+                            below[list, default: []].append((tune, entry.note))
+                            ordered.insert(key(tune))
                         }
-                        if held.contains("/" + parts.joined(separator: "/").lowercased()) { continue }
-                        guard let tune = Self.find(entry, from: folder), held.insert(tune.path.lowercased()).inserted else { continue }
-                        consider(tune, explicit: false, note: entry.note)
                     }
+                }
+                // The folder in the order of its names, with each list's tunes where the list is.
+                var held = Set<String>()
+                for file in (found + below.keys).sorted(by: { $0.path.localizedStandardCompare($1.path) == .orderedAscending }) {
+                    if let tunes = below[file] {
+                        for (tune, note) in tunes where held.insert(key(tune)).inserted { consider(tune, explicit: false, note: note) }
+                    } else {
+                        let name = key(file)
+                        if !ordered.contains(name), held.insert(name).inserted { consider(file, explicit: false) }
+                    }
+                }
+                for (folder, entry) in elsewhere {
+                    // Most are the folder's own, and are known for that without a look at the disk.
+                    var parts = entry.absolute ? [] : folder.standardizedFileURL.path.split(separator: "/").map { String($0) }
+                    for part in entry.path {
+                        if part != ".." { parts.append(part) } else if !parts.isEmpty { parts.removeLast() }
+                    }
+                    if held.contains("/" + parts.joined(separator: "/").lowercased()) { continue }
+                    guard let tune = Self.find(entry, from: folder), held.insert(tune.path.lowercased()).inserted else { continue }
+                    consider(tune, explicit: false, note: entry.note)
                 }
             } else if PlaylistFile.reads(fileExtension: url.pathExtension) {
                 guard let list = playlist(url) else {

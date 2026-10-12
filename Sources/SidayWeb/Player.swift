@@ -232,7 +232,7 @@ final class Player {
             { [self] names in
                 finding.among = PlaylistFile.Finder(names.split(separator: "\n").map { String($0) })
             },
-            { [self] text in
+            { [self] name, text in
                 // The file comes as a letter for each of its bytes.
                 let finder = finding.among
                 guard let list = PlaylistFile(text.unicodeScalars.map { UInt8(truncatingIfNeeded: $0.value) }) else { return "0 0" }
@@ -241,7 +241,11 @@ final class Player {
                 // (What a list names that is no kind of tune played here is passed over, and not looked for.)
                 for entry in list.entries where TuneFormat(fileExtension: entry.fileExtension) != nil {
                     named += 1
-                    if let place = finder.place(of: entry) { lines.append("\(place)\t\(entry.note)") }
+                    if let place = finder.place(of: entry, besideList: name) {
+                        lines.append("\(place)\t1\t\(entry.note)")
+                    } else if let place = finder.place(of: entry) {
+                        lines.append("\(place)\t0\t\(entry.note)")
+                    }
                 }
                 return (["\(named) \(named - lines.count)"] + lines).joined(separator: "\n")
             },
@@ -262,7 +266,7 @@ final class Player {
         let whose = list.isEmpty ? "The playlists name" : "\(list) names"
         let count = missing < named ? "\(named) tunes, and \(missing) of them \(missing == 1 ? "was" : "were") not found"
             : named == 1 ? "a tune that was not found" : "\(named) tunes, and none of them were found"
-        return "\(whose) \(count). A browser cannot follow a playlist to its tunes: drop the folder that holds them together with the playlist, or before it."
+        return "\(whose) \(count). A browser cannot follow a playlist to its tunes: drop the folder that holds them with the playlist, or before it."
     }
 
     private func add(_ names: [String], notes: [String]) {

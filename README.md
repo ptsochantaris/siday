@@ -47,8 +47,9 @@ to WebAssembly. Drop tunes or a whole folder on it and it plays them. Nothing is
 are read where they are and never leave your computer.
 
 A playlist can be dropped too. A browser shows a page only the files it is handed, so the page
-cannot go from a list to its tunes on the disk: drop the list together with the folder its tunes
-are in, which is then only looked in, or after tunes it names have been dropped.
+cannot go from a list to its tunes on the disk: drop the folder that holds both, or the list
+together with the folder its tunes are in (which is then only looked in), or the list after tunes
+it names have been dropped.
 
 Beside the player and its list there is a spectrum analyser, a light for each voice of the tune, a
 picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain or rain,
@@ -102,9 +103,10 @@ Folders are searched recursively and files are recognised by extension. The file
 
 A playlist (an AYL file) is played as it is written: the tunes it names, in its order, and under
 each what the list says about it, if it says anything. In a folder, the tunes are played in the
-order of their names, and the folder's playlists add only the tunes they name that are somewhere
-else: a collection kept as one folder of tunes and many of lists is played once through, and a
-folder of nothing but lists is played too.
+order of their names, and a playlist is the order of the tunes beside it and below it: those are
+played where the list is, as it has them. The tunes a list names from somewhere else are added
+only if the folder does not hold them: a collection kept as one folder of tunes and many of lists
+is played once through, and a folder of nothing but lists is played too.
 
 While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+` / `-` (or `↑` / `↓`) subsong ·
 `q` quit.
