@@ -17,14 +17,15 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, XM, S3M, IT, MPTM, MTM, DTM, AMF, GDM and PTM modules and CMF, ROL and FMT tunes for the AdLib from files and folders.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, XM, S3M, IT, MPTM, MTM, DTM, AMF, GDM, PTM, ULT, 669, STM, FAR and C67 modules and CMF, ROL and FMT tunes for the AdLib from files, folders and playlists.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Folders are searched recursively. The files are only ever read.
+        A playlist (Ay_Emul's AYL) plays the tunes it names, in its order. In a folder, the playlists add only the tunes the folder does not itself hold.
         """
     )
 
-    @Argument(help: "Files or folders to play.")
+    @Argument(help: "Files, folders or playlists to play.")
     var paths: [String] = []
 
     @Flag(help: "Play in random order.")
@@ -463,13 +464,13 @@ struct Siday: ParsableCommand {
         } else if let wav {
             try renderWAVs(scan.files, to: wav)
         } else {
-            try play(scan.files)
+            try play(scan.files, notes: scan.notes)
         }
     }
 
     // MARK: Playing
 
-    private func play(_ files: [URL]) throws {
+    private func play(_ files: [URL], notes: [URL: String]) throws {
         let ring = SampleRing(frames: 8192)
         let output = try AudioOutput(ring: ring)
         let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: self.output.television)
@@ -511,6 +512,8 @@ struct Siday: ParsableCommand {
                 length = state.length
                 clearStatus()
                 print(state.header)
+                // What the playlist it came from says about it.
+                if files.indices.contains(state.index), let note = notes[files[state.index]] { print("  \u{201C}\(note)\u{201D}") }
                 // What is not played as the file asks, under the tune's own line.
                 for shortfall in state.shortfalls { print("  \(shortfall)") }
             }

@@ -17,6 +17,11 @@ struct PlayerView {
 
             NowPlaying(player: player)
 
+            // A playlist was added, and tunes it names were not there to be found.
+            if let notice = player.notice {
+                p(.class("notice")) { notice }
+            }
+
             if player.settingsShown {
                 SettingsPanel(player: player)
             }
@@ -75,6 +80,10 @@ struct NowPlaying {
                 p(.class("detail")) {
                     [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
                         .filter { !$0.isEmpty }.joined(separator: " · ")
+                }
+                // What the playlist the tune came by says about it.
+                if let note = player.note {
+                    p(.class("note")) { note }
                 }
                 if !tune.shortfalls.isEmpty, player.shortfallsShown {
                     p(.class("shortfalls")) {
@@ -415,7 +424,7 @@ struct Playlist {
         section(.class("list")) {
             if player.files.isEmpty {
                 // With no tunes in it yet, the list says how they are put there.
-                p(.class("empty")) { "Drop tunes, or a whole folder of them, anywhere on the page, or add them with the buttons below. They stay on your computer." }
+                p(.class("empty")) { "Drop tunes, a whole folder of them, or a playlist with the folder its tunes are in, anywhere on the page, or add them with the buttons below. They stay on your computer." }
             } else {
                 div(.class("search")) {
                     input(.type(.search), .placeholder("Search \(player.files.count) tunes"))

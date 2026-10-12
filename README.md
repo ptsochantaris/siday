@@ -13,7 +13,7 @@ The name is the two families of sound chip it began with, SID and AY. How to pro
 drop tunes or a whole folder on the page. Nothing is uploaded: they are played where they are. See
 [In a browser](#in-a-browser).
 
-**On the command line:** point it at files or folders. See [On the command line](#on-the-command-line).
+**On the command line:** point it at files, folders or playlists. See [On the command line](#on-the-command-line).
 
 ```
 siday ~/Music/chiptunes --shuffle
@@ -36,12 +36,19 @@ Each of these was set beside a reference player, most of them to the sample:
 What is not played, and what is played with something missing, is under
 [Playback caveats](#playback-caveats).
 
+A playlist in Ay_Emul's AYL format plays the tunes it names, in its order, whatever kinds of tune
+they are.
+
 ## In a browser
 
 [ptsochantaris.github.io/siday](https://ptsochantaris.github.io/siday/) is the player as a web page,
 and `Web/` is where it comes from. It is Swift too: the emulators and the page itself are compiled
 to WebAssembly. Drop tunes or a whole folder on it and it plays them. Nothing is uploaded: the files
 are read where they are and never leave your computer.
+
+A playlist can be dropped too. A browser shows a page only the files it is handed, so the page
+cannot go from a list to its tunes on the disk: drop the list together with the folder its tunes
+are in, which is then only looked in, or after tunes it names have been dropped.
 
 Beside the player and its list there is a spectrum analyser, a light for each voice of the tune, a
 picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain or rain,
@@ -88,10 +95,16 @@ Always use a release build: the emulators are far too slow in debug.
 ### Using it
 
 ```
-siday <files or folders…>
+siday <files, folders or playlists…>
 ```
 
 Folders are searched recursively and files are recognised by extension. The files are only ever read.
+
+A playlist (an AYL file) is played as it is written: the tunes it names, in its order, and under
+each what the list says about it, if it says anything. In a folder, the tunes are played in the
+order of their names, and the folder's playlists add only the tunes they name that are somewhere
+else: a collection kept as one folder of tunes and many of lists is played once through, and a
+folder of nothing but lists is played too.
 
 While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+` / `-` (or `↑` / `↓`) subsong ·
 `q` quit.
@@ -1160,6 +1173,41 @@ what OpenMPT sets. What is heard can be held to OpenMPT only by measure, since O
 another emulation of the chip: tick by tick the two are as loud as each other to within a third of
 a decibel for half the ticks and one decibel for nine in ten, and their spectra keep close.
 It is heard as the other two are, and turned down by half, by measure, to be as loud as they are.
+
+### AYL — Ay_Emul's playlists
+
+Ay_Emul, Sergey Bulba's player for Windows, keeps its playlists as text. An AYL file
+begins with a line that says what it is, "ZX Spectrum Sound Chip Emulator Play List File", and
+the version of the format, from 1.0 to 1.6. After it come the tunes, one to a line, each by its
+path from the folder the list is in, as Windows writes a path. A tune may be followed by what
+Ay_Emul knew about it, between a line that is `<` and a line that is `>`: its name and author, its
+length and where it repeats, the chip and clock to play it on, where a module begins inside a
+larger file, and a comment. The oldest lists open with such a block before any tune, which is the
+program's settings on the day the list was saved.
+
+The format matters because of what is kept in it. Tr_Songs, a large collection of the Spectrum's
+tracker music, holds each tune once, under its author, and everything else it knows as lists:
+which tunes were in which demo, game, magazine or album, what was entered at each party, and
+people's lists of favourites. The comments are where a party's results are written, and where a
+few authors say in their own words what a tune was for.
+
+`PlaylistFile` reads one: the tunes and the comments, and nothing else. A tune's name and length
+are read from the tune's own file, a module for two chips is found without being told where its
+second half begins, and the chip settings are not followed (they are in about fifty entries of the
+collection: a clock or a kind of chip that the tune's author meant). The text is taken as Unicode
+if it is well formed as that, and otherwise as the Cyrillic of Windows, which is what the older
+lists with Russian in them are in.
+
+Finding the tunes is the part that differs between the two players. On the command line a path is
+followed from the list's folder, and since the lists were made on Windows, to which capitals and
+small letters in a name are one and a full stop at the end of a folder's name is nothing, a step
+of the path that is not there as written is looked for as Windows would. A browser gives a page no
+disk to look through, only the files it has been handed and the path each came by, and the page
+does not know where the list itself was among them. So there a tune is found by the end of its
+path: the file of the same name with the most folders above it named as the list names them.
+
+It was checked on the 10,031 lists of that collection: every one of the 42,804 tunes they name
+is found, and all are played but five, which are in a format that is not (FLS).
 
 ## Licence and credits
 

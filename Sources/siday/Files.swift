@@ -9,8 +9,12 @@ import Synchronization
 // reading a tune from disk, and finding HVSC's song-length database for it.
 
 extension TuneFormat {
+    /// (By what follows the last full stop of the name, whatever is before it: there is a tune
+    /// called `...pt3`, which to the system is a file of no kind.)
     init?(url: URL) {
-        self.init(fileExtension: url.pathExtension)
+        let name = url.lastPathComponent
+        guard let stop = name.lastIndex(of: ".") else { return nil }
+        self.init(fileExtension: String(name[name.index(after: stop)...]))
     }
 }
 

@@ -62,6 +62,24 @@ enum Part: String, CaseIterable {
 final class Player {
     /// The files chosen so far, by name or by path inside the folder they came in.
     private(set) var files: [String] = []
+    /// What the playlist a file came by says about it, for each of `files`: empty, for one that came
+    /// by none, or that its playlist says nothing of.
+    private var notes: [String] = []
+    /// The note of the tune that is showing; nil if it has none.
+    var note: String? {
+        guard let tuneFile, notes.indices.contains(tuneFile), !notes[tuneFile].isEmpty else { return nil }
+        return notes[tuneFile]
+    }
+
+    /// What there is to say about the playlists last added: that tunes they name were not found.
+    private(set) var notice: String?
+    /// What the tunes of the playlists being read are found among. (Kept out of what the page is
+    /// drawn from: it is there only while they are read.)
+    private let finding = Finding()
+    private final class Finding {
+        var among = PlaylistFile.Finder([])
+    }
+
     /// Lower-case copies, for searching.
     private var searchable: [[UInt8]] = []
     /// The place in `files` of the tune that is playing or was asked for.
@@ -159,10 +177,17 @@ final class Player {
     func start() {
         try? sidayListen(
             { name in
-                let parts = name.split(separator: ".")
-                return parts.count > 1 && TuneFormat(fileExtension: String(parts[parts.count - 1])) != nil
+                let letters = Array(name.utf8)
+                guard let stop = letters.lastIndex(of: 0x2E) else { return 0 }
+                let kind = String(decoding: letters[(stop + 1)...], as: UTF8.self)
+                return TuneFormat(fileExtension: kind) != nil ? 1 : PlaylistFile.reads(fileExtension: kind) ? 2 : 0
             },
-            { [self] names in add(names.split(separator: "\n").map { String($0) }) },
+            { [self] lines in
+                // Each line is a name, a tab and a note. (The tab that counts is the last: a note has none.)
+                let lines = lines.split(separator: "\n").map { Array($0.utf8) }
+                add(lines.map { String(decoding: $0[..<($0.lastIndex(of: 9) ?? $0.count)], as: UTF8.self) },
+                    notes: lines.map { line in line.lastIndex(of: 9).map { String(decoding: line[($0 + 1)...], as: UTF8.self) } ?? "" })
+            },
             { [self] plays, text, songs, song, length in loaded(plays, text, songs, song, length) },
             { [self] seconds, numbers, voices in
                 // (A move to another place in the song is no time at all, and neither is a long wait.)
@@ -203,16 +228,49 @@ final class Player {
                 if let pixels = visualiser.pixels { try? sidayPaint(Int(bitPattern: pixels), visualiser.width, visualiser.height) }
             }
         )
+        try? sidayPlaylists(
+            { [self] names in
+                finding.among = PlaylistFile.Finder(names.split(separator: "\n").map { String($0) })
+            },
+            { [self] text in
+                // The file comes as a letter for each of its bytes.
+                let finder = finding.among
+                guard let list = PlaylistFile(text.unicodeScalars.map { UInt8(truncatingIfNeeded: $0.value) }) else { return "0 0" }
+                var named = 0
+                var lines: [String] = []
+                // (What a list names that is no kind of tune played here is passed over, and not looked for.)
+                for entry in list.entries where TuneFormat(fileExtension: entry.fileExtension) != nil {
+                    named += 1
+                    if let place = finder.place(of: entry) { lines.append("\(place)\t\(entry.note)") }
+                }
+                return (["\(named) \(named - lines.count)"] + lines).joined(separator: "\n")
+            },
+            { [self] missing, named, list in
+                notice = Self.notice(missing: missing, of: named, in: list)
+            }
+        )
         tellOutput()
         tellSettings()
     }
 
     // MARK: The list
 
-    private func add(_ names: [String]) {
+    /// What is said when playlists have been read and tunes they name were not there to be found;
+    /// nothing, if they all were.
+    private static func notice(missing: Int, of named: Int, in list: String) -> String? {
+        guard missing > 0 else { return nil }
+        let whose = list.isEmpty ? "The playlists name" : "\(list) names"
+        let count = missing < named ? "\(named) tunes, and \(missing) of them \(missing == 1 ? "was" : "were") not found"
+            : named == 1 ? "a tune that was not found" : "\(named) tunes, and none of them were found"
+        return "\(whose) \(count). A browser cannot follow a playlist to its tunes: drop the folder that holds them together with the playlist, or before it."
+    }
+
+    private func add(_ names: [String], notes: [String]) {
         guard !names.isEmpty else { return }
+        notice = nil
         let first = files.count
         files.append(contentsOf: names)
+        self.notes.append(contentsOf: notes)
         searchable.append(contentsOf: names.map { Array($0.lowercased().utf8) })
         order.append(contentsOf: first ..< files.count)
         find()
@@ -233,6 +291,7 @@ final class Player {
         let wasCurrent = index == current
         let place = order.firstIndex(of: index) ?? 0
         files.remove(at: index)
+        notes.remove(at: index)
         searchable.remove(at: index)
         // The order is of places in the list, and those after the one that has gone are each one less.
         order = order.filter { $0 != index }.map { $0 > index ? $0 - 1 : $0 }
@@ -261,8 +320,10 @@ final class Player {
 
     /// Empties the list. Nothing plays after that until tunes are added again.
     func removeAll() {
+        notice = nil
         guard !files.isEmpty else { return }
         files = []
+        notes = []
         searchable = []
         order = []
         marked = []

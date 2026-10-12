@@ -9,9 +9,10 @@ import JavaScriptKit
 
 /// Hands over the Swift side's callbacks. Called once, before anything else.
 /// - Parameters:
-///   - accepts: whether a file of this name is a tune that can be played.
-///   - added: files have been added to the list: their names, one to a line, in the order they now have
-///     after those already there.
+///   - kind: what a file of this name is: 1 for a tune that can be played, 2 for a playlist, and 0
+///     for anything else.
+///   - added: files have been added to the list: a line for each, in the order they now have after
+///     those already there, of its name, a tab, and what the playlist it came by says about it.
 ///   - loaded: the tune asked for with `sidayPlay` has started, or could not be: whether it plays, its
 ///     details one to a line (format, title, author, detail; then for a tune of several songs a line
 ///     for each: its length in milliseconds if known, a tab, its name if it has one; then a line for
@@ -38,7 +39,7 @@ import JavaScriptKit
 ///     wide and tall the picture's space is, in points. What is to be shown is given to `sidayPaint`.
 @JSFunction(from: .global)
 func sidayListen(
-    _ accepts: @escaping (String) -> Bool,
+    _ kind: @escaping (String) -> Int,
     _ added: @escaping (String) -> Void,
     _ loaded: @escaping (Bool, String, Int, Int, Double) -> Void,
     _ progress: @escaping (Double, [Double], Int) -> Void,
@@ -48,6 +49,24 @@ func sidayListen(
     _ pointed: @escaping (Double, Bool) -> Void,
     _ scrolled: @escaping (Double, Double) -> Void,
     _ frame: @escaping (Double, Double, Double) -> Void
+) throws(JSException)
+
+/// Hands over the callbacks that read playlists, which the JavaScript side cannot: it has the files,
+/// and the Swift side knows what a playlist says. Called once, with `sidayListen`.
+/// - Parameters:
+///   - sought: the tunes that the playlists about to be read are to be found among: their names, one
+///     to a line. Empty when the reading is done, and they need not be kept.
+///   - listed: a playlist's file, as text with a letter for each of its bytes. The answer is in
+///     lines: first how many tunes it names and how many of those were not among the ones given to
+///     `sought`, with a space between; then a line for each that was, in the list's order: its place
+///     among them, counted from 0, a tab, and what the list says about it.
+///   - missed: playlists have been read, and this is how they came out: how many of the tunes they
+///     name could not be found, how many they name, and the name of the list if it was a single one.
+@JSFunction(from: .global)
+func sidayPlaylists(
+    _ sought: @escaping (String) -> Void,
+    _ listed: @escaping (String) -> String,
+    _ missed: @escaping (Int, Int, String) -> Void
 ) throws(JSException)
 
 /// Shows a picture in the canvas of class "picture": so many dots across and down, four bytes a dot

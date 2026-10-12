@@ -155,6 +155,18 @@ button.view:disabled {
   color: #e8836b;
 }
 
+/* What the playlist a tune came by says about it: someone's remark, and set as one. */
+.note {
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+/* What is said when a playlist's tunes could not be found. */
+.notice {
+  color: #e8836b;
+  font-size: 0.9rem;
+}
+
 /* The mark of a tune that is not played quite as its file asks, beside its name and on its row of the
    list: small and dim, since most such tunes sound very nearly as they should. Beside the name it is a
    button, which writes out underneath what the mark's tooltip says. */

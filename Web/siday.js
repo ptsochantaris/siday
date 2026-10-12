@@ -16,8 +16,10 @@ const engineAddress = new URL("./engine.js", import.meta.url);
 const audioModuleAddress = new URL("./generated/SidayWebAudio.wasm", import.meta.url);
 const pageModuleAddress = new URL("./generated/SidayWeb.wasm", import.meta.url);
 
-/// The Swift side's callbacks: accepts, added, loaded, progress, rendered, ended, held, pointed.
+/// The Swift side's callbacks: kind, added, loaded, progress, rendered, ended, held, pointed.
 let listeners;
+/// And those that read playlists: sought, listed, missed.
+let playlists;
 /// The tunes, in the order the Swift side has them: { name, file }.
 const tunes = [];
 let context;
@@ -354,6 +356,42 @@ async function again(tune) {
   engine.postMessage({ type: "again", serial: run, position: shownFor === asked ? shownPosition : 0 });
 }
 
+/// Every tune the page has been given since it was opened, by its name: where a playlist's tunes are
+/// looked for. A browser shows a page only the files it is handed, so a playlist cannot be followed to
+/// its tunes on the disk as it is by a program: they have to be here, handed over with it or before
+/// it. (A tune taken out of the list is still here.)
+const given = new Map();
+
+/// The tunes that playlists name, in their order, found among some that are known: each with what
+/// its list says about it. With them, how many tunes the lists name in all and how many of those
+/// were not found. The lists are read on the Swift side, which is told what there is to find among
+/// and then given each list as text with a letter for each of its bytes.
+async function listed(lists, known) {
+  const texts = await Promise.all(
+    lists.map(async (list) => {
+      const bytes = new Uint8Array(await list.file.arrayBuffer());
+      let text = "";
+      for (let at = 0; at < bytes.length; at += 8192) text += String.fromCharCode.apply(null, bytes.subarray(at, at + 8192));
+      return text;
+    }),
+  );
+  const found = { tunes: [], named: 0, missing: 0 };
+  if (!playlists) return found;
+  playlists.sought(known.map((item) => item.name).join("\n"));
+  for (const text of texts) {
+    const [counts, ...lines] = playlists.listed(text).split("\n");
+    const [named, missing] = counts.split(" ").map(Number);
+    found.named += named;
+    found.missing += missing;
+    for (const line of lines) {
+      const tab = line.indexOf("\t");
+      if (tab > 0) found.tunes.push({ ...known[Number(line.slice(0, tab))], note: line.slice(tab + 1) });
+    }
+  }
+  playlists.sought("");
+  return found;
+}
+
 async function add(chosen) {
   // HVSC's song-length database is taken for what it is and not for a tune.
   const database = chosen.find((item) => item.name.split("/").pop().toLowerCase() === "songlengths.md5");
@@ -361,12 +399,36 @@ async function add(chosen) {
     songLengths = await database.file.arrayBuffer();
     if (sound) (await sound).engine.postMessage({ type: "songlengths", bytes: songLengths });
   }
-  const accepted = chosen
-    .filter((item) => listeners?.accepts(item.name))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-  if (accepted.length === 0) return;
-  tunes.push(...accepted);
-  listeners?.added(accepted.map((item) => item.name).join("\n"));
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  const kinds = chosen.map((item) => listeners?.kind(item.name) ?? 0);
+  const tunesHere = chosen.filter((_, place) => kinds[place] === 1).sort(byName);
+  const lists = chosen.filter((_, place) => kinds[place] === 2).sort(byName);
+  const own = lists.filter((item) => item.own);
+  const known = () => [...tunesHere, ...Array.from(given, ([name, file]) => ({ name, file }))];
+  let accepted = tunesHere;
+  let found = null;
+  if (own.length > 0) {
+    // A playlist that was itself dropped is played as it is written: its tunes, in its order. A
+    // folder dropped with it is where its tunes are looked for, and is not itself added to the list;
+    // tunes dropped with it, each for itself, come after the list's, but for those it has named.
+    found = await listed(own, known());
+    const named = new Set(found.tunes.map((item) => item.file));
+    accepted = [...found.tunes, ...tunesHere.filter((item) => item.own && !named.has(item.file))];
+  } else if (lists.length > 0 && (given.size > 0 || tunesHere.length === 0)) {
+    // The playlists of a folder add the tunes they name that the folder does not itself hold, which
+    // here can only be tunes the page was given before.
+    found = await listed(lists, known());
+    const held = new Set(tunesHere.map((item) => item.file));
+    accepted = [...tunesHere, ...found.tunes.filter((item) => !held.has(item.file) && held.add(item.file))];
+  }
+  for (const item of tunesHere) given.set(item.name, item.file);
+  if (accepted.length > 0) {
+    tunes.push(...accepted);
+    listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
+  }
+  // What the lists named and could not be found is said, and what they are called if it is one list.
+  const read = own.length > 0 ? own : lists;
+  if (found) playlists?.missed(found.missing, found.named, read.length === 1 ? read[0].name.split("/").pop() : "");
 }
 
 /// Pausing fades the sound out in the audio thread and only then lets the audio hardware go. Stopped
@@ -416,7 +478,7 @@ function chooser(folder) {
   if (folder) input.webkitdirectory = true;
   input.hidden = true;
   input.addEventListener("change", () => {
-    void add(Array.from(input.files ?? [], (file) => ({ name: file.webkitRelativePath || file.name, file })));
+    void add(Array.from(input.files ?? [], (file) => ({ name: file.webkitRelativePath || file.name, file, own: !folder })));
     input.value = "";
   });
   document.body.append(input);
@@ -424,20 +486,21 @@ function chooser(folder) {
 }
 const choosers = { files: chooser(false), folder: chooser(true) };
 
-/// Everything in what was dropped, folders included.
+/// Everything in what was dropped, folders included. A file that was dropped itself, and did not
+/// come in a folder, is marked as its own.
 async function dropped(items) {
   const found = [];
-  async function walk(entry) {
+  async function walk(entry, own) {
     if (entry.isFile) {
       const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
-      found.push({ name: entry.fullPath.replace(/^\//, ""), file });
+      found.push({ name: entry.fullPath.replace(/^\//, ""), file, own });
     } else if (entry.isDirectory) {
       const reader = entry.createReader();
       // A folder is read in batches until a batch comes back empty.
       for (;;) {
         const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
         if (batch.length === 0) break;
-        for (const child of batch) await walk(child);
+        for (const child of batch) await walk(child, false);
       }
     }
   }
@@ -447,8 +510,8 @@ async function dropped(items) {
     .filter((item) => item.kind === "file")
     .map((item) => ({ entry: item.webkitGetAsEntry?.() ?? null, file: item.getAsFile() }));
   for (const { entry, file } of taken) {
-    if (entry) await walk(entry);
-    else if (file) found.push({ name: file.name, file });
+    if (entry) await walk(entry, true);
+    else if (file) found.push({ name: file.name, file, own: true });
   }
   return found;
 }
@@ -574,8 +637,11 @@ document.addEventListener("fullscreenchange", stirred);
 
 // What the Swift side calls.
 Object.assign(globalThis, {
-  sidayListen(accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame) {
-    listeners = { accepts, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame };
+  sidayListen(kind, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame) {
+    listeners = { kind, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame };
+  },
+  sidayPlaylists(sought, listed, missed) {
+    playlists = { sought, listed, missed };
   },
   sidayPaint(address, width, height) {
     const canvas = document.querySelector("canvas.picture");
