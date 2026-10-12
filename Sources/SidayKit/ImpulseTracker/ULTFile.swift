@@ -348,8 +348,8 @@ enum ULTFile {
 
         var shortfalls: [String] = []
         if noRoom > 0 {
-            shortfalls.append(Shortfall.some(noRoom, one: "notes has two commands that Impulse Tracker's replayer has not room for, and the second is left out.",
-                                             many: "notes have two commands that Impulse Tracker's replayer has not room for, and the second of each is left out."))
+            shortfalls.append(Shortfall.some(noRoom, one: "notes has two commands that Impulse Tracker's replayer has no room for, and the second is left out.",
+                                             many: "notes have two commands that Impulse Tracker's replayer has no room for, and the second of each is left out."))
         }
         if tooFar > 0 {
             shortfalls.append(Shortfall.some(tooFar, one: "notes is to start further into its sample than can be asked for, and starts sooner.",

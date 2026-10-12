@@ -58,7 +58,7 @@ struct FMTFile {
         guard data.count >= at + orderCount * 2 + patternCount * 9 else { throw TuneError.malformed("FMT file cut short") }
         orders = Array(data[at ..< at + orderCount])
         delays = Array(data[at + orderCount ..< at + orderCount * 2])
-        guard !delays.contains(where: { $0 < 1 || $0 > 8 }) else { throw TuneError.malformed("FMT file with a delay the tracker has not got") }
+        guard !delays.contains(where: { $0 < 1 || $0 > 8 }) else { throw TuneError.malformed("FMT file with a delay the tracker does not have") }
         let numbers = at + orderCount * 2
         at = numbers + patternCount
 

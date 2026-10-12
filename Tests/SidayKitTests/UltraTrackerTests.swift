@@ -157,7 +157,7 @@ private func ticks(_ file: [UInt8], _ count: Int, channel: Int = 0) throws -> [(
     #expect(abs(try #require(back.knownLength) - expected) < 0.02)
     // What has nowhere to go is left out, and the file says so: here an arpeggio beside a start further in.
     let crowded = try TuneLoader.load(ult([[(0, 0, .note(25, (0x0, 0x37), (0x9, 0x01)))]]), format: .ult)
-    #expect(crowded.info.shortfalls == ["One of its notes has two commands that Impulse Tracker's replayer has not room for, and the second is left out."])
+    #expect(crowded.info.shortfalls == ["One of its notes has two commands that Impulse Tracker's replayer has no room for, and the second is left out."])
 }
 
 @Test func ultInstrumentWithNoNoteLeavesRoomForTwoCommands() throws {
