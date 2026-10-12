@@ -67,7 +67,7 @@ final class Composer669Module {
         let restart = Int(data[112])
         self.restart = restart < orders.count && orders[restart] < patterns ? restart : 0
         // (The first of the message's three lines is the nearest thing to a title that there is.)
-        title = file.ascii(at: 2, length: 36)
+        title = file.dos(at: 2, length: 36)
 
         let patternsAt = Self.header + samples * Self.sampleHeader
         var soundAt = patternsAt + patterns * Self.patternSize

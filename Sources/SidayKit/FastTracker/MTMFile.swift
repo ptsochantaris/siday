@@ -42,7 +42,7 @@ enum MTMFile {
 
         var module = ForeignModule(format: "MTM")
         module.tracker = "MultiTracker \(version >> 4).\(version & 15)"
-        module.title = file.ascii(at: 4, length: 20)
+        module.title = file.dos(at: 4, length: 20)
         module.channels = channels
         // (By measure: the middle one of 394 files was a decibel louder than the middle one of 200 XM files.)
         module.loudness = 0.9

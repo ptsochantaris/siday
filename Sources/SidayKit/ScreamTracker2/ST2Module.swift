@@ -68,7 +68,7 @@ final class ST2Module {
         guard data[30] == 2, minor == 0 || minor == 10 || minor == 20 || minor == 21 else { throw refuse() }
         let patterns = Int(data[33])
         guard patterns <= 64, data[34] <= 64 || data[34] == 0x58 else { throw refuse() }
-        title = file.ascii(at: 0, length: 20)
+        title = file.dos(at: 0, length: 20)
         // Before 2.21 a tempo was written as it was typed, in tens and units.
         func asTyped(_ value: UInt8) -> UInt8 { minor < 21 ? (value / 10) << 4 &+ value % 10 : value }
         let tempo = asTyped(data[32])

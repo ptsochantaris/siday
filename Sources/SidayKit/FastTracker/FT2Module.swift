@@ -151,7 +151,8 @@ final class FT2Module {
             guard headerSize >= 0, headerSize < data.count - 60 else { throw TuneError.malformed("an XM file with nothing after its header") }
             f.seek(60 + headerSize)
 
-            title = Self.text(h[17 ..< 37])
+            // (In the letters of DOS, where FastTracker ran; OpenMPT's own files are in Windows'.)
+            title = reader.encoded(at: 17, length: 20, as: h[38 ..< 45].elementsEqual("OpenMPT".utf8) ? .windows1252 : .dos)
             song.len = UInt16(reader.u16le(64))
             song.repS = UInt16(reader.u16le(66))
             song.antChn = UInt8(antChn)
@@ -623,7 +624,7 @@ final class FT2Module {
         }
 
         isMOD = true
-        title = Self.text(ha[0 ..< 20])
+        title = header.dos(at: 0, length: 20)
         song.antChn = UInt8(channels)
         song.len = UInt16(ha[950])
         song.repS = UInt16(ha[951])

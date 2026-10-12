@@ -33,6 +33,23 @@ import Testing
     }
 }
 
+@Test func dosTextIsDecodedAsFoundationDecodesIt() {
+    // The PC's own characters. Foundation has them too, but for the first 32 and the 128th, which to
+    // it are controls and on the PC's screen were pictures: a face, a heart, a pair of quavers.
+    let theirs = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.dosLatinUS.rawValue)))
+    for byte in UInt8.min ... UInt8.max where byte == 0 || (byte >= 0x20 && byte != 0x7F) {
+        #expect(TextEncoding.dos.decode([byte]) == String(data: Data([byte]), encoding: theirs), "byte \(byte)")
+    }
+    #expect(TextEncoding.dos.decode([0x0E, 0x20, 0x01, 0x03, 0x7F]) == "♫ ☺♥⌂")
+    // A title as a tracker's user decorated it, read up to its first zero and no further.
+    let title: [UInt8] = [0xC4, 0x7B, 0x9F, 0x6F, 0x72, 0x65, 0x76, 0x65, 0x72, 0x7D, 0xC4, 0x20, 0x00, 0x41]
+    #expect(ByteReader(title).dos(at: 0, length: 20) == "─{ƒorever}─")
+    #expect(ByteReader(title).dos(at: 12, length: 20) == "")
+    #expect(ByteReader(title).dos(at: 9, length: -3) == "")
+    // In an encoding that has no character for a byte, a field is read as plain letters.
+    #expect(ByteReader([0x41, 0x81, 0x42]).encoded(at: 0, length: 3, as: .windows1252) == "A B")
+}
+
 @Test func textIsTrimmedAsFoundationTrimsIt() {
     // Every character there is, alone between two letters and at each end of a word.
     for value in UInt32(0) ... 0x10FFFF {

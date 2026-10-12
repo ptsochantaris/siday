@@ -335,7 +335,7 @@ enum PTMFile {
         let minor = Int(f[29])
         let digits = Array("0123456789abcdef".utf8)
         let madeWith = "PolyTracker \(f[30])." + String(decoding: [digits[minor >> 4], digits[minor & 15]], as: UTF8.self)
-        let module = IT2Module(title: f.ascii(at: 0, length: 28), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
+        let module = IT2Module(title: f.dos(at: 0, length: 28), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: 128, mixVolume: mixVolume, speed: 6, tempo: 125, channelPans: pans, samples: made,
                                patterns: patterns, rows: [UInt16](repeating: 64, count: IT2ForeignModule.patternRoom))
         return ITRenderer(module: module, format: "PTM", shortfalls: shortfalls, options: options)

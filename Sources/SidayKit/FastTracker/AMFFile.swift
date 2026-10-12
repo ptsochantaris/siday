@@ -84,7 +84,7 @@ enum AMFFile {
 
         var module = ForeignModule(format: "AMF")
         module.tracker = "DSMI, format \(version / 10).\(version % 10)"
-        module.title = file.ascii(at: 4, length: 32)
+        module.title = file.dos(at: 4, length: 32)
         module.channels = channels
         // (By measure: the middle one of 38 files was nearly four decibels louder than the middle
         // one of 200 XM files.)

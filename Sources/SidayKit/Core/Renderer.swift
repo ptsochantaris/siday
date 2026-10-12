@@ -269,4 +269,22 @@ public struct ByteReader {
         }
         return String(scalars).trimmed()
     }
+
+    /// A text field of a file from a DOS program, up to its first zero byte, in the PC's own
+    /// characters: the lines, blocks and accented letters that titles were decorated with are kept.
+    func dos(at i: Int, length: Int) -> String {
+        encoded(at: i, length: length, as: .dos)
+    }
+
+    /// A text field up to its first zero byte, in one of the encodings tune files were written in.
+    /// (If a byte of it is nothing in that encoding, the field is read as plain letters.)
+    func encoded(at i: Int, length: Int, as encoding: TextEncoding) -> String {
+        var bytes: [UInt8] = []
+        for k in 0 ..< max(0, length) {
+            let b = self[i + k]
+            if b == 0 { break }
+            bytes.append(b)
+        }
+        return encoding.decode(bytes)?.trimmed() ?? ascii(at: i, length: length)
+    }
 }

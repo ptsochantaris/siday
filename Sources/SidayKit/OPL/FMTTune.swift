@@ -44,7 +44,7 @@ struct FMTFile {
             throw TuneError.malformed("not an FMT file")
         }
         tracker = file.ascii(at: 11, length: 20)
-        title = file.ascii(at: 31, length: 32)
+        title = file.dos(at: 31, length: 32)
         for voice in 0 ..< Self.voices {
             let sound = 63 + voice * 19 + 8
             instruments.append((0 ..< 11).map { file[sound + $0] })

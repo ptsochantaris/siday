@@ -316,8 +316,9 @@ final class IT2Module {
         self.Special = Special
         // A file can say 31, which the tracker itself cannot be set to, and nothing lower will do.
         self.InitialTempo = max(InitialTempo, Self.MIN_BPM)
-        title = ByteReader(data).ascii(at: 4, length: 25)
         madeWith = Self.tracker(Cwtv: Cwtv, Cmwt: Cmwt)
+        // A title is in the letters of the system its tracker ran on: DOS, or for ModPlug Tracker, Windows.
+        title = ByteReader(data).encoded(at: 4, length: 25, as: madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) ? .windows1252 : .dos)
 
         // The list of patterns to play. The count of them includes the 255 that ends the list,
         // which is not read.

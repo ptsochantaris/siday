@@ -297,7 +297,7 @@ enum GDMFile {
 
         var madeWith = "BWSB 2GDM \(f[79])." + (f[80] < 10 ? "0" : "") + "\(f[80])"
         if origin > 0, origin < origins.count { madeWith += ", from " + (origin == 2 || origin == 3 || origin == 7 ? "an " : "a ") + origins[origin] + " file" }
-        let author = f.ascii(at: 36, length: 32)
+        let author = f.dos(at: 36, length: 32)
         var shortfalls: [String] = []
         if let sentence = Shortfall.commandsLeftOut(leftOut.named(Self.commandsLeftOut)) { shortfalls.append(sentence) }
         if crowded { shortfalls.append("Some of its rows have more commands for a channel than Impulse Tracker has room for, and the rest are left out.") }
@@ -306,7 +306,7 @@ enum GDMFile {
                                              many: "commands go on from a number given to a command of another kind, as Scream Tracker let them, and are not played as Scream Tracker played them."))
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
-        let module = IT2Module(title: f.ascii(at: 4, length: 32), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
+        let module = IT2Module(title: f.dos(at: 4, length: 32), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: min(f[113], 64) * 2, mixVolume: mixVolume, speed: f[114] == 0 ? 6 : f[114],
                                tempo: f[115] == 0 ? 125 : f[115], channelPans: pans, samples: samples, patterns: packed, rows: rows)
         return ITRenderer(module: module, format: "GDM", author: author == "Unknown" ? "" : author, shortfalls: shortfalls, options: options)

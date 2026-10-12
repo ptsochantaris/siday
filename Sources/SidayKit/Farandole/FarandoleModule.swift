@@ -45,7 +45,7 @@ final class FarandoleModule {
         guard data.count >= Self.header + Self.lists, data[0] == 0x46, data[1] == 0x41, data[2] == 0x52, data[3] == 0xFE,
               data[44] == 0x0D, data[45] == 0x0A, data[46] == 0x1A, data[75] < 16
         else { throw TuneError.malformed("not a FAR file") }
-        title = file.ascii(at: 4, length: 40)
+        title = file.dos(at: 4, length: 40)
         tempo = Int(data[75])
         heard = (0 ..< Self.channels).map { data[50 + $0] != 0 }
         pans = (0 ..< Self.channels).map { data[76 + $0] & 15 }

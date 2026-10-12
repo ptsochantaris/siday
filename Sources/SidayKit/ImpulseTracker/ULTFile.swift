@@ -359,7 +359,7 @@ enum ULTFile {
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
 
         let madeWith = "UltraTracker " + ["before 1.4", "1.4", "1.5", "1.6"][version - 1]
-        let module = IT2Module(title: f.ascii(at: 15, length: 32), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
+        let module = IT2Module(title: f.dos(at: 15, length: 32), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: 128, mixVolume: mixVolume, speed: 6, tempo: 125, channelPans: pans, samples: made,
                                patterns: patterns, rows: [UInt16](repeating: 64, count: IT2ForeignModule.patternRoom), slidesToNotesCarryOn: true,
                                instrumentAloneStartsNothing: true)

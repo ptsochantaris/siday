@@ -73,7 +73,7 @@ final class ST3Module {
         guard ordnum <= Self.mostOrders, insnum <= Self.mostInstruments, patnum <= Self.mostPatterns else {
             throw TuneError.unsupported("an S3M file with more orders, instruments or patterns than Scream Tracker 3 has room for")
         }
-        title = f.ascii(at: 0, length: 27)
+        title = f.dos(at: 0, length: 27)
         var flags = UInt16(f.u16le(0x26))
         cwtv = UInt16(f.u16le(0x28))
         ffv = UInt16(f.u16le(0x2A))
