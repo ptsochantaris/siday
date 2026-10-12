@@ -376,21 +376,52 @@ async function listed(lists, known) {
       return text;
     }),
   );
-  const found = { lists: lists.map(() => []), named: 0, missing: 0 };
+  const found = { lists: lists.map(() => []), named: lists.map(() => 0), missing: lists.map(() => 0) };
   if (!playlists) return found;
   playlists.sought(known.map((item) => item.name).join("\n"));
   texts.forEach((text, which) => {
     const [counts, ...lines] = playlists.listed(lists[which].name, text).split("\n");
-    const [named, missing] = counts.split(" ").map(Number);
-    found.named += named;
-    found.missing += missing;
+    [found.named[which], found.missing[which]] = counts.split(" ").map(Number);
     for (const line of lines) {
-      const [place, below, note] = line.split("\t");
-      if (note !== undefined) found.lists[which].push({ ...known[Number(place)], note, below: below === "1" });
+      const [entry, place, below, note] = line.split("\t");
+      if (note !== undefined) found.lists[which].push({ ...known[Number(place)], note, below: below === "1", entry: Number(entry) });
     }
   });
   playlists.sought("");
   return found;
+}
+
+/// The playlists last read that name tunes which were not found, each with the entries of it that
+/// were: they are finished when the listener says where the rest are (see `finish`).
+let unfinished = [];
+
+/// Playlists have been read: those with tunes still to find are kept for later, and the Swift side
+/// is told how it came out, and what the list is called if it is one list.
+function reckon(lists, found, before = []) {
+  unfinished = lists
+    .map((list, which) => ({ list, had: new Set([...(before[which] ?? []), ...found.lists[which].map((item) => item.entry)]) }))
+    .filter((_, which) => found.missing[which] > 0);
+  const sum = (numbers) => numbers.reduce((total, number) => total + number, 0);
+  playlists?.missed(sum(found.missing), sum(found.named), lists.length === 1 ? lists[0].name.split("/").pop() : "");
+}
+
+/// The listener has chosen the folder where the tunes of the unfinished playlists are. It is looked
+/// in and not added to the list: what is added is the tunes of those playlists that had not been
+/// found, in the order the lists have them. (The folder's tunes are known from now on, as any are
+/// that the page has been given.)
+async function finish(chosen) {
+  const here = chosen.filter((item) => listeners?.kind(item.name) === 1);
+  const lists = unfinished.map((item) => item.list);
+  const before = unfinished.map((item) => item.had);
+  if (lists.length === 0 || here.length === 0) return;
+  const found = await listed(lists, [...here, ...Array.from(given, ([name, file]) => ({ name, file }))]);
+  for (const item of here) given.set(item.name, item.file);
+  const accepted = found.lists.flatMap((items, which) => items.filter((item) => !before[which].has(item.entry)));
+  if (accepted.length > 0) {
+    tunes.push(...accepted);
+    listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
+  }
+  reckon(lists, found, before);
 }
 
 async function add(chosen) {
@@ -444,9 +475,7 @@ async function add(chosen) {
     tunes.push(...accepted);
     listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
   }
-  // What the lists named and could not be found is said, and what they are called if it is one list.
-  const read = own.length > 0 ? own : lists;
-  if (found) playlists?.missed(found.missing, found.named, read.length === 1 ? read[0].name.split("/").pop() : "");
+  if (found) reckon(own.length > 0 ? own : lists, found);
 }
 
 /// Pausing fades the sound out in the audio thread and only then lets the audio hardware go. Stopped
@@ -489,20 +518,21 @@ function stop() {
 }
 
 // A file chooser of each kind, kept out of sight and clicked on the listener's behalf.
-function chooser(folder) {
+function chooser(folder, then) {
   const input = document.createElement("input");
   input.type = "file";
   input.multiple = true;
   if (folder) input.webkitdirectory = true;
   input.hidden = true;
   input.addEventListener("change", () => {
-    void add(Array.from(input.files ?? [], (file) => ({ name: file.webkitRelativePath || file.name, file, own: !folder })));
+    void then(Array.from(input.files ?? [], (file) => ({ name: file.webkitRelativePath || file.name, file, own: !folder })));
     input.value = "";
   });
   document.body.append(input);
   return input;
 }
-const choosers = { files: chooser(false), folder: chooser(true) };
+// (The third is for the folder that a playlist's tunes are in, which is looked in and not added.)
+const choosers = { files: chooser(false, add), folder: chooser(true, add), tunes: chooser(true, finish) };
 
 /// Everything in what was dropped, folders included. A file that was dropped itself, and did not
 /// come in a folder, is marked as its own.
@@ -780,6 +810,9 @@ Object.assign(globalThis, {
   sidayChoose(folder) {
     (folder ? choosers.folder : choosers.files).click();
   },
+  sidayChooseTunes() {
+    choosers.tunes.click();
+  },
   sidayPlay(index, subsong) {
     starting = play(index, subsong);
   },
@@ -791,6 +824,7 @@ Object.assign(globalThis, {
   },
   sidayRemoveAll() {
     tunes.length = 0;
+    unfinished = [];
   },
   sidayStop() {
     stop();

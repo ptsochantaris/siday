@@ -47,9 +47,9 @@ to WebAssembly. Drop tunes or a whole folder on it and it plays them. Nothing is
 are read where they are and never leave your computer.
 
 A playlist can be dropped too. A browser shows a page only the files it is handed, so the page
-cannot go from a list to its tunes on the disk: drop the folder that holds both, or the list
-together with the folder its tunes are in (which is then only looked in), or the list after tunes
-it names have been dropped.
+cannot go from a list to its tunes on the disk. Dropped by itself, a list says so and asks for the
+folder its tunes are in, which is then only looked in, and stays known for the lists dropped after
+it. Or drop the folder that holds both.
 
 Beside the player and its list there is a spectrum analyser, a light for each voice of the tune, a
 picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain or rain,

@@ -247,6 +247,10 @@ dialog.about footer {
 .notice {
   color: #e8836b;
   font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 /* The mark of a tune that is not played quite as its file asks, beside its name and on its row of the

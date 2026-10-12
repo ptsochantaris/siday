@@ -249,12 +249,12 @@ final class Player {
                 var lines: [String] = []
                 // (What a list names that is no kind of tune played here is passed over, and not looked for.)
                 for entry in list.entries where TuneFormat(fileExtension: entry.fileExtension) != nil {
-                    named += 1
                     if let place = finder.place(of: entry, besideList: name) {
-                        lines.append("\(place)\t1\t\(entry.note)")
+                        lines.append("\(named)\t\(place)\t1\t\(entry.note)")
                     } else if let place = finder.place(of: entry) {
-                        lines.append("\(place)\t0\t\(entry.note)")
+                        lines.append("\(named)\t\(place)\t0\t\(entry.note)")
                     }
+                    named += 1
                 }
                 return (["\(named) \(named - lines.count)"] + lines).joined(separator: "\n")
             },
@@ -275,7 +275,12 @@ final class Player {
         let whose = list.isEmpty ? "The playlists name" : "\(list) names"
         let count = missing < named ? "\(named) tunes, and \(missing) of them \(missing == 1 ? "was" : "were") not found"
             : named == 1 ? "a tune that was not found" : "\(named) tunes, and none of them were found"
-        return "\(whose) \(count). A browser cannot follow a playlist to its tunes: drop the folder that holds them with the playlist, or before it."
+        return "\(whose) \(count). A browser shows a page only the files it is handed, so the page cannot go to them itself."
+    }
+
+    /// The listener is to say where the tunes are that the playlists name and were not found.
+    func chooseTunes() {
+        try? sidayChooseTunes()
     }
 
     private func add(_ names: [String], notes: [String]) {

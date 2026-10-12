@@ -59,9 +59,10 @@ func sidayListen(
 ///   - listed: a playlist's name, as its tunes' names were given to `sought`, and its file, as text
 ///     with a letter for each of its bytes. The answer is in lines: first how many tunes it names
 ///     and how many of those were not among the ones given to `sought`, with a space between; then
-///     a line for each that was, in the list's order: its place among them, counted from 0, a tab,
-///     1 if it is a tune beside the list or below it and 0 if it is one from somewhere else, a tab,
-///     and what the list says about it.
+///     a line for each that was, in the list's order: which of the list's tunes it is, counted from
+///     0, a tab, its place among those given to `sought`, counted from 0, a tab, 1 if it is a tune
+///     beside the list or below it and 0 if it is one from somewhere else, a tab, and what the list
+///     says about it.
 ///   - missed: playlists have been read, and this is how they came out: how many of the tunes they
 ///     name could not be found, how many they name, and the name of the list if it was a single one.
 @JSFunction(from: .global)
@@ -96,6 +97,12 @@ func sidayAbout(_ chapter: String) throws(JSException)
 /// Opens the browser's file chooser, for files or for a whole folder.
 @JSFunction(from: .global)
 func sidayChoose(_ folder: Bool) throws(JSException)
+
+/// Opens the browser's folder chooser for the folder that holds the tunes of the playlists last
+/// added, those of them that were not found. The folder is looked in and is not added to the list:
+/// the tunes that were missing are, and `missed` is told how the playlists stand now.
+@JSFunction(from: .global)
+func sidayChooseTunes() throws(JSException)
 
 /// Loads a file from the list, by its place in it, and plays a song of it: -1 for the one the file names.
 @JSFunction(from: .global)
