@@ -315,3 +315,30 @@ private func rendered(_ renderer: any Renderer, seconds: Double = 1) -> [Float] 
     // It has been once round its list of pieces by now.
     #expect(renderer.loopCount == 1)
 }
+
+@Test func ymVoiceIsASampleWhileADrumPlaysOnIt() throws {
+    // The oldest kind of YM file, with its registers one after another for all its ticks: a tone on
+    // the first voice throughout, and on the first tick a drum, which that kind plays on the third.
+    let ticks = 100
+    var registers = [[UInt8]](repeating: [UInt8](repeating: 0, count: ticks), count: 14)
+    registers[0] = [UInt8](repeating: 0xFE, count: ticks)
+    registers[7] = [UInt8](repeating: 0x3E, count: ticks)
+    registers[8] = [UInt8](repeating: 12, count: ticks)
+    registers[10][0] = 0x80 | 1
+    registers[12][0] = 40
+    let renderer = try TuneLoader.load(Array("YM2!".utf8) + registers.flatMap { $0 }, format: .ym)
+    #expect(renderer.channelCount == 3)
+    var sound = [Float](repeating: 0, count: 2048)
+    var sampled = [Bool](repeating: false, count: 3)
+    var blocks: [[Bool]] = []
+    for _ in 0 ..< 90 {
+        sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 1024) }
+        sampled.withUnsafeMutableBufferPointer { renderer.takeChannelsSampled(into: $0.baseAddress!) }
+        blocks.append(sampled)
+    }
+    // The drum is a sample, on the third voice and no other, and the voice is the chip's own again
+    // once it has played out.
+    #expect(blocks[0] == [false, false, true])
+    #expect(blocks.allSatisfy { !$0[0] && !$0[1] })
+    #expect(blocks.last == [false, false, false])
+}

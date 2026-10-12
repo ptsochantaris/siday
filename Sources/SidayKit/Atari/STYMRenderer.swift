@@ -49,6 +49,9 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
         var shape: UInt8 = 0
     }
 
+    /// The voices that a drum's samples have been played on since they were last asked after.
+    private var drummed = [false, false, false]
+
     private let kind: Kind
     private let data: [UInt8]
     /// Where the registers start in `data`, how many there are to a tick, and whether they are kept a
@@ -338,6 +341,7 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
             case .drum:
                 if effect.phase < effect.sampleLength {
                     chip.write(effect.voice + 8, drums[effect.sample + effect.phase])
+                    if effect.voice >= 0, effect.voice < 3 { drummed[effect.voice] = true }
                     effect.phase += 1
                 } else {
                     setTimer(slot, divider: 0, count: 0)
@@ -373,6 +377,15 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
 
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         chip.takeLevels(into: levels)
+    }
+
+    /// The chip's voices make their own sound, but for one that a drum is being played on: that is
+    /// a sample, put out on the voice's volume. (Since this was last asked, as with the levels.)
+    public func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
+        for voice in 0 ..< 3 {
+            sampled[voice] = drummed[voice]
+            drummed[voice] = false
+        }
     }
 
     public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
