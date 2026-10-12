@@ -88,6 +88,11 @@ func sidayPicture(_ name: String) throws(JSException)
 @JSFunction(from: .global)
 func sidayRememberedPicture() throws(JSException) -> String
 
+/// Shows what the README says of a format, over the page: the chapter of "How it is built" whose
+/// heading begins with this word. Nothing, if there is no such chapter or it cannot be fetched.
+@JSFunction(from: .global)
+func sidayAbout(_ chapter: String) throws(JSException)
+
 /// Opens the browser's file chooser, for files or for a whole folder.
 @JSFunction(from: .global)
 func sidayChoose(_ folder: Bool) throws(JSException)

@@ -56,7 +56,9 @@ picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a f
 each made from what the tune's voices are doing), and the command-line player's options as
 settings. A song is rendered to its end as soon as it starts, far faster than it plays, so any
 place in it can be moved to. A tune that is not played quite as its file asks has a small ≈ beside
-its name: see [Playback caveats](#playback-caveats).
+its name: see [Playback caveats](#playback-caveats). And the name of the tune's format, beside its
+title, can be pressed: it brings up what [How it is built](#how-it-is-built) says of that format,
+to read while the tune plays.
 
 To run it from here:
 

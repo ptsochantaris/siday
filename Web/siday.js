@@ -540,14 +540,107 @@ document.addEventListener("drop", (event) => {
   if (event.dataTransfer) void dropped(event.dataTransfer.items).then(add);
 });
 
+// What the README says of a format, shown over the page when the format's name is pressed. The
+// README is the one place it is written: the site carries a copy, fetched when first asked for, and
+// the chapter wanted is found in it by its heading and set out as it would be on GitHub.
+const source = "https://github.com/ptsochantaris/siday";
+let readme;
+let story;
+
+/// A chapter of the README's "How it is built": the one whose heading begins with this word.
+function chapter(text, word) {
+  const lines = text.split("\n");
+  const heading = new RegExp(`^### ${word.replace(/[^A-Za-z0-9]/g, "")}(?![A-Za-z0-9])`);
+  const start = lines.findIndex((line) => heading.test(line));
+  if (start < 0) return null;
+  let end = lines.findIndex((line, place) => place > start && /^##+ /.test(line));
+  if (end < 0) end = lines.length;
+  return { title: lines[start].slice(4), lines: lines.slice(start + 1, end) };
+}
+
+/// A piece of the README's text as it is to be read: what is between backquotes as code, between
+/// asterisks as stressed, and a link as a link.
+function written(text, into) {
+  let at = 0;
+  for (const found of text.matchAll(/`([^`]+)`|\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*|\[([^\]]+)\]\(((?:https?:|#)[^)\s]*)\)/g)) {
+    into.append(text.slice(at, found.index));
+    const [, code, strong, stressed, link, address] = found;
+    const piece = document.createElement(code !== undefined ? "code" : strong !== undefined ? "strong" : stressed !== undefined ? "em" : "a");
+    piece.textContent = code ?? strong ?? stressed ?? link;
+    if (address !== undefined) {
+      // A link to another part of the README goes to it where it is whole.
+      piece.href = address.startsWith("#") ? source + address : address;
+      piece.target = "_blank";
+      piece.rel = "noopener";
+    }
+    into.append(piece);
+    at = found.index + found[0].length;
+  }
+  into.append(text.slice(at));
+}
+
+/// A chapter's lines as paragraphs and lists. Lines with nothing between them are one paragraph.
+function setOut(lines, into) {
+  let block = [];
+  const end = () => {
+    if (block.length === 0) return;
+    const item = /^(\d+\.|-)\s+/;
+    if (item.test(block[0])) {
+      const list = into.appendChild(document.createElement(block[0].startsWith("-") ? "ul" : "ol"));
+      for (const line of block) {
+        if (item.test(line)) written(line.replace(item, ""), list.appendChild(document.createElement("li")));
+        else if (list.lastChild) written(" " + line.trim(), list.lastChild);
+      }
+    } else {
+      written(block.join(" "), into.appendChild(document.createElement("p")));
+    }
+    block = [];
+  };
+  for (const line of lines) {
+    if (line.trim() === "") end();
+    else block.push(line);
+  }
+  end();
+}
+
+async function about(word) {
+  readme ??= fetch(new URL("./generated/README.md", import.meta.url)).then((reply) => (reply.ok ? reply.text() : Promise.reject(new Error("no README"))));
+  let found;
+  try {
+    found = chapter(await readme, word);
+  } catch {
+    // It can be asked for again.
+    readme = undefined;
+  }
+  if (!found) return;
+  if (!story) {
+    story = document.body.appendChild(document.createElement("dialog"));
+    story.className = "about";
+    story.innerHTML = `<header><h2></h2><button title="Close (Esc)" aria-label="Close">×</button></header><div class="text" tabindex="0" autofocus></div><footer>From <a target="_blank" rel="noopener">siday's README</a>, which tells of every format.</footer>`;
+    story.querySelector("a").href = `${source}#how-it-is-built`;
+    story.querySelector("button").addEventListener("click", () => story.close());
+    // A press outside it puts it away. (All of the dialog itself is covered by what is in it.)
+    story.addEventListener("click", (event) => {
+      if (event.target === story) story.close();
+    });
+  }
+  story.querySelector("h2").textContent = found.title;
+  const text = story.querySelector(".text");
+  text.replaceChildren();
+  setOut(found.lines, text);
+  if (!story.open) story.showModal();
+  text.scrollTop = 0;
+}
+
 // The player's keys belong to the page, but not while the listener is typing in a field, and a space
-// on a button is that button's.
+// on a button is that button's. While a format's story is up, the arrows are for reading it.
 document.addEventListener(
   "keydown",
   (event) => {
     const target = event.target;
     const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
-    if (typing || event.metaKey || event.ctrlKey || event.altKey || (event.key === " " && target instanceof HTMLButtonElement)) {
+    const reading = story?.open && (event.key.startsWith("Arrow") || event.key.startsWith("Page") || event.key === "Home" || event.key === "End");
+    if (reading || typing || event.metaKey || event.ctrlKey || event.altKey || (event.key === " " && target instanceof HTMLButtonElement)) {
       event.stopPropagation();
     } else if (event.key === " " || event.key.startsWith("Arrow")) {
       event.preventDefault();
@@ -657,6 +750,9 @@ document.addEventListener("fullscreenchange", stirred);
 Object.assign(globalThis, {
   sidayListen(kind, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame) {
     listeners = { kind, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame };
+  },
+  sidayAbout(word) {
+    void about(word);
   },
   sidayPlaylists(sought, listed, missed) {
     playlists = { sought, listed, missed };
