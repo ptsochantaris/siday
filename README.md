@@ -1094,7 +1094,11 @@ From the two the program worked out how many ticks a second there were to be, an
 timer to that, four ticks to a row; where that is slower than the timer's sixteen bits can count,
 it halved the tick and gave the row more of them, though not as many more as would keep the row
 the length it was. And it took the timer to count a third of a percent faster than it does, so
-every tune is that much slower than it says. All of that is kept. Its slides are its own too.
+every tune is that much slower than it says. All of that is kept. (The fine tempo is the part
+other players leave out: OpenMPT reads the two commands for it as nothing, and so does what was
+made from ModPlug's code, VLC among them. A tune that sets one is then heard at its plain tempo,
+which for a tune that raises it by six on its first row is nearly a fifth too slow.) Its slides
+are its own too.
 They are counted in the steps of the Ultrasound's frequency register, so many samples a second
 and not so much of a period, as in a 669 file. A slide to a note is asked for once, with the
 number of rows it is to take, and goes on by itself until it is there; a slide to a volume the
