@@ -1010,10 +1010,13 @@ replayer, and the file gets Impulse Tracker's answer. What that comes to was mea
 libopenmpt, OpenMPT's own player as a library. What is read from each of 625 files is the same
 as what libopenmpt reads, but for a fade and a place between the speakers that the extras give
 more finely than an IT file's instrument can hold. Where the tune is on every tick, and how many
-frames the tick lasts, is the same for ten minutes or to the song's end in every one of them but
-one, where a pattern that jumps about within itself is taken to have come round sooner than OpenMPT
-takes it to. (That was before the files with FM were played, and they have not been counted
-again.) What is heard was set beside libopenmpt as it plays, plug-ins and all, by the same two
+frames the tick lasts, is the same for ten minutes or to the song's end in every one of them, and
+in the 67 with FM that have been played since: 692 files in all. (One was out for a long time: a
+tune made as a puzzle, with a pattern in which every row jumps to the row before it and loops
+within loops on the rows it comes back to. A row played again was taken for the tune coming
+round, and the tune ended fifty seconds early. Now a row played while a loop is counting down is
+the same row again only if the counts are the same too, which is how OpenMPT tells a tune's end.)
+What is heard was set beside libopenmpt as it plays, plug-ins and all, by the same two
 measures as above, for the first minute of each file. For the files with no plug-ins the spectrum
 agrees to 0.997 for the middle file and 0.976 for the file a tenth of the way up from the worst;
 for those whose plug-ins are all OpenMPT's own, to 0.994 and 0.959, where without the plug-ins it

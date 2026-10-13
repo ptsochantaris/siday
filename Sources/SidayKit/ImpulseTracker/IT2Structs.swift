@@ -169,6 +169,10 @@ struct IT2HostChannel {
     /// file's, whose patterns are longer than a byte can count.)
     var PattLoopStartRow: UInt16 = 0
     var PattLoopCount: UInt8 = 0
+    /// Which stay at a place in the list of patterns that count was begun in. (Not Impulse
+    /// Tracker's: it is for telling a tune's end, where a count left over from a loop that was
+    /// jumped out of is not one that is being counted now. See `IT2Player.rowIsRead`.)
+    var PattLoopStay: UInt32 = 0
     var PanbrelloWaveform: UInt8 = 0, PanbrelloPos: UInt8 = 0, PanbrelloDepth: UInt8 = 0, PanbrelloSpeed: UInt8 = 0, LastPanbrelloData: UInt8 = 0
     var LastVibratoData: Int8 = 0, LastTremoloData: Int8 = 0
     var ChnPan: UInt8 = 0, ChnVol: UInt8 = 0

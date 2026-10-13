@@ -56,6 +56,13 @@ final class IT2Player {
 
     // Coming round, and the songs of a file that has several: see `ModuleSongs`.
     private let visited: UnsafeMutablePointer<Bool>
+    /// The rows that have been played while a loop inside a pattern was counting, each with the
+    /// counts it was played under (see `rowIsRead`).
+    private var loopVisits: [Int: [UInt64]] = [:]
+    /// How many times the tune has moved to another place in the list of patterns, and the place
+    /// it is at: a stay at a place has a number, which a loop's count is marked with.
+    private(set) var stay: UInt32 = 1
+    private var stayAt: UInt16 = 0xFFFF
     /// True when the tick just run began a row that has been played before.
     private(set) var cameRound = false
     private(set) var ordersPlayed: [Bool]
@@ -1523,9 +1530,35 @@ final class IT2Player {
         }
         guard Int(CurrentRow) < rowRoom, Int(CurrentOrder) < orderRoom else { return }
         let at = Int(CurrentOrder) * rowRoom + Int(CurrentRow)
+        // A row played while a loop inside a pattern is being counted down is not the same row
+        // again unless the counts are the same too: a tune can send itself back by a jump from
+        // inside such a loop, to rows it has played, and come out of them differently each time
+        // until the counts run out. (OpenMPT tells a tune's end this way, and a tune made to be a
+        // puzzle of jumps and loops is played to its real end.) Only a loop begun since the tune
+        // last came to this place in the list counts for that: one that was jumped out of leaves
+        // its count behind, and a tune that goes back to its start with such a count is going round.
+        if CurrentOrder != stayAt {
+            stayAt = CurrentOrder
+            stay &+= 1
+        }
+        let counts = loopCounts()
+        if counts != 0 {
+            if loopVisits[at]?.contains(counts) == true {
+                cameRound = true
+                visited.update(repeating: false, count: orderRoom * rowRoom)
+                loopVisits.removeAll(keepingCapacity: true)
+            }
+            // (The rows a loop plays again are played under its count, and so are not taken for
+            // the tune coming round; what they were played under the first time stays as it was.)
+            loopVisits[at, default: []].append(counts)
+            if let firstPlayedBy, firstPlayedBy[at] == ModuleSongs.unplayed { firstPlayedBy[at] = songNumber }
+            ordersPlayed[Int(CurrentOrder)] = true
+            return
+        }
         if visited[at] {
             cameRound = true
             visited.update(repeating: false, count: orderRoom * rowRoom)
+            loopVisits.removeAll(keepingCapacity: true)
         } else if let firstPlayedBy, !metEarlierSong, firstPlayedBy[at] < songNumber {
             metEarlierSong = true
             if offTheEnd {
@@ -1543,13 +1576,16 @@ final class IT2Player {
         ordersPlayed[Int(CurrentOrder)] = true
     }
 
-    /// A loop inside a pattern goes back: the rows it plays again have not been played for the last time.
-    func rowsWillRepeat(from row: Int) {
-        guard Int(CurrentOrder) < orderRoom else { return }
-        var again = max(0, row)
-        while again <= min(rowRoom - 1, Int(CurrentRow)) {
-            visited[Int(CurrentOrder) * rowRoom + again] = false
-            again += 1
+    /// The counts of every channel's loop inside the pattern that was begun in this stay at this
+    /// place in the list, as one number: nought if none is counting. (Each channel that is counting adds its place and its count, mixed so that two
+    /// different sets of counts do not come to the same number but by the rarest chance.)
+    private func loopCounts() -> UInt64 {
+        var counts: UInt64 = 0
+        for channel in 0 ..< MAX_HOST_CHANNELS where hChn[channel].PattLoopCount != 0 && hChn[channel].PattLoopStay == stay {
+            counts = (counts ^ (UInt64(channel) << 8 | UInt64(hChn[channel].PattLoopCount))) &* 0x0000_0100_0000_01B3
+            counts |= 1
         }
+        return counts
     }
+
 }

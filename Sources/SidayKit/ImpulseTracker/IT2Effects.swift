@@ -1083,17 +1083,18 @@ extension IT2Player {
                 hc.pointee.PattLoopStartRow = CurrentRow & rowMask
             } else if hc.pointee.PattLoopCount == 0 {
                 hc.pointee.PattLoopCount = val
+                hc.pointee.PattLoopStay = stay
                 ProcessRow = hc.pointee.PattLoopStartRow &- 1
                 LoopBackRow = ProcessRow
                 PatternLooping = true
-                rowsWillRepeat(from: Int(hc.pointee.PattLoopStartRow))
             } else {
                 hc.pointee.PattLoopCount &-= 1
                 if hc.pointee.PattLoopCount != 0 {
+                    // (A count that goes on being counted here is one of this stay's, wherever it was begun.)
+                    hc.pointee.PattLoopStay = stay
                     ProcessRow = hc.pointee.PattLoopStartRow &- 1
                     LoopBackRow = ProcessRow
                     PatternLooping = true
-                    rowsWillRepeat(from: Int(hc.pointee.PattLoopStartRow))
                 } else {
                     // Done: a later loop without a start of its own starts after this one.
                     hc.pointee.PattLoopStartRow = ((CurrentRow & rowMask) &+ 1) & rowMask

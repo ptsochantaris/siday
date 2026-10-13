@@ -216,6 +216,28 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     return file
 }
 
+@Test func itThatJumpsBackInsideALoopIsPlayedToItsEnd() throws {
+    // A tune made as a puzzle. Its first row jumps to its third, which jumps back to its second;
+    // the second has a loop of two more turns, which takes it to the first again. So the first
+    // three rows are played three times over, out of order and by jumps as well as by the loop,
+    // and none of that is the tune coming round: it goes on to its fourth row when the loop's
+    // count has run out, and ends when it runs off the end of its list, 70 rows of 0.12 seconds
+    // after it began.
+    func effect(_ channel: UInt8, _ command: UInt8, _ value: UInt8) -> [UInt8] { [0x80 | channel, 0x08, command, value] }
+    let jumpToStart = effect(3, 2, 0)
+    let rows = [0x81, 0x03, 60, 1] + jumpToStart + effect(4, 3, 2) + [0]
+        + effect(2, 19, 0xB2) + jumpToStart + effect(4, 3, 3) + [0]
+        + effect(2, 19, 0xB0) + jumpToStart + effect(4, 3, 1) + [0]
+    let renderer = try TuneLoader.load(it(row: rows), format: .it)
+    #expect(abs(try #require(renderer.knownLength) - 70 * 0.12) < 0.05)
+    #expect(renderer.subsongCount == 1)
+    // And a tune that only goes round and round, with nothing counting, is still known for one:
+    // its fourth row jumps back to its second, and it has come round after four rows.
+    let round = [0x81, 0x03, 60, 1] + [0] + [0] + [0] + jumpToStart + effect(4, 3, 1) + [0]
+    let endless = try TuneLoader.load(it(row: round), format: .it)
+    #expect(abs(try #require(endless.knownLength) - 4 * 0.12) < 0.05)
+}
+
 @Test func itFromOpenMPTIsAsLoudAsOpenMPTPlaysIt() throws {
     func heard(_ file: [UInt8]) throws -> Float { loudness(stereo(try TuneLoader.load(file, format: .it), seconds: 0.5).left[4800...]) }
     func level(_ file: [UInt8]) throws -> Float { IT2Mixer.modPlugLevel(of: try #require(try TuneLoader.load(file, format: .it) as? ITRenderer).module) }
