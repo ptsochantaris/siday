@@ -126,6 +126,10 @@ final class Player {
     /// For each of those voices, whether it is playing a sample and not a sound a chip makes of
     /// itself: the first has a blue light, and the second a red one.
     private(set) var sampled: [Bool] = []
+    /// And whether the listener has muted it: a press on a light mutes its voice or brings it
+    /// back, and a right click or a long press has it heard alone. The engine keeps count of that
+    /// (`Web/siday.js` tells it of the presses) and says with the sound it sends how things stand.
+    private(set) var muted: [Bool] = []
     /// How fast a light goes out, in brightnesses a second: from full to dark in about a seventh of one.
     private static let lightFall = 6.5
     /// The picture to listen by, which is painted from what the voices are doing: see `Visualiser`.
@@ -205,8 +209,8 @@ final class Player {
                 // (A move to another place in the song is no time at all, and neither is a long wait.)
                 let fall = Self.lightFall * max(0, min(0.1, seconds - position))
                 position = seconds
-                let voices = max(0, min(numbers.count / 5, voices))
-                let count = (numbers.count - voices * 5) / 2
+                let voices = max(0, min(numbers.count / 6, voices))
+                let count = (numbers.count - voices * 6) / 2
                 bars = numbers[..<count].map { $0 / 255 }
                 caps = numbers[count ..< count * 2].map { $0 / 255 }
                 let levels = numbers[(count * 2) ..< (count * 2 + voices)].map { $0 / 255 }
@@ -215,12 +219,15 @@ final class Player {
                 // to the page only when it changes, which is seldom.)
                 let kinds = numbers[(count * 2 + voices * 4) ..< (count * 2 + voices * 5)].map { $0 != 0 }
                 if kinds != sampled { sampled = kinds }
+                let silenced = numbers[(count * 2 + voices * 5) ..< (count * 2 + voices * 6)].map { $0 != 0 }
+                if silenced != muted { muted = silenced }
                 // The picture is told all of it: how loud each voice is, its pitch, which comes in
                 // half semitones, whether a note has just been struck, and the side it is heard
                 // from, which comes as 1 for the left to 255 for the right.
-                visualiser.hear(levels: levels.map { Float($0) },
-                                pitches: numbers[(count * 2 + voices) ..< (count * 2 + voices * 2)].map { Float($0) / 2 },
-                                struck: numbers[(count * 2 + voices * 2) ..< (count * 2 + voices * 3)].map { $0 != 0 },
+                // (Of the voices that are heard: a muted voice has no part in it.)
+                visualiser.hear(levels: levels.indices.map { silenced[$0] ? 0 : Float(levels[$0]) },
+                                pitches: numbers[(count * 2 + voices) ..< (count * 2 + voices * 2)].enumerated().map { silenced[$0.offset] ? 0 : Float($0.element) / 2 },
+                                struck: numbers[(count * 2 + voices * 2) ..< (count * 2 + voices * 3)].enumerated().map { !silenced[$0.offset] && $0.element != 0 },
                                 sides: numbers[(count * 2 + voices * 3) ..< (count * 2 + voices * 4)].map { Float($0 - 128) / 127 })
             },
             { [self] seconds, length in

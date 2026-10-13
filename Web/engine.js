@@ -41,8 +41,21 @@ let file;
 /// The song as far as it has been rendered: { samples, position, last, voices } for each chunk, in
 /// order, the sound as the chip made it and what its voices were doing in it: for each, how bright
 /// its light is, its pitch, whether a note was started on it, its side, and whether it is playing a
-/// sample. The last chunk of the song is marked.
+/// sample. The last chunk of the song is marked. The list says of itself which voices were left out
+/// of it (`mutes`, see `written`), and once all of it is there, that it is `done` and the length
+/// that was `found`.
 let kept = [];
+/// What is being sent to be heard: `kept`, but for a while after the listener has muted a voice or
+/// brought one back. The song is then being rendered again, into a new `kept`, and what was kept
+/// before goes on being heard until the new has got as far as the listener is.
+let source = kept;
+/// The voices the listener has left out of the sound: a byte for each voice of the tune, 1 for one
+/// that is not to be heard; nothing, when every voice is. It lasts as long as the song does.
+let mask;
+/// How the song turned out when it was rendered with every voice heard: how many chunks, and the
+/// length found. A song with voices left out is made to come out the same, whatever silence there
+/// is in it. Nothing, until the song has been rendered so to its end.
+let whole;
 /// Which of the tune's voices have a light on the page. Some voices are ones a tune may never use (a
 /// ZX Spectrum's beeper, the samples played on a SID's volume), and get a light once they have been
 /// heard in the song as far as it is rendered, which is well ahead of what is playing.
@@ -81,19 +94,87 @@ function withBytes(buffer, use) {
   return result;
 }
 
-/// Loads the tune in `file` and starts on the song asked for. Returns false if it cannot be played.
-function load() {
+/// A mask as a word: the same word for the same voices left out, and nothing for none.
+function written(marks) {
+  return marks && marks.some((mark) => mark) ? marks.join("") : "";
+}
+
+/// Tells the module which voices to leave out of the tune when it is next loaded. Returns false if
+/// it cannot do that yet: it has first to play the song through whole, to know how it ends.
+function leaveOut(marks) {
+  if (written(marks) === "") return core.siday_set_muted(0, 0) === 1;
+  const pointer = core.siday_alloc(marks.length);
+  new Uint8Array(core.memory.buffer, pointer, marks.length).set(marks);
+  const can = core.siday_set_muted(pointer, marks.length) === 1;
+  core.siday_free(pointer);
+  return can;
+}
+
+/// Loads the tune in `file` and starts on the song asked for, with the voices in `marks` left out
+/// of it (the module must have said it can: see `leaveOut`). Returns false if it cannot be played.
+/// What was being sent goes on being sent if `meanwhile` says so: the song is the same song.
+function load(marks, meanwhile = false) {
+  const before = source;
+  leaveOut(marks);
   const plays = withBytes(file.name, (name, nameLength) =>
     withBytes(file.bytes, (data, length) => core.siday_load(data, length, name, nameLength)),
   ) === 1;
   if (plays && file.subsong >= 0) core.siday_select(file.subsong);
   kept = [];
+  kept.mutes = written(marks);
+  source = meanwhile && plays ? before : kept;
   found = 0;
   complete = !plays;
   reported = 0;
-  const always = plays ? core.siday_lights_always() : 0;
-  shown = Array.from({ length: plays ? core.siday_lights_count() : 0 }, (_, voice) => voice < always);
+  // (The lights that have come on stay on, if it is the same song with the same voices.)
+  const voices = plays ? core.siday_lights_count() : 0;
+  if (!meanwhile || shown.length !== voices) {
+    const always = plays ? core.siday_lights_always() : 0;
+    shown = Array.from({ length: voices }, (_, voice) => voice < always);
+  }
   return plays;
+}
+
+/// Renders the playing song again from its start, because what it is heard through, or a setting,
+/// has changed in a way that changes what is made. What was being heard goes on being heard, as it
+/// was, until the new rendering has got as far as the listener is; and the page is told of the
+/// tune again, since how long it is to be played may have changed. It is the song that was
+/// playing, whichever the file would now be started at. And it is rendered whole first, whatever
+/// voices are left out: how it ends may have changed, and that has to be known before it can be
+/// rendered without them.
+function again() {
+  if (!file || (source.length === 0 && complete)) return;
+  if (core.siday_subsongs() > 0) file.subsong = core.siday_subsong();
+  whole = undefined;
+  if (!load(undefined, true)) return;
+  const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
+  self.postMessage({
+    type: "loaded", tune, plays: true, text,
+    songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
+  });
+  start();
+}
+
+/// Sees that the song is being rendered as the listener now wants to hear it: with the voices of
+/// `mask` left out. What is being heard goes on until the new rendering has caught up with it.
+function remix() {
+  if (!file || (source.length === 0 && complete)) return;
+  const wanted = written(mask);
+  if (kept.mutes === wanted) return;
+  // What is being heard may be the very thing, if the listener has changed their mind again.
+  if (source.mutes === wanted && source.done) {
+    kept = source;
+    complete = true;
+    found = source.found;
+    return;
+  }
+  // A song with voices left out ends as the whole song does, which has to be known first. If it is
+  // not, the whole song is still being rendered, and this is come back to when it has been.
+  if (wanted !== "" && !whole) {
+    if (kept.mutes !== "" && load(undefined, true)) start();
+    return;
+  }
+  if (load(mask, true)) start();
 }
 
 /// Sends from a place in the song, in seconds from its start, as a new run of sound: at once if that
@@ -133,6 +214,19 @@ function render() {
   const voices = new Uint8Array(core.memory.buffer, taken, count * 5).slice();
   for (let voice = 0; voice < count; voice++) if (voices[voice] >= heard) shown[voice] = true;
   kept.push({ samples, position: core.siday_position(), last, voices });
+  if (kept.mutes !== "" && whole) {
+    // With voices left out, the song is as long as it is whole: no longer, whatever the module
+    // went on to render, and its length the length that was found then.
+    if (last || kept.length >= whole.chunks) {
+      kept.length = Math.min(kept.length, whole.chunks);
+      kept[kept.length - 1].last = true;
+      complete = true;
+      found = whole.found;
+      kept.done = true;
+      kept.found = found;
+    }
+    return;
+  }
   if (last) finish();
 }
 
@@ -152,14 +246,25 @@ function finish() {
   // known but which fell silent before it: a module with nothing but empty rows before it goes round.
   const length = end - silence;
   found = (core.siday_length_known() === 0 || silence > 0) && length > 0 && length < core.siday_length() ? length : 0;
+  kept.done = true;
+  kept.found = found;
+  // That was the whole song, and how it ends is now known: if the listener has voices left out, it
+  // can be rendered as they want it.
+  whole = { chunks: kept.length, found };
+  remix();
 }
 
 /// Sends chunks until enough are waiting to be played, or there are no more to send yet.
 function send() {
+  // The song as the listener now wants it is taken up as soon as it has been rendered past the
+  // place they are at; and whatever there is of the song is, if what was being heard has run out.
+  if (source !== kept && ((kept.mutes === written(mask) && (kept.length > next + ahead || complete)) || (next >= source.length && kept.length > next))) {
+    source = kept;
+  }
   // A place past the end of the song: its last moment is played, and so it ends.
-  if (sending && complete && next >= kept.length) next = kept.length - 1;
-  while (sending && waiting < ahead && next < kept.length) {
-    const chunk = kept[next++];
+  if (sending && source.done && next >= source.length) next = source.length - 1;
+  while (sending && waiting < ahead && next < source.length) {
+    const chunk = source[next++];
     // The television and the spectrum analyser belong to what is heard, not to what is kept.
     new Float32Array(core.memory.buffer, scratch, chunkFrames * 2).set(chunk.samples);
     core.siday_present(scratch, chunkFrames);
@@ -167,8 +272,15 @@ function send() {
     // Asked for first: working the bars out can make the module's memory grow, and so move.
     const spectrum = core.siday_spectrum();
     const bars = new Uint8Array(core.memory.buffer, spectrum, core.siday_spectrum_bands() * 2).slice();
-    // The voices that have a light, row by row as they were kept.
-    const voices = chunk.voices.filter((_, place) => shown[place % shown.length]);
+    // The voices that have a light, row by row as they were kept; and a sixth row, for which of
+    // them the listener has left out, as that stands now.
+    const lit = chunk.voices.filter((_, place) => shown[place % shown.length]);
+    const voices = new Uint8Array(lit.length + lit.length / 5);
+    voices.set(lit);
+    let light = 0;
+    for (let voice = 0; voice < shown.length; voice++) {
+      if (shown[voice]) voices[lit.length + light++] = mask && mask[voice] ? 1 : 0;
+    }
     output.postMessage({ type: "chunk", serial, samples, position: chunk.position, bars, voices, last: chunk.last }, [samples.buffer]);
     waiting++;
     if (chunk.last) sending = false;
@@ -180,7 +292,11 @@ function report() {
   const now = performance.now();
   if (!complete && now - reported < 100) return;
   reported = now;
-  self.postMessage({ type: "rendered", tune, seconds: (kept.length * chunkFrames) / sampleRate, length: complete ? found : 0 });
+  // (While a song is being rendered again for a voice muted or brought back, there is as much of
+  // it to move about in as there was.)
+  const chunks = Math.max(kept.length, source.length);
+  const length = complete ? found : source.done ? source.found : 0;
+  self.postMessage({ type: "rendered", tune, seconds: (chunks * chunkFrames) / sampleRate, length });
 }
 
 // Rendering is done a turn at a time, with a message to itself between turns, so that word from the
@@ -235,6 +351,9 @@ self.onmessage = async (event) => {
       tune = message.tune;
       serial = message.serial;
       file = { name: message.name, bytes: message.bytes, subsong: message.subsong };
+      // Another song: every voice of it is heard.
+      mask = undefined;
+      whole = undefined;
       const plays = load();
       const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
       self.postMessage({
@@ -250,16 +369,34 @@ self.onmessage = async (event) => {
     case "seek":
       // The listener has moved to another place in the song: sending goes on from there, as soon as
       // there is something there to send.
-      if (kept.length === 0 && complete) break;
+      if (source.length === 0 && complete) break;
       sendFrom(message.position, message.serial);
       break;
+    case "mute": {
+      // The listener has pressed a light: to mute its voice or bring it back, or, with `solo`, to
+      // hear it alone (and pressed again on a voice heard alone, to bring the others back). The
+      // light is counted among those that are shown.
+      const voice = shown.map((lit, place) => (lit ? place : -1)).filter((place) => place >= 0)[message.light];
+      if (voice === undefined) break;
+      let marks = mask ? mask.slice() : new Uint8Array(shown.length);
+      if (message.solo) {
+        const alone = marks.every((mark, place) => (place === voice ? mark === 0 : mark === 1));
+        marks = marks.map((_, place) => (alone || place === voice ? 0 : 1));
+      } else {
+        marks[voice] ^= 1;
+      }
+      mask = marks.some((mark) => mark) ? marks : undefined;
+      remix();
+      // The lights are told of it with the sound that is sent from now on, whichever sound that is;
+      // and the page at once, since what it shows is the sound of a moment ago.
+      self.postMessage({ type: "muted", tune, marks: Array.from(marks.filter((_, place) => shown[place])) });
+      break;
+    }
     case "style":
       // What tunes are heard through. A television is no more than something in the way of the sound
       // as it is sent. Mono and stereo are what the chip makes, so a change between them means making
-      // the song again: the page is told, and says where it had got to.
-      if (core.siday_set_output(message.style) === 1 && file && !(kept.length === 0 && complete)) {
-        self.postMessage({ type: "again", tune });
-      }
+      // the song again.
+      if (core.siday_set_output(message.style) === 1) again();
       break;
     case "settings": {
       // The listener's settings: a number for each. If one has changed that has to do with the tune
@@ -267,32 +404,18 @@ self.onmessage = async (event) => {
       const values = Float64Array.from(message.values);
       const pointer = core.siday_alloc(values.byteLength);
       new Float64Array(core.memory.buffer, pointer, values.length).set(values);
-      const again = core.siday_set_settings(pointer, values.length) === 1;
+      const changes = core.siday_set_settings(pointer, values.length) === 1;
       core.siday_free(pointer);
-      if (again && file && !(kept.length === 0 && complete)) self.postMessage({ type: "again", tune });
-      break;
-    }
-    case "again": {
-      // The song is rendered again from its start, as it is now to be heard, and taken up where it
-      // had got to. Until the rendering has reached that place, the sound waits. It is the song
-      // that was playing, whichever the file would now be started at; and the page is told of the
-      // tune again, since how long it is to be played may have changed.
-      if (!file) break;
-      if (core.siday_subsongs() > 0) file.subsong = core.siday_subsong();
-      if (!load()) break;
-      const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
-      self.postMessage({
-        type: "loaded", tune, plays: true, text,
-        songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
-      });
-      sendFrom(message.position, message.serial);
-      start();
+      if (changes) again();
       break;
     }
     case "stop":
       // The tune has been taken out of the list, and nothing follows it: the song is let go.
       file = undefined;
       kept = [];
+      source = kept;
+      mask = undefined;
+      whole = undefined;
       complete = true;
       sending = false;
       break;

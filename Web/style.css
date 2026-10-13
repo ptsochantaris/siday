@@ -567,6 +567,28 @@ button:disabled {
   flex: 0 1 36px;
   min-width: 0;
   aspect-ratio: 1;
+  /* Each is a button for its voice: pressed to mute it, held or right-clicked to hear it alone. So a
+     held press is not to select anything, nor a phone to offer its menu for it. */
+  cursor: pointer;
+  border-radius: 50%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: filter 0.15s, opacity 0.15s;
+}
+
+.light:focus-visible {
+  outline: 1px solid #5a6072;
+  outline-offset: -3px;
+}
+
+/* A muted voice: its lamp dimmed, and most of its colour gone, so that it is not taken for a quiet
+   voice; enough is left to tell a red lamp from a blue one. It still flickers with what it plays. */
+.light.muted {
+  filter: saturate(0.22) brightness(0.8);
+  opacity: 0.45;
 }
 
 .light::before {

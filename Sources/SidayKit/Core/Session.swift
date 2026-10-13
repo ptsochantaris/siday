@@ -106,9 +106,47 @@ public final class TuneSession {
     private var sidesAhead: [Float]
     private var sampledAhead: [Bool]
 
+    /// How a song came to its end, as a session found out by playing it: how many frames it gave,
+    /// and where its fade began and how long it was, if it had one.
+    public struct Ending: Sendable {
+        public var frames: Int
+        public var fadeStart: Int
+        public var fadeFrames: Int
+    }
+
+    /// How this session ended, once it has: for playing the song again to the same end, see
+    /// `init(renderer:policy:following:)`.
+    public var ending: Ending? {
+        finished ? Ending(frames: framesRendered, fadeStart: fadeStart, fadeFrames: fadeFrames) : nil
+    }
+
+    /// The ending this session is to come to, if it was given one.
+    private let script: Ending?
+
     public init(renderer: any Renderer, policy: PlaybackPolicy) {
         self.renderer = renderer
         self.policy = policy
+        script = nil
+        channelLevels = [Float](repeating: 0, count: renderer.channelCount)
+        levelsAhead = channelLevels
+        channelPitches = channelLevels
+        pitchesAhead = channelLevels
+        channelStruck = [Bool](repeating: false, count: renderer.channelCount)
+        struckAhead = channelStruck
+        channelSides = channelLevels
+        sidesAhead = channelLevels
+        channelsSampled = channelStruck
+        sampledAhead = channelStruck
+    }
+
+    /// A session that plays a song to an ending already found, and judges nothing for itself: for
+    /// a song with some of its voices left out (`Renderer.setMuted`), which is to last as long as
+    /// the whole song does and fade where it fades, though by its own sound it might be taken to
+    /// have fallen silent long before.
+    public init(renderer: any Renderer, policy: PlaybackPolicy, following ending: Ending) {
+        self.renderer = renderer
+        self.policy = policy
+        script = ending
         channelLevels = [Float](repeating: 0, count: renderer.channelCount)
         levelsAhead = channelLevels
         channelPitches = channelLevels
@@ -243,8 +281,30 @@ public final class TuneSession {
     }
 
     /// Renders up to `frames` frames; returns how many were produced (0 once finished).
+    /// The next of the song for a session that was given its ending: what the player makes, faded
+    /// where the ending fades and stopped where it stops.
+    private func follow(_ script: Ending, into buffer: UnsafeMutablePointer<Float>, frames: Int) -> Int {
+        next(into: buffer, frames: frames)
+        let produced = max(0, min(frames, script.frames - framesRendered))
+        if script.fadeStart >= 0 {
+            for i in 0 ..< produced where framesRendered + i >= script.fadeStart {
+                let gain = max(0, 1 - Float(framesRendered + i - script.fadeStart) / Float(max(1, script.fadeFrames)))
+                buffer[i * 2] *= gain
+                buffer[i * 2 + 1] *= gain
+            }
+            if framesRendered >= script.fadeStart {
+                let gain = max(0, 1 - Float(framesRendered - script.fadeStart) / Float(max(1, script.fadeFrames)))
+                for voice in channelLevels.indices { channelLevels[voice] *= gain }
+            }
+        }
+        framesRendered += produced
+        if framesRendered >= script.frames { end = .completed }
+        return produced
+    }
+
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) -> Int {
         guard !finished else { return 0 }
+        if let script { return follow(script, into: buffer, frames: frames) }
         next(into: buffer, frames: frames)
 
         let swing = Self.swing(buffer, frames: frames)

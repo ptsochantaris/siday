@@ -109,12 +109,21 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// The voices left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        replayer.paula.setMuted(muted)
+    }
+
     /// - Parameter other: the file read some other way, to be played in place of the module.
     private func restart(playing other: ProTrackerModule? = nil) {
         let module = other ?? module
         module.restoreSamples()
         let song = songList[currentSubsong]
         replayer = ProTrackerReplayer(module, model: model, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
+        replayer.paula.setMuted(muted)
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0

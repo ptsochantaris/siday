@@ -94,6 +94,14 @@ public protocol Renderer: AnyObject {
     /// True if the tune's voices play samples: what `takeChannelsSampled` says of every one of
     /// them, for a player that does not say it voice by voice.
     var channelsAreSampled: Bool { get }
+    /// Leaves voices out of the sound: a mark for each of the `channelCount`, true for one that is
+    /// not to be heard, and none at all for every voice heard. A voice left out goes on playing: the
+    /// tune is the same tune, note for note and to the same end, and what is said of the voice here
+    /// (how loud it is, its pitch, its side) is what would be said if it were heard. It is taken
+    /// out where it joins the others, so what the voices of a chip share is still shared: a muted
+    /// voice of a SID still goes through the filter's sums, and one of an AY chip still has its part
+    /// in the envelope. With no voice left out the sound is what it was before this was ever called.
+    func setMuted(_ muted: [Bool])
 }
 
 public extension Renderer {
@@ -120,6 +128,7 @@ public extension Renderer {
         for voice in 0 ..< channelCount { sides[voice] = 0 }
     }
     var channelsAreSampled: Bool { false }
+    func setMuted(_: [Bool]) {}
     func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
         let all = channelsAreSampled
         for voice in 0 ..< channelCount { sampled[voice] = all }

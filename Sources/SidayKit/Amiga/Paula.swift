@@ -55,6 +55,8 @@ struct Paula: ~Copyable {
         /// The period it was last given, and whether it has been started since its notes were asked for.
         var period = 0
         var struck = false
+        /// True for a voice that is left out of the sound: it plays on, and is not added in.
+        var muted = false
 
         /// Paula takes up a new period only as she finishes counting the old one.
         @inline(__always) mutating func refetchPeriod() {
@@ -128,7 +130,7 @@ struct Paula: ~Copyable {
                     stepIndex = (stepIndex &+ 1) & 31
                     stepsLeft -= 1
                 }
-                output[j] += sample
+                if !muted { output[j] += sample }
                 phase += delta
                 if phase >= 1 {
                     phase -= 1
@@ -286,6 +288,12 @@ struct Paula: ~Copyable {
 
     mutating func stop(voices mask: UInt16) {
         for voice in 0 ..< 4 where mask & (1 << voice) != 0 { voices[voice].active = false }
+    }
+
+    /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each voice, true for one not to be heard; a voice with no mark is heard.
+    mutating func setMuted(_ muted: [Bool]) {
+        for voice in 0 ..< 4 { voices[voice].muted = voice < muted.count && muted[voice] }
     }
 
     /// The filter that the Amiga's power light shows the state of.

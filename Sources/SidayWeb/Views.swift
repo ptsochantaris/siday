@@ -165,7 +165,7 @@ struct NowPlaying {
             }
 
             if !player.lights.isEmpty, player.shows(.lights) {
-                Lights(levels: player.lights, sampled: player.sampled)
+                Lights(levels: player.lights, sampled: player.sampled, muted: player.muted)
             }
         }
     }
@@ -335,21 +335,34 @@ struct Analyser {
 
 /// A row of lights, one for each voice of the tune: a chip's channels, a module's tracks. Each is the
 /// lamp of an early-1980s tape recorder's recording level: the louder its voice, the brighter it
-/// glows, and the wider.
+/// glows, and the wider. And each is a button: pressed, it mutes its voice or brings it back; with
+/// a right click, or held, it has its voice heard alone. (The presses are seen to in `Web/siday.js`,
+/// which knows a held press from a short one; here a light is only shown as it stands.)
 @View
 struct Lights {
     var levels: [Double]
     /// Which of the voices are playing samples: their lights are blue, and the others' red.
     var sampled: [Bool]
+    /// Which the listener has muted: their lights are dimmed and have most of their colour taken
+    /// out, and still flicker with what the voice is playing.
+    var muted: [Bool]
 
     var body: some View {
         div(.class("lights")) {
             ForEach(Array(levels.indices), key: { String($0) }) { index in
-                div(.class(index < sampled.count && sampled[index] ? "light sampled" : "light")) {
+                div(.class(name(index)), .title("Click to mute this voice or bring it back. Right-click, or press and hold, to hear it alone."),
+                    .custom(name: "role", value: "button"), .custom(name: "tabindex", value: "0"),
+                    .custom(name: "aria-label", value: "Voice \(index + 1)"), .custom(name: "aria-pressed", value: isMuted(index) ? "true" : "false")) {
                     div(.class("glow"), .style(["opacity": "\(glow(levels[index]))", "transform": "scale(\(size(levels[index])))"])) {}
                 }
             }
         }
+    }
+
+    private func isMuted(_ index: Int) -> Bool { index < muted.count && muted[index] }
+
+    private func name(_ index: Int) -> String {
+        "light" + (index < sampled.count && sampled[index] ? " sampled" : "") + (isMuted(index) ? " muted" : "")
     }
 
     /// A lamp at half its level is well under half as bright, so that a loud voice stands out from a

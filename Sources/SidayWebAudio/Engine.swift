@@ -65,6 +65,17 @@ final class WebPlayer {
     private var sampled: [UInt8] = []
     private(set) var voicesTaken: [UInt8] = []
     var voiceCount: Int { lights.count }
+    /// The voices the listener has left out of the sound: a mark for each, true for one not to be
+    /// heard, or none at all. A song is rendered whole and kept, so a change here is heard when
+    /// the song has been rendered again (see `setMuted`).
+    private var muted: [Bool] = []
+    /// How the song that is loaded ended when it was last played with every voice heard, and which
+    /// song of the file that was. A song with voices left out is played to the same ending: by its
+    /// own sound it might be taken to have fallen silent, or to have nothing left to fade.
+    private var ending: TuneSession.Ending?
+    private var endingOf = 0
+    /// True while the session is one that follows `ending`.
+    private var following = false
 
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     func load(_ data: [UInt8], name: String) -> Bool {
@@ -72,6 +83,9 @@ final class WebPlayer {
         session = nil
         layout = nil
         format = nil
+        // (A song loaded to be heard whole will say how it ends by being played. One loaded with
+        // voices left out is the song that was just heard whole, and ends as that did.)
+        if !muted.contains(true) { ending = nil }
         let fileExtension = name.split(separator: ".").count > 1 ? String(name.split(separator: ".").last ?? "") : ""
         guard let format = TuneFormat(fileExtension: fileExtension) else {
             text = Array("unknown file type .\(fileExtension)".utf8)
@@ -103,7 +117,15 @@ final class WebPlayer {
         guard let renderer else { return }
         let song = min(max(0, subsong), renderer.subsongCount - 1)
         if renderer.subsongCount > 1 || song != renderer.currentSubsong { renderer.select(subsong: song) }
-        session = TuneSession(renderer: renderer, policy: policy)
+        if muted.contains(true), let ending, endingOf == song {
+            renderer.setMuted((0 ..< renderer.channelCount).map { $0 < muted.count && muted[$0] })
+            session = TuneSession(renderer: renderer, policy: policy, following: ending)
+            following = true
+        } else {
+            renderer.setMuted([])
+            session = TuneSession(renderer: renderer, policy: policy)
+            following = false
+        }
         lights = [UInt8](repeating: 0, count: renderer.channelCount)
         pitches = lights
         struck = lights
@@ -133,6 +155,15 @@ final class WebPlayer {
 
     init() {
         Setting.apply(settings, to: &options, &policy)
+    }
+
+    /// Says which voices are to be left out of the song when it is next loaded: a mark for each,
+    /// or none. Returns true if the song can be loaded so at once: no voice is left out, or it is
+    /// known how the song that is loaded ends. If not, the song has to be played through whole
+    /// first, which is what tells how it ends.
+    func setMuted(_ marks: [Bool]) -> Bool {
+        muted = marks.contains(true) ? marks : []
+        return muted.isEmpty || (ending != nil && endingOf == subsong)
     }
 
     /// HVSC's own list of song lengths, to be asked before the lengths that are built in; nil for none.
@@ -199,6 +230,11 @@ final class WebPlayer {
                     if session.channelStruck[voice] { struck[voice] = 1 }
                     sides[voice] = UInt8(max(1, min(255, (128 + session.channelSides[voice] * 127).rounded())))
                     sampled[voice] = session.channelsSampled[voice] ? 1 : 0
+                }
+                // A song heard whole has just said how it ends.
+                if session.finished, !following, ending == nil {
+                    ending = session.ending
+                    endingOf = subsong
                 }
                 if blockLength == 0 { break }
             }
@@ -331,6 +367,17 @@ public func sidaySetOutput(_ style: Int32) -> Int32 {
 
 /// Renders the next 128 frames into the buffer at `siday_output`, as the chip made them. Returns 0
 /// once the tune is over.
+/// Says which voices are to be left out when the tune is next loaded: a byte for each voice, 1 for
+/// one not to be heard; no bytes for every voice heard. Returns 1 if the tune can be loaded so at
+/// once, and 0 if its song must first be played to the end with every voice heard.
+@_expose(wasm, "siday_set_muted")
+@_cdecl("siday_set_muted")
+public func sidaySetMuted(_ marks: UnsafePointer<UInt8>?, _ count: Int32) -> Int32 {
+    var muted: [Bool] = []
+    if let marks { for index in 0 ..< Int(max(0, count)) { muted.append(marks[index] != 0) } }
+    return player.setMuted(muted) ? 1 : 0
+}
+
 @_expose(wasm, "siday_pull")
 @_cdecl("siday_pull")
 public func sidayPull() -> Int32 {

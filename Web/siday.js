@@ -260,6 +260,21 @@ function setVolume(level) {
   keep("siday.volume", String(volume));
 }
 
+/// What the page was last told of the playing song (see "progress" below), and which of its lights
+/// the listener has muted, as the engine said the moment one was pressed. What comes with the
+/// sound says that too, but a moment late: it is shown as its sound is heard.
+let told;
+let mutedNow;
+
+/// Tells the page where the song has got to and what its voices are doing.
+function tell() {
+  if (!told) return;
+  const voices = Array.from(told.voices);
+  const lights = voices.length / 6;
+  if (mutedNow && mutedNow.length === lights) voices.splice(lights * 5, lights, ...mutedNow);
+  listeners?.progress(told.position, [...told.bars, ...voices], lights);
+}
+
 function heard(message) {
   if (message.type === "connected") return direct();
   // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
@@ -271,8 +286,10 @@ function heard(message) {
     case "rendered":
       listeners?.rendered(message.seconds, message.length);
       break;
-    case "again":
-      void again(message.tune);
+    case "muted":
+      // A light has been pressed. It is shown at once, playing or not.
+      mutedNow = message.marks;
+      tell();
       break;
     case "progress": {
       // This is news of sound that has been made but not yet heard: it is shown when its sound
@@ -285,8 +302,8 @@ function heard(message) {
         shownPosition = message.position;
         shownFor = asked;
         // (One list and not two: handed two, the Swift side gets them the wrong way round.)
-        const voices = message.voices ?? [];
-        listeners?.progress(message.position, [...message.bars, ...voices], voices.length / 5);
+        told = { position: message.position, bars: message.bars, voices: message.voices ?? [] };
+        tell();
       }, seconds * 1000);
       break;
     }
@@ -318,6 +335,9 @@ async function play(index, subsong) {
     const run = ++serial;
     output.port.postMessage({ type: "tune", serial: run });
     const name = new TextEncoder().encode(tune.name).buffer;
+    // (Another song: every voice of it is heard, whatever was muted in the last.)
+    told = undefined;
+    mutedNow = undefined;
     engine.postMessage({ type: "load", tune: request, serial: run, name, bytes, subsong }, [name, bytes]);
     // A browser keeps the sound back until the listener has pressed something on the page. If it is
     // still holding a moment from now, the page shows the tune as paused, and pressing play starts it.
@@ -343,17 +363,6 @@ async function seek(seconds) {
   shownFor = asked;
   output.port.postMessage({ type: "seek", serial: run });
   engine.postMessage({ type: "seek", serial: run, position: seconds });
-}
-
-/// The engine is to render the playing song again, because what it is heard through has changed in a
-/// way that changes what the chip makes. Like a move within the song, to the place it had got to: the
-/// output drops what it was about to play, and the engine sends from there once it has rendered that far.
-async function again(tune) {
-  const { engine, output } = await sound;
-  if (tune !== asked) return;
-  const run = ++serial;
-  output.port.postMessage({ type: "seek", serial: run });
-  engine.postMessage({ type: "again", serial: run, position: shownFor === asked ? shownPosition : 0 });
 }
 
 /// Every tune the page has been given since it was opened, by its name: where a playlist's tunes are
@@ -688,6 +697,58 @@ document.addEventListener("keydown", () => (pressed = false), true);
 document.addEventListener("change", (event) => {
   if (pressed && event.target instanceof HTMLSelectElement) event.target.blur();
   pressed = false;
+});
+
+// The lights. Each is a button for its voice: a press mutes the voice or brings it back, and a right
+// click (on a Mac, a click with Control held is one too) or a press held for half a second has it
+// heard alone, or brings the others back if it already is. The engine is told which light, counted
+// along the row, and works out the rest: it knows which voices are muted, and says so with the
+// sound it sends, which is how the lights come to show it.
+function lightAt(event) {
+  const light = event.target instanceof Element ? event.target.closest(".light") : null;
+  return light ? Array.prototype.indexOf.call(light.parentElement.children, light) : -1;
+}
+function mute(light, solo) {
+  void sound?.then(({ engine }) => engine.postMessage({ type: "mute", light, solo }));
+}
+/// A press that is being held, and the light whose press was last held long enough to count, with
+/// when: a held press ends in a click, and on some phones in a right click as well, neither of
+/// which is to undo what it did.
+let holding;
+let held = { light: -1, at: 0 };
+function wasHeld(light) {
+  return held.light === light && performance.now() - held.at < 800;
+}
+function release() {
+  clearTimeout(holding);
+  holding = undefined;
+}
+document.addEventListener("pointerdown", (event) => {
+  const light = lightAt(event);
+  release();
+  if (light < 0 || event.button !== 0 || event.ctrlKey) return;
+  holding = setTimeout(() => {
+    held = { light, at: performance.now() };
+    mute(light, true);
+  }, 500);
+});
+for (const over of ["pointerup", "pointercancel", "pointerleave", "scroll"]) document.addEventListener(over, release, true);
+document.addEventListener("click", (event) => {
+  const light = lightAt(event);
+  // (A click with Control held is a right click on a Mac, and is seen to as one.)
+  if (light >= 0 && !event.ctrlKey && !wasHeld(light)) mute(light, false);
+});
+document.addEventListener("contextmenu", (event) => {
+  const light = lightAt(event);
+  if (light < 0) return;
+  event.preventDefault();
+  if (!wasHeld(light)) mute(light, true);
+});
+document.addEventListener("keydown", (event) => {
+  // From the keyboard: Return on a light mutes its voice, and with Shift has it heard alone.
+  if (event.key !== "Enter" || !(event.target instanceof Element) || !event.target.classList.contains("light")) return;
+  event.preventDefault();
+  mute(lightAt(event), event.shiftKey);
 });
 
 // The time bar. The page draws it and decides what pointing at it and pressing it mean; what it
