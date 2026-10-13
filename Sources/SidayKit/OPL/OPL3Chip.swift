@@ -608,6 +608,30 @@ struct OPL3Chip: ~Copyable {
         Int16(max(-32768, min(32767, sample)))
     }
 
+    // MUTE: all there is in the chip for `Renderer.setMuted`: this mask, `mutedPart`, and the two
+    // places in `OPL3_Generate4Ch`, marked like this, that take that part away.
+    /// The channels left out of the sound, a bit for each of the eighteen. One that is left out is
+    /// played as ever, and what it adds to the chip's outputs is taken away again. (This is not in
+    /// the original; with no bit set it changes no number.)
+    var muted: UInt32 = 0
+
+    /// What the channels left out of the sound have just added to two of the chip's four outputs:
+    /// to the first and the third, or to the second and the fourth. It is worked out a second
+    /// time here, and only when there is such a channel, so that the adding up itself asks nothing
+    /// of each channel and is as fast as it was.
+    @inline(never)
+    private func mutedPart(of channels: Int, second: Bool) -> (Int32, Int32) {
+        var mix0: Int32 = 0, mix1: Int32 = 0
+        for ii in 0 ..< channels where muted & (1 << UInt32(ii)) != 0 {
+            let channel = channel + ii
+            let out = channel.pointee.out
+            let accm = UInt16(truncatingIfNeeded: Int32(out.0.pointee) + Int32(out.1.pointee) + Int32(out.2.pointee) + Int32(out.3.pointee))
+            mix0 += Int32(Int16(bitPattern: accm & (second ? channel.pointee.chb : channel.pointee.cha)))
+            mix1 += Int32(Int16(bitPattern: accm & (second ? channel.pointee.chd : channel.pointee.chc)))
+        }
+        return (mix0, mix1)
+    }
+
     /// One sample from each of the chip's four outputs. An OPL2's music comes out of the first two
     /// alike; the other two are the second pair of outputs the OPL3 has, which few cards connected.
     ///
@@ -630,6 +654,11 @@ struct OPL3Chip: ~Copyable {
             if level < lows[unchecked: ii] { lows[unchecked: ii] = level }
             if level > highs[unchecked: ii] { highs[unchecked: ii] = level }
         }
+        if muted != 0 { // MUTE
+            let unheard = mutedPart(of: channels, second: false)
+            mix0 -= unheard.0
+            mix1 -= unheard.1
+        }
         mixbuff.0 = mix0
         mixbuff.2 = mix1
 
@@ -649,6 +678,11 @@ struct OPL3Chip: ~Copyable {
             let accm = UInt16(truncatingIfNeeded: Int32(out.0.pointee) + Int32(out.1.pointee) + Int32(out.2.pointee) + Int32(out.3.pointee))
             mix0 += Int32(Int16(bitPattern: accm & channel.pointee.chb))
             mix1 += Int32(Int16(bitPattern: accm & channel.pointee.chd))
+        }
+        if muted != 0 { // MUTE
+            let unheard = mutedPart(of: channels, second: true)
+            mix0 -= unheard.0
+            mix1 -= unheard.1
         }
         mixbuff.1 = mix0
         mixbuff.3 = mix1

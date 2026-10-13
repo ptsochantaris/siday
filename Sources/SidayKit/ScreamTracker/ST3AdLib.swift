@@ -151,6 +151,13 @@ final class ST3AdLib {
         }
     }
 
+    /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. A bit for each
+    /// of the card's nine voices, set for one not to be heard. The chip plays it, and it is not in
+    /// what the chip gives out.
+    func setMuted(_ voices: UInt32) {
+        chip.pointee.muted = voices
+    }
+
     /// How loud each of the card's nine voices was in the samples made since this was last asked:
     /// they are the channels from the sixteenth on.
     func takeLevels(into levels: inout [Float]) {

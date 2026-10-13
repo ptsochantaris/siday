@@ -107,8 +107,9 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     #expect(throws: TuneError.self) { try TuneLoader.load([UInt8](repeating: 0x41, count: 4000), format: .xm) }
 }
 
-@Test func modOfMoreThanFourChannelsGoesToFastTracker() throws {
-    // A MOD file of six channels: a PC tracker's, with one sample and one note.
+/// A MOD file of six channels: a PC tracker's, with one sample and one note.
+/// - Parameter second: whether its second channel has a note too, an octave above the first's.
+private func sixChannelMOD(second: Bool = false) -> [UInt8] {
     var file = padded("six channels", 20)
     for sample in 0 ..< 31 {
         var header = [UInt8](repeating: 0, count: 30)
@@ -124,9 +125,12 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     file += [1, 0] + [UInt8](repeating: 0, count: 128) + Array("6CHN".utf8)
     var pattern = [UInt8](repeating: 0, count: 64 * 6 * 4)
     pattern.replaceSubrange(0 ..< 4, with: [0x01, 0xAC, 0x10, 0x00]) // period 428, sample 1
-    file += pattern + [UInt8](repeating: 0x7F, count: 16) + [UInt8](repeating: 0x81, count: 16)
+    if second { pattern.replaceSubrange(4 ..< 8, with: [0x00, 0xD6, 0x10, 0x00]) } // period 214
+    return file + pattern + [UInt8](repeating: 0x7F, count: 16) + [UInt8](repeating: 0x81, count: 16)
+}
 
-    let renderer = try TuneLoader.load(file, format: .mod)
+@Test func modOfMoreThanFourChannelsGoesToFastTracker() throws {
+    let renderer = try TuneLoader.load(sixChannelMOD(), format: .mod)
     #expect(renderer.info.format == "MOD")
     #expect(renderer.info.title == "six channels")
     #expect(renderer.info.detail == "FastTracker 2, 6 channels")
@@ -314,4 +318,69 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     // And a file that ends before its sample does.
     #expect(try shortfalls(Array(xm().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])
     #expect(try shortfalls(Array(xm().dropLast(1))).isEmpty)
+}
+
+/// How loud a player says each of its voices has been since it was last asked.
+private func levels(_ renderer: any Renderer) -> [Float] {
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return levels
+}
+
+@Test func xmChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    // C-4 on the first channel, put hard left by its command, and the C above on the second, put
+    // as far right as FastTracker goes; and the same tune with the first of them alone.
+    var options = LoadOptions()
+    options.stereo = .abc
+    func fresh(_ notes: [UInt8]) throws -> any Renderer { try TuneLoader.load(xm(notes: notes), format: .xm, options: options) }
+    let both: [UInt8] = [0x9B, 49, 1, 8, 0x00, 0x9B, 61, 1, 8, 0xFF], first: [UInt8] = [0x9B, 49, 1, 8, 0x00, 0x80]
+    let whole = try fresh(both)
+    let wholeSound = stereo(whole, seconds: 0.5), wholeLevels = levels(whole)
+    #expect(wholeSound.left.map(abs).max()! > 0.05 && wholeSound.right.map(abs).max()! > 0.05)
+    #expect(wholeLevels[0] > 0.2 && wholeLevels[1] > 0.2)
+
+    // The second channel left out: what is heard is the tune without its note, to the sample (the
+    // mixing is in whole numbers), and the channel is still said to be as loud as it was.
+    let alone = stereo(try fresh(first), seconds: 0.5)
+    let renderer = try fresh(both)
+    renderer.setMuted([false, true])
+    let without = stereo(renderer, seconds: 0.5)
+    #expect(without == alone && without.left != wholeSound.left)
+    #expect(without.right.allSatisfy { $0 == 0 })
+    #expect(levels(renderer) == wholeLevels)
+
+    // A song started again is started without the channel; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == without)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == wholeSound)
+
+    // Every channel left out is silence, and each is as loud as ever by its own account.
+    renderer.setMuted([true, true])
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5).left.allSatisfy { $0 == 0 })
+    #expect(levels(renderer) == wholeLevels)
+
+    // A note cut short by the next dies away on a voice of its own, which is its channel's too:
+    // with the channel left out there is nothing of either.
+    let cut: [UInt8] = [0x83, 49, 1, 0x80, 0x83, 61, 1, 0x80] + [UInt8](repeating: 0x80, count: 62 * 2)
+    let twice = try TuneLoader.load(xm(pattern: (64, cut)), format: .xm, options: options)
+    twice.setMuted([true])
+    #expect(stereo(twice, seconds: 0.5).left.allSatisfy { $0 == 0 })
+}
+
+@Test func modOfMoreThanFourChannelsHasItsChannelsLeftOut() throws {
+    // The second channel of the six left out: the tune without its note.
+    let whole = try TuneLoader.load(sixChannelMOD(second: true), format: .mod)
+    let wholeSound = stereo(whole, seconds: 0.5), wholeLevels = levels(whole)
+    let alone = stereo(try TuneLoader.load(sixChannelMOD(), format: .mod), seconds: 0.5)
+    let renderer = try TuneLoader.load(sixChannelMOD(second: true), format: .mod)
+    renderer.setMuted([false, true])
+    let without = stereo(renderer, seconds: 0.5)
+    #expect(without == alone && without != wholeSound)
+    #expect(levels(renderer) == wholeLevels && wholeLevels[1] > 0.2)
+    renderer.setMuted([true, true, true, true, true, true])
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5).left.allSatisfy { $0 == 0 })
 }

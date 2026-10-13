@@ -148,11 +148,30 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// The voices left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        tellCardsOfMuted()
+    }
+
+    /// Tells the two cards which of their channels are left out. A voice here is one of the
+    /// channels the tune uses (see `lights`): the sound card's are told to it, and the AdLib's to
+    /// the chip, which leaves a voice out of what it gives out.
+    private func tellCardsOfMuted() {
+        var channels: UInt32 = 0
+        for light in lights.indices where light < muted.count && muted[light] { channels |= 1 << UInt32(lights[light]) }
+        player.cards.setMuted(channels & 0xFFFF)
+        player.adlib.setMuted(channels >> 16)
+    }
+
     /// - Parameter asScreamTracker: as the player this is ported from plays the file, for `renderRaw`.
     private func restart(asScreamTracker: Bool = false) {
         let song = songList[currentSubsong]
         player = ST3Player(module, card: card, order: song.start, adlib: song.adLib && !ST3Player.repeatsReferenceSlips,
                            firstPlayedBy: firstPlayedBy, songNumber: song.number, asScreamTracker: asScreamTracker)
+        tellCardsOfMuted()
         tickFrames = 0
         tickPosition = 0
         levels.clear()

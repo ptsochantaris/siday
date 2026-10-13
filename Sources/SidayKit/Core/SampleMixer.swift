@@ -84,6 +84,8 @@ struct SampleMixer: ~Copyable {
     private var voices: [Voice]
     private var volumes: [Float], sides: [Float], rates: [Double]
     private var peaks: [Float]
+    /// The channels that are left out of the sound: they play on, and are not added in.
+    private var muted: [Bool]
     /// How far a voice's loudness moves in one sample of output, at most: all the way in two
     /// thousandths of a second.
     private static let ramp: Float = 1 / (0.002 * Float(outputSampleRate))
@@ -95,6 +97,7 @@ struct SampleMixer: ~Copyable {
         sides = [Float](repeating: 0, count: channels)
         rates = [Double](repeating: 0, count: channels)
         peaks = [Float](repeating: 0, count: channels)
+        muted = [Bool](repeating: false, count: channels)
     }
 
     // MARK: What a player tells it
@@ -136,6 +139,12 @@ struct SampleMixer: ~Copyable {
         volumes[channel] = max(0, min(1, volume))
         sides[channel] = max(-1, min(1, side))
         setGains(channel)
+    }
+
+    /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each channel, true for one not to be heard; a channel with no mark is heard.
+    mutating func setMuted(_ muted: [Bool]) {
+        for channel in 0 ..< channels { self.muted[channel] = channel < muted.count && muted[channel] }
     }
 
     private mutating func setStep(_ channel: Int) {
@@ -188,6 +197,8 @@ struct SampleMixer: ~Copyable {
         var voice = voices[index]
         var peak: Float = 0
         let scale: Float = 1 / 32768
+        // (A channel's two voices are both its own: the note, and the one before it dying away.)
+        let heard = !muted[index < channels ? index : index - channels]
         for i in 0 ..< count {
             if voice.nowLeft != voice.left { voice.nowLeft += max(-Self.ramp, min(Self.ramp, voice.left - voice.nowLeft)) }
             if voice.nowRight != voice.right { voice.nowRight += max(-Self.ramp, min(Self.ramp, voice.right - voice.nowRight)) }
@@ -200,8 +211,10 @@ struct SampleMixer: ~Copyable {
             // A curve through the four samples about the place.
             let a = Self.tap(sound, at - 1), b = Self.tap(sound, at), c = Self.tap(sound, at + 1), d = Self.tap(sound, at + 2)
             let value = (b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)))) * scale
-            left[i] += value * voice.nowLeft
-            right[i] += value * voice.nowRight
+            if heard {
+                left[i] += value * voice.nowLeft
+                right[i] += value * voice.nowRight
+            }
             let swing = abs(value) * (voice.nowLeft + voice.nowRight)
             if swing > peak { peak = swing }
 

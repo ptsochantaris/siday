@@ -90,10 +90,19 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// The channels left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        player.setMuted(muted)
+    }
+
     /// - Parameter asFastTracker: as the player this is ported from plays the file, for `renderRaw`.
     private func restart(asFastTracker: Bool = false) {
         let song = songList[currentSubsong]
         player = FT2Player(module, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asFastTracker: asFastTracker)
+        player.setMuted(muted)
         tickFrames = 0
         tickPosition = 0
         loopCount = 0

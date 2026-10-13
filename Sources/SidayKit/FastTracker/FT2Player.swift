@@ -24,6 +24,8 @@ struct FT2Voice {
     /// the three numbers that make one and the last two samples that came out of it.
     var filtered = false
     var filterA0: Float = 0, filterB0: Float = 0, filterB1: Float = 0, filterY1: Float = 0, filterY2: Float = 0
+    /// True for a voice of a channel that is left out of the sound: it plays on, and is not heard.
+    var muted = false
 }
 
 /// FastTracker 2's replayer and mixer, playing a module: the replayer is in `FT2Replayer.swift`, and
@@ -64,6 +66,9 @@ final class FT2Player {
     private var chnReloc: [Int]
     /// A tick of sound, left and right in turn, at 256 times the size it goes out at.
     let mixBuffer: UnsafeMutablePointer<Int32>
+    /// A tick that is not heard, for the voices of channels that are left out of the sound to be
+    /// mixed into as ever: it is there once a channel has been left out. See `setMuted`.
+    private var unheard: UnsafeMutablePointer<Int32>?
     /// For the lights: how loud each channel was in the tick last made.
     var levels: TickLevels
     /// And what each is playing.
@@ -162,6 +167,7 @@ final class FT2Player {
     deinit {
         CI.deallocate()
         mixBuffer.deallocate()
+        unheard?.deallocate()
         visited.deallocate()
     }
 
@@ -337,6 +343,21 @@ final class FT2Player {
 
     // MARK: Mixing
 
+    /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each channel, true for one not to be heard; a channel with no mark is heard. Both of a
+    /// channel's voices are its own, the note and the one before it fading out.
+    ///
+    /// A voice that is left out is mixed like any other, into a tick of its own that goes nowhere,
+    /// so that the mixing itself has nothing to ask of each sample and is as fast as it was.
+    func setMuted(_ muted: [Bool]) {
+        for i in 0 ..< stm.count * 2 { CI[i].muted = i >> 1 < muted.count && muted[i >> 1] }
+        if unheard == nil, muted.contains(true) {
+            let tick = UnsafeMutablePointer<Int32>.allocate(capacity: (Self.mostSamplesPerTick + 1) * 2)
+            tick.initialize(repeating: 0, count: (Self.mostSamplesPerTick + 1) * 2)
+            unheard = tick
+        }
+    }
+
     /// Runs a tick of the song without making its sound. True unless the tick began a row that has
     /// been played before.
     func runSilentTick() -> Bool {
@@ -415,6 +436,8 @@ final class FT2Player {
         _ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32, _ linear: UnsafePointer<T>, _ reverse: UnsafePointer<T>?, shift: Int32
     ) {
         var audioMix = mixBuffer
+        // (A voice of a channel that is left out of the sound is mixed where it is not heard.)
+        if v.pointee.muted, let unheard { audioMix = unheard }
         var realPos = v.pointee.SPos
         var pos = v.pointee.SPosDec
         var mixBuffPos: UInt16 = (32768 + 96) - 8

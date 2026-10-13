@@ -64,6 +64,8 @@ final class ST2Player {
         /// For the lights: the least and the most it has put into the mix of late.
         var low = 0, high = 0
         var struck = false
+        /// True for a channel that is left out of the sound: it plays on, and is not added in.
+        var muted = false
     }
 
     private let module: ST2Module
@@ -385,7 +387,7 @@ final class ST2Player {
                     let byte = at < channels[i].smpCount ? Int(Int8(bitPattern: module.sound[channels[i].smpBase + at])) : 0
                     // (The high half of the product, which for a sample below the middle rounds away from it.)
                     let level = (Int(channels[i].volumeMix) * byte) >> 8
-                    mix += level
+                    if !channels[i].muted { mix += level }
                     if level < channels[i].low { channels[i].low = level }
                     if level > channels[i].high { channels[i].high = level }
                 }
@@ -402,6 +404,12 @@ final class ST2Player {
         }
 
         return UInt8(truncatingIfNeeded: mix) &+ 128
+    }
+
+    /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each channel, true for one not to be heard; a channel with no mark is heard.
+    func setMuted(_ muted: [Bool]) {
+        for i in 0 ..< ST2Module.channels { channels[i].muted = i < muted.count && muted[i] }
     }
 
     /// Plays one tick in silence, and says how many samples it would have lasted.

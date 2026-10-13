@@ -80,8 +80,17 @@ public final class Composer669Renderer: Renderer {
         restart()
     }
 
+    /// The channels left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        player.mixer.setMuted(muted)
+    }
+
     private func restart() {
         player = Composer669Player(module, order: songList[currentSubsong].start)
+        player.mixer.setMuted(muted)
         tickFrames = 0
         tickPosition = 0
         remainder = 0

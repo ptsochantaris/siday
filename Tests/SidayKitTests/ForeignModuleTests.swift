@@ -90,6 +90,40 @@ private func mtm(rows: [Int: [UInt8]] = [0: [24 << 2, 0x10, 0]], second: [Int: [
     #expect(loudest(mono.left) > 0.02)
 }
 
+/// How loud a player says each of its voices has been since it was last asked.
+private func levels(_ renderer: any Renderer) -> [Float] {
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return levels
+}
+
+@Test func mtmChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    // A note on the first channel, hard left, and the octave above on the second, on the right:
+    // another tracker's module is played by FastTracker's mixer, and its channels are left out there.
+    let both = mtm(second: [0: [36 << 2, 0x10, 0]])
+    let whole = try TuneLoader.load(both, format: .mtm, options: inStereo)
+    let wholeSound = stereo(whole, seconds: 0.5), wholeLevels = levels(whole)
+    #expect(loudest(wholeSound.left) > 0.05 && loudest(wholeSound.right) > 0.05)
+
+    // The second left out: the tune without its note, to the sample, and nothing on the right.
+    let alone = stereo(try TuneLoader.load(mtm(), format: .mtm, options: inStereo), seconds: 0.5)
+    let renderer = try TuneLoader.load(both, format: .mtm, options: inStereo)
+    renderer.setMuted([false, true])
+    let without = stereo(renderer, seconds: 0.5)
+    #expect(without == alone && loudest(without.right) == 0)
+    #expect(levels(renderer) == wholeLevels && wholeLevels[1] > 0.2)
+
+    // The mark lasts when the song is started again, and with none the sound is what it was.
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == without)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == wholeSound)
+    renderer.setMuted([true, true])
+    renderer.select(subsong: 0)
+    #expect(loudest(stereo(renderer, seconds: 0.5).left) == 0)
+}
+
 @Test func mtmChannelStaysWhereACommandPutsIt() throws {
     // E8F on the first row puts the first channel hard right, and it is still there for a note
     // struck later with nothing said, which in FastTracker's own files would go back to the

@@ -212,6 +212,43 @@ private let row = 6.0 * 477 / 23863
     #expect(abs(pitches[1] - ChannelPitch.note(ofRate: 8287)) < 0.05 && pitches[0] == 0)
 }
 
+@Test func stmChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    /// Half a second of what is heard, which is the same on both sides, and how loud each channel was said to be.
+    func played(_ renderer: any Renderer) -> (sound: [Float], levels: [Float]) {
+        var buffer = [Float](repeating: 0, count: 24000 * 2), levels = [Float](repeating: 0, count: 4)
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 24000) }
+        renderer.takeChannelLevels(into: &levels)
+        return (stride(from: 0, to: buffer.count, by: 2).map { buffer[$0] }, levels)
+    }
+    // A note on the first channel and the octave above on the second; and the first alone.
+    let both = stm([[(0, 0, .note()), (0, 1, .note(0x30))]])
+    let whole = played(try TuneLoader.load(both, format: .stm))
+    let alone = played(try TuneLoader.load(stm([[(0, 0, .note())]]), format: .stm))
+    #expect(whole.levels[0] > 0.5 && whole.levels[1] > 0.5 && whole.sound != alone.sound)
+
+    // The second left out: the tune without its note, to the sample (the four channels are added
+    // in whole numbers), and the channel is said to be as loud as it was.
+    let renderer = try #require(try TuneLoader.load(both, format: .stm) as? STMRenderer)
+    renderer.setMuted([false, true])
+    let without = played(renderer)
+    #expect(without.sound == alone.sound && without.levels == whole.levels)
+
+    // A song started again is started without the channel, and Scream Tracker's own samples are
+    // made without it; with it brought back, the sound is as it ever was.
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == without.sound)
+    #expect(renderer.renderRaw(frames: 12000) == (try #require(try TuneLoader.load(stm([[(0, 0, .note())]]), format: .stm) as? STMRenderer)).renderRaw(frames: 12000))
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == whole.sound)
+
+    // Every channel left out is silence.
+    renderer.setMuted([true, true, true, true])
+    renderer.select(subsong: 0)
+    let none = played(renderer)
+    #expect(none.sound.allSatisfy { $0 == 0 } && none.levels == whole.levels)
+}
+
 @Test func stmFileThatIsCutOrDamagedIsReadOrRefused() throws {
     let whole = stm([[(0, 0, .note(0x20, sample: 1, volume: 40, "H", 0x47)), (1, 1, .note(0x3B, sample: 2, volume: 65, "J", 0x37)), (2, 0, .command("A", 0x1F))], [(0, 2, .note())]],
                     orders: [0, 1, 9, 98], sounds: [Sound(), Sound(frames: [Int8](repeating: 60, count: 300), loop: (200, 9000))])

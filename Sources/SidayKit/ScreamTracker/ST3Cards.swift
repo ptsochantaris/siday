@@ -23,6 +23,9 @@ final class ST3Cards {
         var LOff: UInt16 = 0, ROff: UInt16 = 0
         var SVRI: UInt16 = 0, SVLI: UInt16 = 0, SVSI: UInt16 = 0, SVEI: UInt16 = 0
         var SFCI: UInt16 = 1 << 9
+        /// All ones, or none for a voice of a channel that is left out of the sound: it plays on,
+        /// and what it would add to the sound is made nothing by this.
+        var heard: Int32 = -1
         /// For the lights: the channel the voice was last given to, and the lowest and highest its
         /// sample has been of late.
         var owner = -1
@@ -83,6 +86,9 @@ final class ST3Cards {
     // The Sound Blaster Pro.
     private let sbVoices: UnsafeMutablePointer<SBVoice>
     private let postTable: UnsafeMutablePointer<Int8>
+
+    /// The channels left out of the sound, a bit for each of the sixteen.
+    private var muted: UInt32 = 0
 
     init(card: ST3Card, module: ST3Module, stereo: Bool) {
         self.card = card
@@ -162,6 +168,25 @@ final class ST3Cards {
         voices.deallocate()
         sbVoices.deallocate()
         postTable.deallocate()
+    }
+
+    /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. A bit for
+    /// each of the card's sixteen channels, set for one not to be heard.
+    ///
+    /// How it is done is shaped by the compiler. `render`, with the making of either card's sample
+    /// inside it, is as much as will be kept in one piece: a test of each voice there ("is this
+    /// one left out?") and one of the two is made a call of, for every sample, at a few hundredths
+    /// of the player's speed. So a GUS's voice has an `&` on each side and no test, and a Sound
+    /// Blaster's channels are added up as ever, with what is not to be heard taken away first.
+    func setMuted(_ channels: UInt32) {
+        muted = channels
+        // A GUS's voices are their channels': the note's, and the one's before it sliding away.
+        // (A Sound Blaster's channels are looked up as they are mixed: see `sbMutedPart`.)
+        for i in 0 ..< 32 { voices[i].heard = isMuted(voices[i].owner) ? 0 : -1 }
+    }
+
+    private func isMuted(_ channel: Int) -> Bool {
+        channel >= 0 && channel < 16 && muted & (1 << UInt32(channel)) != 0
     }
 
     // MARK: The GUS's registers
@@ -315,6 +340,7 @@ final class ST3Cards {
         ch.aguschannel = Int8(voicetry)
         select(Int(voicetry))
         voices[gv].owner = Int(ch.channelnum)
+        voices[gv].heard = isMuted(Int(ch.channelnum)) ? 0 : -1
         if ch.m_end == 0 {
             voiceused[Int(ch.aguschannel)] = -1
             ch.aguschannel = -1
@@ -378,8 +404,9 @@ final class ST3Cards {
                     if smp > v.pointee.high { v.pointee.high = smp }
                     let volL = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.LOff))))
                     let volR = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.ROff))))
-                    left &+= (smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))
-                    right &+= (smp &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))
+                    // (A voice of a channel that is left out of the sound adds nothing to it.)
+                    left &+= ((smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))) & v.pointee.heard
+                    right &+= ((smp &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard
                     v.pointee.SA_frac &+= v.pointee.SFCI
                     v.pointee.SA += Int(v.pointee.SA_frac >> 9)
                     v.pointee.SA_frac &= (1 << 9) - 1
@@ -406,9 +433,47 @@ final class ST3Cards {
         return (Float(max(-32768, min(32767, left))) * (1.0 / 32768.0), Float(max(-32768, min(32767, right))) * (1.0 / 32768.0))
     }
 
+    /// What the channels left out of the sound are about to add to the two sides of a Sound
+    /// Blaster's next sample: what `sbSample` will make of each of them, worked out before it does,
+    /// for it to take away. The two are to be kept alike. It is done so, and only when there is
+    /// such a channel, so that the mixing itself asks nothing more of each channel than it did.
+    @inline(never)
+    private func sbMutedPart() -> (UInt16, UInt16) {
+        var left: UInt16 = 0, right: UInt16 = 0
+        for i in 0 ..< 16 where muted & (1 << UInt32(i)) != 0 {
+            let ch = sbVoices + i
+            if ch.pointee.speed == 0 || ch.pointee.pos == 0xFFFF_FFFF || ch.pointee.base < 0 || ch.pointee.pos >= ch.pointee.end { continue }
+            let at = ch.pointee.base &+ Int(truncatingIfNeeded: ch.pointee.pos)
+            let byte = at >= 0 && at < samplesCount ? Int(samples[at] >> 8) : 0
+            let smp = UInt16(truncatingIfNeeded: (byte * Int(Self.xvol[min(64, Int(ch.pointee.vol))])) >> 8)
+            if stereo {
+                let mixtype = ch.pointee.mixtype
+                if mixtype == 0 || mixtype == 2 {
+                    if i >= 8 { left &+= smp } else { right &+= smp }
+                } else if mixtype == 1 || mixtype == 3 {
+                    if i < 8 { left &+= smp } else { right &+= smp }
+                } else {
+                    left &+= smp
+                    right &+= smp
+                }
+            } else {
+                left &+= smp
+                right &+= smp
+            }
+        }
+        return (left, right)
+    }
+
     /// One sample of what Scream Tracker mixes for a Sound Blaster Pro.
     @inline(__always) private func sbSample() -> (Float, Float) {
         var left: UInt16 = 1024, right: UInt16 = 1024
+        // Every channel is added in below, as ever: what those left out of the sound will add is
+        // taken away here first, which comes to the same sum without them.
+        if muted != 0 {
+            let unheard = sbMutedPart()
+            left &-= unheard.0
+            right &-= unheard.1
+        }
         for i in 0 ..< 16 {
             let ch = sbVoices + i
             if ch.pointee.speed == 0 || ch.pointee.pos == 0xFFFF_FFFF || ch.pointee.base < 0 || ch.pointee.pos >= ch.pointee.end { continue }

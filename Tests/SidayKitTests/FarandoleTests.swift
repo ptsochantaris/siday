@@ -165,6 +165,46 @@ private let row = 4.0 * 37414 / 1_193_182
     #expect(abs(crossings(wavers.left, 1, 1.5) - 523) <= 3)
 }
 
+@Test func farChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    var options = LoadOptions()
+    options.stereo = .abc
+    /// Half a second of what is heard, and how loud each channel was said to be.
+    func played(_ renderer: any Renderer) -> (left: [Float], right: [Float], levels: [Float]) {
+        var buffer = [Float](repeating: 0, count: 24000 * 2), levels = [Float](repeating: 0, count: renderer.channelCount)
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 24000) }
+        renderer.takeChannelLevels(into: &levels)
+        return (stride(from: 0, to: buffer.count, by: 2).map { buffer[$0] }, stride(from: 1, to: buffer.count, by: 2).map { buffer[$0] }, levels)
+    }
+    func fresh(_ file: [UInt8]) throws -> any Renderer { try TuneLoader.load(file, format: .far, options: options) }
+    // A note on the first channel, hard left, and the octave above on the second, hard right; and
+    // the first alone.
+    let both = far([[(0, 0, .note()), (0, 1, .note(37))]], pans: [0, 15])
+    let whole = played(try fresh(both)), alone = played(try fresh(far([[(0, 0, .note())]], pans: [0, 15])))
+    #expect(whole.levels[0] > 0.2 && whole.levels[1] > 0.2 && whole.right.map(abs).max()! > 0.01)
+
+    // The second left out: the tune without its note, to the sample, with nothing on the right,
+    // and the channel is said to be as loud as it was.
+    let renderer = try fresh(both)
+    renderer.setMuted([false, true])
+    let without = played(renderer)
+    #expect(without.left == alone.left && without.right == alone.right && without.right.allSatisfy { $0 == 0 })
+    #expect(without.levels == whole.levels)
+
+    // A song started again is started without the channel; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(played(renderer).left == without.left)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    let again = played(renderer)
+    #expect(again.left == whole.left && again.right == whole.right)
+
+    // Every channel left out is silence.
+    renderer.setMuted([Bool](repeating: true, count: 16))
+    renderer.select(subsong: 0)
+    let none = played(renderer)
+    #expect(none.left.allSatisfy { $0 == 0 } && none.right.allSatisfy { $0 == 0 } && none.levels == whole.levels)
+}
+
 @Test func farFileThatIsCutOrDamagedIsReadOrRefused() throws {
     let whole = far([[(0, 0, .note(25, sample: 0, volume: 15, 0x34)), (1, 1, .note(40, sample: 1, volume: 9, 0x43)), (2, 0, .command(0xFF)), (3, 2, .command(0xDF))], [(0, 2, .note())]],
                     rows: [10, 3], orders: [0, 1, 7], restart: 1, sounds: [Sound(), Sound(frames: [Int16](repeating: 60, count: 300), sixteen: true)])

@@ -302,3 +302,96 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     // A file that ends before its second sample.
     #expect(try shortfalls(Array(s3m().dropLast(0x80))) == ["The file is cut short: one of its samples is missing, and is silent."])
 }
+
+/// How loud a player says each of its voices has been since it was last asked.
+private func levels(_ renderer: any Renderer) -> [Float] {
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return levels
+}
+
+@Test func s3mChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    // A note on each of the two channels, one of the left's and one of the right's, and the same
+    // tune with the first of them alone: on each of the two cards, and both for a file that asks
+    // for stereo and for one that does not.
+    let both: [UInt8] = [0x20, 0x40, 1, 0x21, 0x50, 2], first: [UInt8] = [0x20, 0x40, 1]
+    for (card, inStereo) in [(ST3Card.gus, true), (.gus, false), (.sb, true), (.sb, false)] {
+        var options = LoadOptions()
+        options.stereo = .abc
+        options.s3mCard = card
+        func fresh(_ row: [UInt8]) throws -> any Renderer { try TuneLoader.load(s3m(row: row, stereo: inStereo), format: .s3m, options: options) }
+        let whole = try fresh(both)
+        #expect(whole.channelCount == 2)
+        let wholeSound = stereoSound(whole, seconds: 0.5), wholeLevels = levels(whole)
+        #expect(wholeLevels[0] > 0.2 && wholeLevels[1] > 0.2)
+
+        // The second left out: what is heard is the tune without its note, to the sample (either
+        // card adds its channels up in whole numbers), and the channel is said to be as loud as it was.
+        let alone = stereoSound(try fresh(first), seconds: 0.5)
+        let renderer = try fresh(both)
+        renderer.setMuted([false, true])
+        let without = stereoSound(renderer, seconds: 0.5)
+        #expect(without == alone && without != wholeSound)
+        #expect(levels(renderer) == wholeLevels)
+
+        // A song started again is started without the channel; and with it brought back, as it ever was.
+        renderer.select(subsong: 0)
+        #expect(stereoSound(renderer, seconds: 0.5) == without)
+        renderer.setMuted([])
+        renderer.select(subsong: 0)
+        #expect(stereoSound(renderer, seconds: 0.5) == wholeSound)
+
+        // Every channel left out is what a tune with no note in it is: silence on a GUS, and on a
+        // Sound Blaster whatever its eight bits rest at.
+        renderer.setMuted([true, true])
+        renderer.select(subsong: 0)
+        let none = stereoSound(renderer, seconds: 0.5)
+        #expect(none == stereoSound(try fresh([]), seconds: 0.5))
+        if card == .gus { #expect(none.left.allSatisfy { $0 == 0 } && none.right.allSatisfy { $0 == 0 }) }
+        #expect(levels(renderer) == wholeLevels)
+
+        // Left out while they play, the notes that are sounding go too: once the tick that was
+        // made already has been heard, a fiftieth of a second, there is no more than in that tune.
+        whole.setMuted([true, true])
+        let empty = try fresh([])
+        _ = stereoSound(empty, seconds: 0.5)
+        #expect(stereoSound(whole, seconds: 0.1).left[2000...] == stereoSound(empty, seconds: 0.1).left[2000...])
+    }
+}
+
+@Test func s3mAdLibVoiceLeftOutIsNotHeardAndPlaysOn() throws {
+    // A sample on the first channel, and on the second a note of the AdLib card's first voice.
+    func fresh(_ row: [UInt8]) throws -> any Renderer { try TuneLoader.load(s3m(row: row, fm: true), format: .s3m) }
+    let both: [UInt8] = [0x20, 0x40, 1, 0x21, 0x40, 2]
+    let whole = try fresh(both)
+    var sampled = [true, true]
+    whole.takeChannelsSampled(into: &sampled)
+    #expect(whole.channelCount == 2 && sampled == [true, false])
+    let wholeSound = stereoSound(whole, seconds: 0.5).left, wholeLevels = levels(whole)
+    #expect(wholeLevels[0] > 0.2 && wholeLevels[1] > 0.05)
+
+    // The card's voice left out, which the chip does for it: the sample is heard alone, and as
+    // loud as it is in any tune, the card being there still and giving out nothing.
+    let renderer = try fresh(both)
+    renderer.setMuted([false, true])
+    let sampleOnly = stereoSound(renderer, seconds: 0.5).left
+    let alone = stereoSound(try TuneLoader.load(s3m(), format: .s3m), seconds: 0.5).left
+    #expect(zip(sampleOnly, alone).allSatisfy { abs($0 - $1) < 0.0001 })
+    #expect(zip(sampleOnly, wholeSound).contains { abs($0 - $1) > 0.05 })
+    #expect(levels(renderer) == wholeLevels)
+
+    // The sample left out: the card's voice alone, to the sample.
+    renderer.setMuted([true, false])
+    renderer.select(subsong: 0)
+    #expect(stereoSound(renderer, seconds: 0.5).left == stereoSound(try fresh([0x21, 0x40, 2]), seconds: 0.5).left)
+    #expect(levels(renderer) == wholeLevels)
+
+    // Both left out is silence; and with neither, the sound is what it was.
+    renderer.setMuted([true, true])
+    renderer.select(subsong: 0)
+    #expect(stereoSound(renderer, seconds: 0.5).left.allSatisfy { $0 == 0 })
+    #expect(levels(renderer) == wholeLevels)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(stereoSound(renderer, seconds: 0.5).left == wholeSound)
+}

@@ -86,8 +86,17 @@ public final class STMRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// The channels left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        player.setMuted(muted)
+    }
+
     private func restart() {
         player = ST2Player(module, order: songList[currentSubsong].start)
+        player.setMuted(muted)
         for i in 0 ..< 16 { recent[i] = 0 }
         fraction = 0
         ticksSeen = 0
@@ -128,6 +137,7 @@ public final class STMRenderer: Renderer, ReferenceComparable {
     public func renderRaw(frames: Int) -> [Int16] {
         guard let module = try? ST2Module(data, asST2Play: true) else { return [] }
         let player = ST2Player(module)
+        player.setMuted(muted)
         return (0 ..< frames).map { _ in Int16(player.renderSample()) }
     }
 

@@ -209,6 +209,46 @@ private func ticks(_ file: [UInt8], _ count: Int, channel: Int = 0) throws -> [(
     #expect(try TuneLoader.load(file669([[(0, 0, .note())]], extended: true), format: .composer669).info.format == "UNIS 669")
 }
 
+@Test func composer669ChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    var options = LoadOptions()
+    options.stereo = .abc
+    /// Half a second of what is heard, and how loud each channel was said to be.
+    func played(_ renderer: any Renderer) -> (sound: (left: [Float], right: [Float]), levels: [Float]) {
+        let sound = stereo(renderer, seconds: 0.5)
+        var levels = [Float](repeating: 0, count: renderer.channelCount)
+        renderer.takeChannelLevels(into: &levels)
+        return (sound, levels)
+    }
+    func fresh(_ file: [UInt8]) throws -> any Renderer { try TuneLoader.load(file, format: .composer669, options: options) }
+    // A note on the first channel, to the left, and the octave above on the second, to the right;
+    // and the first alone.
+    let both = file669([[(0, 0, .note()), (0, 1, .note(36))]])
+    let whole = played(try fresh(both)), alone = played(try fresh(file669([[(0, 0, .note())]])))
+    #expect(whole.levels[0] > 0.2 && whole.levels[1] > 0.2 && whole.sound != alone.sound)
+
+    // The second left out: the tune without its note, to the sample, and the channel is said to be
+    // as loud as it was.
+    let renderer = try fresh(both)
+    renderer.setMuted([false, true])
+    let without = played(renderer)
+    #expect(without.sound == alone.sound && without.levels == whole.levels)
+
+    // A song started again is started without the channel; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == without.sound)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == whole.sound)
+
+    // A note that another takes the place of dies away on a voice of its own, which is its
+    // channel's too; and every channel left out is silence.
+    let twice = try fresh(file669([[(0, 0, .note()), (1, 0, .note(36)), (0, 1, .note(36))]]))
+    twice.setMuted([true, true, true, true, true, true, true, true])
+    let none = played(twice)
+    #expect(none.sound.left.allSatisfy { $0 == 0 } && none.sound.right.allSatisfy { $0 == 0 })
+    #expect(none.levels[0] > 0.2 && none.levels[1] > 0.2)
+}
+
 @Test func composer669SaysWhatItLeavesOut() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .composer669).info.shortfalls }
     #expect(try shortfalls(file669([[(0, 0, .note(24, "a", 1)), (1, 0, .command("f", 3))]])).isEmpty)
