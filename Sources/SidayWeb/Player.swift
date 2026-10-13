@@ -545,10 +545,10 @@ final class Player {
         return value(of: .songs) == 0 && played.indices.contains(song) && !played[song]
     }
 
-    /// The next tune in the order. When a tune ends of its own accord at the end of the list, playing stops there.
+    /// The next tune in the order: of those the search finds, while there is a search. When a tune
+    /// ends of its own accord at the end of the list, playing stops there.
     func next(automatic: Bool = false) {
-        let place = orderPlace + 1
-        if place < order.count {
+        if let place = following() {
             play(order[place])
         } else if automatic {
             finished = true
@@ -557,8 +557,29 @@ final class Player {
     }
 
     func previous() {
-        let place = orderPlace - 1
-        if place >= 0 { play(order[place]) }
+        let place = orderPlace
+        if let before = order[..<max(0, place)].lastIndex(where: isListed) { play(order[before]) }
+    }
+
+    /// True for a tune that is in the list as it is shown: any tune, or one the search finds.
+    private func isListed(_ file: Int) -> Bool {
+        guard let found else { return true }
+        // (They are in order, and may be many.)
+        var low = 0, high = found.count
+        while low < high {
+            let middle = (low + high) / 2
+            if found[middle] < file { low = middle + 1 } else { high = middle }
+        }
+        return low < found.count && found[low] == file
+    }
+
+    /// Where in the order the tune after the playing one is: the next that the list shows. While a
+    /// search is on, the list is what the search finds, and playing goes through that and stops at
+    /// its end; and from a tune that the search does not find, it goes to the first that it does.
+    private func following() -> Int? {
+        let place = orderPlace
+        let from = found != nil && !(current.map(isListed) ?? false) ? 0 : place + 1
+        return from < order.count ? order[from...].firstIndex(where: isListed) : nil
     }
 
     /// Plays a song of the tune that is loaded, counted from 0.

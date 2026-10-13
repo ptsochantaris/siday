@@ -455,7 +455,10 @@ struct Playlist {
                 p(.class("empty")) { "Drop tunes, a whole folder of them, or a playlist with its tunes, anywhere on the page, or add them with the buttons below. They stay on your computer." }
             } else {
                 div(.class("search")) {
-                    input(.type(.search), .placeholder("Search \(player.files.count) tunes"))
+                    // (What is typed is part of a file's name, which nothing is to put right.)
+                    input(.type(.search), .placeholder("Search \(player.files.count) tunes"),
+                          .custom(name: "autocorrect", value: "off"), .custom(name: "autocapitalize", value: "off"),
+                          .custom(name: "autocomplete", value: "off"), .custom(name: "spellcheck", value: "false"))
                         .bindValue(#Binding(player.search))
                     if player.found != nil {
                         span(.class("hint")) { "\(player.listed) found" }
