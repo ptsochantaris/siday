@@ -363,3 +363,135 @@ private func first(ofLine line: Int, speed: Int = 3) -> Int { speed + line * spe
         _ = renderer.registerTicks(seconds: 3)
     }
 }
+
+// MARK: Tracks left out
+
+/// What a player makes of its tune from where it is, the two sides apart, and what it then says of
+/// each track: how loud it has been, and its pitch.
+private func listened(_ renderer: any Renderer, seconds: Double = 0.5) -> (left: [Float], right: [Float], levels: [Float], pitches: [Float]) {
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    var pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    renderer.takeChannelLevels(into: &levels)
+    renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+    return (stride(from: 0, to: frames * 2, by: 2).map { buffer[$0] }, stride(from: 1, to: frames * 2, by: 2).map { buffer[$0] }, levels, pitches)
+}
+
+private func loudest(_ samples: [Float]) -> Float { samples.map(abs).max() ?? 0 }
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity }
+
+/// The two sides as far apart as the Amiga has them: a voice is on one of them alone.
+private func apartAsOnAnAmiga() -> LoadOptions {
+    var options = LoadOptions()
+    options.stereo = .abc
+    options.amigaSeparation = 1
+    return options
+}
+
+@Test func oktalyzerTrackOfAWholeVoiceLeftOutIsNotHeardAndPlaysOn() throws {
+    // The first voice is split, so the third track is the second voice's, which the Amiga has on
+    // the right, and the fifth is the fourth voice's, on the left. A note on each.
+    let file = module([Entry(line: 0, track: 2, note: 13, instrument: 0), Entry(line: 0, track: 4, note: 25, instrument: 0)],
+                      split: [true, false, false, false])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .okt, options: apartAsOnAnAmiga()) }
+    let whole = listened(try fresh())
+    #expect(loudest(whole.left) > 0.2 && loudest(whole.right) > 0.2)
+
+    // The third track left out: the right is silent, the left is what it was (to the last place
+    // or two of a number: the two sides are brought together and parted again on the way out), and
+    // the track is still said to be as loud as it was, at the pitch it was.
+    let renderer = try fresh()
+    renderer.setMuted([false, false, true])
+    let without = listened(renderer)
+    #expect(loudest(without.right) == 0)
+    #expect(apart(without.left, whole.left) < 1e-5)
+    #expect(without.levels == whole.levels && without.levels[2] > 0.2)
+    #expect(without.pitches == whole.pitches && without.pitches[2] > 0)
+
+    // A song started again is started without the track; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    let again = listened(renderer)
+    #expect(again.left == without.left && again.right == without.right)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    let back = listened(renderer)
+    #expect(back.left == whole.left && back.right == whole.right)
+
+    // Every track left out is silence, and the lights are as they were.
+    let silent = try fresh()
+    silent.setMuted([true, true, true, true, true])
+    let nothing = listened(silent)
+    #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
+    #expect(nothing.levels == whole.levels)
+}
+
+@Test func oktalyzerTrackOfASplitVoiceIsLeftOutOfWhatIsMixed() throws {
+    // The two tracks of the first voice: the C of 428 on the ramp that goes up, and the C an octave
+    // above it on the one that goes down (see `oktalyzerTwoTracksAreMixedAtThePeriodOfTheHigherNote`).
+    // And a note on the third track, which is the second voice's, on the other side.
+    let file = module([Entry(line: 0, track: 0, note: 13, instrument: 0), Entry(line: 0, track: 1, note: 25, instrument: 2),
+                       Entry(line: 0, track: 2, note: 13, instrument: 0)], split: [true, false, false, false])
+    func told(_ muted: [Bool]) throws -> [OktalyzerTick] {
+        let renderer = try OktalyzerRenderer(file, options: LoadOptions())
+        renderer.setMuted(muted)
+        return renderer.registerTicks(seconds: 2, wordsSeen: [[Int]](repeating: [0], count: 40))
+    }
+    let whole = try told([])
+
+    // The higher note left out: the voice is still played at its period, 166 words to a tick, and
+    // the lower is stretched to it as it was, each of its bytes used twice. Nothing is added to it.
+    let lower = try told([false, true])
+    #expect(lower[2].mixed[0] == (0 ..< 332).map { Int8(bitPattern: ramp[$0 / 2]) } && written(lower[3], 0, .period) == [214])
+    // When the higher note is over the lower goes on from where it would have: the note left out
+    // was played, for all that it was not heard.
+    #expect(written(lower[4], 0, .period) == [428] && Array(lower[3].mixed[0].prefix(4)) == ramp[166 ..< 170].map { Int8(bitPattern: $0) })
+
+    // The lower left out: the higher note's 128 words, as they are, and silence after them. And
+    // then the lower by itself, at its own period, is silence.
+    let higher = try told([true, false])
+    #expect(higher[2].mixed[0] == falling.map { Int8(bitPattern: $0) } + [Int8](repeating: 0, count: 76))
+    #expect(written(higher[4], 0, .period) == [428] && higher[3].mixed[0] == [Int8](repeating: 0, count: 166))
+
+    // Both left out is silence, of the same length. And whatever is left out, the chip is told
+    // the same things at the same times: only what is mixed is different.
+    let neither = try told([true, true])
+    #expect(neither[2].mixed[0] == [Int8](repeating: 0, count: 332))
+    #expect(whole[2].mixed[0] != lower[2].mixed[0] && whole[2].mixed[0] != higher[2].mixed[0])
+    func said(_ ticks: [OktalyzerTick]) -> [String] {
+        ticks.map { tick in
+            "\(tick.position) \(tick.line) \(tick.tickOfLine) \(tick.mixed.map { $0.count })" + tick.writes.map { " \($0.voice) \($0.register) \($0.value)" }.joined()
+        }
+    }
+    #expect(said(lower) == said(whole) && said(higher) == said(whole) && said(neither) == said(whole))
+
+    // As it is heard. With one of the two left out the voice still sounds, and not as it did; the
+    // voice on the other side is what it was; and every track is said to be as loud as it was.
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .okt, options: apartAsOnAnAmiga()) }
+    let heard = listened(try fresh())
+    #expect(loudest(heard.left) > 0.1 && loudest(heard.right) > 0.2)
+    for muted in [[false, true], [true, false]] {
+        let renderer = try fresh()
+        renderer.setMuted(muted)
+        let without = listened(renderer)
+        #expect(loudest(without.left) > 0.1 && apart(without.left, heard.left) > 0.05)
+        #expect(apart(without.right, heard.right) < 1e-5)
+        #expect(without.levels == heard.levels && without.levels[0] > 0.2 && without.levels[1] > 0.2)
+        #expect(without.pitches == heard.pitches)
+        renderer.select(subsong: 0)
+        let again = listened(renderer)
+        #expect(again.left == without.left && again.right == without.right)
+    }
+    // With both left out the voice is silent, and with them back it is as it ever was.
+    let renderer = try fresh()
+    renderer.setMuted([true, true])
+    let without = listened(renderer)
+    #expect(loudest(without.left) == 0 && apart(without.right, heard.right) < 1e-5 && without.levels == heard.levels)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    let back = listened(renderer)
+    #expect(back.left == heard.left && back.right == heard.right)
+}

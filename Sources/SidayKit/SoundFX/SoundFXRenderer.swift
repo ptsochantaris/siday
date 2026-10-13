@@ -127,9 +127,18 @@ public final class SoundFXRenderer: Renderer {
         restart()
     }
 
+    /// The voices left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        player.paula.setMuted(muted)
+    }
+
     private func restart() {
         let song = songList[currentSubsong]
         player = SoundFXPlayer(module, model: model, first: song.first, end: song.end)
+        player.paula.setMuted(muted)
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0

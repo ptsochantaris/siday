@@ -103,9 +103,18 @@ public final class OktalyzerRenderer: Renderer {
         restart()
     }
 
+    /// The tracks left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        player.setMuted(muted)
+    }
+
     private func restart() {
         let song = songList[currentSubsong]
         player = OktalyzerPlayer(module, model: model, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
+        player.setMuted(muted)
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0

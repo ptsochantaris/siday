@@ -77,6 +77,8 @@ struct MEDMixer: ~Copyable {
         var loudness: Float = 0
         var rate = 0
         var struck = false
+        /// True for a track that is left out of the sound: it plays on, and is not added in.
+        var muted = false
         var peak: Float = 0
     }
 
@@ -84,6 +86,8 @@ struct MEDMixer: ~Copyable {
     private let memorySize: Int
     private let channels: UnsafeMutablePointer<Channel>
     let count: Int
+    /// True if any of the tracks is left out of the sound.
+    private var anyMuted = false
     private let stereo: Bool
     /// What every channel is divided by, so that all of them at their loudest do not overflow.
     private let share: Float
@@ -299,6 +303,17 @@ struct MEDMixer: ~Copyable {
         cross = separation > 0 ? -part : part
     }
 
+    /// Leaves tracks out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each track, true for one not to be heard; a track with no mark is heard. A track left out
+    /// is not added to the others, and so has no part in the echo, which is of them all together.
+    mutating func setMuted(_ muted: [Bool]) {
+        anyMuted = false
+        for track in 0 ..< count {
+            channels[track].muted = track < muted.count && muted[track]
+            if channels[track].muted { anyMuted = true }
+        }
+    }
+
     // MARK: The lights
 
     /// Where a track lies between the two sides, from -1 on the left to 1 on the right.
@@ -440,9 +455,17 @@ struct MEDMixer: ~Copyable {
     /// Makes `count` samples of both sides.
     mutating func render(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
         guard count > 0 else { return }
-        left.update(repeating: 0, count: count)
-        right.update(repeating: 0, count: count)
-        for track in 0 ..< self.count { mix(track, left: left, right: right, count: count) }
+        // The tracks that are left out of the sound, if there are any, are mixed first, and what
+        // they came to is cleared away before the others are: so they move on and are measured as
+        // ever, and nothing of them is in what is heard, nor in the echo that is made of it.
+        // (Once round for those, if there are any, and then once for the others.)
+        var leftOut = anyMuted
+        repeat {
+            left.update(repeating: 0, count: count)
+            right.update(repeating: 0, count: count)
+            for track in 0 ..< self.count where channels[track].muted == leftOut { mix(track, left: left, right: right, count: count) }
+            leftOut.toggle()
+        } while !leftOut
 
         if echoKind != 0 {
             // What came out so long ago is added, quieter, to what comes out now: so it comes

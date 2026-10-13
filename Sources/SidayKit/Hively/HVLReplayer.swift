@@ -211,6 +211,8 @@ struct HVLReplayer: ~Copyable {
     private(set) var playedNote = false
     /// For the lights: which voices have had a note started on them, until `takeNotes`.
     private var struck = InlineArray<16, Bool>(repeating: false)
+    /// The voices that are left out of the sound: they play on, and are given to neither side.
+    private var muted = InlineArray<16, Bool>(repeating: false)
 
     /// - Parameter position: where in the list of positions to start.
     init(_ module: HVLModule, waves: AHXWaves, position start: UInt16 = 0) {
@@ -237,11 +239,12 @@ struct HVLReplayer: ~Copyable {
         visited.deallocate()
     }
 
-    /// Puts a voice somewhere between the speakers.
+    /// Puts a voice somewhere between the speakers. One that is left out of the sound is put
+    /// there too, and given to neither side: the mixer goes through it as through any other.
     @inline(__always) private mutating func place(_ v: Int, at pan: UInt32) {
         voices[v].pan = pan
-        voices[v].panLeft = UInt32(hvlPanLeft[Int(pan & 255)])
-        voices[v].panRight = UInt32(hvlPanRight[Int(pan & 255)])
+        voices[v].panLeft = muted[v] ? 0 : UInt32(hvlPanLeft[Int(pan & 255)])
+        voices[v].panRight = muted[v] ? 0 : UInt32(hvlPanRight[Int(pan & 255)])
     }
 
     /// Sixteen bits of a number that may not fit in them, as the tracker keeps it.
@@ -1088,6 +1091,15 @@ struct HVLReplayer: ~Copyable {
         for i in 0 ..< count {
             left[i] = max(-0x8000, min(0x7FFF, (left[i] &* gain) >> 8))
             right[i] = max(-0x8000, min(0x7FFF, (right[i] &* gain) >> 8))
+        }
+    }
+
+    /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each voice, true for one not to be heard; a voice with no mark is heard.
+    mutating func setMuted(_ muted: [Bool]) {
+        for v in 0 ..< channels {
+            self.muted[v] = v < muted.count && muted[v]
+            place(v, at: voices[v].pan)
         }
     }
 

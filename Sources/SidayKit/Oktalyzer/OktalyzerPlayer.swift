@@ -97,6 +97,8 @@ struct OktalyzerPlayer: ~Copyable {
         /// For the lights: how far it swung in what was last mixed, and whether a note has begun.
         var swing: Float = 0
         var struck = false
+        /// True for a track that is left out of what is mixed: it plays on, and is not added in.
+        var muted = false
     }
 
     private struct Voice {
@@ -514,6 +516,9 @@ struct OktalyzerPlayer: ~Copyable {
         voices[v].mixedWords = want
         let to = copy(lane, from: place, into: out, words: want)
         lane.swing = Self.swing(out, want * 2) * loudness
+        // (A track that is left out has been measured for its light, and is now taken out again:
+        // the voice plays silence for as long, at the period of the track's note.)
+        if lane.muted { for i in 0 ..< want * 2 { out[i] = 0 } }
         Self.take(UInt16(want), from: &lane, to: to)
     }
 
@@ -557,6 +562,8 @@ struct OktalyzerPlayer: ~Copyable {
                 }
             }
             other.swing = Self.swing(out, want * 2) * loudness
+            // (Left out, it is taken out again once measured, and the leader is added to silence.)
+            if other.muted { for i in 0 ..< want * 2 { out[i] = 0 } }
         }
 
         // The leader's sample is added: four bytes at a time as one number, for as much of it as
@@ -570,7 +577,10 @@ struct OktalyzerPlayer: ~Copyable {
             high = max(high, byte)
         }
         leader.swing = high > low ? Float(Int(high) - Int(low)) * loudness : 0
-        let longs = (have - have % 8) / 2
+        // A leader that is left out is measured and moved on as ever, and none of it is added: the
+        // voice still plays at its period, and the other track is still stretched to it.
+        let added = leader.muted ? 0 : have
+        let longs = (added - added % 8) / 2
         for i in 0 ..< longs {
             var sum: UInt32 = 0, add: UInt32 = 0
             for k in 0 ..< 4 {
@@ -580,7 +590,7 @@ struct OktalyzerPlayer: ~Copyable {
             sum &+= add
             for k in 0 ..< 4 { out[i * 4 + k] = Int8(bitPattern: UInt8(truncatingIfNeeded: sum >> UInt32((3 - k) * 8))) }
         }
-        for i in longs * 2 ..< have {
+        for i in longs * 2 ..< added {
             let sum = (UInt16(UInt8(bitPattern: out[i * 2])) << 8 | UInt16(UInt8(bitPattern: out[i * 2 + 1])))
                 &+ (UInt16(UInt8(bitPattern: sample(place + i * 2))) << 8 | UInt16(UInt8(bitPattern: sample(place + i * 2 + 1))))
             out[i * 2] = Int8(bitPattern: UInt8(sum >> 8))
@@ -797,6 +807,33 @@ struct OktalyzerPlayer: ~Copyable {
             }
         }
         return more
+    }
+
+    // MARK: Tracks left out
+
+    /// Leaves tracks out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each track, true for one not to be heard; a track with no mark is heard.
+    ///
+    /// The track of a whole voice is left out by the chip, as any voice of the Amiga's is. A track
+    /// of a split voice is left out where it joins the other, in what is mixed for the voice: so
+    /// the other is heard as it was, stretched as it was to the higher of the two notes, though that
+    /// note is the one left out. (What is not there is a byte of the one that overflowed into the
+    /// other's, which Oktalyzer's adding let happen.) With both its tracks left out the chip leaves
+    /// out the voice, which silences at once what was mixed for it before it was told.
+    mutating func setMuted(_ muted: [Bool]) {
+        func marked(_ track: Int) -> Bool { track < muted.count && muted[track] }
+        var chip = [false, false, false, false]
+        for v in 0 ..< 4 {
+            let track = voices[v].track
+            if voices[v].split {
+                voices[v].lanes.0.muted = marked(track)
+                voices[v].lanes.1.muted = marked(track + 1)
+                chip[v] = marked(track) && marked(track + 1)
+            } else {
+                chip[v] = marked(track)
+            }
+        }
+        paula.setMuted(chip)
     }
 
     // MARK: The lights

@@ -314,3 +314,57 @@ private let pitch = Paula.clockHz / 428 / 32
     #expect(left[4800...].count { abs($0 - 14336 * 127 / 128) <= 64 } > 4800)
     #expect(right.map(abs).max()! <= 1)
 }
+
+// MARK: Voices left out
+
+/// How loud a player says each voice has been, and its pitch.
+private func said(_ renderer: any Renderer) -> (levels: [Float], pitches: [Float]) {
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    var pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    renderer.takeChannelLevels(into: &levels)
+    renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+    return (levels, pitches)
+}
+
+private func loudest(_ samples: [Float]) -> Float { samples.map(abs).max() ?? 0 }
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity }
+
+@Test func ahxVoiceLeftOutIsNotHeardAndPlaysOn() throws {
+    // The note on the first voice, which the Amiga has on the left, and an octave above it on the
+    // second, on the right.
+    var options = LoadOptions()
+    options.stereo = .abc
+    options.amigaSeparation = 1
+    let file = tune(positions: [[0, 0, 0, 12, 1, 0, 1, 0]], tracks: [[0: played], empty])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .ahx, options: options) }
+    let first = try fresh()
+    let whole = stereo(first, seconds: 0.5), wholeSaid = said(first)
+    #expect(loudest(whole.left) > 0.15 && loudest(whole.right) > 0.15)
+
+    // The second voice left out: the right is silent, the left is what it was (to the last place
+    // or two of a number: the two sides are brought together and parted again on the way out), and
+    // the voice is still said to be as loud as it was, at the pitch it was.
+    let renderer = try fresh()
+    renderer.setMuted([false, true])
+    let without = stereo(renderer, seconds: 0.5), withoutSaid = said(renderer)
+    #expect(loudest(without.right) == 0)
+    #expect(apart(without.left, whole.left) < 1e-5)
+    #expect(withoutSaid.levels == wholeSaid.levels && withoutSaid.levels[1] > 0.9)
+    #expect(withoutSaid.pitches == wholeSaid.pitches && abs(withoutSaid.pitches[1] - 71.82) < 0.05)
+
+    // A song started again is started without the voice; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == without)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == whole)
+
+    // Every voice left out is silence, and the lights are as they were.
+    let silent = try fresh()
+    silent.setMuted([true, true, true, true])
+    let nothing = stereo(silent, seconds: 0.5)
+    #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
+    #expect(said(silent).levels == wholeSaid.levels)
+}

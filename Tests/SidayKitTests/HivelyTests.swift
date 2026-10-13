@@ -400,3 +400,79 @@ private func everything() -> [UInt8] {
     let all = try HVLRenderer(everything(), options: separate()).renderRaw(frames: 6 * 48000)
     #expect(MD5.hex(all.flatMap { [UInt8(truncatingIfNeeded: $0), UInt8(truncatingIfNeeded: $0 >> 8)] }) == "5b267d5689d933851152c025f8bb6b0c")
 }
+
+// MARK: Voices left out
+
+/// How loud a player says each voice has been, and its pitch.
+private func said(_ renderer: any Renderer) -> (levels: [Float], pitches: [Float]) {
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    var pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    renderer.takeChannelLevels(into: &levels)
+    renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+    return (levels, pitches)
+}
+
+@Test func hvlVoiceLeftOutIsNotHeardAndPlaysOn() throws {
+    // The note on the first voice, which starts on the left, and an octave above it on the second,
+    // on the right: as far apart as they go, each has its side to itself.
+    let both: [[UInt8]] = [[0, 0, 0, 12, 1, 0, 1, 0]]
+    let file = tune(positions: both, tracks: [[0: played], empty])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .hvl, options: separate()) }
+    let first = try fresh()
+    let whole = stereo(first, seconds: 0.5), wholeSaid = said(first)
+    #expect(loudest(whole.left) > 0.15 && loudest(whole.right) > 0.15)
+
+    // The second voice left out: the right is silent, the left is what it was to the sample, and
+    // the voice is still said to be as loud as it was, at the pitch it was.
+    let renderer = try fresh()
+    renderer.setMuted([false, true])
+    let without = stereo(renderer, seconds: 0.5), withoutSaid = said(renderer)
+    #expect(loudest(without.right) == 0 && without.left == whole.left)
+    #expect(withoutSaid.levels == wholeSaid.levels && withoutSaid.levels[1] > 0.9)
+    #expect(withoutSaid.pitches == wholeSaid.pitches && abs(withoutSaid.pitches[1] - 71.82) < 0.05)
+
+    // A song started again is started without the voice; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == without)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(stereo(renderer, seconds: 0.5) == whole)
+
+    // With every voice in the middle, where they are added together on both sides, what is left
+    // is to the sample the tune that never had the voice; and so it is as the tracker's own
+    // replayer would write it.
+    let alone = try HVLRenderer(tune(tracks: [[0: played], empty], stereo: 0), options: separate())
+    let muted = try HVLRenderer(tune(positions: both, tracks: [[0: played], empty], stereo: 0), options: separate())
+    muted.setMuted([false, true])
+    #expect(stereo(muted, seconds: 0.5) == stereo(alone, seconds: 0.5))
+    #expect(muted.renderRaw(frames: 24000) == alone.renderRaw(frames: 24000))
+
+    // Every voice left out is silence, and the lights are as they were.
+    let silent = try fresh()
+    silent.setMuted([Bool](repeating: true, count: 4))
+    let nothing = stereo(silent, seconds: 0.5)
+    #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
+    #expect(said(silent).levels == wholeSaid.levels)
+}
+
+@Test func hvlVoicesLeftOutOfATuneThatDoesEverythingAreStillMeasured() throws {
+    // Six voices, some with a second wave multiplied in, which is mixed in a way of its own: with
+    // every other voice left out, each is said to be as loud and at the same pitch, a tenth of a
+    // second at a time, as with none left out; and with all six left out there is no sound.
+    let whole = try HVLRenderer(everything(), options: separate())
+    let some = try HVLRenderer(everything(), options: separate())
+    some.setMuted([true, false, true, false, true, false])
+    let none = try HVLRenderer(everything(), options: separate())
+    none.setMuted([Bool](repeating: true, count: 6))
+    var heardSome = false, differed = false
+    for _ in 0 ..< 30 {
+        let all = stereo(whole, seconds: 0.1), part = stereo(some, seconds: 0.1), nothing = stereo(none, seconds: 0.1)
+        let wholeSaid = said(whole)
+        #expect(said(some) == wholeSaid && said(none) == wholeSaid)
+        #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
+        heardSome = heardSome || loudest(part.left) > 0.02
+        differed = differed || part != all
+    }
+    #expect(heardSome && differed)
+}

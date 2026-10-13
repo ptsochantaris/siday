@@ -225,10 +225,19 @@ public final class MEDRenderer: Renderer {
         restart()
     }
 
+    /// The tracks left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        player.setMuted(muted)
+    }
+
     private func restart() {
         let song = songList[currentSubsong]
         player = MEDPlayer(module, song: song.song, model: model, place: song.place, firstPlayedBy: firstPlayedBy + firstRowOfSong[song.song],
                            songNumber: song.number)
+        player.setMuted(muted)
         if makesOctaMEDsMistakes { player.playAsOctaMEDs() }
         down = (HalfBand(), HalfBand())
         tickFrames = 0

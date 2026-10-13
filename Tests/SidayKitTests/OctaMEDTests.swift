@@ -565,3 +565,212 @@ private func synthetic(volumes: [UInt8], waves: [UInt8], hybrid: Bool = false) -
         if let renderer = try? TuneLoader.load(damaged, format: .med) { _ = stereo(renderer, seconds: 0.2) }
     }
 }
+
+// MARK: Tracks left out
+
+/// What a player makes of its tune from where it is, the two sides apart, and what it then says of
+/// each track: how loud it has been, and its pitch.
+private func listened(_ renderer: any Renderer, seconds: Double = 0.5) -> (left: [Float], right: [Float], levels: [Float], pitches: [Float]) {
+    let sound = stereo(renderer, seconds: seconds)
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    var pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    renderer.takeChannelLevels(into: &levels)
+    renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+    return (sound.left, sound.right, levels, pitches)
+}
+
+private func loudest(_ samples: some Sequence<Float>) -> Float { samples.map(abs).max() ?? 0 }
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity }
+
+/// The two sides as far apart as the Amiga has them: a voice is on one of them alone.
+private func apartAsOnAnAmiga() -> LoadOptions {
+    var options = LoadOptions()
+    options.stereo = .abc
+    options.amigaSeparation = 1
+    return options
+}
+
+@Test func medVoiceLeftOutIsNotHeardAndPlaysOn() throws {
+    // With four tracks each has a voice of the chip: the first on the left, the second on the
+    // right. So it is whatever the tracks play: a sample, a synthetic sound, which is a waveform
+    // the chip is given, or a hybrid, which is a sample that a synthetic sound's lists shape.
+    let sounds: [[UInt8]?] = [nil, synthetic(volumes: [0x40], waves: [0x00]), synthetic(volumes: [0x40], waves: [], hybrid: true)]
+    for sound in sounds {
+        let file = module([Tune(entries: [c(), c(track: 1)], instrument: sound)])
+        func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .med, options: apartAsOnAnAmiga()) }
+        let whole = listened(try fresh())
+        #expect(loudest(whole.left) > 0.05 && loudest(whole.right) > 0.05)
+
+        // The first track left out: the left is silent, the right is what it was (to the last
+        // place or two of a number: the two sides are brought together and parted again on the
+        // way out), and the track is still said to be as loud as it was, at the pitch it was.
+        let renderer = try fresh()
+        renderer.setMuted([true])
+        let without = listened(renderer)
+        #expect(loudest(without.left) == 0)
+        #expect(apart(without.right, whole.right) < 1e-5)
+        #expect(without.levels == whole.levels && without.levels[0] > 0.2)
+        #expect(without.pitches == whole.pitches && without.pitches[0] > 0)
+
+        // A song started again is started without the track; and with it brought back, as it ever was.
+        renderer.select(subsong: 0)
+        let again = listened(renderer)
+        #expect(again.left == without.left && again.right == without.right)
+        renderer.setMuted([])
+        renderer.select(subsong: 0)
+        let back = listened(renderer)
+        #expect(back.left == whole.left && back.right == whole.right)
+
+        // Every track left out is silence, and the lights are as they were.
+        let silent = try fresh()
+        silent.setMuted([true, true, true, true])
+        let nothing = listened(silent)
+        #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
+        #expect(nothing.levels == whole.levels)
+    }
+}
+
+@Test func medTrackThatSharesAVoiceIsLeftOutOfWhatIsMixed() throws {
+    // Five to eight channels: the first track and the fifth share the first voice, a note on each,
+    // an octave apart (see `medFiveToEightChannelsAreMixedInPairs`).
+    let high = Entry(line: 0, track: 4, note: 25, instrument: 1)
+    func told(_ entries: [Entry], muted: [Bool] = []) throws -> [MEDRegisterTick] {
+        let renderer = try MEDRenderer(module([Tune(entries: entries, flags: 0x40, tracks: 8)]), options: LoadOptions())
+        renderer.setMuted(muted)
+        return renderer.registerTicks(seconds: 1)
+    }
+    let whole = try told([c(), high])
+    // With one of the two left out, what is mixed for the voice is to the byte what is mixed for
+    // the tune that never had it; with both, nothing; and the ticks are as long as they were.
+    let lower = try told([c(), high], muted: [false, false, false, false, true])
+    #expect(lower.map { $0.mixed[0] } == (try told([c()])).map { $0.mixed[0] })
+    let higher = try told([c(), high], muted: [true])
+    #expect(higher.map { $0.mixed[0] } == (try told([high])).map { $0.mixed[0] })
+    #expect(lower[1].mixed[0] != whole[1].mixed[0] && higher[1].mixed[0] != whole[1].mixed[0] && lower[1].mixed[0] != higher[1].mixed[0])
+    let neither = try told([c(), high], muted: [true, false, false, false, true])
+    #expect(neither.allSatisfy { tick in tick.mixed[0].allSatisfy { $0 == 0 } })
+    for other in [lower, higher, neither] {
+        #expect(other.map { $0.clocks } == whole.map { $0.clocks } && other.map { $0.mixedWords } == whole.map { $0.mixedWords })
+        #expect(other.map { $0.voices[0].volume } == whole.map { $0.voices[0].volume })
+    }
+
+    // As it is heard, with a note on the second track too, whose voice is on the other side. With
+    // one of the two left out the first voice still sounds, and not as it did; the other side is
+    // what it was; and every track is said to be as loud as it was.
+    let file = module([Tune(entries: [c(), high, c(track: 1)], flags: 0x40, tracks: 8)])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .med, options: apartAsOnAnAmiga()) }
+    let heard = listened(try fresh(), seconds: 1)
+    #expect(heard.levels.count == 8 && loudest(heard.left) > 0.05 && loudest(heard.right) > 0.05)
+    for muted in [[true], [false, false, false, false, true]] {
+        let renderer = try fresh()
+        renderer.setMuted(muted)
+        let without = listened(renderer, seconds: 1)
+        #expect(loudest(without.left) > 0.05 && apart(without.left, heard.left) > 0.02)
+        #expect(apart(without.right, heard.right) < 1e-5)
+        #expect(without.levels == heard.levels && without.levels[0] > 0.2 && without.levels[4] > 0.2)
+        #expect(without.pitches == heard.pitches)
+        renderer.select(subsong: 0)
+        let again = listened(renderer, seconds: 1)
+        #expect(again.left == without.left && again.right == without.right)
+    }
+    // With both left out the voice is silent; and so is the other side, with its two.
+    let renderer = try fresh()
+    renderer.setMuted([true, false, false, false, true])
+    let without = listened(renderer, seconds: 1)
+    #expect(loudest(without.left) == 0 && apart(without.right, heard.right) < 1e-5 && without.levels == heard.levels)
+    renderer.setMuted([true, true, false, false, true, true])
+    renderer.select(subsong: 0)
+    let nothing = listened(renderer, seconds: 1)
+    #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0 && nothing.levels == heard.levels)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    let back = listened(renderer, seconds: 1)
+    #expect(back.left == heard.left && back.right == heard.right)
+
+    // A voice that is said to have one track is the chip's to leave out, and the track that would
+    // have shared it has no sound to leave out. (The file says which in four bytes, a voice each.)
+    var one = file
+    let expansion = Int(one[32]) << 24 | Int(one[33]) << 16 | Int(one[34]) << 8 | Int(one[35])
+    one[expansion + 36 + 1] = 1
+    func single(_ muted: [Bool]) throws -> (left: [Float], right: [Float], levels: [Float], pitches: [Float]) {
+        let renderer = try TuneLoader.load(one, format: .med, options: apartAsOnAnAmiga())
+        renderer.setMuted(muted)
+        return listened(renderer, seconds: 1)
+    }
+    let all = try single([])
+    #expect(loudest(all.right) > 0.05)
+    let second = try single([false, true])
+    #expect(loudest(second.right) == 0 && apart(second.left, all.left) < 1e-5 && second.levels == all.levels && second.levels[1] > 0.2)
+    let sixth = try single([false, false, false, false, false, true])
+    #expect(sixth.left == all.left && sixth.right == all.right)
+}
+
+@Test func medTrackLeftOutOfMixingModeIsNotMixedAndFeedsNoEcho() throws {
+    // Mixing mode: the first track all on the left and the second all on the right, a note on each.
+    let tune = Tune(entries: [c(), c(track: 1)], tempo: 125, flags2: 0x80 | 0x20 | 3, tracks: 4, channels: 4, mixing: 1, pans: [-16, 16, 0, 0])
+    let file = module(version: 3, [tune])
+    var options = LoadOptions()
+    options.stereo = .abc
+    func fresh(_ file: [UInt8]) throws -> any Renderer { try TuneLoader.load(file, format: .med, options: options) }
+    let whole = listened(try fresh(file))
+    #expect(loudest(whole.left) > 0.05 && loudest(whole.right) > 0.05)
+
+    // The second left out: the right is silent, and the left is what it was to the last place,
+    // for here nothing brings the sides together. The track is still said to be as loud, at its pitch.
+    let renderer = try fresh(file)
+    renderer.setMuted([false, true])
+    let without = listened(renderer)
+    #expect(loudest(without.right) == 0 && without.left == whole.left)
+    #expect(without.levels == whole.levels && without.levels[1] > 0.5)
+    #expect(without.pitches == whole.pitches && without.pitches[1] > 0)
+
+    // A song started again is started without the track; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    let again = listened(renderer)
+    #expect(again.left == without.left && again.right == without.right)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    let back = listened(renderer)
+    #expect(back.left == whole.left && back.right == whole.right)
+
+    // Every track left out is silence, and the lights are as they were.
+    let silent = try fresh(file)
+    silent.setMuted([true, true, true, true])
+    let nothing = listened(silent)
+    #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0 && nothing.levels == whole.levels)
+
+    // The echo is of all the tracks together, what came out a tenth of a second ago at half the
+    // strength, and a track that is left out is not in it. So with the echo that crosses from side
+    // to side, each side has the other's note after it; and with the second track left out there
+    // is nothing of it on either side, and the first is echoed on the right as it was.
+    var echoing = file
+    let song = Int(echoing[8]) << 24 | Int(echoing[9]) << 16 | Int(echoing[10]) << 8 | Int(echoing[11])
+    echoing[song + 536] = 2
+    echoing[song + 537] = 1
+    echoing[song + 538] = 0
+    echoing[song + 539] = 100
+    let only = module(version: 3, [Tune(entries: [c()], tempo: 125, flags2: 0x80 | 0x20 | 3, tracks: 4, channels: 4, mixing: 1, pans: [-16, 16, 0, 0])])
+    var onlyEchoing = only
+    onlyEchoing.replaceSubrange(song + 536 ..< song + 540, with: echoing[song + 536 ..< song + 540])
+    let echoed = listened(try fresh(echoing))
+    #expect(echoed.left != whole.left && echoed.right != whole.right)
+    let muted = try fresh(echoing)
+    muted.setMuted([false, true])
+    let dry = listened(muted), alone = listened(try fresh(onlyEchoing))
+    #expect(dry.left == alone.left && dry.right == alone.right)
+    #expect(loudest(dry.right[..<4800]) == 0 && loudest(dry.right[4800...]) > 0.02)
+    // And a track that is left out goes on being measured as it is, without the echo in it.
+    #expect(dry.levels == echoed.levels)
+
+    // A synthetic sound's waveforms are given to the mixer as a sample is, and left out as one is.
+    let waves = module(version: 3, [Tune(entries: [c(), c(track: 1)], tempo: 125, flags2: 0x80 | 0x20 | 3, tracks: 4,
+                                         instrument: synthetic(volumes: [0x40], waves: [0x00]), channels: 4, mixing: 1, pans: [-16, 16, 0, 0])])
+    let drawn = listened(try fresh(waves))
+    #expect(loudest(drawn.left) > 0.02 && loudest(drawn.right) > 0.02)
+    let half = try fresh(waves)
+    half.setMuted([true])
+    let other = listened(half)
+    #expect(loudest(other.left) == 0 && other.right == drawn.right && other.levels == drawn.levels)
+}

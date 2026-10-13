@@ -283,3 +283,61 @@ private func first(ofLine line: Int) -> Int { 5 + line * 6 }
     #expect(try SoundFXRenderer(Array(whole.dropLast(64)), options: LoadOptions()).info.shortfalls
         == ["The file is cut short: one of its samples is missing, and is silent."])
 }
+
+// MARK: Voices left out
+
+/// What a player makes of its tune from where it is, the two sides apart, and what it then says of
+/// each voice: how loud it has been, and its pitch.
+private func listened(_ renderer: any Renderer, seconds: Double = 0.5) -> (left: [Float], right: [Float], levels: [Float], pitches: [Float]) {
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    var pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    renderer.takeChannelLevels(into: &levels)
+    renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+    return (stride(from: 0, to: frames * 2, by: 2).map { buffer[$0] }, stride(from: 1, to: frames * 2, by: 2).map { buffer[$0] }, levels, pitches)
+}
+
+private func loudest(_ samples: [Float]) -> Float { samples.map(abs).max() ?? 0 }
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity }
+
+@Test func soundFXVoiceLeftOutIsNotHeardAndPlaysOn() throws {
+    // A note on the first voice, which the Amiga has on the left, and one on the second, on the right.
+    var options = LoadOptions()
+    options.stereo = .abc
+    options.amigaSeparation = 1
+    let file = module([Entry(line: 0, voice: 0, period: 428, instrument: 1), Entry(line: 0, voice: 1, period: 214, instrument: 1)], timer: 2000)
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .sfx, options: options) }
+    let whole = listened(try fresh())
+    #expect(loudest(whole.left) > 0.2 && loudest(whole.right) > 0.2)
+
+    // The second voice left out: the right is silent, the left is what it was (to the last place
+    // or two of a number: the two sides are brought together and parted again on the way out), and
+    // the voice is still said to be as loud as it was, at the pitch it was.
+    let renderer = try fresh()
+    renderer.setMuted([false, true])
+    let without = listened(renderer)
+    #expect(loudest(without.right) == 0)
+    #expect(apart(without.left, whole.left) < 1e-5)
+    #expect(without.levels == whole.levels && without.levels[1] > 0.5)
+    #expect(without.pitches == whole.pitches && without.pitches[1] > 0)
+
+    // A song started again is started without the voice; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    let again = listened(renderer)
+    #expect(again.left == without.left && again.right == without.right)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    let back = listened(renderer)
+    #expect(back.left == whole.left && back.right == whole.right)
+
+    // Every voice left out is silence, and the lights are as they were.
+    let silent = try fresh()
+    silent.setMuted([true, true, true, true])
+    let nothing = listened(silent)
+    #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
+    #expect(nothing.levels == whole.levels)
+}

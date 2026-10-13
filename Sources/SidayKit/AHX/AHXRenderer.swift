@@ -118,11 +118,20 @@ public final class AHXRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// The voices left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        replayer.paula.setMuted(muted)
+    }
+
     /// - Parameter asReference: with the sound chip run as the player this is ported from runs it,
     ///   at the output's own rate, for `renderRaw`.
     private func restart(asReference: Bool = false) {
         replayer = AHXReplayer(module, waves: waves, model: model, rate: Double(outputSampleRate * (asReference ? 1 : 2)),
                                position: songList[currentSubsong].start)
+        replayer.paula.setMuted(muted)
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0

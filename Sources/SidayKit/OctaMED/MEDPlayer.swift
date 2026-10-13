@@ -140,6 +140,8 @@ struct MEDPlayer: ~Copyable {
         /// For the lights: how far the track's sample swung in what was last mixed.
         var swing: Float = 0
         var struck = false
+        /// True for a track that is left out of what is mixed: it plays on, and is not added in.
+        var muted = false
     }
     private static let periodCount = 16 * periodsInRow + 256
     /// A synthetic sound's list is given up for the tick after this many instructions, none of
@@ -859,6 +861,18 @@ struct MEDPlayer: ~Copyable {
             a &+= first.step
             b &+= second.step
         }
+        // A track that is left out of the sound has now been read and measured as ever. What was
+        // mixed is made again without it: the other track's bytes alone, or silence.
+        if lanes[voice].muted || lanes[voice + 4].muted {
+            let kept = lanes[voice].muted ? second : first
+            let silent = lanes[voice].muted && lanes[voice + 4].muted
+            var c: UInt32 = 0
+            for i in 0 ..< count {
+                let at = kept.from + Int(Int16(truncatingIfNeeded: c >> 16))
+                out[i] = !silent && at >= 0 && at < size ? memory[at] : 0
+                c &+= kept.step
+            }
+        }
         // The part of a byte that the last step came to is dropped: the next tick begins on a whole one.
         if first.step != 0 { lanes[voice].place &+= Int(a >> 16) }
         if second.step != 0 { lanes[voice + 4].place &+= Int(b >> 16) }
@@ -878,6 +892,33 @@ struct MEDPlayer: ~Copyable {
         for voice in 0 ..< 4 where song.mixed[voice] {
             paula.setLocation(voice, mixPlace(voice, mixBuffer))
             paula.setLength(voice, UInt16(wordsNext))
+        }
+    }
+
+    /// Leaves tracks out of the sound, or brings them back: see `Renderer.setMuted`. A mark for
+    /// each track, numbered as the lights are; true for one not to be heard, and a track with no
+    /// mark is heard.
+    ///
+    /// In mixing mode it is the mixer that leaves a track out. With four tracks it is the chip,
+    /// whose voices they are. With five to eight, a track that has a voice to itself is left out
+    /// by the chip, and one of two that share a voice is left out where the two are added, so
+    /// that the other is heard as it was; with both left out the chip leaves out the voice, which
+    /// silences at once what was mixed for it before it was told.
+    mutating func setMuted(_ muted: [Bool]) {
+        func marked(_ track: Int) -> Bool { track < muted.count && muted[track] }
+        switch mode {
+        case .mixing:
+            mixer.setMuted(muted)
+        case .eightChannel:
+            var chip = [false, false, false, false]
+            for voice in 0 ..< 4 {
+                lanes[voice].muted = marked(voice)
+                lanes[voice + 4].muted = marked(voice + 4)
+                chip[voice] = marked(voice) && (!song.mixed[voice] || marked(voice + 4))
+            }
+            paula.setMuted(chip)
+        case .fourChannel:
+            paula.setMuted(muted)
         }
     }
 
