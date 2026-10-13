@@ -61,6 +61,13 @@ its name: see [Playback caveats](#playback-caveats). And the name of the tune's 
 title, can be pressed: it brings up what [How it is built](#how-it-is-built) says of that format,
 to read while the tune plays.
 
+Each light is also a button for its voice. Click one to mute the voice, and again to bring it back;
+right-click it (or hold Control and click, or press and hold on a touch screen) to hear that voice
+alone, and again to bring the others back. A muted light is dimmed and loses most of its colour,
+and goes on flickering with what its voice is playing. The sound follows a moment after the press,
+and the mutes last until the song changes. See [Muting a voice](#muting-a-voice) for what a muted
+voice still shares with the others.
+
 To run it from here:
 
 ```
@@ -1248,6 +1255,52 @@ path: the file of the same name with the most folders above it named as the list
 
 It was checked on the 10,031 lists of that collection: every one of the 42,804 tunes they name
 is found, and all are played but five, which are in a format that is not (FLS).
+
+### Muting a voice
+
+In the browser a voice can be left out of the sound by pressing its light. Each player does that for
+itself, since a voice is a different thing in each: a channel of a chip, a track of a module, a note
+left ringing behind a newer one. The rule is the same for them all. A muted voice is left out where
+it joins the others, and goes on playing: the tune keeps its timing and comes to the same end, and
+what is shown of the voice (its light, its pitch, its side) is what would be shown if it were heard.
+With no voice muted the sound is, to the byte, what it was before any player could mute: that was
+checked on some two thousand real files, of every format, when the muting was written.
+
+Left out where it joins the others means that what voices share is still shared, and some of that
+can be heard:
+
+- **AY chip.** A muted channel's tone, noise and envelope run on, and it is simply not added in. The
+  Spectrum's beeper is a fourth voice and mutes the same way.
+- **Atari ST.** The ST's chip does not add its three channels: it gives out one level for the three
+  together, from a table that was measured on the machine, in which three voices are not three times
+  one. A muted channel is looked up as silent, so the others sound as they do beside a silent
+  channel, which is louder than they are in the mix, by 4 dB at the most.
+- **SID.** A muted voice comes to the filter and the mixer as a silent voice at its resting level.
+  It does not drive the filter, and it goes on modulating the others (ring modulation, sync) and
+  being read by the tune. Because a silent voice still has a level, a tune that changes the filter's
+  mode often leaves faint thumps when every voice is muted. The fourth light is for samples played by
+  moving the volume; they are muted by holding the volume still, and only in a song that is found to
+  play them, since holding it would undo every fade in a song that does not. Samples made on a voice
+  go with that voice.
+- **FM chips.** A voice is left out at the chip's own output. In rhythm mode the drums share
+  channels, so the bass drum mutes alone, the snare with the hi-hat, and the tom-tom with the cymbal.
+- **Amiga.** Where Oktalyzer or MED split one of the Amiga's voices into two tracks, either can be
+  muted, but the pair has one volume between them. In OctaMED's mixing mode a muted track feeds
+  neither the sound nor the echo.
+- **PC trackers.** In Impulse Tracker's replayer a muted channel takes with it the notes it has left
+  ringing, and feeds none of OpenMPT's effects; an echo or a reverb that already holds some of its
+  sound rings out. On Scream Tracker's Gravis Ultrasound a muted channel still takes voices from
+  the others when the card runs out, as it would if it were heard.
+- **Everywhere:** a tune so loud that its sum is clipped is clipped less with a voice muted.
+
+The page renders a song to its end as soon as it starts, so a mute cannot simply be switched on: the
+song is rendered again, from its beginning, without the muted voices. What was being heard goes on
+being heard until the new rendering has caught up with the listener, and then gives way to it, so
+nothing stops; the effect comes a moment after the press, and later in a long tune of a kind that is
+slow to render. The song without some of its voices is played to exactly the end the whole song came
+to, fade and all. Left to judge by its own sound, as a song usually is, it might be taken to have
+fallen silent and be cut short. A change between mono and stereo, or of a setting that changes the
+sound, is taken up in the same way.
 
 ## Licence and credits
 
