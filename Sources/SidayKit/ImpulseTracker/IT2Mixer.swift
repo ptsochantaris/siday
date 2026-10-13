@@ -131,6 +131,13 @@ final class IT2Mixer {
     /// What the mixed sound is multiplied by to make sixteen bits of it.
     private(set) var MixGain: Float = 32768.0
     private let fMixBuffer: UnsafeMutablePointer<Float>
+    /// How many floats there is room for in it.
+    private let mixCapacity: Int
+    /// The channels left out of the sound, a bit for each of the 64: see `setMuted`.
+    private(set) var mutedChannels: UInt64 = 0
+    /// Where the voices of those channels are mixed, to be heard by nobody: as much room as
+    /// `fMixBuffer` has. There is none until a channel is left out.
+    private var fMutedBuffer: UnsafeMutablePointer<Float>?
     private var fLastClickRemovalLeft: Float = 0, fLastClickRemovalRight: Float = 0, fPrngStateL: Float = 0, fPrngStateR: Float = 0
     /// For the lights: how loud each of the 64 channels was in the tick last mixed, and the lowest
     /// and highest the voice being mixed has had its sample.
@@ -197,6 +204,7 @@ final class IT2Mixer {
         let maxSamplesToMix = max(Int(ceil((Double(mixingFrequency) * 2.5) / Double(Self.MIN_BPM))) + 1, module.openMPT?.longestTick ?? 0)
         fMixBuffer = .allocate(capacity: maxSamplesToMix * 2)
         fMixBuffer.initialize(repeating: 0, count: maxSamplesToMix * 2)
+        mixCapacity = maxSamplesToMix * 2
 
         // How long a tick is at each tempo, in frames and a fraction of a frame.
         let tempos = (Self.MAX_BPM - Self.MIN_BPM) + 1
@@ -252,6 +260,7 @@ final class IT2Mixer {
 
     deinit {
         fMixBuffer.deallocate()
+        fMutedBuffer?.deallocate()
         SamplesPerTickInt.deallocate()
         SamplesPerTickFrac.deallocate()
         QualityFactorTable.deallocate()
@@ -338,6 +347,27 @@ final class IT2Mixer {
                     data.storeBytes(of: 0, toByteOffset: bytes + k, as: UInt8.self)
                 }
             }
+        }
+    }
+
+    // MARK: Channels left out
+
+    /// Leaves channels out of the sound, or brings them back: a bit for each of the 64, set for one
+    /// that is not to be heard. See `Renderer.setMuted`.
+    ///
+    /// A channel is all the voices that are its: the note it has hold of, the notes before that
+    /// which it has let go and which are still dying away, and its note on the FM chip. Each is
+    /// left out where it would be added to the others, and to what is sent to a plug-in: so a
+    /// plug-in is given nothing of a channel that is left out, and one that is on the whole sound
+    /// has what is left of it. A voice left out is mixed all the same, into a buffer that nobody
+    /// hears, so that it goes on exactly as it would if it were heard: its place in its sample, its
+    /// ramp, its filter, where it ends, and how loud it is said to be.
+    func setMuted(channels: UInt64) {
+        mutedChannels = channels
+        if channels != 0, fMutedBuffer == nil {
+            let buffer = UnsafeMutablePointer<Float>.allocate(capacity: mixCapacity)
+            buffer.initialize(repeating: 0, count: mixCapacity)
+            fMutedBuffer = buffer
         }
     }
 
@@ -511,6 +541,8 @@ final class IT2Mixer {
                 notes.pitches[channel] = 0
             }
             plugIns?.begin(frames: Int(RealBytesToMix))
+            // (What the voices that are left out add up to is thrown away tick by tick.)
+            if mutedChannels != 0 { fMutedBuffer?.update(repeating: 0, count: Int(RealBytesToMix) * 2) }
         }
         defer { if !silent { levels.tickMade() } }
 
@@ -685,10 +717,12 @@ final class IT2Mixer {
                 }
             } else {
                 let Surround = sc.pointee.FinalPan == PAN_SURROUND
+                // A voice of a channel that is left out is added to nothing that is heard: see `setMuted`.
+                let muted = (mutedChannels >> UInt64(sc.pointee.HostChnNum & 63)) & 1 != 0
                 // Where its sound is added: to the tick, or for a song with plug-ins to what is
                 // sent to the plug-in of the voice's instrument, or failing that of its channel.
                 var place = -1
-                if let plugIns {
+                if let plugIns, !muted {
                     let ofInstrument = sc.pointee.Ins != 0xFF ? Int(sc.pointee.InsPtr?.MixPlug ?? 0) : 0
                     place = plugIns.place(instrumentPlugIn: ofInstrument, channel: Int(sc.pointee.HostChnNum & 63))
                     plugIns.voiceMixed()
@@ -707,6 +741,7 @@ final class IT2Mixer {
 
                     var fMixBufferPtr = fMixBuffer
                     if place >= 0, let plugIns { fMixBufferPtr = plugIns.buffer(ofPlace: place) }
+                    if muted, let fMutedBuffer { fMixBufferPtr = fMutedBuffer }
                     if sc.pointee.LoopMode == LOOP_PINGPONG {
                         while MixBlockSize > 0 {
                             // How many frames until the end of the loop it is heading for.
@@ -763,10 +798,11 @@ final class IT2Mixer {
                                         }
                                         fLastLeftValue = left
                                         fLastRightValue = right
-                                        if place < 0 {
+                                        // (Nothing of a voice that is left out goes on.)
+                                        if place < 0, !muted {
                                             fLastClickRemovalLeft += left
                                             fLastClickRemovalRight += right
-                                        } else {
+                                        } else if place >= 0 {
                                             plugIns?.addClick(toPlace: place, left: left, right: right)
                                         }
                                         break
@@ -860,11 +896,12 @@ final class IT2Mixer {
                                 fLastLeftValue = left
                                 fLastRightValue = right
 
-                                // and what is left of it then goes on into the ticks after.
-                                if place < 0 {
+                                // and what is left of it then goes on into the ticks after. (Nothing
+                                // of a voice that is left out does.)
+                                if place < 0, !muted {
                                     fLastClickRemovalLeft += left
                                     fLastClickRemovalRight += right
-                                } else {
+                                } else if place >= 0 {
                                     plugIns?.addClick(toPlace: place, left: left, right: right)
                                 }
 
@@ -888,6 +925,7 @@ final class IT2Mixer {
     /// chip's sound is added, the whole is sent through the plug-ins, and the song's volume is applied.
     private func finishTick(_ fMixBuffer: UnsafeMutablePointer<Float>, _ frames: Int) {
         if let adLib {
+            adLib.leaveOut(mutedChannels, sChn)
             adLib.render(into: fMixBuffer, frames: frames, level: adLibLevel)
             // A channel with a note on the chip is as loud as the chip's voice is.
             withUnsafeTemporaryAllocation(of: Float.self, capacity: OpenMPTAdLib.voiceCount) { swings in

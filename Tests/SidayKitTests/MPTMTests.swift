@@ -950,3 +950,157 @@ private let held = Pattern([(0, 0, .note(60)), (0, 1, .note(67)), (8, 0, .note(6
     let plain = try TuneLoader.load(file(madeBy: impulseTracker, plugIn: false), format: .it)
     #expect(stereo(own, seconds: 0.5).left == stereo(plain, seconds: 0.5).left)
 }
+
+// MARK: Voices left out
+
+/// In stereo, so that a channel on one side can be told from a channel on the other.
+private let inStereo: LoadOptions = {
+    var options = LoadOptions()
+    options.stereo = .abc
+    return options
+}()
+
+/// A file with its first channel put all on the left and its second all on the right.
+private func sided(_ file: [UInt8]) -> [UInt8] {
+    var file = file
+    file[0x40] = 0
+    file[0x41] = 64
+    return file
+}
+
+/// What a player makes of its tune from where it is, each side apart, and how loud it said each
+/// voice was in it.
+private func played(_ renderer: any Renderer, seconds: Double = 1) -> (left: [Float], right: [Float], levels: [Float]) {
+    let sound = stereo(renderer, seconds: seconds)
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return (sound.left, sound.right, levels)
+}
+
+private func silent(_ samples: [Float]) -> Bool { samples.allSatisfy { $0 == 0 } }
+
+@Test func itChannelLeftOutTakesTheNotesItHasLetGoWithIt() throws {
+    // An IT file of Impulse Tracker's, with an instrument. The first channel, on the left, plays a
+    // note and four rows later another; the second holds a note on the right.
+    let pattern = Pattern([(0, 0, .note(60)), (0, 1, .note(72)), (4, 0, .note(67))])
+    /// - Parameter action: what becomes of the instrument's note when the next arrives: 0 for cut, 1 for played on.
+    func renderer(action: UInt8) throws -> any Renderer {
+        var file = sided(mptm([pattern], instruments: [(1, [], 0)]))
+        file.replaceSubrange(file.count - 4 ..< file.count, with: [0, 0, 0, 0])
+        file.replaceSubrange(0x28 ..< 0x2C, with: word(0x0214) + word(0x0200))
+        file[try #require(file.firstRange(of: text("IMPI"))).lowerBound + 0x11] = action
+        let renderer = try TuneLoader.load(file, format: .it, options: inStereo)
+        #expect(renderer.info.format == "IT" && renderer.channelCount == 2)
+        return renderer
+    }
+    // The second note begins on the 24th tick, of 960 frames. With the first played on beneath it
+    // the channel is two voices of the mixer's from there, and is not what it is with the first cut.
+    let whole = played(try renderer(action: 1)), cut = played(try renderer(action: 0))
+    #expect(apart(whole.left, cut.left, to: 23040) == 0 && apart(whole.left, cut.left, from: 24000) > 0.01)
+    #expect(whole.right == cut.right && loudness(whole.right[...]) > 0.01)
+
+    // The channel left out: neither of its notes is heard, the other channel is what it was to the
+    // last bit, and the channel is said to be as loud as ever.
+    let without = try renderer(action: 1)
+    without.setMuted([true, false])
+    let rest = played(without)
+    #expect(silent(rest.left) && rest.right == whole.right && rest.levels == whole.levels && rest.levels[0] > 0.05)
+
+    // Left out once the second note has begun, with the first ringing on: both are gone from the
+    // next tick. Brought back later, both are where they would have been.
+    let late = try renderer(action: 1)
+    let before = played(late, seconds: 0.5)
+    late.setMuted([true])
+    let during = played(late, seconds: 0.3)
+    late.setMuted([])
+    let after = played(late, seconds: 0.2)
+    #expect(before.left == Array(whole.left[..<24000]) && silent(during.left) && after.left == Array(whole.left[38400...]))
+    #expect(loudness(after.left[...]) > 0.01 && before.right + during.right + after.right == whole.right)
+}
+
+@Test func mptmChannelLeftOutLeavesNothingBehindWhenItsSampleEnds() throws {
+    // A square wave that does not go round ends where it is loudest, and what it last put out dies
+    // away over the ticks after it. That is its channel's sound too, and goes with it; as it does
+    // when the channel is sent through a plug-in.
+    let pattern = Pattern([(0, 0, .note(60, instrument: 1)), (0, 1, .note(72, instrument: 2))])
+    for wired in [false, true] {
+        func renderer() throws -> ITRenderer {
+            try player(sided(mptm([pattern], samples: [.sound(square, loops: false), .sound(square, loops: true)],
+                                  plugInPieces: wired ? [delay()] : [], channelPlugIns: wired ? [1, 0] : [])), options: inStereo)
+        }
+        let whole = played(try renderer(), seconds: 0.2)
+        #expect(abs(whole.left[2000]) > 0.001 && abs(whole.left[2001]) < abs(whole.left[2000]))
+        let without = try renderer()
+        without.setMuted([true, false])
+        let rest = played(without, seconds: 0.2)
+        #expect(silent(rest.left) && rest.right == whole.right && rest.levels == whole.levels)
+    }
+}
+
+@Test func mptmChannelLeftOutIsLeftOffTheFMChipToo() throws {
+    // The first channel plays the FM chip: a note, another four rows later while the first is let
+    // go and still sounding (two of the chip's voices), and a cut, which leaves the chip a little
+    // of the note to die away. The second channel plays a sample.
+    let chip: [(row: Int, channel: Int, cell: Cell)] = [(0, 0, .note(60, instrument: 1)), (4, 0, .note(67, instrument: 1)), (8, 0, Cell(note: 254))]
+    let sample: [(row: Int, channel: Int, cell: Cell)] = [(0, 1, .note(72, instrument: 2))]
+    func renderer(_ cells: [(row: Int, channel: Int, cell: Cell)]) throws -> ITRenderer {
+        var file = mptm([Pattern(cells)], song: fmSong, samples: [.fm, .sound(square, loops: true)],
+                        instruments: [(1, [(0, 64), (10, 64), (40, 0)], 64), (2, [], 0)])
+        file[try #require(file.firstRange(of: text("IMPI"))).lowerBound + 0x11] = 2 // the first instrument's "new note action": note off
+        return try player(file, options: inStereo)
+    }
+    let whole = played(try renderer(chip + sample)), chipAlone = played(try renderer(chip)), sampleAlone = played(try renderer(sample))
+    #expect(loudness(chipAlone.left[...]) > 0.005 && loudness(sampleAlone.left[...]) > 0.005)
+    #expect(whole.levels.count == 2 && whole.levels[0] > 0.05 && whole.levels[1] > 0.05)
+
+    // With the chip's channel left out, what is heard is the tune without that channel's notes, to
+    // the last bit; and the same for the sample's. Either is said to be as loud as when it is heard.
+    let noChip = try renderer(chip + sample)
+    noChip.setMuted([true, false])
+    let rest = played(noChip)
+    #expect(rest.left == sampleAlone.left && rest.right == sampleAlone.right && rest.levels == whole.levels)
+    let noSample = try renderer(chip + sample)
+    noSample.setMuted([false, true])
+    let other = played(noSample)
+    #expect(other.left == chipAlone.left && other.right == chipAlone.right && other.levels == whole.levels)
+
+    // Both left out is silence, and a song started again is started without them.
+    let neither = try renderer(chip + sample)
+    neither.setMuted([true, true])
+    let nothing = played(neither)
+    #expect(silent(nothing.left) && silent(nothing.right) && nothing.levels == whole.levels)
+    noChip.select(subsong: 0)
+    #expect(played(noChip).left == sampleAlone.left)
+    noChip.setMuted([])
+    noChip.select(subsong: 0)
+    #expect(played(noChip).left == whole.left)
+}
+
+@Test func mptmChannelLeftOutIsNotSentToItsPlugIn() throws {
+    // Two channels, each a note, and the first another later. Beside it the same with the second
+    // channel's note at no volume: what the tune is without that channel.
+    let alone = Pattern([(0, 0, .note(60)), (0, 1, .note(67, volume: 0)), (8, 0, .note(64))])
+    // Both channels through one plug-in; with some of what it is given heard beside what it makes;
+    // through two, one after the other; a plug-in on the whole sound; and one that only the channel
+    // left out is sent through.
+    let wirings: [(pieces: [[UInt8]], channels: [Int])] = [
+        ([delay()], [1, 1]), ([delay(dry: 0.25, gain: 20)], [1, 1]), ([delay(output: 0x81), delay()], [1, 1]), ([delay(flags: 1)], []), ([delay()], [0, 1]),
+    ]
+    for wiring in wirings {
+        func renderer(_ pattern: Pattern) throws -> ITRenderer {
+            try player(mptm([pattern], plugInPieces: wiring.pieces, channelPlugIns: wiring.channels), options: inStereo)
+        }
+        let whole = played(try renderer(held)), expected = played(try renderer(alone))
+        #expect(apart(whole.left, expected.left) > 0.01)
+        let without = try renderer(held)
+        without.setMuted([false, true])
+        let rest = played(without)
+        #expect(rest.left == expected.left && rest.right == expected.right)
+        #expect(rest.levels == whole.levels && rest.levels[1] > 0.05)
+        // And with both left out the plug-in is given nothing, and gives nothing.
+        without.setMuted([true, true])
+        without.select(subsong: 0)
+        let nothing = played(without)
+        #expect(silent(nothing.left) && silent(nothing.right))
+    }
+}

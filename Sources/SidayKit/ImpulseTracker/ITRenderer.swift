@@ -136,10 +136,27 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// The voices left out of the sound, which a song started afresh is started without.
+    private var muted: [Bool] = []
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        player.mixer.setMuted(channels: mutedChannels)
+    }
+
+    /// Those voices as the mixer knows them: a bit for each of the 64 channels, of which the
+    /// voices that are shown are the ones some pattern uses.
+    private var mutedChannels: UInt64 {
+        var channels: UInt64 = 0
+        for light in lights.indices where light < muted.count && muted[light] { channels |= 1 << UInt64(lights[light]) }
+        return channels
+    }
+
     /// - Parameter asImpulseTracker: as the player this is ported from plays the file, for `renderRaw`.
     private func restart(asImpulseTracker: Bool = false) {
         let song = songList[currentSubsong]
         player = IT2Player(module, order: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asImpulseTracker: asImpulseTracker, forSound: true)
+        player.mixer.setMuted(channels: mutedChannels)
         tickFrames = 0
         tickPosition = 0
         loopCount = 0

@@ -146,6 +146,29 @@ private func letter(_ character: Character) -> Int {
     #expect(try TuneLoader.load(gdm(pans: [0, 15, 16]), format: .gdm).channelCount == 1)
 }
 
+@Test func gdmChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    // Two channels, the first on the left and the second, an octave up, on the right: a file of
+    // another tracker's is played by Impulse Tracker's replayer, and its channels are left out there.
+    var options = LoadOptions()
+    options.stereo = .abc
+    func played(muted: [Bool]) throws -> (left: [Float], right: [Float], levels: [Float]) {
+        let renderer = try TuneLoader.load(gdm(rows: [0x20, gdmC4, 1, 0x21, 0x51, 1], pans: [0, 15]), format: .gdm, options: options)
+        renderer.setMuted(muted)
+        let sound = stereo(renderer, seconds: 0.5)
+        var levels = [Float](repeating: 0, count: renderer.channelCount)
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        return (sound.left, sound.right, levels)
+    }
+    let whole = try played(muted: [])
+    #expect(whole.levels.count == 2 && loudness(whole.left[4800...]) > 0.02 && loudness(whole.right[4800...]) > 0.02)
+    let without = try played(muted: [false, true])
+    #expect(without.right.allSatisfy { $0 == 0 } && without.left == whole.left && without.levels == whole.levels && without.levels[1] > 0.05)
+    let other = try played(muted: [true, false])
+    #expect(other.left.allSatisfy { $0 == 0 } && other.right == whole.right && other.levels == whole.levels)
+    let neither = try played(muted: [true, true])
+    #expect(neither.left.allSatisfy { $0 == 0 } && neither.right.allSatisfy { $0 == 0 })
+}
+
 @Test func gdmCommandsAreGivenAsImpulseTrackers() throws {
     // ProTracker's by number, as the letters that do the same.
     #expect(try gdmCommand(0x01, 0x20) == (letter("F"), 0x20, -1))

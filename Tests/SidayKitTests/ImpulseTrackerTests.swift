@@ -394,3 +394,77 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     // A file that ends before its sample's sound begins.
     #expect(try shortfalls(Array(it().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])
 }
+
+// MARK: Voices left out
+
+/// What a player makes of its tune from the start, each side apart, and how loud it said each
+/// voice was in it.
+private func played(_ renderer: any Renderer, seconds: Double = 0.5) -> (left: [Float], right: [Float], levels: [Float]) {
+    let sound = stereo(renderer, seconds: seconds)
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return (sound.left, sound.right, levels)
+}
+
+@Test func itChannelLeftOutIsNotHeardAndPlaysOn() throws {
+    // Two channels: the first all on the left, and the second, an octave up, all on the right.
+    func file(_ row: [UInt8]) -> [UInt8] {
+        var file = it(row: row, pan: 0)
+        file[0x41] = 64
+        return file
+    }
+    let both = file([0x81, 0x03, 60, 1, 0x82, 0x03, 72, 1])
+    var options = LoadOptions()
+    options.stereo = .abc
+    func fresh() throws -> any Renderer { try TuneLoader.load(both, format: .it, options: options) }
+
+    let whole = played(try fresh())
+    #expect(whole.levels.count == 2)
+    #expect(whole.left.map(abs).max()! > 0.02 && whole.right.map(abs).max()! > 0.02)
+
+    // The second left out: the right is silent, the left is what it was to the last bit (nothing
+    // is added to it for a voice all on the other side), and the voice is said to be as loud as ever.
+    let renderer = try fresh()
+    renderer.setMuted([false, true])
+    let without = played(renderer)
+    #expect(without.right.allSatisfy { $0 == 0 })
+    #expect(without.left == whole.left)
+    #expect(without.levels == whole.levels && without.levels[1] > 0.05)
+
+    // A song started again is started without the voice; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    let again = played(renderer)
+    #expect(again.left == without.left && again.right == without.right)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    let back = played(renderer)
+    #expect(back.left == whole.left && back.right == whole.right)
+
+    // The first left out is the other way about, and a mark too few is a voice heard.
+    let other = try fresh()
+    other.setMuted([true])
+    let second = played(other)
+    #expect(second.left.allSatisfy { $0 == 0 } && second.right == whole.right && second.levels == whole.levels)
+
+    // Every voice left out is silence.
+    let silent = try fresh()
+    silent.setMuted([true, true])
+    let nothing = played(silent)
+    #expect(nothing.left.allSatisfy { $0 == 0 } && nothing.right.allSatisfy { $0 == 0 } && nothing.levels == whole.levels)
+
+    // In mono, where the two sides are added up, what is left is the tune without that channel's note.
+    let mono = try TuneLoader.load(both, format: .it)
+    mono.setMuted([false, true])
+    #expect(played(mono).left == played(try TuneLoader.load(file([0x81, 0x03, 60, 1]), format: .it)).left)
+
+    // A voice left out while it sounds is gone from the next tick (here the tenth, of 960 frames),
+    // and one brought back is back at the next.
+    let late = try fresh()
+    let before = played(late, seconds: 0.2)
+    late.setMuted([false, true])
+    let during = played(late, seconds: 0.2)
+    late.setMuted([])
+    let after = played(late, seconds: 0.1)
+    #expect(before.right == Array(whole.right[..<9600]) && during.right.allSatisfy { $0 == 0 } && after.right == Array(whole.right[19200...]))
+    #expect(before.left + during.left + after.left == whole.left)
+}

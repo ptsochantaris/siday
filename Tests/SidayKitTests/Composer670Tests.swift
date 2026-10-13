@@ -161,3 +161,32 @@ private let row = 6 * 2.5 / 143
     _ = sound.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 4800) }
     #expect(session.channelsSampled == [true, false])
 }
+
+@Test func c67VoiceLeftOutIsNotHeardWhicheverKindItIs() throws {
+    /// Half a second of a pattern with voices left out, and how loud each voice was said to be in it.
+    func played(_ steps: [Step], muted: [Bool] = []) throws -> (left: [Float], right: [Float], levels: [Float]) {
+        var options = LoadOptions()
+        options.stereo = .abc
+        let renderer = try TuneLoader.load(c67([steps + [.rows(32)]]), format: .c67, options: options)
+        renderer.setMuted(muted)
+        var buffer = [Float](repeating: 0, count: 48000)
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 24000) }
+        var levels = [Float](repeating: 0, count: renderer.channelCount)
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        return (stride(from: 0, to: 48000, by: 2).map { buffer[$0] }, stride(from: 1, to: 48000, by: 2).map { buffer[$0] }, levels)
+    }
+    // A sample on the first channel and the FM chip on the fifth. With either left out, what is
+    // heard is the file without that channel's note, to the last bit, and each is said to be as
+    // loud as when it is heard.
+    let sample = Step.note(channel: 0), chip = Step.note(channel: 4, octave: 3)
+    let whole = try played([sample, chip]), sampleAlone = try played([sample]), chipAlone = try played([chip])
+    #expect(whole.levels.count == 2 && whole.levels[0] > 0.05 && whole.levels[1] > 0.05)
+    #expect(sampleAlone.left.map(abs).max()! > 0.01 && chipAlone.left.map(abs).max()! > 0.01 && whole.left != sampleAlone.left && whole.left != chipAlone.left)
+    let noChip = try played([sample, chip], muted: [false, true])
+    #expect(noChip.left == sampleAlone.left && noChip.right == sampleAlone.right && noChip.levels == whole.levels)
+    let noSample = try played([sample, chip], muted: [true, false])
+    #expect(noSample.left == chipAlone.left && noSample.right == chipAlone.right && noSample.levels == whole.levels)
+    // Both left out is silence: the chip at rest gives none.
+    let neither = try played([sample, chip], muted: [true, true])
+    #expect(neither.left.allSatisfy { $0 == 0 } && neither.right.allSatisfy { $0 == 0 } && neither.levels == whole.levels)
+}

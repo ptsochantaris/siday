@@ -411,6 +411,27 @@ final class OpenMPTAdLib {
         return note < MAX_HOST_CHANNELS ? note : Int(sChn[note - MAX_HOST_CHANNELS].HostChnNum & 63)
     }
 
+    /// The channel that last had a note on each of the chip's voices; less than nought for none
+    /// yet. A note that is cut gives its voice up, and what is left of it is heard a little longer
+    /// all the same (see `NoteCut`): that is still its channel's sound.
+    private var lastChannel = [Int](repeating: OpenMPTAdLib.noOwner, count: OpenMPTAdLib.voiceCount)
+
+    /// Leaves out of the chip's sound the voices that are playing notes of the channels marked in
+    /// `muted`, a bit for each of the 64, and brings the others back: see `Renderer.setMuted`. It is
+    /// asked before each tick's sound is made, since notes take and give up voices from tick to
+    /// tick. A voice left out plays on, and its level is told as ever.
+    func leaveOut(_ muted: UInt64, _ sChn: IT2SlavePointer) {
+        // (The chip has a bit for each of its channels: see `OPL3Chip.muted`.)
+        var voices: UInt32 = 0
+        for voice in 0 ..< Self.voiceCount {
+            let channel = channel(ofVoice: voice, sChn)
+            if channel >= 0 { lastChannel[voice] = channel }
+            let last = lastChannel[voice]
+            if last >= 0, (muted >> UInt64(last)) & 1 != 0 { voices |= 1 << UInt32(voice) }
+        }
+        chip.pointee.muted = voices
+    }
+
     /// How far each of the chip's eighteen voices has swung since this was last asked.
     func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         chip.pointee.takeLevels(into: levels, count: Self.voiceCount)
