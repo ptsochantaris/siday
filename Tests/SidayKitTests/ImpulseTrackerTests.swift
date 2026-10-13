@@ -216,6 +216,44 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     return file
 }
 
+@Test func itFromOpenMPTIsAsLoudAsOpenMPTPlaysIt() throws {
+    func heard(_ file: [UInt8]) throws -> Float { loudness(stereo(try TuneLoader.load(file, format: .it), seconds: 0.5).left[4800...]) }
+    func level(_ file: [UInt8]) throws -> Float { IT2Mixer.modPlugLevel(of: try #require(try TuneLoader.load(file, format: .it) as? ITRenderer).module) }
+    // The song's own extras, as OpenMPT puts them at a file's end: which of its ways of adding
+    // the channels up, how many channels it has, and a pre-amp of more than the header holds.
+    func extras(mixLevels: Int? = nil, channels: Int? = nil, preAmp: Int? = nil) -> [UInt8] {
+        var bytes = Array("STPM".utf8)
+        if let mixLevels { bytes += Array(".MMP".utf8) + word(4) + long(mixLevels) }
+        if let channels { bytes += Array("...C".utf8) + word(2) + word(channels) }
+        if let preAmp { bytes += Array(".APS".utf8) + word(4) + long(preAmp) }
+        return bytes
+    }
+    let own = try heard(it())
+    // Impulse Tracker's own file is as it was, and so is one that OpenMPT saved to be played as
+    // Impulse Tracker would play it.
+    #expect(try level(it()) == 1)
+    #expect(try level(byOpenMPT(it())) == 1)
+    // OpenMPT's way of 1.17 is twice as loud.
+    #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 3), version: 0x17)) == 2)
+    #expect(abs(try heard(asOpenMPTPlays(it() + extras(mixLevels: 3), version: 0x17)) / own - 2) < 0.05)
+    // Its oldest ways are quieter the more channels the song has: by those its patterns use, or
+    // by those the file says it has, if that is more. A file with no such word is played the oldest way.
+    #expect(try level(asOpenMPTPlays(it(), version: 0x17)) == 64.0 / 0x60)
+    #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 2, channels: 32), version: 0x28)) == 64.0 / 0xBC)
+    #expect(abs(try heard(asOpenMPTPlays(it() + extras(mixLevels: 0, channels: 16), version: 0x17)) / own - 64.0 / 0xA0) < 0.02)
+    // The ways that are like Impulse Tracker's are as loud as Impulse Tracker; and a pre-amp of
+    // more than the header can hold is that much more.
+    #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 4), version: 0x28)) == 1)
+    #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 4, preAmp: 96), version: 0x28)) == 2)
+    // ModPlug Tracker's own files the mixer turns down itself, and they are not turned down twice.
+    #expect(try level(byModPlugTracker(it())) == 1)
+    #expect(abs(try heard(byModPlugTracker(it())) / own - 64.0 / 0x60) < 0.02)
+    // Set beside the player this one is ported from, none of it is done.
+    let reference = try #require(try TuneLoader.load(asOpenMPTPlays(it() + extras(mixLevels: 3), version: 0x17), format: .it) as? any ReferenceComparable)
+    let itsOwn = try #require(try TuneLoader.load(it(), format: .it) as? any ReferenceComparable)
+    #expect(reference.renderRaw(frames: 20000) == itsOwn.renderRaw(frames: 20000))
+}
+
 @Test func itSampleVibratoComesInAtOnceForAnOldOpenMPT() throws {
     // A sample with a vibrato of its own, and nought for how fast it comes in. To Impulse Tracker
     // that is never; to ModPlug Tracker and to OpenMPT before 1.20 it was at once, and a file of
@@ -227,11 +265,12 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     let plain = try heard(it())
     // Impulse Tracker's own file, and one of an OpenMPT that had put it right: no vibrato at all.
     #expect(try heard(file) == plain)
-    #expect(try heard(asOpenMPTPlays(file, version: 0x29)) == plain)
+    // (Each is set beside the same file with no vibrato in it, signed the same way: a file of
+    // OpenMPT's is as loud as OpenMPT plays it, which is not as loud as Impulse Tracker.)
+    #expect(try heard(asOpenMPTPlays(file, version: 0x29)) == heard(asOpenMPTPlays(it(), version: 0x29)))
     // The older tracker's file wobbles, from the start.
-    let old = try heard(asOpenMPTPlays(file, version: 0x19))
-    #expect(old != plain)
-    #expect(try heard(byModPlugTracker(file)) != plain)
+    #expect(try heard(asOpenMPTPlays(file, version: 0x19)) != heard(asOpenMPTPlays(it(), version: 0x19)))
+    #expect(try heard(byModPlugTracker(file)) != heard(byModPlugTracker(it())))
     let module = try #require(try TuneLoader.load(asOpenMPTPlays(file, version: 0x19), format: .it) as? ITRenderer).module
     #expect(module.sample(0)?.AutoVibratoRate == 0)
     #expect(module.sample(0)?.AutoVibratoRateAsModPlug == 255)

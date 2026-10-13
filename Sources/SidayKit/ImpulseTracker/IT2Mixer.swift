@@ -177,14 +177,16 @@ final class IT2Mixer {
         sc.pointee.fFilterc = 1 - a - b
     }
 
+    /// - Parameter softPanning: OpenMPT's way of 1.17 of placing a channel: one to a side is no
+    ///   louder there than one in the middle. Nil for what the module's own song says, if it has one.
     init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>, sound: ModPlugSound? = nil,
-         filter: IT2Module.Filter = .impulseTrackers) {
+         filter: IT2Module.Filter = .impulseTrackers, softPanning: Bool? = nil) {
         self.filter = filter
         globalVolumeAtMaster = sound?.globalVolumeAtMaster ?? false
         sChn = voices
         FilterParameters = filterParameters
         stereoOutput = module.Flags & ITF_STEREO != 0
-        softPanning = module.openMPT?.softPanning ?? false
+        self.softPanning = softPanning ?? module.openMPT?.softPanning ?? false
         midiVoiceSample = module.midiVoiceSample
 
         // HQ_InitDriver. 32769 Hz is the lowest rate there can be, for FreqMulVal to fit in 31 bits.
@@ -259,11 +261,28 @@ final class IT2Mixer {
     /// setHQDriverMixGain: a module that came from ModPlug Tracker is turned down by its count of
     /// channels, which is found by looking through its patterns for the highest one used.
     private static func mixGain(of module: IT2Module) -> Float {
-        var MixGain: Float = 32768.0
-        guard (module.Cwtv == 0x0214 && module.Cmwt == 0x0202) || (module.Cwtv == 0x0217 && module.Cmwt == 0x0200) else {
-            return MixGain
-        }
+        guard (module.Cwtv == 0x0214 && module.Cmwt == 0x0202) || (module.Cwtv == 0x0217 && module.Cmwt == 0x0200) else { return 32768.0 }
+        return 32768.0 * PreAmpTable[highestChannel(of: module) / 2]
+    }
 
+    /// How much louder than this mixer makes it OpenMPT plays an IT file that ModPlug Tracker or
+    /// OpenMPT made: by the way of adding its channels up that the file asks for, and by a
+    /// pre-amp of more than the header can hold. One, for any other file. (The mixer turns a file
+    /// with one of ModPlug Tracker's two signatures down by its count of channels itself, as the
+    /// player it is ported from does: that much is taken out again here, so that every such file
+    /// comes out as loud as OpenMPT has it, whichever of them it is.)
+    static func modPlugLevel(of module: IT2Module) -> Float {
+        guard let levels = module.modPlugLevels else { return 1 }
+        var level: Float = levels.mixLevels == 3 ? 2 : 1
+        // (By as many channels as OpenMPT takes the file to have: those its patterns use, or those it says it has, if that is more.)
+        if levels.mixLevels < 3 { level = PreAmpTable[max(1, min(31, max(highestChannel(of: module) + 1, levels.channels))) / 2] }
+        if module.MixVolume > 0 { level *= Float(levels.preAmp) / Float(module.MixVolume) }
+        return level * 32768.0 / mixGain(of: module)
+    }
+
+    /// The highest channel that a pattern of the module has anything on, counted from nought, and
+    /// no more than 31.
+    private static func highestChannel(of module: IT2Module) -> Int {
         var highestChannel = 0
         var maskvar = [UInt8](repeating: 0, count: 128)
         for i in 0 ..< min(Int(module.PatNum), 200) {
@@ -302,8 +321,7 @@ final class IT2Mixer {
             if highestChannel >= 31 { break }
         }
 
-        MixGain *= PreAmpTable[highestChannel / 2]
-        return MixGain
+        return highestChannel
     }
 
     /// The room either side of every sample's sound, made nought as it is when a file has just been

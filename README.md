@@ -830,6 +830,15 @@ counted out of 64 and not out of 100, before 1.20. Of 300 such IT files set besi
 were nearer to it in where their sound sits between the speakers and 6 further, which with
 anything random is as near as two playings of one file come.
 
+Such a file is also as loud as OpenMPT plays it, beside another. OpenMPT has had several ways of
+adding a song's channels up, and a file says which it was made for. The oldest, which are ModPlug
+Tracker's own, turn a song down by the number of channels it has, by a table; the one of version
+1.17 is twice as loud as Impulse Tracker and puts a channel that is to one side at no more than
+one in the middle; the later ones are as loud as Impulse Tracker is. A file read as ModPlug
+Tracker's that does not say is played the oldest way. The count of channels is OpenMPT's: those
+the patterns use, or those the file says it has, if that is more. Before this, such files came
+out anywhere from six decibels quieter than OpenMPT has them to nine louder.
+
 All of that was checked by setting every sounding channel's filter beside libopenmpt's on every
 tick of a file's first minute: whether it is on, and the three numbers it is worked by. Of the 215
 MPTM files, 186 have nothing random about their filters, and in 179 of those the two are the same

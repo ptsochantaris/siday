@@ -1433,7 +1433,9 @@ final class IT2Player {
         FilterParameters.initialize(repeating: 0, count: 128)
         visited = .allocate(capacity: Self.rowsInAll(of: module))
         visited.initialize(repeating: false, count: Self.rowsInAll(of: module))
-        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound, filter: asImpulseTracker ? .impulseTrackers : module.filter)
+        // (An IT file that asks for OpenMPT's way of 1.17 of adding up has its way of placing channels too.)
+        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound, filter: asImpulseTracker ? .impulseTrackers : module.filter,
+                         softPanning: module.modPlugLevels.map { $0.mixLevels == 3 && !asImpulseTracker })
         mixer.adLib = adLib
         if forSound { mixer.playsPlugIns() }
 

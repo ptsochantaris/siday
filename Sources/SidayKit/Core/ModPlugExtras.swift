@@ -19,6 +19,9 @@ struct ModPlugExtras {
     /// What the song's own extras say of how loud it is, where they say: which of OpenMPT's ways
     /// of adding up, its "sample pre-amp" and its "synth volume".
     private(set) var mixLevels: Int?, preAmp: Int?, synthVolume: Int?
+    /// How many channels the song says it has, which may be more than its patterns use; nought
+    /// if it does not say.
+    private(set) var channels = 0
     /// True if the song has extras of its own at all; then which of OpenMPT's ways of playing it
     /// asks for, by their numbers (none if it does not say), and the version of OpenMPT that last
     /// saved it, a byte for each of its four parts, if it says.
@@ -157,6 +160,7 @@ struct ModPlugExtras {
             guard (0 ..< 4).allSatisfy({ data[at + $0] >= 0x20 && data[at + $0] < 0x7F }), at + 6 + size <= data.count else { break }
             let value = size >= 4 ? file.u16le(at + 6) | min(file.u16le(at + 8), 0x3FFF) << 16 : size >= 2 ? file.u16le(at + 6) : size == 1 ? Int(data[at + 6]) : 0
             if code == Self.name(".MMP") { mixLevels = value } else if code == Self.name(".APS") { preAmp = value } else if code == Self.name("VTSV") { synthVolume = value }
+            if code == Self.name("...C"), size >= 2 { channels = max(0, min(127, file.u16le(at + 6))) }
             if code == Self.name("VWSL"), value != 0 { savedWith = value }
             if code == Self.name(".FSM") {
                 behaviours = []

@@ -203,6 +203,15 @@ final class IT2Module {
     /// What a file of ModPlug Tracker's or OpenMPT's has to be heard besides its samples, if it has
     /// any: plug-ins that are played, and instruments for the FM chip. Nil for every other module.
     let sound: ModPlugSound?
+    /// For an IT file that ModPlug Tracker or OpenMPT made: which of OpenMPT's ways of adding the
+    /// channels up it is played by (0 to 2 its oldest, which are quieter the more channels a song
+    /// has; 3 that of its version 1.17, which is twice as loud; 4 and 5 those that are as loud as
+    /// Impulse Tracker and FastTracker), and its "sample pre-amp", which is the header's mixing
+    /// volume unless the file says more. Nil for any other file; and for an MPTM file, which says
+    /// how loud it is for itself (see `OpenMPTSong.gain`). And how many channels the file says it
+    /// has, which may be more than its patterns use; nought if it does not say. See
+    /// `IT2Mixer.modPlugLevel`.
+    private(set) var modPlugLevels: (mixLevels: Int, preAmp: Int, channels: Int)?
 
     private let instruments: [IT2Instrument]
     private let samples: [IT2Sample]
@@ -617,6 +626,14 @@ final class IT2Module {
             }
         }
 
+        // How loud OpenMPT plays it, by which of its ways of adding up the file asks for: ModPlug
+        // Tracker's own unless it says, for a file read as that tracker's, and the one that is
+        // like Impulse Tracker's for any other that OpenMPT made. (See `MPTMFile`, where this is
+        // told at length.)
+        let mixLevels = extras.mixLevels ?? (ways.ownLevels ? 0 : 4)
+        let preAmp = max(1, min(2000, extras.preAmp ?? Int(MixVolume)))
+        if ways.asked != nil, Cmwt <= 0x888 { modPlugLevels = (mixLevels, preAmp, extras.channels) }
+
         // MARK: Plug-ins and FM
 
         // What a file of ModPlug Tracker's or OpenMPT's has to hear besides samples (see
@@ -633,11 +650,6 @@ final class IT2Module {
                 if i < extras.filterModes.count, extras.filterModes[i] <= 1 { instruments[i].FilterMode = extras.filterModes[i] }
                 if i < extras.resonanceSwings.count { instruments[i].ResSwing = extras.resonanceSwings[i] }
             }
-            // How loud OpenMPT plays it, by which of its ways of adding up the file asks for:
-            // ModPlug Tracker's own unless it says, for a file that tracker made, and the one that
-            // is like Impulse Tracker's for a file OpenMPT made. (See `MPTMFile`, where this is told at length.)
-            let mixLevels = extras.mixLevels ?? (madeWith.utf8.starts(with: "ModPlug".utf8) ? 0 : 4)
-            let preAmp = max(1, min(2000, extras.preAmp ?? Int(MixVolume)))
             sound.level = Float(preAmp) / Float(min(preAmp, 128)) * (mixLevels == 3 ? 2 : 1)
             sound.levelIsTheMixers = mixLevels < 3
             sound.plugInScale = mixLevels == 0 ? 0.5 : mixLevels == 1 ? 1.0 / 16.0 : 1
@@ -1108,7 +1120,7 @@ final class IT2Module {
     /// played in all of Impulse Tracker's ways. And the version of OpenMPT it was last saved
     /// with, a byte for each of its four parts, or a number greater than any for another tracker's file.
     private static func modPlugWays(_ data: [UInt8], Cwtv: UInt16, Cmwt: UInt16, OrdNum: Int, extras: inout ModPlugExtras,
-                                    extrasRead: Bool) -> (asked: [Bool]?, savedWith: Int) {
+                                    extrasRead: Bool) -> (asked: [Bool]?, savedWith: Int, ownLevels: Bool) {
         let file = ByteReader(data)
         let reserved = file.u16le(0x3C) | file.u16le(0x3E) << 16
         let byOpenMPT = Cwtv & 0xF000 == 0x5000
@@ -1132,7 +1144,7 @@ final class IT2Module {
             savedWith = 0x0116_0000
         }
         // (The letters that begin a song's extras turn up by chance in other trackers' files.)
-        guard byModPlug || byOpenMPT else { return (nil, Int(Int32.max)) }
+        guard byModPlug || byOpenMPT else { return (nil, Int(Int32.max), false) }
         if !extrasRead { extras.readSongExtras(file) }
         // A file saved to be played as Impulse Tracker would play it asks for all of its ways, as
         // far as the OpenMPT that saved it had them; any other asks for those it lists, and for
@@ -1142,7 +1154,8 @@ final class IT2Module {
             asked = extras.behaviours
             if let saved = extras.savedWith { savedWith = saved }
         }
-        return (asked, savedWith)
+        // (And such a file is added up ModPlug Tracker's own way unless it says another.)
+        return (asked, savedWith, byModPlug && !extras.byBeRoTracker)
     }
 
     private static func tracker(Cwtv: UInt16, Cmwt: UInt16) -> String {

@@ -50,7 +50,8 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     ///   for; nil for an IT file, which is looked over here for what later trackers added to it.
     init(module: IT2Module, format: String, author: String = "", shortfalls: [String]? = nil, options: LoadOptions) {
         self.module = module
-        gain = module.openMPT.map { Self.gain * $0.gain } ?? Self.gain
+        // (An MPTM file says how loud it is; an IT file of ModPlug Tracker's or OpenMPT's is as loud as OpenMPT has it.)
+        gain = module.openMPT.map { Self.gain * $0.gain } ?? Self.gain * IT2Mixer.modPlugLevel(of: module)
         mono = options.stereo == .mono
 
         // The channels that some pattern has a note or an instrument on, and that are not switched off.
