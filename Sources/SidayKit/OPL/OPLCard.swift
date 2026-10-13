@@ -22,6 +22,9 @@ final class OPLCard {
 
     /// How many of the chip's samples are still to be made before the next tick.
     var samplesLeft = 0
+    /// The chip's channels left out of the sound, a bit for each: kept here, since a reset makes the
+    /// chip anew.
+    private var muted: UInt32 = 0
 
     init() {
         chip = .allocate(capacity: 1)
@@ -46,6 +49,7 @@ final class OPLCard {
     func reset() {
         chip.deinitialize(count: 1)
         chip.initialize(to: OPL3Chip())
+        chip.pointee.setMuted(muted)
         window.update(repeating: 0, count: 16)
         position = 1 << 32
         steady = 0
@@ -95,6 +99,15 @@ final class OPLCard {
         }
         self.position = position
         return made
+    }
+
+    /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. A mark for each
+    /// of the chip's channels, the first first; a reset does not undo it.
+    func setMuted(_ muted: [Bool]) {
+        var channels: UInt32 = 0
+        for voice in 0 ..< min(18, muted.count) where muted[voice] { channels |= 1 << UInt32(voice) }
+        self.muted = channels
+        chip.pointee.setMuted(channels)
     }
 
     /// How loud each of the first so many of the chip's nine voices has been since this was last asked.

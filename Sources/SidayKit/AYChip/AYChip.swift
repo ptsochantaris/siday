@@ -117,6 +117,8 @@ struct AYChip: ~Copyable {
     private var mono = false
     /// True if it is the second channel that is on the right, and not the third.
     private var swapped = false
+    /// How the three channels are laid out between the two sides.
+    private let layout: StereoLayout
 
     /// Oversampled steps per second: writes can be timed to this resolution.
     let innerRate: Double
@@ -131,7 +133,19 @@ struct AYChip: ~Copyable {
         innerRate = Double(sampleRate * ayDecimate)
         self.clockHz = clockHz
         step = clockHz / (Double(sampleRate) * 8 * Double(ayDecimate))
+        layout = stereo
         setStereo(stereo)
+    }
+
+    /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. True for one
+    /// that is not to be heard. A channel left out is given no part of either side, so it adds nothing
+    /// where the three are summed, and nothing else is changed: its tone runs on, the noise and the
+    /// envelope it shares with the others are what they were, and what is told of it is the same.
+    mutating func setMuted(_ first: Bool, _ second: Bool, _ third: Bool) {
+        setStereo(layout)
+        if first { a.panLeft = 0; a.panRight = 0 }
+        if second { b.panLeft = 0; b.panRight = 0 }
+        if third { c.panLeft = 0; c.panRight = 0 }
     }
 
     private mutating func setStereo(_ layout: StereoLayout) {

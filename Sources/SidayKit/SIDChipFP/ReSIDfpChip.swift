@@ -95,9 +95,20 @@ public struct ReSIDfpChip: ~Copyable {
         /// Emulated nonlinearity of the oscillator DAC.
         let oscDAC: UnsafeMutablePointer<Float> // 4096
 
+        /// For a voice left out of the sound (see `setMuted`; not in reSIDfp): an envelope DAC that
+        /// gives nought whatever the envelope, and the voice's DC level as it is with the envelope at
+        /// nought, whatever the envelope.
+        let silentEnvDAC: UnsafeMutablePointer<Float> // 256
+        let restingVoiceDC: UnsafeMutablePointer<Double> // 256
+
         private init(_ model: SIDModel) {
             envDAC = .allocate(capacity: 1 << ModelTables.ENV_DAC_BITS)
             oscDAC = .allocate(capacity: 1 << ModelTables.OSC_DAC_BITS)
+            silentEnvDAC = .allocate(capacity: 1 << ModelTables.ENV_DAC_BITS)
+            silentEnvDAC.initialize(repeating: 0, count: 1 << ModelTables.ENV_DAC_BITS)
+            restingVoiceDC = .allocate(capacity: 1 << ModelTables.ENV_DAC_BITS)
+            let rest = model == .mos6581 ? FilterModelConfig6581.instance.voiceDC[0] : FilterModelConfig8580.instance.voiceDC[0]
+            restingVoiceDC.initialize(repeating: rest, count: 1 << ModelTables.ENV_DAC_BITS)
 
             // calculate envelope DAC table
             do {
@@ -199,6 +210,11 @@ public struct ReSIDfpChip: ~Copyable {
     var isMuted1 = false
     var isMuted2 = false
     var isMuted3 = false
+
+    /// For leaving the samples played on the volume out of the sound (see `setVolumeHeld`; not in
+    /// reSIDfp): whether the volume is held, and what was last written to register $18.
+    var volumeHeld = false
+    var modeVolWritten: UInt8 = 0
 
     // ----------------------------------------------------------------------------
     // Constructor.
@@ -319,6 +335,45 @@ public struct ReSIDfpChip: ~Copyable {
         voice2.waveformGenerator.setPulldownModels(pulldowntables)
     }
 
+    /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. True for one
+    /// that is not to be heard. It outlives a reset.
+    ///
+    /// This is not libsidplayfp's muting (`setVoiceMuted`, below), which stops a voice from playing:
+    /// its envelope stays shut, so nothing can be told of it and the third voice reads back as nought.
+    /// Here a voice left out plays on, oscillator and envelope, and is given to the filter as a voice
+    /// making no sound with its envelope at nought. Whichever way it is routed, into the filter or past
+    /// it, the filter and the mixer have a silent voice there, and the samples played on the volume,
+    /// which are made of the voices' DC levels, lose nothing by it.
+    ///
+    /// It is done with tables, so that nothing is asked cycle by cycle: a voice left out has an
+    /// envelope DAC that gives nought, and on the 6581, whose DC level moves with the envelope, a DC
+    /// level that does not. (The 8580's never moves, and it has the one table for all.)
+    public mutating func setMuted(_ first: Bool, _ second: Bool, _ third: Bool) {
+        let tables = ModelTables.tables(for: chipModel)
+        voice0.envDAC = UnsafePointer(first ? tables.silentEnvDAC : tables.envDAC)
+        voice1.envDAC = UnsafePointer(second ? tables.silentEnvDAC : tables.envDAC)
+        voice2.envDAC = UnsafePointer(third ? tables.silentEnvDAC : tables.envDAC)
+        filter.voiceDC1 = first ? UnsafePointer(tables.restingVoiceDC) : filter.voiceDC
+        filter.voiceDC2 = second ? UnsafePointer(tables.restingVoiceDC) : filter.voiceDC
+        filter.voiceDC3 = third ? UnsafePointer(tables.restingVoiceDC) : filter.voiceDC
+    }
+
+    /// Holds the volume at full, whatever is written to it, or lets it go again: how the samples a
+    /// tune plays by moving the volume about are left out of the sound, since they are nothing but
+    /// the volume moving. It is libsidplayfp's way (`setVoiceMuted(3, true)`, below), but takes
+    /// effect at once and leaves the register reading back as what was written. The register's
+    /// other four bits are passed on as they are written. A reset lets the volume go.
+    public mutating func setVolumeHeld(_ held: Bool) {
+        guard held != volumeHeld else { return }
+        volumeHeld = held
+        filter.writeMODE_VOL(heardModeVol)
+    }
+
+    /// What the filter is told was written to register $18.
+    var heardModeVol: UInt8 {
+        volumeHeld ? modeVolWritten | 0x0F : modeVolWritten
+    }
+
     /// Mute or unmute a voice the way libsidplayfp does (sidemu::voice): voices 0...2 by keeping the
     /// waveform and gate bits out of later writes to their control registers, 3 (samples) by forcing
     /// the volume nibble of later writes to register $18 to 15. Nothing changes until the next such write.
@@ -406,6 +461,8 @@ public struct ReSIDfpChip: ~Copyable {
 
         busValue = 0
         busValueTtl = 0
+        volumeHeld = false
+        modeVolWritten = 0
         voiceSync(false)
     }
 
@@ -586,7 +643,8 @@ public struct ReSIDfpChip: ~Copyable {
             filter.writeRES_FILT(value)
 
         case 0x18: // Volume and filter modes
-            filter.writeMODE_VOL(value)
+            modeVolWritten = value
+            filter.writeMODE_VOL(heardModeVol)
 
         default:
             break
@@ -656,12 +714,14 @@ public struct ReSIDfpChip: ~Copyable {
         // Filter::clock(voice[0], voice[1], voice[2]). Each voice is modulated by the one before it
         // (voice[0] by voice[2]); the three outputs are taken in this order because on the 6581 taking
         // one can clear the top bit of its own accumulator.
-        let V1 = filter.getNormalizedVoice(voice0.output(voice2.waveformGenerator.accumulator), voice0.envelopeGenerator.output())
-        let V2 = filter.getNormalizedVoice(voice1.output(voice0.waveformGenerator.accumulator), voice1.envelopeGenerator.output())
+        // (On the 6581, where the DC level moves with the envelope, each voice has a table of DC levels of
+        // its own: the filter's, unless the voice is left out of the sound. See setMuted.)
+        let V1 = filter.getNormalizedVoice(voice0.output(voice2.waveformGenerator.accumulator), voice0.envelopeGenerator.output(), is6581 ? filter.voiceDC1 : filter.voiceDC)
+        let V2 = filter.getNormalizedVoice(voice1.output(voice0.waveformGenerator.accumulator), voice1.envelopeGenerator.output(), is6581 ? filter.voiceDC2 : filter.voiceDC)
         // Voice 3 is silenced by voice3off if it is not routed through the filter.
         // If voice 3 is off we still need to clock the waveform generator
         let out3 = voice2.output(voice1.waveformGenerator.accumulator)
-        let V3: Int32 = (filter.filt3 || !filter.voice3off) ? filter.getNormalizedVoice(out3, voice2.envelopeGenerator.output()) : 0
+        let V3: Int32 = (filter.filt3 || !filter.voice3off) ? filter.getNormalizedVoice(out3, voice2.envelopeGenerator.output(), is6581 ? filter.voiceDC3 : filter.voiceDC) : 0
 
         return clockFilter(V1, V2, V3, &filter, &externalFilter, is6581: is6581)
     }
@@ -762,7 +822,9 @@ public struct ReSIDfpChip: ~Copyable {
         let wavDAC = chip.voice0.wavDAC
 
         // Filter::getNormalizedVoice()
-        let dc0 = chip.filter.voiceDC[env0], dc1 = chip.filter.voiceDC[env1], dc2 = chip.filter.voiceDC[env2]
+        let voiceDC = chip.filter.voiceDC
+        let dc0 = (is6581 ? chip.filter.voiceDC1 : voiceDC)[env0], dc1 = (is6581 ? chip.filter.voiceDC2 : voiceDC)[env1]
+        let dc2 = (is6581 ? chip.filter.voiceDC3 : voiceDC)[env2]
         let voice_voltage_range = chip.filter.voice_voltage_range
         let N16 = chip.filter.N16
         let vmin = chip.filter.vmin
@@ -1086,7 +1148,7 @@ public struct ReSIDfpChip: ~Copyable {
     /// Bytes held by the tables every chip of `model` shares, building them if they are not built yet.
     public static func sharedTableBytes(for model: SIDModel) -> Int {
         _ = ModelTables.tables(for: model)
-        let common = (4 + 5 * 6) * 4096 * 2 + 1024 * 8 + (256 + 4096) * 4
+        let common = (4 + 5 * 6) * 4096 * 2 + 1024 * 8 + (256 + 4096) * 4 + 256 * (4 + 8)
         return common + (model == .mos6581 ? FilterModelConfig6581.instance.bytes : FilterModelConfig8580.instance.bytes)
     }
 

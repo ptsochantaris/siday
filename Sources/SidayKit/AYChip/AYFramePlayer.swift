@@ -141,6 +141,13 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
         restart()
     }
 
+    /// Three marks for each chip. The chips are the same ones from one song to the next, and keep
+    /// what they are told here.
+    public func setMuted(_ muted: [Bool]) {
+        func left(_ voice: Int) -> Bool { voice < muted.count && muted[voice] }
+        for chip in 0 ..< chipCount { chips[chip].setMuted(left(chip * 3), left(chip * 3 + 1), left(chip * 3 + 2)) }
+    }
+
     @inline(__always) private func apply(_ chip: Int) {
         let r = regs[chip]
         let c = chips + chip

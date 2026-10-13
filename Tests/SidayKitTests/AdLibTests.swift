@@ -127,16 +127,17 @@ private func bank(_ instruments: [(name: String, quieter: UInt8)]) -> [UInt8] {
 }
 
 /// A ROL file with one note in its first voice: middle C for a second.
-private func rol(instrument: String = "SINE", drums: Bool = false, volume: Float = 1, bend: Float? = nil) -> [UInt8] {
+/// - Parameter also: another of the file's voices to have a note for as long, the G above.
+private func rol(instrument: String = "SINE", drums: Bool = false, volume: Float = 1, bend: Float? = nil, also: Int? = nil) -> [UInt8] {
     var file = word(0) + word(4) + padded("\\roll\\default", 40) + word(4) + word(4) + word(48) + word(56) + [0, drums ? 0 : 1]
     file += [UInt8](repeating: 0, count: 90 + 38 + 15) + number(120) + word(0)
     for voice in 0 ..< (drums ? 11 : 9) {
         let filler = [UInt8](repeating: 0, count: 15)
-        guard voice == 0 else {
+        guard voice == 0 || voice == also else {
             file += filler + word(0) + filler + word(0) + filler + word(0) + filler + word(0)
             continue
         }
-        file += filler + word(8) + word(60) + word(8)
+        file += filler + word(8) + word(voice == 0 ? 60 : 67) + word(8)
         file += filler + word(1) + word(0) + padded(instrument, 9) + [0, 0, 0]
         file += filler + word(1) + word(0) + number(volume)
         file += filler + (bend.map { word(1) + word(0) + number($0) } ?? word(0))
@@ -221,4 +222,95 @@ private func played(_ file: [UInt8], banks: [[UInt8]] = [], seconds: Double = 1)
     var still = rol()
     still.replaceSubrange(197 ..< 201, with: number(0))
     #expect(try played(still, banks: [bank([("SINE", 0)])]).renderer.knownLength! < 3)
+}
+
+// MARK: Voices left out
+
+/// How loud a player says each of its voices has been, and which of them were heard. (The drums
+/// are never quite at nought, even at rest.)
+private func lights(_ renderer: any Renderer) -> (levels: [Float], lit: [Int]) {
+    var levels = [Float](repeating: -1, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return (levels, levels.indices.filter { levels[$0] > 0.005 })
+}
+
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity }
+
+@Test func cmfVoiceIsLeftOutAndPlaysOn() throws {
+    // The G above middle C on the file's second channel, and then, at the same moment, middle C on
+    // its first: the chip's first voice gets the G, and its second the C.
+    let both = cmf(before: [0x00, 0x91, 67, 127])
+    let renderer = try TuneLoader.load(both, format: .cmf)
+    let whole = mono(renderer, seconds: 1), all = lights(renderer)
+    #expect(all.lit == [0, 1])
+    #expect(abs(crossings(whole[4800...]) * 10 / 9 - 260) > 20)
+
+    // The second left out: what is heard is, to the last bit, the tune whose middle C is never
+    // struck, and the light of the voice left out is lit as it was.
+    renderer.setMuted([false, true])
+    renderer.select(subsong: 0)
+    let without = mono(renderer, seconds: 1)
+    #expect(without == mono(try TuneLoader.load(cmf(before: [0x00, 0x91, 67, 127], speed: 0), format: .cmf), seconds: 1))
+    #expect(without != whole)
+    #expect(lights(renderer).levels == all.levels)
+
+    // A song started again is started without it; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(mono(renderer, seconds: 1) == without)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(mono(renderer, seconds: 1) == whole)
+
+    // The first left out: middle C by itself.
+    renderer.setMuted([true])
+    renderer.select(subsong: 0)
+    let lower = mono(renderer, seconds: 1)
+    #expect(abs(crossings(lower[4800...]) * 10 / 9 - 260) <= 2)
+    #expect(lights(renderer).levels == all.levels)
+
+    // Every voice left out is silence.
+    renderer.setMuted([Bool](repeating: true, count: 9))
+    renderer.select(subsong: 0)
+    #expect(mono(renderer, seconds: 1).allSatisfy { $0 == 0 })
+    #expect(lights(renderer).levels == all.levels)
+}
+
+@Test func rolVoicesAndDrumsAreLeftOutAndPlayOn() throws {
+    let banks = [bank([("SINE", 0)])]
+    // A voice left out: to the last bit, the tune without the note that was on it.
+    let two = try played(rol(also: 1), banks: banks)
+    #expect(lights(two.renderer).lit == [0, 1])
+    two.renderer.setMuted([false, true])
+    two.renderer.select(subsong: 0)
+    let one = try played(rol(), banks: banks)
+    #expect(mono(two.renderer, seconds: 1) == one.sound)
+    #expect(two.sound != one.sound)
+    #expect(lights(two.renderer).lit == [0, 1])
+
+    // With the drums the chip's last three voices are five drums: the bass drum has the seventh,
+    // the snare drum and the hi-hat share the eighth, and the tom-tom and the cymbal the ninth.
+    // In the file they are the seventh voice to the eleventh, the hi-hat last. A light left out
+    // takes with it both of the drums that share it, and nothing else: with it left out, a drum
+    // of its two being struck is not heard. (All that it does is to change the whisper that the
+    // other drums give out at rest, which is some seventy decibels down.)
+    // Four of the drums are made of an instrument's first operator alone, which the instrument
+    // above has silent: here it is at full level.
+    var loud = bank([("SINE", 0)])
+    loud[62] = 0
+    let plain = try played(rol(drums: true), banks: [loud], seconds: 0.5)
+    for (voice, light) in [(6, 6), (7, 7), (10, 7), (8, 8), (9, 8)] {
+        let drum = try played(rol(drums: true, also: voice), banks: [loud], seconds: 0.5)
+        #expect(lights(drum.renderer).lit == [0, light], "voice \(voice)")
+        #expect(apart(drum.sound, plain.sound) > 0.2, "voice \(voice)")
+        var marks = [Bool](repeating: false, count: 9)
+        marks[light] = true
+        let rest = try played(rol(drums: true), banks: [loud], seconds: 0).renderer
+        for renderer in [drum.renderer, rest] {
+            renderer.setMuted(marks)
+            renderer.select(subsong: 0)
+        }
+        #expect(apart(mono(drum.renderer, seconds: 0.5), mono(rest, seconds: 0.5)) < 0.0005, "voice \(voice)")
+        #expect(lights(drum.renderer).lit == [0, light], "voice \(voice)")
+    }
 }

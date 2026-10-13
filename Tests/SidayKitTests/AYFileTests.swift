@@ -314,6 +314,73 @@ private func spectrumTune() -> [UInt8] {
     #expect(sane)
 }
 
+/// The chip and the beeper together: channel A is set to a tone of 440 Hz at `volume`, and the code
+/// then goes on for ever making a square wave of the speaker bit. Without `beeper` it does all the
+/// same things at the same moments, and leaves the speaker bit alone.
+private func chipAndBeeperTune(volume: UInt8 = 15, beeper: Bool = true) -> [UInt8] {
+    let code: [UInt8] = [
+        0xF3, // DI
+        0x3E, 0x07, 0x01, 0xFD, 0xFF, 0xED, 0x79, // LD A,7; LD BC,FFFDh; OUT (C),A
+        0x06, 0xBF, 0x3E, 0x3E, 0xED, 0x79, // LD B,BFh; LD A,3Eh; OUT (C),A
+        0x06, 0xFF, 0x3E, 0x08, 0xED, 0x79, // LD B,FFh; LD A,8; OUT (C),A
+        0x06, 0xBF, 0x3E, volume, 0xED, 0x79, // LD B,BFh; LD A,volume; OUT (C),A
+        0x06, 0xFF, 0xAF, 0xED, 0x79, // LD B,FFh; XOR A; OUT (C),A
+        0x06, 0xBF, 0x3E, 0xFC, 0xED, 0x79, // LD B,BFh; LD A,FCh; OUT (C),A
+        0xAF, // XOR A
+        0xEE, beeper ? 0x10 : 0x00, 0xD3, 0xFE, 0x06, 0x00, 0x10, 0xFE, 0x18, 0xF6, // loop: XOR 10h; OUT (FEh),A; LD B,0; DJNZ $; JR loop
+    ]
+    return makeAYFile(code: code, initOffset: 0, interruptOffset: nil)
+}
+
+@Test func ayFileVoicesAreLeftOutAndPlayOn() throws {
+    var options = LoadOptions()
+    options.stereo = .abc
+    func played(_ renderer: AYFileRenderer) -> (sound: [Float], levels: [Float]) {
+        var sound = [Float](repeating: 0, count: 9600 * 2)
+        sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 9600) }
+        var levels = [Float](repeating: -1, count: 4)
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        return (sound, levels)
+    }
+    let whole = played(try AYFileRenderer(chipAndBeeperTune(), options: options))
+    #expect(whole.levels == [1, 0, 0, 1])
+
+    // The beeper left out: what is heard is, to the last bit, the tune that never touches the
+    // speaker, and the beeper's light is lit as it was.
+    let renderer = try AYFileRenderer(chipAndBeeperTune(), options: options)
+    renderer.setMuted([false, false, false, true])
+    let chipAlone = played(renderer)
+    #expect(chipAlone.sound == played(try AYFileRenderer(chipAndBeeperTune(beeper: false), options: options)).sound)
+    #expect(chipAlone.sound != whole.sound)
+    #expect(chipAlone.levels == whole.levels)
+
+    // A song started again is given a new chip, and is started without the beeper all the same;
+    // and with the beeper brought back it is as it ever was.
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == chipAlone.sound)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == whole.sound)
+
+    // The chip's channel left out: the beeper alone, which is the tune with the channel at no
+    // volume. That too outlives the new chip.
+    renderer.setMuted([true])
+    renderer.select(subsong: 0)
+    let beeperAlone = played(renderer)
+    #expect(beeperAlone.sound == played(try AYFileRenderer(chipAndBeeperTune(volume: 0), options: options)).sound)
+    #expect(beeperAlone.sound != whole.sound)
+    #expect(beeperAlone.levels == whole.levels)
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == beeperAlone.sound)
+
+    // Everything left out is silence.
+    renderer.setMuted([true, true, true, true])
+    renderer.select(subsong: 0)
+    let nothing = played(renderer)
+    #expect(nothing.sound.allSatisfy { $0 == 0 })
+    #expect(nothing.levels == whole.levels)
+}
+
 @Test func ayFileRejectsDamageWithoutTrapping() throws {
     let good = spectrumTune()
     #expect(throws: TuneError.self) { _ = try AYFile([UInt8]("ZXAYAMAD".utf8) + [UInt8](repeating: 0, count: 40)) }

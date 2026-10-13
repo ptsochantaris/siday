@@ -134,6 +134,10 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         cpu.i = true
     }
 
+    public func setMuted(_ muted: [Bool]) {
+        machine.setMuted(muted)
+    }
+
     private func runSlice(_ cycles: Int) {
         var cpu = cpu
         let end = machine.clock + cycles

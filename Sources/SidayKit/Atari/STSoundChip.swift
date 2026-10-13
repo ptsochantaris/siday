@@ -85,6 +85,10 @@ struct STSoundChip: ~Copyable {
     private var levelWas: (UInt32, UInt32, UInt32) = (0, 0, 0)
     private var levelRose = (false, false, false)
     private var envelopeStruck = false
+    /// The table the sound is looked up in: `mix`, or, while some channel is left out of the sound, a
+    /// copy of it made for the channels that are heard (`setMuted`). It outlives a reset.
+    private var heardMix: UnsafeMutablePointer<UInt16>
+    private var mixWithout: UnsafeMutablePointer<UInt16>?
 
     /// - Parameter clockHz: the chip's clock. The ST's unless the tune was recorded on something else.
     init(hostRate: Int, clockHz: UInt32 = STSoundChip.atariClockHz) {
@@ -95,6 +99,7 @@ struct STSoundChip: ~Copyable {
         for index in 0 ..< 32768 {
             mix[index] = index * 2 + 1 < packed.count ? UInt16(packed[index * 2]) | UInt16(packed[index * 2 + 1]) << 8 : 0
         }
+        heardMix = mix
         let envelopes = UnsafeMutablePointer<UInt8>.allocate(capacity: 10 * 128)
         for (shape, runs) in Self.shapes.enumerated() {
             runs.withUTF8Buffer { runs in
@@ -152,6 +157,7 @@ struct STSoundChip: ~Copyable {
 
     deinit {
         mix.deallocate()
+        mixWithout?.deallocate()
         envelopes.deallocate()
         history.deallocate()
         filteredHistory.deallocate()
@@ -297,7 +303,27 @@ struct STSoundChip: ~Copyable {
         levelsSeen.0 |= 1 &<< (levels & 0x1F)
         levelsSeen.1 |= 1 &<< ((levels >> 5) & 0x1F)
         levelsSeen.2 |= 1 &<< ((levels >> 10) & 0x1F)
-        return Int32(mix[Int(levels & 0x7FFF)])
+        return Int32(heardMix[Int(levels & 0x7FFF)])
+    }
+
+    /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. True for one
+    /// that is not to be heard. The three channels are not added up but looked up together, all three
+    /// levels at once, so a channel is left out by being looked up at a level of nought: the other
+    /// two sound as they would beside a channel that was playing nothing. The channel itself runs on,
+    /// and what is told of it is the same.
+    ///
+    /// It is done with a table and not in the looking up, which is done a quarter of a million times
+    /// a second: a copy of the table in which the levels of the channels left out make no difference.
+    mutating func setMuted(_ first: Bool, _ second: Bool, _ third: Bool) {
+        let heard = (first ? 0 : 0x1F) | (second ? 0 : 0x1F << 5) | (third ? 0 : 0x1F << 10)
+        guard heard != 0x7FFF else {
+            heardMix = mix
+            return
+        }
+        let table = mixWithout ?? .allocate(capacity: 32768)
+        for index in 0 ..< 32768 { table[index] = mix[index & heard] }
+        mixWithout = table
+        heardMix = table
     }
 
     /// How far each channel has swung since this was last asked, where 1 is from silence to full

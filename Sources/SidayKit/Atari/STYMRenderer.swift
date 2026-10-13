@@ -197,6 +197,13 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// The chip is the same one from one song to the next, and keeps what it is told here. A voice
+    /// left out takes with it whatever the timers are doing on it: a drum, or a SID voice.
+    public func setMuted(_ muted: [Bool]) {
+        func left(_ voice: Int) -> Bool { voice < muted.count && muted[voice] }
+        chip.setMuted(left(0), left(1), left(2))
+    }
+
     // MARK: The recording
 
     /// A register as it was recorded for the tick being played.

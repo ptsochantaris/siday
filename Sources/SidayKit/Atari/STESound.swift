@@ -25,6 +25,9 @@ struct STESound: ~Copyable {
     private var pair: Int32 = 0
     private var level: Int16 = 0
     private var swing = Swing<Int16>(from: -32768, to: 32767)
+    /// True if the samples are left out of the sound: they are played all the same, and how far they
+    /// swing is measured, but what is given out is nothing. It outlives a reset.
+    var muted = false
 
     init(hostRate: Int) {
         self.hostRate = UInt32(hostRate)
@@ -163,7 +166,7 @@ struct STESound: ~Copyable {
             innerClock -= hostRate
         }
         swing.note(level)
-        return level
+        return muted ? 0 : level
     }
 
     /// How far the samples have swung since this was last asked, where 1 is as far as they can.

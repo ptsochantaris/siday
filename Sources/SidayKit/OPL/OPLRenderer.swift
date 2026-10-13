@@ -80,6 +80,13 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
         restart()
     }
 
+    /// A voice here is one of the chip's channels, and is left out as the chip makes its sound. Where
+    /// a tune has drums, the last three channels are the bass drum, the snare drum and the hi-hat
+    /// together, and the tom-tom and the cymbal together, and each of the three is left out whole.
+    func setMuted(_ muted: [Bool]) {
+        card.setMuted(Array(muted.prefix(Tune.voices)))
+    }
+
     /// Runs the tune's clock until the chip has samples to make, or the tune is over.
     private func advance() {
         while card.samplesLeft == 0, !hasEnded {

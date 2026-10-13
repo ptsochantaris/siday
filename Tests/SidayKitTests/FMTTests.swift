@@ -252,3 +252,39 @@ private let ticksASecond = 1_193_181.8181 / 65536
     #expect(long.knownLength == nil)
     #expect(loudest(mono(long, seconds: 0.5)[...]) == 0)
 }
+
+@Test func fmtVoiceIsLeftOutAndPlaysOn() throws {
+    /// How loud a player says each of its voices has been.
+    func levels(_ renderer: any Renderer) -> [Float] {
+        var levels = [Float](repeating: -1, count: renderer.channelCount)
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        return levels
+    }
+    // The one note of the tune above on the first voice, and another, an octave down, on the fifth.
+    let two = fmt(rows: 40, patterns: [(0, [[49, 0x80 | 38], empty(40), empty(40), empty(40), [37, 0x80 | 38]])])
+    let renderer = try TuneLoader.load(two, format: .fmt)
+    let whole = mono(renderer, seconds: 1), lit = levels(renderer)
+    #expect(lit.map { $0 > 0.2 } == [true, false, false, false, true, false, false, false])
+
+    // The fifth left out: what is heard is, to the last bit, the tune with the one note, and the
+    // fifth voice's light is lit as it was.
+    renderer.setMuted([false, false, false, false, true])
+    renderer.select(subsong: 0)
+    let without = mono(renderer, seconds: 1)
+    #expect(without == mono(try TuneLoader.load(fmt(rows: 40), format: .fmt), seconds: 1))
+    #expect(without != whole)
+    #expect(levels(renderer) == lit)
+
+    // A song started again is started without it; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(mono(renderer, seconds: 1) == without)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(mono(renderer, seconds: 1) == whole)
+
+    // Every voice left out is silence.
+    renderer.setMuted([Bool](repeating: true, count: 8))
+    renderer.select(subsong: 0)
+    #expect(mono(renderer, seconds: 1).allSatisfy { $0 == 0 })
+    #expect(levels(renderer) == lit)
+}

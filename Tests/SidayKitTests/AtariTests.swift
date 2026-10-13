@@ -129,7 +129,10 @@ private func icePacked(_ bytes: [UInt8]) -> [UInt8] {
 }
 
 /// A tune for the Atari ST, by hand: it sets channel A to a square wave of 492 Hz and leaves it there.
-private func testTone() -> [UInt8] {
+/// - Parameters:
+///   - volume: channel A's.
+///   - samples: also set the STE's sample player going, round and round a square wave of 782 Hz.
+private func testTone(volume: UInt16 = 15, samples: Bool = false) -> [UInt8] {
     func words(_ values: [UInt16]) -> [UInt8] { values.flatMap { [UInt8($0 >> 8), UInt8($0 & 255)] } }
     var header = Array("SNDH".utf8) + Array("TITL".utf8) + Array("Test tone".utf8) + [0]
     header += Array("COMM".utf8) + Array("siday".utf8) + [0]
@@ -140,17 +143,31 @@ private func testTone() -> [UInt8] {
     header += [0, 3] + Array("HDNS".utf8)
     if header.count & 1 != 0 { header.append(0) }
     let start = 12 + header.count
-    let code = words([
+    var code = words([
         0x41F9, 0x00FF, 0x8800, // lea $ff8800,a0
         0x10BC, 0x0000, 0x117C, 0x00FE, 0x0002, // tone A, low byte: 254, which is 125,000 / 254 Hz
         0x10BC, 0x0001, 0x117C, 0x0000, 0x0002, // tone A, high byte
         0x10BC, 0x0007, 0x117C, 0x003E, 0x0002, // only channel A's tone is on
-        0x10BC, 0x0008, 0x117C, 0x000F, 0x0002, // at full volume
-        0x4E75, // rts
+        0x10BC, 0x0008, 0x117C, volume, 0x0002, // at full volume
     ])
+    // Eight samples to a cycle, at the slowest of the sample player's rates: 6,258 a second.
+    let wave = (0 ..< 64).map { UInt8(bitPattern: $0 / 4 % 2 == 0 ? 100 : -100) }
+    if samples {
+        // The wave follows the code, which is this and the last instruction: 28 words.
+        let from = Int(STMachine.loadAddress) + start + code.count + 56, to = from + wave.count
+        func byte(_ address: Int, _ shift: Int) -> UInt16 { UInt16(address >> shift & 255) }
+        code += words([
+            0x43F9, 0x00FF, 0x8900, // lea $ff8900,a1
+            0x137C, byte(from, 16), 0x0003, 0x137C, byte(from, 8), 0x0005, 0x137C, byte(from, 0), 0x0007, // where the samples start
+            0x137C, byte(to, 16), 0x000F, 0x137C, byte(to, 8), 0x0011, 0x137C, byte(to, 0), 0x0013, // and where they end
+            0x137C, 0x0080, 0x0021, // one channel of them, at the slowest rate
+            0x137C, 0x0003, 0x0001, // played round and round
+        ])
+    }
+    code += words([0x4E75]) // rts
     let exit = start + code.count - 2
     // Three ways in: start a song, stop, play a tick. The last two only return.
-    return words([0x6000, UInt16(start - 2), 0x6000, UInt16(exit - 6), 0x6000, UInt16(exit - 10)]) + header + code
+    return words([0x6000, UInt16(start - 2), 0x6000, UInt16(exit - 6), 0x6000, UInt16(exit - 10)]) + header + code + (samples ? wave : [])
 }
 
 /// How much of a signal is at one frequency.
@@ -341,4 +358,167 @@ private func rendered(_ renderer: any Renderer, seconds: Double = 1) -> [Float] 
     #expect(blocks[0] == [false, false, true])
     #expect(blocks.allSatisfy { !$0[0] && !$0[1] })
     #expect(blocks.last == [false, false, false])
+}
+
+// MARK: Voices left out
+
+/// What a player makes of its tune from the start, and how loud it said each voice was in it.
+private func played(_ renderer: any Renderer, seconds: Double = 0.5) -> (sound: [Float], levels: [Float]) {
+    let sound = rendered(renderer, seconds: seconds)
+    var levels = [Float](repeating: -1, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return (sound, levels)
+}
+
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity }
+
+/// A YM3 file of a second: a tone of 492 Hz on the first channel and one of 740 Hz on the second,
+/// each at its volume.
+private func ym3(volumes: (UInt8, UInt8) = (15, 13)) -> [UInt8] {
+    var registers = [UInt8](repeating: 0, count: 14)
+    registers[0] = 254
+    registers[2] = 169
+    registers[7] = 0x3C
+    registers[8] = volumes.0
+    registers[9] = volumes.1
+    registers[13] = 0xFF
+    return Array("YM3!".utf8) + registers.flatMap { [UInt8](repeating: $0, count: 50) }
+}
+
+@Test func ymVoiceOnTheAtariIsLeftOutAndPlaysOn() throws {
+    let first = 125_000.0 / 254, second = 125_000.0 / 169
+    let whole = played(try TuneLoader.load(ym3(), format: .ym))
+    #expect(strength(whole.sound, at: first) > 0.02 && strength(whole.sound, at: second) > 0.02)
+    #expect(whole.levels[0] == 1 && whole.levels[1] > 0.3 && whole.levels[2] == 0)
+
+    // The ST's three channels are not added up: the level of all three is looked up at once. A
+    // channel left out is looked up at a level of nought, which is all but what it is at no
+    // volume (the chip's last step down is not quite to nothing): the other is heard as it is
+    // beside a silent channel, a little louder than it was beside a sounding one.
+    let renderer = try TuneLoader.load(ym3(), format: .ym)
+    #expect(renderer is STYMRenderer)
+    renderer.setMuted([false, true])
+    let without = played(renderer)
+    let alone = played(try TuneLoader.load(ym3(volumes: (15, 0)), format: .ym))
+    #expect(apart(without.sound, alone.sound) < 0.002)
+    #expect(strength(without.sound, at: second) < 0.0002)
+    #expect(strength(without.sound, at: first) > strength(whole.sound, at: first))
+    #expect(without.levels == whole.levels)
+
+    // A song started again is started without it; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == without.sound)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == whole.sound)
+
+    // Every channel left out is a steady level, and a steady level is silence once it has been
+    // sitting there a twentieth of a second.
+    renderer.setMuted([true, true, true])
+    renderer.select(subsong: 0)
+    let nothing = played(renderer)
+    #expect(nothing.sound[4096...].allSatisfy { abs($0) < 1e-6 })
+    #expect(nothing.levels == whole.levels)
+
+    // What a timer does to a channel between ticks goes with the channel: here a SID voice.
+    let buzz = try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: true), format: .ym)
+    buzz.setMuted([true])
+    #expect(strength(rendered(buzz), at: 2_457_600.0 / 4 / 200 / 2) < 0.0005)
+}
+
+@Test func sndhVoicesAreLeftOutAndPlayOn() throws {
+    // The sound chip's channel A and the STE's samples, each at its own pitch.
+    let tone = 125_000.0 / 254, samples = 6258.0 / 8
+    let whole = played(try TuneLoader.load(testTone(samples: true), format: .sndh))
+    #expect(strength(whole.sound, at: tone) > 0.02 && strength(whole.sound, at: samples) > 0.02)
+    #expect(whole.levels[0] == 1 && whole.levels[1] == 0 && whole.levels[2] == 0 && whole.levels[3] > 0.3)
+
+    // The samples left out: to the last bit, the tune that plays none. They are played on, and
+    // their light is lit as it was.
+    let renderer = try TuneLoader.load(testTone(samples: true), format: .sndh)
+    renderer.setMuted([false, false, false, true])
+    let chipAlone = played(renderer)
+    #expect(chipAlone.sound == played(try TuneLoader.load(testTone(), format: .sndh)).sound)
+    #expect(chipAlone.sound != whole.sound)
+    #expect(chipAlone.levels == whole.levels)
+
+    // A song started again is started without them; and with them brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == chipAlone.sound)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == whole.sound)
+
+    // The chip's channel left out: the samples are as they were, and the tone is gone.
+    renderer.setMuted([true])
+    renderer.select(subsong: 0)
+    let samplesAlone = played(renderer)
+    #expect(apart(samplesAlone.sound, played(try TuneLoader.load(testTone(volume: 0, samples: true), format: .sndh)).sound) < 0.002)
+    #expect(strength(samplesAlone.sound, at: tone) < 0.0002)
+    #expect(abs(strength(samplesAlone.sound, at: samples) / strength(whole.sound, at: samples) - 1) < 0.01)
+    #expect(samplesAlone.levels == whole.levels)
+
+    // Everything left out is silence, once the chip's steady level has been sitting there a while.
+    renderer.setMuted([true, true, true, true])
+    renderer.select(subsong: 0)
+    let nothing = played(renderer)
+    #expect(nothing.sound[4096...].allSatisfy { abs($0) < 1e-6 })
+    #expect(nothing.levels == whole.levels)
+}
+
+/// A YM tracker tune of a second: one sample, a square wave, played round and round at 1,000 Hz
+/// on the first voice and, if there is a `second`, at 500 Hz on that.
+private func ymTracker(second: Bool = true) -> [UInt8] {
+    let wave = (0 ..< 64).map { UInt8($0 / 4 % 2 == 0 ? 228 : 28) }
+    var file = Array("YMT1LeOnArD!".utf8) + word(2) + word(50) + long(50) + long(0) + word(1) + long(0)
+    file += Array("Two voices".utf8) + [0] + Array("siday".utf8) + [0] + [0]
+    file += word(wave.count) + wave
+    for tick in 0 ..< 50 {
+        let sample: UInt8 = tick == 0 ? 0 : 0xFF
+        file += [sample, 0x7F] + word(8000) + [sample, 0x7F] + word(second ? 4000 : 0)
+    }
+    return file
+}
+
+@Test func ymVoicesOfSamplesAreLeftOutAndPlayOn() throws {
+    let whole = played(try TuneLoader.load(ymTracker(), format: .ym))
+    #expect(strength(whole.sound, at: 1000) > 0.02 && strength(whole.sound, at: 500) > 0.02)
+    #expect(whole.levels.count == 2 && whole.levels[0] > 0.5 && whole.levels[1] > 0.5)
+
+    // A voice left out: to the last bit, the tune in which it plays nothing.
+    let renderer = try TuneLoader.load(ymTracker(), format: .ym)
+    #expect(renderer is STSampleRenderer)
+    renderer.setMuted([false, true])
+    let without = played(renderer)
+    #expect(without.sound == played(try TuneLoader.load(ymTracker(second: false), format: .ym)).sound)
+    #expect(without.sound != whole.sound)
+    #expect(without.levels == whole.levels)
+
+    // A song started again is started without it; and with it brought back, as it ever was.
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == without.sound)
+    renderer.setMuted([])
+    renderer.select(subsong: 0)
+    #expect(played(renderer).sound == whole.sound)
+
+    // Every voice left out is silence.
+    renderer.setMuted([true, true])
+    renderer.select(subsong: 0)
+    let nothing = played(renderer)
+    #expect(nothing.sound.allSatisfy { $0 == 0 })
+    #expect(nothing.levels == whole.levels)
+
+    // A digi-mix is one voice, and with it left out there is nothing.
+    let wave = (0 ..< 800).map { UInt8(bitPattern: $0 / 8 % 2 == 0 ? 100 : -100) }
+    var file = Array("MIX1LeOnArD!".utf8) + long(1) + long(wave.count) + long(1)
+    file += long(0) + long(wave.count) + word(4) + word(8000) + [0, 0, 0] + wave
+    let mix = try TuneLoader.load(file, format: .ym)
+    let heard = played(mix, seconds: 0.2)
+    #expect(strength(heard.sound, at: 500) > 0.05 && heard.levels.count == 1 && heard.levels[0] > 0.5)
+    mix.setMuted([true])
+    mix.select(subsong: 0)
+    let silent = played(mix, seconds: 0.2)
+    #expect(silent.sound.allSatisfy { $0 == 0 })
+    #expect(silent.levels == heard.levels)
 }

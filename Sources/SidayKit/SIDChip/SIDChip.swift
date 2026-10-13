@@ -94,6 +94,11 @@ public struct SIDChip: ~Copyable {
     // Used to amplify the output by scaleFactor/2 to get an adequate playback volume
     var scaleFactor: Int32 = 3
 
+    /// For leaving the samples played on the volume out of the sound (see `setVolumeHeld`; not in
+    /// reSID): whether the volume is held, and what was last written to register $18.
+    var volume_held = false
+    var mode_vol_written: UInt32 = 0
+
     // Resampling constants.
     // The error in interpolated lookup is bounded by 1.234/L^2,
     // while the error in non-interpolated lookup is bounded by
@@ -203,9 +208,35 @@ public struct SIDChip: ~Copyable {
         filter.reset()
         extfilt.reset()
         sync_any = false
+        volume_held = false
+        mode_vol_written = 0
 
         bus_value = 0
         bus_value_ttl = 0
+    }
+
+    /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. True for one
+    /// that is not to be heard. A voice left out is given to the filter as a voice making no sound
+    /// (see `Filter.set_muted`). Its oscillator and envelope run on, so it still modulates its
+    /// neighbour, and the third voice can still be read back. It outlives a reset.
+    public mutating func setMuted(_ first: Bool, _ second: Bool, _ third: Bool) {
+        filter.set_muted(first, second, third)
+    }
+
+    /// Holds the volume at full, whatever is written to it, or lets it go again: how the samples a
+    /// tune plays by moving the volume about are left out of the sound, since they are nothing but
+    /// the volume moving. (It is how libsidplayfp mutes them.) The register's other four bits are
+    /// passed on as they are written, and the register reads back as what was written. A reset
+    /// lets the volume go.
+    public mutating func setVolumeHeld(_ held: Bool) {
+        guard held != volume_held else { return }
+        volume_held = held
+        filter.writeMODE_VOL(heard_mode_vol)
+    }
+
+    /// What the filter is told was written to register $18.
+    var heard_mode_vol: UInt32 {
+        volume_held ? mode_vol_written | 0x0F : mode_vol_written
     }
 
     // ----------------------------------------------------------------------------
@@ -332,7 +363,8 @@ public struct SIDChip: ~Copyable {
         case 0x17:
             filter.writeRES_FILT(bus_value)
         case 0x18:
-            filter.writeMODE_VOL(bus_value)
+            mode_vol_written = bus_value
+            filter.writeMODE_VOL(heard_mode_vol)
         default:
             break
         }

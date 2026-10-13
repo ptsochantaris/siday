@@ -222,6 +222,12 @@ public final class AYFileRenderer: Renderer {
     /// sounding then.
     private var beeperEdges = 0, framesOfEdges = 0
     private var beeperWasSounding = false
+    /// The voices left out of the sound, which a song started afresh is started without: the chip's
+    /// three and the beeper.
+    private var muted: [Bool] = []
+    /// What the beeper adds to the sound while its bit is set: its level, or nothing if it is left
+    /// out. It goes in and out as ever either way. (A change is taken up as the beeper next moves.)
+    private var beeperPull = -ayFileBeeperLevel
 
     public private(set) var info: TuneInfo
     public private(set) var currentSubsong = 0
@@ -395,6 +401,19 @@ public final class AYFileRenderer: Renderer {
         chipIsCPC = cpc
         chipHz = options.clockHz ?? (cpc ? ayFileCPCChipHz : defaultAYClockHz)
         chip.pointee = AYChip(type: chipType, clockHz: chipHz, sampleRate: outputSampleRate, stereo: options.stereo)
+        applyMutes()
+    }
+
+    public func setMuted(_ muted: [Bool]) {
+        self.muted = muted
+        applyMutes()
+    }
+
+    /// Tells the chip, which is made anew for every song, which of its channels are left out.
+    private func applyMutes() {
+        func left(_ voice: Int) -> Bool { voice < muted.count && muted[voice] }
+        chip.pointee.setMuted(left(0), left(1), left(2))
+        beeperPull = left(3) ? 0 : -ayFileBeeperLevel
     }
 
     /// Rebuilds memory, CPU and chip for the current song.
@@ -440,7 +459,7 @@ public final class AYFileRenderer: Renderer {
     @inline(__always) private func apply(_ event: AYPortEvent) {
         if event.register == AYPortEvent.beeper {
             // Ay_Emul's sign: the speaker bit pulls the output down.
-            beeperLevel = event.value != 0 ? -ayFileBeeperLevel : 0
+            beeperLevel = event.value != 0 ? beeperPull : 0
         } else {
             chip.pointee.write(Int(event.register), event.value)
         }
@@ -475,6 +494,7 @@ public final class AYFileRenderer: Renderer {
         var frameLength = Double(frameTStates)
         var step = tstatesPerStep
         var beeper = beeperLevel
+        let beeperPull = beeperPull
         var moves = 0
         var next = eventIndex
         var count = machine.eventCount
@@ -497,7 +517,7 @@ public final class AYFileRenderer: Renderer {
                 while nextTime <= position {
                     let event = events[next]
                     if event.register == AYPortEvent.beeper {
-                        beeper = event.value != 0 ? -ayFileBeeperLevel : 0
+                        beeper = event.value != 0 ? beeperPull : 0
                         moves &+= 1
                     } else {
                         chip.pointee.write(Int(event.register), event.value)

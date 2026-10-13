@@ -490,6 +490,11 @@ extension ReSIDfpChip {
         let volume: UnsafePointer<UInt16>
         let opamp_rev: UnsafePointer<UInt16>
         let voiceDC: UnsafePointer<Double>
+        /// Each voice's own table of DC levels: `voiceDC`, unless the voice is left out of the sound
+        /// (not in reSIDfp; see ReSIDfpChip.setMuted). They outlive a reset.
+        var voiceDC1: UnsafePointer<Double>
+        var voiceDC2: UnsafePointer<Double>
+        var voiceDC3: UnsafePointer<Double>
         let rnd_buffer: UnsafePointer<Double>
         let N16: Double
         let vmin: Double
@@ -572,6 +577,9 @@ extension ReSIDfpChip {
                 fmc = fmc8580!
                 voiceDC = UnsafePointer(fmc8580!.voiceDC)
             }
+            voiceDC1 = voiceDC
+            voiceDC2 = voiceDC
+            voiceDC3 = voiceDC
             mixer = UnsafePointer(fmc.mixer)
             summer = UnsafePointer(fmc.summer)
             resonance = UnsafePointer(fmc.resonance)
@@ -623,6 +631,12 @@ extension ReSIDfpChip {
         @inline(__always)
         mutating func getNormalizedVoice(_ value: Float, _ env: UInt32) -> Int32 {
             Int32(getNormalizedValue(getVoiceVoltage(value, env)))
+        }
+
+        /// getNormalizedVoice() with the voice's own table of DC levels (`voiceDC1` and the others).
+        @inline(__always)
+        mutating func getNormalizedVoice(_ value: Float, _ env: UInt32, _ voiceDC: UnsafePointer<Double>) -> Int32 {
+            Int32(getNormalizedValue(Double(value) * voice_voltage_range + voiceDC[Int(env)]))
         }
 
         // MARK: Filter

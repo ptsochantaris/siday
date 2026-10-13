@@ -30,8 +30,9 @@ extension ReSIDfpChip {
         /// The DAC LUT for analog waveform output
         let wavDAC: UnsafePointer<Float>
 
-        /// The DAC LUT for analog envelope output
-        let envDAC: UnsafePointer<Float>
+        /// The DAC LUT for analog envelope output. (Another, that gives nought, for a voice left out of
+        /// the sound: see ReSIDfpChip.setMuted.)
+        var envDAC: UnsafePointer<Float>
 
         init(waveformGenerator: WaveformGenerator, wavDAC: UnsafePointer<Float>, envDAC: UnsafePointer<Float>) {
             self.waveformGenerator = waveformGenerator

@@ -123,6 +123,9 @@ extension SIDChip {
         var v2: Int32 = 0
         var v1: Int32 = 0
 
+        // The voices left out of the sound, a bit for each (see set_muted; not in reSID).
+        var muted: UInt32 = 0
+
         let sid_model: SIDModel
         let is6581: Bool
 
@@ -240,6 +243,21 @@ extension SIDChip {
         }
 
         // ----------------------------------------------------------------------------
+        // Voices left out of the sound (not in reSID): see Renderer.setMuted.
+        // A voice left out comes to the summer and the mixer as a voice that is making no
+        // sound, which is its DC level, whichever of the two it is routed to: see
+        // set_sum_mix(). The voice mask above is not used for this. It takes the voice's
+        // input off the summer and the mixer altogether, which changes their gain for the
+        // voices that are left, and takes away the voice's part of the DC level that
+        // samples played on the volume are made of; so one light would dim another.
+        // It outlives a reset.
+        // ----------------------------------------------------------------------------
+        mutating func set_muted(_ first: Bool, _ second: Bool, _ third: Bool) {
+            muted = (first ? 0x1 : 0) | (second ? 0x2 : 0) | (third ? 0x4 : 0)
+            set_sum_mix()
+        }
+
+        // ----------------------------------------------------------------------------
         // SID reset.
         // ----------------------------------------------------------------------------
         mutating func reset() {
@@ -314,22 +332,28 @@ extension SIDChip {
             // The summer switch in Filter::clock(): Vi is the sum of the selected inputs,
             // offset = summer_offset<number of inputs>::value.
             @inline(__always) func mask(_ bits: UInt32, _ bit: UInt32) -> Int32 { (bits & bit) != 0 ? -1 : 0 }
-            sum_v1 = mask(sum, 0x1)
-            sum_v2 = mask(sum, 0x2)
-            sum_v3 = mask(sum, 0x4)
+            // (A voice left out of the sound is still one of the inputs, so the tables are the same
+            // ones: but nothing of it is added, and the level of a silent voice goes in with the
+            // offset. With no voice left out all this is as it is in reSID.)
+            let heard = ~muted
+            sum_v1 = mask(sum & heard, 0x1)
+            sum_v2 = mask(sum & heard, 0x2)
+            sum_v3 = mask(sum & heard, 0x4)
             sum_offset_ve = sid_summer_offset((sum & 0xF).nonzeroBitCount) &+ (ve & mask(sum, 0x8))
+                &+ voice_DC &* Int32((sum & muted & 0x7).nonzeroBitCount)
 
             // The mixer switch in Filter::output(): the selected voices are added as they are,
             // the selected filter outputs are added together and scaled by filterGain first,
             // offset = mixer_offset<number of inputs>::value.
-            mix_v1 = mask(mix, 0x01)
-            mix_v2 = mask(mix, 0x02)
-            mix_v3 = mask(mix, 0x04)
+            mix_v1 = mask(mix & heard, 0x01)
+            mix_v2 = mask(mix & heard, 0x02)
+            mix_v3 = mask(mix & heard, 0x04)
             mix_Vlp = mask(mix, 0x10)
             mix_Vbp = mask(mix, 0x20)
             mix_Vhp = mask(mix, 0x40)
             mix_filt = (mix & 0x70) != 0
             mix_offset_ve = sid_mixer_offset((mix & 0x7F).nonzeroBitCount) &+ (ve & mask(mix, 0x08))
+                &+ voice_DC &* Int32((mix & muted & 0x7).nonzeroBitCount)
         }
 
         // ----------------------------------------------------------------------------

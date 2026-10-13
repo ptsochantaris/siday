@@ -63,6 +63,8 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
     private var swings = [Swing<Int32>](repeating: Swing(from: -32768, to: 32767), count: 8)
     /// The voices that have been given a new note since the notes were last asked for.
     private var struckVoices = [Bool](repeating: false, count: 8)
+    /// The voices left out of the sound: they play on, and are not added in. A digi-mix has the one.
+    private var mutedVoices = [Bool](repeating: false, count: 8)
     private var tick = 0
     private var wrapped = false
     private var untilTick = 0
@@ -192,6 +194,10 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
         restart()
     }
 
+    public func setMuted(_ muted: [Bool]) {
+        for voice in 0 ..< 8 { mutedVoices[voice] = voice < muted.count && muted[voice] }
+    }
+
     // MARK: A digi-mix
 
     private func nextPiece() {
@@ -222,7 +228,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             pieceClock -= hostRate
         }
         swings[0].note(Int32(sample) << 7)
-        return Int16(sample) << 7
+        return mutedVoices[0] ? 0 : Int16(sample) << 7
     }
 
     // MARK: A tracker tune
@@ -273,7 +279,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             let sample = samples[voices[index].sample]
             let level = Int32(Int8(bitPattern: byte(sample.start + voices[index].position) ^ 0x80)) * voices[index].volume
             swings[index].note(level)
-            output += level
+            if !mutedVoices[index] { output += level }
             voices[index].innerClock &+= voices[index].rate
             while voices[index].innerClock >= hostRate {
                 voices[index].position += 1

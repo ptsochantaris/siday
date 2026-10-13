@@ -68,6 +68,10 @@ public final class SNDHRenderer: Renderer {
         playing = machine.start(file.image) && machine.call(STMachine.loadAddress, d0: UInt32(currentSubsong + 1))
     }
 
+    public func setMuted(_ muted: [Bool]) {
+        machine.setMuted(muted)
+    }
+
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
         var done = 0
         while done < frames {

@@ -186,3 +186,116 @@ import Testing
     #expect(sides(.acb) == [-0.9, 0.9, 0])
     #expect(sides(.mono) == [-0.9, 0, 0.9])
 }
+
+// MARK: Voices left out
+
+/// A tune that sets its registers once and leaves them: a tone on every channel of one chip or two,
+/// each at the volume given for it, where 16 is the envelope, which goes round.
+private final class SteadyTune: AYFrameSource {
+    let info = TuneInfo(format: "TEST")
+    private let volumes: [Int]
+    private var ticks = 0
+    private(set) var loopCount = 0
+    var chipCount: Int { volumes.count / 3 }
+
+    init(volumes: [Int]) {
+        self.volumes = volumes
+    }
+
+    func restart() {
+        ticks = 0
+        loopCount = 0
+    }
+
+    func tick(_ regs: UnsafeMutablePointer<AYRegs>) {
+        for chip in 0 ..< chipCount {
+            regs[chip].tonA = 200 + chip * 31
+            regs[chip].tonB = 317 + chip * 31
+            regs[chip].tonC = 141 + chip * 31
+            regs[chip].mixer = 0b111_000
+            regs[chip].amplA = volumes[chip * 3]
+            regs[chip].amplB = volumes[chip * 3 + 1]
+            regs[chip].amplC = volumes[chip * 3 + 2]
+            regs[chip].envelope = 40
+            if ticks == 0 { regs[chip].setEnvelopeRegister(10) }
+        }
+        ticks += 1
+        if ticks % 100 == 0 { loopCount += 1 }
+    }
+}
+
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: ArraySlice<Float>, _ b: ArraySlice<Float>) -> Float {
+    a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity
+}
+
+@Test func mutedAYChannelIsLeftOutAndPlaysOn() {
+    // What a player makes of its tune from the start, both sides, and what it says of its voices.
+    func played(_ player: AYFramePlayer<SteadyTune>, frames: Int = 2400) -> (sound: [Float], levels: [Float], pitches: [Float], sides: [Float]) {
+        var sound = [Float](repeating: 0, count: frames * 2)
+        sound.withUnsafeMutableBufferPointer { player.render(into: $0.baseAddress!, frames: frames) }
+        let count = player.channelCount
+        var levels = [Float](repeating: -1, count: count), pitches = levels, sides = levels
+        var struck = [Bool](repeating: false, count: count)
+        levels.withUnsafeMutableBufferPointer { player.takeChannelLevels(into: $0.baseAddress!) }
+        pitches.withUnsafeMutableBufferPointer { p in struck.withUnsafeMutableBufferPointer { s in player.takeChannelNotes(pitches: p.baseAddress!, struck: s.baseAddress!) } }
+        sides.withUnsafeMutableBufferPointer { player.takeChannelSides(into: $0.baseAddress!) }
+        return (sound, levels, pitches, sides)
+    }
+    // Two chips, as TurboSound has: the first channel of the first plays the envelope, and the
+    // second of the second is silent.
+    let volumes = [16, 12, 15, 10, 0, 13]
+    func player(_ volumes: [Int], _ layout: StereoLayout = .abc) -> AYFramePlayer<SteadyTune> {
+        var options = LoadOptions()
+        options.stereo = layout
+        return AYFramePlayer(source: SteadyTune(volumes: volumes), options: options)
+    }
+    /// The tune with one channel left out, and the tune with that channel at no volume.
+    func without(_ voice: Int, _ layout: StereoLayout = .abc) -> (muted: AYFramePlayer<SteadyTune>, quiet: AYFramePlayer<SteadyTune>) {
+        let muted = player(volumes, layout)
+        var marks = [Bool](repeating: false, count: 6), fewer = volumes
+        marks[voice] = true
+        fewer[voice] = 0
+        muted.setMuted(marks)
+        return (muted, player(fewer, layout))
+    }
+    let whole = played(player(volumes))
+    #expect(whole.levels.enumerated().allSatisfy { ($1 > 0.1) == (volumes[$0] > 0) })
+
+    // A channel left out: the sound is, to the last bit, that of the tune with the channel at no
+    // volume, on both sides; and all that is said of the channel is what it was. The envelope the
+    // first channel plays goes round whether or not that channel is heard.
+    for voice in 0 ..< 6 where volumes[voice] > 0 {
+        let pair = without(voice)
+        let heard = played(pair.muted)
+        #expect(heard.sound == played(pair.quiet).sound, "voice \(voice)")
+        #expect(heard.sound != whole.sound)
+        #expect(heard.levels == whole.levels && heard.pitches == whole.pitches && heard.sides == whole.sides)
+    }
+    // The same whichever way round the channels are heard, or with both sides alike.
+    for layout in [StereoLayout.acb, .mono] {
+        let pair = without(1, layout)
+        #expect(played(pair.muted).sound == played(pair.quiet).sound, "\(layout)")
+    }
+
+    // A song started again is started without the channel; and with it brought back, as it ever
+    // was. (Once the chip's filters have forgotten what they last played, that is: a song started
+    // again is played on the same chip, and its filters are not emptied for it.)
+    let again = without(2).muted
+    let first = played(again, frames: 9600)
+    again.select(subsong: 0)
+    #expect(apart(played(again, frames: 9600).sound[8192...], first.sound[8192...]) < 1e-6)
+    again.setMuted([])
+    again.select(subsong: 0)
+    #expect(apart(played(again, frames: 9600).sound[8192...], played(player(volumes), frames: 9600).sound[8192...]) < 1e-6)
+
+    // Marks for the first chip alone leave the second heard; and every channel left out is silence.
+    let one = player(volumes)
+    one.setMuted([true, true, true])
+    #expect(played(one).sound == played(player([0, 0, 0] + volumes[3...])).sound)
+    let silent = player(volumes)
+    silent.setMuted([Bool](repeating: true, count: 6))
+    let nothing = played(silent)
+    #expect(nothing.sound.allSatisfy { $0 == 0 })
+    #expect(nothing.levels == whole.levels)
+}

@@ -55,6 +55,18 @@ final class C64Machine: MOS6510Bus {
     private var voicePeaks: (UInt8, UInt8, UInt8) = (0, 0, 0)
     private var volumeSwing = Swing<UInt8>(from: 0, to: 15)
     private var volumeMoves = 0
+    /// For leaving the samples played on the volume out of the sound: whether they are left out;
+    /// whether the song has been found to play any, which it is once and for good (see `setMuted`);
+    /// and the run of volume moves being counted to find it, from the cycle the run began on.
+    private var samplesMuted = false
+    private var samplesFound = false
+    private var volumeRunStart = 0
+    private var volumeRun = 0
+    /// A song plays samples on the volume once it has moved it more than this many times within so
+    /// many cycles, which is a fiftieth of a second: over 800 times a second, where the fastest of
+    /// players that only set it or fade it move it a few hundred.
+    private static let sampleMoves = 16
+    private static let sampleCycles = 20000
     /// The voices whose gates have been opened since the notes were last asked for.
     private var gatesOpened: (Bool, Bool, Bool) = (false, false, false)
     private let sidClockHz: Double
@@ -181,6 +193,9 @@ final class C64Machine: MOS6510Bus {
         voicePeaks = (0, 0, 0)
         volumeSwing.clear()
         volumeMoves = 0
+        samplesFound = false
+        volumeRunStart = 0
+        volumeRun = 0
         sampleCount = 0
         writeLog = writeLog == nil ? nil : []
 
@@ -287,6 +302,32 @@ final class C64Machine: MOS6510Bus {
         }
         sidClock = clock - pending
         noteVoices()
+    }
+
+    /// Leaves voices out of the sound, or brings them back, from this moment: see `Renderer.setMuted`.
+    /// The three voices, and fourth the samples played on the volume. The chip is the same one from
+    /// one song to the next, and keeps what it is told of the three.
+    ///
+    /// The samples are nothing but the volume moving, and are left out by holding it still, at full
+    /// (see `setVolumeHeld` on either chip). That would also hold whatever else a tune does with its
+    /// volume, a fade for one, and make a tune that keeps it low louder; and the fourth mark is set
+    /// whenever one of the voices is to be heard alone. So the volume is held only in a song that has
+    /// been found to play samples, from when it is found to: a song that plays none is, to the last
+    /// bit, the same with its samples left out. The first few of a song's samples are heard, then:
+    /// as many as it takes to tell (`sampleMoves`).
+    func setMuted(_ muted: [Bool]) {
+        func left(_ voice: Int) -> Bool { voice < muted.count && muted[voice] }
+        syncSID()
+        residfp?.pointee.setMuted(left(0), left(1), left(2))
+        resid?.pointee.setMuted(left(0), left(1), left(2))
+        samplesMuted = left(3)
+        holdVolume()
+    }
+
+    /// Tells the chip whether its volume is to be held: see `setMuted`.
+    private func holdVolume() {
+        residfp?.pointee.setVolumeHeld(samplesMuted && samplesFound)
+        resid?.pointee.setVolumeHeld(samplesMuted && samplesFound)
     }
 
     /// True if a voice is making a sound that its envelope is the measure of: it has a waveform, its
@@ -468,7 +509,20 @@ final class C64Machine: MOS6510Bus {
             residfp?.pointee.write(r, value)
             resid?.pointee.write(r, value)
             if r == 0x18 {
-                if value & 0x0F != sidWritten[r] & 0x0F { volumeMoves += 1 }
+                if value & 0x0F != sidWritten[r] & 0x0F {
+                    volumeMoves += 1
+                    if !samplesFound {
+                        if clock - volumeRunStart > Self.sampleCycles {
+                            volumeRunStart = clock
+                            volumeRun = 0
+                        }
+                        volumeRun += 1
+                        if volumeRun > Self.sampleMoves {
+                            samplesFound = true
+                            holdVolume()
+                        }
+                    }
+                }
                 volumeSwing.note(value & 0x0F)
             } else if value & 1 != 0, sidWritten[r] & 1 == 0 {
                 // A gate opening is a note being struck.

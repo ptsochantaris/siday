@@ -315,3 +315,203 @@ private enum SIDReference {
     #expect(accepted)
     #expect(sid.samplingMethod == .resample)
 }
+
+// MARK: Voices left out of a tune
+
+// These are of both chips, this one and the port of reSIDfp, as a tune's player uses them: a voice
+// left out of the sound is left out the same way in each (`Renderer.setMuted`).
+
+/// A PSID file made here, for a PAL machine with a 6581.
+/// - Parameters:
+///   - start: the SID's registers as the tune's first routine sets them, in turn.
+///   - play: the code called fifty times a second after that, which is to end with an RTS.
+private func psid(_ start: [(register: UInt8, value: UInt8)], play: [UInt8] = [0x60]) -> [UInt8] {
+    func word(_ value: Int) -> [UInt8] { [UInt8(value >> 8 & 255), UInt8(value & 255)] }
+    // LDA #value; STA $D400 + register, for each; RTS.
+    var code: [UInt8] = []
+    for write in start { code += [0xA9, write.value, 0x8D, write.register, 0xD4] }
+    code.append(0x60)
+    var file = Array("PSID".utf8) + word(2) + word(0x7C) + word(0x1000) + word(0x1000) + word(0x1000 + code.count) + word(1) + word(1)
+    file += [UInt8](repeating: 0, count: 4 + 32 * 3) + word(1 << 2 | 1 << 4) + [0, 0, 0, 0]
+    return file + code + play
+}
+
+/// A voice's registers for a note: its pitch, an envelope that opens at once and holds at full, and
+/// its waveform with the gate, or without it for a voice that is to stay shut.
+private func voice(_ number: UInt8, hz: Double, control: UInt8) -> [(register: UInt8, value: UInt8)] {
+    let pitch = Int((hz * 16_777_216 / 985_248.61).rounded()), at = number * 7
+    return [(at, UInt8(pitch & 255)), (at + 1, UInt8(pitch >> 8)), (at + 5, 0x00), (at + 6, 0xF0), (at + 4, control)]
+}
+
+private func strength(_ samples: [Float], at hz: Double) -> Double {
+    var real = 0.0, imaginary = 0.0
+    for (index, sample) in samples.enumerated() {
+        let angle = 2 * Double.pi * hz * Double(index) / Double(outputSampleRate)
+        real += Double(sample) * Foundation.cos(angle)
+        imaginary += Double(sample) * Foundation.sin(angle)
+    }
+    return (real * real + imaginary * imaginary).squareRoot() / Double(samples.count)
+}
+
+/// The most that two sounds differ by at any sample.
+private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? zip(a, b).map { abs($0 - $1) }.max() ?? 0 : .infinity }
+
+/// A tune's player for one of the two chips and one of the two models.
+private func player(_ file: [UInt8], _ engine: SIDEngineChoice, _ model: SIDModelChoice = .mos6581) throws -> SIDRenderer {
+    var options = LoadOptions()
+    options.sidEngine = engine
+    options.sidModel = model
+    return try SIDRenderer(file, path: nil, options: options)
+}
+
+/// What a player makes of its tune from where it is, and what it said of each voice in it.
+private func played(_ renderer: SIDRenderer, seconds: Double = 0.3) -> (sound: [Float], levels: [Float], pitches: [Float]) {
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+    var levels = [Float](repeating: -1, count: 4), pitches = levels
+    var struck = [Bool](repeating: false, count: 4)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    pitches.withUnsafeMutableBufferPointer { p in struck.withUnsafeMutableBufferPointer { s in renderer.takeChannelNotes(pitches: p.baseAddress!, struck: s.baseAddress!) } }
+    return (stride(from: 0, to: frames * 2, by: 2).map { buffer[$0] }, levels, pitches)
+}
+
+/// A sound from a fifth of a second in: by then the chip has got over being switched on.
+private func settled(_ sound: [Float]) -> [Float] { Array(sound[9600...]) }
+
+@Test func sidVoiceIsLeftOutAndPlaysOn() throws {
+    // A sawtooth of 440 Hz on the first voice and a triangle of 660 Hz on the second, each with
+    // its gate open, or shut for a voice that is to play nothing.
+    func tune(first: UInt8 = 0x21, second: UInt8 = 0x11, volume: UInt8 = 0x0F) -> [UInt8] {
+        psid([(0x18, volume)] + voice(0, hz: 440, control: first) + voice(1, hz: 660, control: second))
+    }
+    for engine in [SIDEngineChoice.residfp, .resid] {
+        for model in [SIDModelChoice.mos6581, .mos8580] {
+            let whole = played(try player(tune(), engine, model))
+            let first = strength(settled(whole.sound), at: 440), second = strength(settled(whole.sound), at: 660)
+            #expect(first > 0.02 && second > 0.02)
+            #expect(whole.levels == [1, 1, 0, 0])
+
+            // The second voice left out: it is gone, the first is as it was, and what is said of
+            // the second is what was said of it. What is heard is the tune whose second voice never
+            // opens its gate, but for the little that a shut voice of this chip lets through.
+            let renderer = try player(tune(), engine, model)
+            renderer.setMuted([false, true])
+            let without = played(renderer)
+            let shut = played(try player(tune(second: 0x10), engine, model))
+            #expect(apart(settled(without.sound), settled(shut.sound)) < 0.003, "\(engine) \(model)")
+            #expect(strength(settled(without.sound), at: 660) < second / 100, "\(engine) \(model)")
+            #expect(abs(strength(settled(without.sound), at: 440) / first - 1) < 0.05, "\(engine) \(model)")
+            #expect(without.levels == whole.levels && without.pitches == whole.pitches)
+            // (The rest is the same for either model of the chip.)
+            guard model == .mos6581 else { continue }
+
+            // A song started again is started without it; and with it brought back, as it ever was.
+            // (The chip is not switched off between the two, so the first moments are not the same.)
+            renderer.select(subsong: 0)
+            let again = played(renderer)
+            #expect(strength(settled(again.sound), at: 660) < second / 100, "\(engine)")
+            renderer.setMuted([])
+            renderer.select(subsong: 0)
+            let back = played(renderer)
+            #expect(abs(strength(settled(back.sound), at: 660) / second - 1) < 0.05, "\(engine)")
+            #expect(abs(strength(settled(back.sound), at: 440) / first - 1) < 0.05, "\(engine)")
+
+            // Every voice left out is the chip with nothing playing on it, which is not quite
+            // silence: it is what a tune that sets the volume and plays no note gives.
+            let silent = try player(tune(), engine, model)
+            silent.setMuted([true, true, true, true])
+            let nothing = played(silent)
+            let idle = played(try player(tune(first: 0x20, second: 0x10), engine, model))
+            #expect(apart(settled(nothing.sound), settled(idle.sound)) < 0.003, "\(engine) \(model)")
+            #expect(strength(settled(nothing.sound), at: 440) < 0.0002 && strength(settled(nothing.sound), at: 660) < 0.0002, "\(engine) \(model)")
+            #expect(nothing.levels == whole.levels)
+
+            // The samples left out of a tune that plays none change nothing at all, not a bit of
+            // it: its volume, which here is not full, is left to it.
+            let quiet = try player(tune(volume: 0x0A), engine, model)
+            quiet.setMuted([false, false, false, true])
+            #expect(played(quiet).sound == played(try player(tune(volume: 0x0A), engine, model)).sound, "\(engine) \(model)")
+        }
+    }
+}
+
+@Test func sidThirdVoiceModulatesAndIsReadWhileLeftOut() throws {
+    for engine in [SIDEngineChoice.residfp, .resid] {
+        // The first voice's triangle is ring-modulated by the third voice, or its sawtooth is
+        // synchronised to it; the third, at 70 Hz, is heard as well.
+        for control in [UInt8(0x15), 0x23] {
+            func tune(hz: Double = 70, third: UInt8 = 0x21) -> [UInt8] {
+                psid([(0x18, 0x0F)] + voice(0, hz: 440, control: control) + voice(2, hz: hz, control: third))
+            }
+            let renderer = try player(tune(), engine)
+            renderer.setMuted([false, false, true])
+            let without = settled(played(renderer).sound)
+            // The third voice is gone, and the first is still what the third makes of it: what is
+            // heard is the tune whose third voice runs with its gate shut, and not the tune whose
+            // third voice stands still.
+            let shut = settled(played(try player(tune(third: 0x20), engine)).sound)
+            let still = settled(played(try player(tune(hz: 0, third: 0x20), engine)).sound)
+            #expect(apart(without, shut) < 0.003, "\(engine) \(control)")
+            #expect(apart(without, still) > 0.05, "\(engine) \(control)")
+        }
+
+        // A tune that reads the third voice's oscillator and envelope, and sets the pitches of the
+        // other two by them, fifty times a second: it writes the same things to the chip at the same
+        // moments whether or not the third voice is heard.
+        let start: [(register: UInt8, value: UInt8)] = [(0x18, 0x0F)] + voice(0, hz: 440, control: 0x11) + voice(1, hz: 660, control: 0x11)
+            + [(0x0E, 0x34), (0x0F, 0x12), (0x13, 0xA0), (0x14, 0xF0), (0x12, 0x81)]
+        // LDA $D41B; STA $D401; LDA $D41C; STA $D408; RTS
+        let file = psid(start, play: [0xAD, 0x1B, 0xD4, 0x8D, 0x01, 0xD4, 0xAD, 0x1C, 0xD4, 0x8D, 0x08, 0xD4, 0x60])
+        func writes(_ renderer: SIDRenderer) -> [[Int]] { renderer.dumpWrites(seconds: 0.5).map { [$0.0, Int($0.1), Int($0.2)] } }
+        let heard = writes(try player(file, engine))
+        let muted = try player(file, engine)
+        muted.setMuted([false, false, true])
+        #expect(writes(muted) == heard)
+        // (And what it read did move: the oscillator's noise, and the envelope on its way up.)
+        #expect(Set(heard.filter { $0[1] == 0x01 }.map { $0[2] }).count > 8)
+        #expect(Set(heard.filter { $0[1] == 0x08 }.map { $0[2] }).count > 8)
+    }
+}
+
+@Test func sidSamplesOnTheVolumeAreLeftOut() throws {
+    // No voice plays. Fifty times a second the volume is moved between full and nothing twenty
+    // times over, 819 cycles of the processor to each time: a square wave of 1,203 Hz, which a
+    // 6581 gives out because its voices stand a little above nought even when silent.
+    let burst: [UInt8] = [
+        0xA2, 0x14, // LDX #20
+        0xA9, 0x0F, 0x8D, 0x18, 0xD4, 0xA0, 0x50, 0x88, 0xD0, 0xFD, // LDA #$0F; STA $D418; LDY #80; DEY; BNE the DEY
+        0xA9, 0x00, 0x8D, 0x18, 0xD4, 0xA0, 0x50, 0x88, 0xD0, 0xFD, // LDA #$00; STA $D418; LDY #80; DEY; BNE the DEY
+        0xCA, 0xD0, 0xE9, 0x60, // DEX; BNE the first LDA; RTS
+    ]
+    let file = psid([(0x18, 0x0F)], play: burst), note = 985_248.61 / 819
+    for engine in [SIDEngineChoice.residfp, .resid] {
+        let whole = played(try player(file, engine))
+        #expect(strength(settled(whole.sound), at: note) > 0.005, "\(engine)")
+        #expect(whole.levels == [0, 0, 0, 1])
+
+        // The samples left out: once the song is found to be playing them, which takes it a few
+        // thousandths of a second, the volume is held at full and none is heard. Their light is
+        // lit as it was.
+        let renderer = try player(file, engine)
+        renderer.setMuted([false, false, false, true])
+        let without = played(renderer)
+        #expect(strength(settled(without.sound), at: note) < strength(settled(whole.sound), at: note) / 100, "\(engine)")
+        #expect(without.levels == whole.levels)
+
+        // A song started again is started without them; and with them brought back, as it ever was.
+        renderer.select(subsong: 0)
+        #expect(strength(settled(played(renderer).sound), at: note) < strength(settled(whole.sound), at: note) / 100, "\(engine)")
+        renderer.setMuted([])
+        renderer.select(subsong: 0)
+        let back = played(renderer)
+        #expect(abs(strength(settled(back.sound), at: note) / strength(settled(whole.sound), at: note) - 1) < 0.05, "\(engine)")
+
+        // The three voices left out, and not the samples: the samples are as loud as they were, for
+        // a voice left out stands where a silent voice stands.
+        let voices = try player(file, engine)
+        voices.setMuted([true, true, true])
+        let alone = played(voices)
+        #expect(abs(strength(settled(alone.sound), at: note) / strength(settled(whole.sound), at: note) - 1) < 0.02, "\(engine)")
+    }
+}

@@ -193,6 +193,15 @@ final class STMachine {
         return runTimers() ? output : 0
     }
 
+    /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. The sound chip's
+    /// three channels, and fourth the STE's samples, which are played on and not added in. The machine
+    /// is the same one from one song to the next, and keeps what it is told here.
+    func setMuted(_ muted: [Bool]) {
+        func left(_ voice: Int) -> Bool { voice < muted.count && muted[voice] }
+        hardware.chip.setMuted(left(0), left(1), left(2))
+        hardware.samples.muted = left(3)
+    }
+
     /// How loud the sound chip's three channels and the STE's samples have been since this was last asked.
     func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         hardware.chip.takeLevels(into: levels)

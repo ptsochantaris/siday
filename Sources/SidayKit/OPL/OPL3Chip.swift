@@ -615,6 +615,11 @@ struct OPL3Chip: ~Copyable {
     /// the original; with no bit set it changes no number.)
     var muted: UInt32 = 0
 
+    /// Leaves channels out of the sound, or brings them back: a bit for each, the first channel's the lowest.
+    mutating func setMuted(_ channels: UInt32) {
+        muted = channels
+    }
+
     /// What the channels left out of the sound have just added to two of the chip's four outputs:
     /// to the first and the third, or to the second and the fourth. It is worked out a second
     /// time here, and only when there is such a channel, so that the adding up itself asks nothing
