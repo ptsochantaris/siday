@@ -582,6 +582,41 @@ final class IT2Module {
             }
         }
 
+        // And what else an older OpenMPT meant differently by an instrument's or a sample's
+        // numbers, which OpenMPT changes as it reads such a file: here they are kept beside the
+        // file's own, for the replayer to choose between. (An MPTM file's are changed where it is
+        // read: see `MPTMFile`, which this follows.)
+        if let asked = ways.asked, Cmwt <= 0x888 {
+            let saved = ways.savedWith
+            let compatible = asked.first == true && !(saved < 0x0117_0246 && saved != 0x0117_0000)
+            let oldSwing = asked.count > ModPlugWays.oldSwing && asked[ModPlugWays.oldSwing]
+            for i in 0 ..< InsNum {
+                let ins = instruments[i]
+                var loudness = ins.RandVol, place = ins.RandPan, separation = ins.PitchPanSep
+                if saved < 0x0120_0000 {
+                    // The volume's random swing was of 64 and not of 100.
+                    loudness = UInt8(min(100, Int(loudness) * 100 / 64))
+                    if !compatible || saved < 0x0118_0000 { separation = MPTMFile.halved(separation) }
+                }
+                if saved < 0x0122_0312, saved != 0x0122_0000, compatible || oldSwing, ins.PanEnv.Flags & ENVF_ENABLED != 0 { place = 0 }
+                if saved < 0x0126_0000 {
+                    // How far higher notes go to one side was half as much, and the random swing
+                    // of a note's place a quarter.
+                    separation = MPTMFile.halved(separation)
+                    if !compatible || saved < 0x0118_0000 { place = UInt8((Int(place) + 3) / 4) }
+                }
+                if loudness != ins.RandVol { ins.RandVolAsModPlug = loudness }
+                if place != ins.RandPan { ins.RandPanAsModPlug = place }
+                if separation != ins.PitchPanSep { ins.PitchPanSepAsModPlug = separation }
+            }
+            if saved < 0x0120_0000, saved < 0x0117_0302 || !compatible {
+                // A sample's own vibrato that was to come in at once said so with nought.
+                for s in samples.prefix(SmpNum) where s.AutoVibratoRate == 0 && (s.AutoVibratoDepth & 0x7F) | s.AutoVibratoSpeed != 0 {
+                    s.AutoVibratoRateAsModPlug = 255
+                }
+            }
+        }
+
         // MARK: Plug-ins and FM
 
         // What a file of ModPlug Tracker's or OpenMPT's has to hear besides samples (see

@@ -107,6 +107,12 @@ final class IT2Instrument {
     /// envelope for pitch or the filter as that tracker played it, which was as FastTracker plays
     /// one (see `MPTMFile.asFastTrackerLooped`). Nil for any other.
     var PitchEnvAsModPlug: IT2Envelope?
+    /// For an instrument of an IT file that an OpenMPT before 1.26 made, where that version meant
+    /// something else by the same numbers: how far its notes' loudness and place are moved at
+    /// random, and how far higher notes go to one side, as it is to be played (see `IT2Module`,
+    /// which changes them as OpenMPT does when it reads such a file). Nil where the file's own
+    /// number stands.
+    var RandVolAsModPlug: UInt8?, RandPanAsModPlug: UInt8?, PitchPanSepAsModPlug: UInt8?
     /// For an MPTM file's instrument only, and of those only one tuned to a scale of its own that is
     /// near enough the usual one to be played (see `MPTMFile`): what each of the 120 notes is to
     /// middle C, where the usual tuning has a semitone between each and the next. Nil for the usual.
@@ -124,6 +130,10 @@ final class IT2Sample {
     var Length: UInt32 = 0, LoopBegin: UInt32 = 0, LoopEnd: UInt32 = 0, C5Speed: UInt32 = 0
     var SustainLoopBegin: UInt32 = 0, SustainLoopEnd: UInt32 = 0, OffsetInFile: UInt32 = 0
     var AutoVibratoSpeed: UInt8 = 0, AutoVibratoDepth: UInt8 = 0, AutoVibratoRate: UInt8 = 0, AutoVibratoWaveform: UInt8 = 0
+    /// For a sample of an IT file that ModPlug Tracker or an OpenMPT before 1.20 made: how fast
+    /// its own vibrato comes in, where the file says nought and meant "at once", which to Impulse
+    /// Tracker is never. Nil where the file's own number stands.
+    var AutoVibratoRateAsModPlug: UInt8?
     /// The first sample of its sound, left (or only) and right; nil for none. `OrigData` is what was
     /// allocated, which starts before it.
     var Data: UnsafeMutableRawPointer?, OrigData: UnsafeMutableRawPointer?

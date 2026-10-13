@@ -319,7 +319,8 @@ final class IT2Player {
         if hc.pointee.Smp != 0, let s = module.sample(Int(hc.pointee.Smp) - 1), s.DefPan & 0x80 != 0 { pan = s.DefPan & 127 }
         if pan != PAN_SURROUND {
             // Higher notes further to one side, if the instrument says so.
-            let newPan = Int(pan) + ((Int(Int8(bitPattern: hc.pointee.RawNote &- ins.PitchPanCenter)) * Int(Int8(bitPattern: ins.PitchPanSep))) >> 3)
+            let separation = asImpulseTracker ? ins.PitchPanSep : ins.PitchPanSepAsModPlug ?? ins.PitchPanSep
+            let newPan = Int(pan) + ((Int(Int8(bitPattern: hc.pointee.RawNote &- ins.PitchPanCenter)) * Int(Int8(bitPattern: separation))) >> 3)
             pan = UInt8(max(0, min(64, newPan)))
         }
         sc.pointee.Pan = pan
@@ -749,14 +750,17 @@ final class IT2Player {
         guard let sc = hc.pointee.SlaveChnPtr, let ins = sc.pointee.InsPtr else { return }
         hc.pointee.Flags &= ~HF_APPLY_RANDOM_VOL
         var value = Int(Int8(bitPattern: Random()))
-        if ins.RandVol != 0 {
-            var vol = ((Int(Int8(bitPattern: ins.RandVol)) * value) >> 6) + 1
+        // (As an older OpenMPT meant the two numbers, in a file it made: see `IT2Module`.)
+        let randVol = asImpulseTracker ? ins.RandVol : ins.RandVolAsModPlug ?? ins.RandVol
+        let randPan = asImpulseTracker ? ins.RandPan : ins.RandPanAsModPlug ?? ins.RandPan
+        if randVol != 0 {
+            var vol = ((Int(Int8(bitPattern: randVol)) * value) >> 6) + 1
             vol = Int(sc.pointee.SmpVol) + Int(Int16(truncatingIfNeeded: vol * Int(sc.pointee.SmpVol))) / 199
             sc.pointee.SmpVol = UInt8(max(0, min(128, vol)))
         }
         value = Int(Int8(bitPattern: Random()))
-        if ins.RandPan != 0, sc.pointee.Pan != PAN_SURROUND {
-            let pan = Int(sc.pointee.Pan) + ((Int(Int8(bitPattern: ins.RandPan)) * value) >> 7)
+        if randPan != 0, sc.pointee.Pan != PAN_SURROUND {
+            let pan = Int(sc.pointee.Pan) + ((Int(Int8(bitPattern: randPan)) * value) >> 7)
             sc.pointee.Pan = UInt8(max(0, min(64, pan)))
             sc.pointee.PanSet = sc.pointee.Pan
         }
@@ -1104,7 +1108,7 @@ final class IT2Player {
     /// The vibrato a sample has of its own.
     private func UpdateAutoVibrato(_ sc: IT2SlavePointer) {
         guard let smp = sc.pointee.SmpPtr, smp.AutoVibratoDepth != 0 else { return }
-        sc.pointee.AutoVibratoDepth &+= UInt16(smp.AutoVibratoRate)
+        sc.pointee.AutoVibratoDepth &+= UInt16(asImpulseTracker ? smp.AutoVibratoRate : smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate)
         if sc.pointee.AutoVibratoDepth >> 8 > UInt16(smp.AutoVibratoDepth) {
             sc.pointee.AutoVibratoDepth = (UInt16(smp.AutoVibratoDepth) << 8) | (sc.pointee.AutoVibratoDepth & 0xFF)
         }

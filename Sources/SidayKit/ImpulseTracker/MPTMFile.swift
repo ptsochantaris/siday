@@ -330,7 +330,7 @@ enum MPTMFile {
     }
 
     /// Half of how far an instrument's higher notes go to one side, rounded away from the middle.
-    private static func halved(_ separation: UInt8) -> UInt8 {
+    static func halved(_ separation: UInt8) -> UInt8 {
         let value = Int(Int8(bitPattern: separation))
         return UInt8(bitPattern: Int8((value + (value >= 0 ? 1 : -1)) / 2))
     }

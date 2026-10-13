@@ -216,6 +216,31 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     return file
 }
 
+@Test func itSampleVibratoComesInAtOnceForAnOldOpenMPT() throws {
+    // A sample with a vibrato of its own, and nought for how fast it comes in. To Impulse Tracker
+    // that is never; to ModPlug Tracker and to OpenMPT before 1.20 it was at once, and a file of
+    // theirs is played so.
+    var file = it()
+    let sample = try #require(file.indices.first { file[$0...].starts(with: Array("IMPS".utf8)) })
+    file[sample + 0x4C ... sample + 0x4F] = [24, 32, 0, 0]
+    func heard(_ file: [UInt8]) throws -> [Float] { stereo(try TuneLoader.load(file, format: .it), seconds: 1).left }
+    let plain = try heard(it())
+    // Impulse Tracker's own file, and one of an OpenMPT that had put it right: no vibrato at all.
+    #expect(try heard(file) == plain)
+    #expect(try heard(asOpenMPTPlays(file, version: 0x29)) == plain)
+    // The older tracker's file wobbles, from the start.
+    let old = try heard(asOpenMPTPlays(file, version: 0x19))
+    #expect(old != plain)
+    #expect(try heard(byModPlugTracker(file)) != plain)
+    let module = try #require(try TuneLoader.load(asOpenMPTPlays(file, version: 0x19), format: .it) as? ITRenderer).module
+    #expect(module.sample(0)?.AutoVibratoRate == 0)
+    #expect(module.sample(0)?.AutoVibratoRateAsModPlug == 255)
+    // And set beside the player this one is ported from, the file's own number stands.
+    let reference = try #require(try TuneLoader.load(asOpenMPTPlays(file, version: 0x19), format: .it) as? any ReferenceComparable)
+    let itsOwn = try #require(try TuneLoader.load(file, format: .it) as? any ReferenceComparable)
+    #expect(reference.renderRaw(frames: 20000) == itsOwn.renderRaw(frames: 20000))
+}
+
 @Test func itIsPlayedWithTheFilterOfTheTrackerThatMadeIt() throws {
     func filter(_ file: [UInt8]) throws -> IT2Module.Filter { try #require(try TuneLoader.load(file, format: .it) as? ITRenderer).module.filter }
     #expect(try filter(it()) == .impulseTrackers)

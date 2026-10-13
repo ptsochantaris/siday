@@ -820,6 +820,16 @@ instrument has none for volume. (OpenMPT stops making the first of those changes
 instrument that has anything random in it, in a file from before its version 1.17.02.50, and
 leaves the instruments after it as they are. So does this.)
 
+And an older OpenMPT meant something else by four of a file's numbers, which it changes when it
+reads such a file, so that the file sounds as it did. A sample's own vibrato that says nought for
+how fast it comes in comes in at once, in a file from before 1.20: to Impulse Tracker nought is
+never, and such a sample would have no vibrato at all. How far a note's place between the speakers
+is moved at random is a quarter of what the number says, and how far higher notes are sent to one
+side a half or a quarter, in a file from before 1.26; and the random move of a note's loudness is
+counted out of 64 and not out of 100, before 1.20. Of 300 such IT files set beside libopenmpt, 37
+were nearer to it in where their sound sits between the speakers and 6 further, which with
+anything random is as near as two playings of one file come.
+
 All of that was checked by setting every sounding channel's filter beside libopenmpt's on every
 tick of a file's first minute: whether it is on, and the three numbers it is worked by. Of the 215
 MPTM files, 186 have nothing random about their filters, and in 179 of those the two are the same
