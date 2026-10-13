@@ -27,6 +27,8 @@ final class FT2Module {
     /// True for a module in which setting the speed puts the tempo back to 125, and setting the
     /// tempo puts the speed back to 6: MultiTracker's way, and no other tracker's.
     private(set) var speedAndTempoUndoEachOther = false
+    /// True for a module whose vibrato is a quarter as deep as FastTracker's: see `ForeignModule`.
+    private(set) var vibratoIsAQuarterAsDeep = false
     /// True unless the file is an XM file that gives itself away as some other tracker's than
     /// FastTracker 2: by what it says made it, or, where it says FastTracker, as ModPlug Tracker's
     /// files do, by a song name padded out with nothing in place of spaces or by what ModPlug
@@ -271,6 +273,7 @@ final class FT2Module {
         title = module.title
         channelPanning = (0 ..< module.channels).map { $0 < module.panning.count ? module.panning[$0] : 128 }
         speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
+        vibratoIsAQuarterAsDeep = module.vibratoIsAQuarterAsDeep
         song.antChn = UInt8(module.channels)
         song.len = UInt16(min(256, module.orders.count))
         song.repS = UInt16(max(0, min(255, module.restart)))

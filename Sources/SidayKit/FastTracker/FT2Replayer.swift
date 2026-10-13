@@ -994,7 +994,7 @@ extension FT2Player {
             if Int8(bitPattern: ch.vibPos) < 0 { tmpVib = ~tmpVib }
         default: tmpVib = 255
         }
-        tmpVib = UInt8(truncatingIfNeeded: (Int(tmpVib) * Int(ch.vibDepth)) >> 5)
+        tmpVib = UInt8(truncatingIfNeeded: (Int(tmpVib) * Int(ch.vibDepth)) >> vibratoShift)
         if Int8(bitPattern: ch.vibPos) < 0 {
             ch.outPeriod = ch.realPeriod &- UInt16(tmpVib)
         } else {

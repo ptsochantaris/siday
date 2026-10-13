@@ -208,6 +208,20 @@ private func dtm(rows: [Int: [UInt8]] = [0: [0x41, 0, 0x10, 0]], packing: String
     #expect(late(slow.left) < 261 / 5 - 2)
 }
 
+@Test func dtmVibratoIsAQuarterAsDeepAsProTrackers() throws {
+    // A held note with the deepest vibrato there is, 4xF. In a MOD file that swings the note's
+    // period by 119 parts in 1712 either way, some thirteen samples of the 184 its wave lasts;
+    // Digital Tracker's, as OpenMPT plays it, by a quarter of that, some three.
+    let rows = Dictionary(uniqueKeysWithValues: (0 ..< 64).map { ($0, $0 == 0 ? [0x41, 0, 0x14, 0x4F] : [0, 0, 0x04, 0x4F] as [UInt8]) })
+    let heard = stereo(try TuneLoader.load(dtm(rows: rows), format: .dtm), seconds: 1).left[4800...]
+    let risings = heard.indices.dropLast().filter { heard[$0] < 0 && heard[$0 + 1] >= 0 }
+    let lengths = zip(risings, risings.dropFirst()).map { $1 - $0 }
+    let swing = (lengths.max() ?? 0) - (lengths.min() ?? 0)
+    #expect(swing >= 3 && swing <= 10)
+    #expect(try DTMFile.read(dtm()).vibratoIsAQuarterAsDeep)
+    #expect(try !MTMFile.read(mtm()).vibratoIsAQuarterAsDeep)
+}
+
 @Test func dtmSamplesOfSixteenBitsAndInStereoArePlayed() throws {
     let wide = stereo(try TuneLoader.load(dtm(bits: 16), format: .dtm), seconds: 1)
     #expect(abs(pitch(wide.left) - 261) <= 2)

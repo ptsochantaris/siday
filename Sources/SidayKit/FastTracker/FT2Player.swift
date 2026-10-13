@@ -43,6 +43,9 @@ final class FT2Player {
     /// have: for an XM file that another tracker made. So far, a sweep from side to side.
     let playsLaterCommands: Bool
     let speedAndTempoUndoEachOther: Bool
+    /// How far a vibrato's sum is brought down: by 5 places, or by 7 for a module whose vibrato is
+    /// a quarter as deep. See `ForeignModule.vibratoIsAQuarterAsDeep`.
+    let vibratoShift: Int
     /// True if a loop inside a pattern is not to leave the next pattern starting on its row.
     let loopsLeaveNothingBehind: Bool
 
@@ -112,6 +115,7 @@ final class FT2Player {
         linearFrqTab = module.linearFrqTab
         panningIsOfChannels = !module.channelPanning.isEmpty
         speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
+        vibratoShift = module.vibratoIsAQuarterAsDeep ? 7 : 5
         loopsLeaveNothingBehind = module.foreign != nil
         let placeholder = module.instr[0]!
         let channels = max(1, Int(module.song.antChn))

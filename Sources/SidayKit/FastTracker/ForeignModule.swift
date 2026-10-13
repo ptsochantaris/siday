@@ -51,6 +51,9 @@ struct ForeignModule {
     /// Where each channel is, from 0 on the left to 255 on the right.
     var panning: [UInt8] = []
     var speedAndTempoUndoEachOther = false
+    /// True for a module whose vibrato is a quarter as deep as the same number makes ProTracker's:
+    /// Digital Tracker's, as OpenMPT plays it. See `DTMFile`.
+    var vibratoIsAQuarterAsDeep = false
     /// How loud the kind of file is played, beside an XM file at 1. It is set by measure: so that
     /// of the files of the kind to hand, the middle one is as loud as the middle one of XM files.
     var loudness: Float = 1

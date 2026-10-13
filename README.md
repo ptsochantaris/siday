@@ -619,14 +619,17 @@ it. This player has no replayer of any of them. But all three are ProTracker's k
 with more channels, and FastTracker 2 plays that already, for a MOD file of eight channels. So each has a loader that reads it into the shape FastTracker holds a
 module in, and FastTracker's replayer and mixer play it: with its slides, its vibrato, its arpeggio
 and its way of placing a sound between the speakers, which are near to these trackers' own and are
-not theirs. The replayer does four things for such a file that it does for no XM or MOD file. A
+not theirs. The replayer does five things for such a file that it does for no XM or MOD file. A
 channel has a place between the speakers and stays where a command puts it, where FastTracker gives
 a place to each sample. A sample plays at the rate it says it was recorded at, whatever the note
 and whatever slides it. Setting the speed in an MTM file puts the tempo back to 125, and setting
 the tempo puts the speed back to 6, which was MultiTracker's way and no other player's; a file that
-sets both on one row was written for those other players, and is played their way. And a loop
+sets both on one row was written for those other players, and is played their way. A loop
 inside a pattern does not leave the next pattern starting part of the way down, a mistake of
-FastTracker's that its own files were written around and these were not. What FastTracker cannot be
+FastTracker's that its own files were written around and these were not. And a vibrato in a DTM
+file is a quarter as deep as the same number makes it in a MOD file: that is how OpenMPT plays
+these files and not how libxmp does, and it was settled by ear, on a tune whose composer had
+written the shallowest vibrato there is and still got a note that wavered out of tune. What FastTracker cannot be
 told is left out: Digital Tracker 2.04 set how loud a channel was on each side, of which the place
 between the speakers is kept and the loudness is not; a stereo sample in a DTM file is made one
 sound; DSMI's surround sound is the middle.
