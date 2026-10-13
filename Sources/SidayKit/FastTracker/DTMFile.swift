@@ -90,7 +90,10 @@ enum DTMFile {
         // plays it a quarter as deep as the same command in a MOD file, and libxmp as deep as in
         // one. OpenMPT's is followed. (It was ProTracker's depth here at first; then a tune whose
         // composer had written the shallowest vibrato there is, on a held note, was heard both
-        // ways, and at ProTracker's depth the note came near to going out of tune.)
+        // ways, and at ProTracker's depth the note came near to going out of tune.) OpenMPT's
+        // other rule for these files, a slide on every tick of a row and not on all but the first,
+        // was heard beside ProTracker's too, and is not followed: a tune's sweeps of a fifth, which
+        // stay in key ProTracker's way, went out of key.
         module.vibratoIsAQuarterAsDeep = true
         module.tracker = said >= 20 ? "Digital Home Studio \(said / 10).\(said % 10)" : said != 0 ? "Digital Tracker \(said / 10).\(said % 10)"
             : version == .v204 ? "Digital Tracker 2.04" : version == .v203 ? "Digital Tracker 2.03" : "Digital Tracker 2.015"

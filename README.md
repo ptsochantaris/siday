@@ -629,7 +629,10 @@ inside a pattern does not leave the next pattern starting part of the way down, 
 FastTracker's that its own files were written around and these were not. And a vibrato in a DTM
 file is a quarter as deep as the same number makes it in a MOD file: that is how OpenMPT plays
 these files and not how libxmp does, and it was settled by ear, on a tune whose composer had
-written the shallowest vibrato there is and still got a note that wavered out of tune. What FastTracker cannot be
+written the shallowest vibrato there is and still got a note that wavered out of tune. (Slides
+in a DTM file were heard both ways as well and are left as they were, on every tick of a row but
+the first: OpenMPT slides on the first too, and a tune whose sweeps go up a fifth and stay in key
+this way went out of key that way.) What FastTracker cannot be
 told is left out: Digital Tracker 2.04 set how loud a channel was on each side, of which the place
 between the speakers is kept and the loudness is not; a stereo sample in a DTM file is made one
 sound; DSMI's surround sound is the middle.
