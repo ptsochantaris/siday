@@ -880,11 +880,14 @@ handed to it as a sample of its own, written out backwards. PolyTracker's slides
 played as smooth slides that get as far. Its volumes, which a Gravis Ultrasound did not space quite
 evenly, are spaced evenly. Sliding by semitones and retuning a sample in the middle of a tune (E3x
 and E5x in both) are left out, and so is any command of a GDM note's four that neither the one
-command Impulse Tracker has room for nor its volume column can do. And two things are changed on the
+command Impulse Tracker has room for nor its volume column can do. And three things are changed on the
 way in, because Impulse Tracker alone would take them otherwise: an instrument named on a row with
-no note is given as the instrument's volume, where Impulse Tracker would have played the note again,
-and in a tune that began as a MOD a slide of nought does nothing, where Impulse Tracker's would go on
-with the last.
+no note is given as the instrument's volume, where Impulse Tracker would have played the note again;
+in a tune that began as a MOD a slide of nought does nothing, where Impulse Tracker's would go on
+with the last; and in a tune that began in Scream Tracker a command given nought goes on from the
+last number given to any command on its channel, as Scream Tracker's did, where Impulse Tracker's
+would go on from the last of its own kind. (One tune to hand leans on that: a held note's vibrato
+goes on into a fade that takes the vibrato's number.)
 
 ### ULT — UltraTracker
 

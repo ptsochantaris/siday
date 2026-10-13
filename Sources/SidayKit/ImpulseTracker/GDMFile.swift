@@ -266,10 +266,13 @@ enum GDMFile {
         var memories = [IT2ForeignModule.ChannelMemory](repeating: IT2ForeignModule.ChannelMemory(), count: 32)
         // A command given nought goes on from the last number given: in Scream Tracker the last
         // given to any command on the channel, and in Impulse Tracker the last given to a command
-        // of its own kind. Both are followed here, to count the commands of a tune from Scream
-        // Tracker that the two would play differently. (Nothing that is played goes by it.)
+        // of its own kind. Both are followed here, and where a tune from Scream Tracker would be
+        // played otherwise for it, the command is given Scream Tracker's number outright. (A tune
+        // has a held note's vibrato go on into a slide of volume so, K00 after H11: Scream Tracker
+        // fades the note by the vibrato's number, and Impulse Tracker, with no slide to go on from,
+        // would hold it. The numbers are followed down the list of patterns, as the instruments
+        // are, and as they stand once read: which is as near as can be got.)
         var lastOfAny = [UInt8](repeating: 0, count: 32), lastOfKind = [UInt8](repeating: 0, count: 32 * 8)
-        var strays = 0
         let packed = IT2ForeignModule.settledDownTheList(&orders, patterns: patterns.count) { index in
             var pattern = patterns[index]
             for row in 0 ..< 64 {
@@ -280,8 +283,13 @@ enum GDMFile {
                         if cell.value != 0 {
                             lastOfAny[channel] = cell.value
                             if let kind { lastOfKind[channel * 8 + kind] = cell.value }
-                        } else if let kind, lastOfKind[channel * 8 + kind] != lastOfAny[channel] {
-                            strays += 1
+                        } else if let kind {
+                            // (A slide of volume takes a number as Scream Tracker's slides do: see `volumeSlide`.)
+                            let asked = kind == 0 ? IT2ForeignModule.volumeSlide(lastOfAny[channel], upWins: false) : lastOfAny[channel]
+                            if asked != lastOfKind[channel * 8 + kind] {
+                                pattern[row, channel].set(command: cell.command, asked)
+                                lastOfKind[channel * 8 + kind] = asked
+                            }
                         }
                     }
                     IT2ForeignModule.settle(&pattern[row, channel], &memories[channel], slideStartsNote: fromS3M, cutIsSilence: !fromS3M) {
@@ -301,10 +309,6 @@ enum GDMFile {
         var shortfalls: [String] = []
         if let sentence = Shortfall.commandsLeftOut(leftOut.named(Self.commandsLeftOut)) { shortfalls.append(sentence) }
         if crowded { shortfalls.append("Some of its rows have more commands for a channel than Impulse Tracker has room for, and the rest are left out.") }
-        if strays > 0 {
-            shortfalls.append(Shortfall.some(strays, one: "commands goes on from a number given to a command of another kind, as Scream Tracker let it, and is not played as Scream Tracker played it.",
-                                             many: "commands go on from a number given to a command of another kind, as Scream Tracker let them, and are not played as Scream Tracker played them."))
-        }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         let module = IT2Module(title: f.dos(at: 4, length: 32), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: min(f[113], 64) * 2, mixVolume: mixVolume, speed: f[114] == 0 ? 6 : f[114],

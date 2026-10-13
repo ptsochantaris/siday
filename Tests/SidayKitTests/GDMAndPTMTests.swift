@@ -405,6 +405,29 @@ private func letter(_ character: Character) -> Int {
     }
 }
 
+// MARK: A number that goes on from another kind of command
+
+@Test func gdmCommandGoesOnFromTheLastNumberOfAnyKindAsInScreamTracker() throws {
+    // A note with a vibrato of 11, and on the next row a vibrato with a slide of volume by nought.
+    // Scream Tracker goes on from the last number given to any command, the vibrato's, and so
+    // fades the note by one a tick; Impulse Tracker would go on from the last slide of volume, of
+    // which there is none, and hold it. So the slide is given the number outright.
+    let held = try #require(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x04, 0x11, 0, 0x40, 0x06, 0x00]), format: .gdm) as? ITRenderer)
+    let slide = try #require(held.listing().cells.first { $0.pattern == 0 && $0.row == 1 && $0.channel == 0 })
+    #expect(slide.command == 11 && slide.value == 0x01)
+    // A slide of pitch by nought after a slide of volume takes the whole number.
+    let slid = try #require(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x0A, 0x03, 0, 0x40, 0x02, 0x00]), format: .gdm) as? ITRenderer)
+    let pitch = try #require(slid.listing().cells.first { $0.pattern == 0 && $0.row == 1 && $0.channel == 0 })
+    #expect(pitch.command == 5 && pitch.value == 0x03)
+    // One that goes on from its own kind is left as it is, for Impulse Tracker to go on with.
+    let own = try #require(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x0A, 0x03, 0, 0x40, 0x0A, 0x00]), format: .gdm) as? ITRenderer)
+    let same = try #require(own.listing().cells.first { $0.pattern == 0 && $0.row == 1 && $0.channel == 0 })
+    #expect(same.command == 4 && same.value == 0)
+    // And in a tune from a MOD file a slide by nought is no slide at all.
+    let mod = try #require(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x04, 0x11, 0, 0x40, 0x0A, 0x00], origin: 1), format: .gdm) as? ITRenderer)
+    #expect(mod.listing().cells.first { $0.pattern == 0 && $0.row == 1 && $0.channel == 0 }.map { $0.command <= 0 } ?? true)
+}
+
 // MARK: What is not played as the file asks
 
 @Test func gdmAndPTMSayWhatImpulseTrackerLeavesOut() throws {
@@ -417,11 +440,9 @@ private func letter(_ character: Character) -> Int {
     // Three commands that are none of them the volume column's: one has the command's place.
     #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x29, 0x10, 0x67, 0x33, 0x92, 0x21]), format: .gdm).info.shortfalls
         == ["Some of its rows have more commands for a channel than Impulse Tracker has room for, and the rest are left out."])
-    // A tune from Scream Tracker whose slide of volume goes on from a number given to a slide of
-    // pitch: Impulse Tracker's goes on from the last slide of volume, of which there is none.
-    #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x02, 0x08, 0, 0x40, 0x0A, 0x00]), format: .gdm).info.shortfalls
-        == ["One of its commands goes on from a number given to a command of another kind, as Scream Tracker let it, and is not played as Scream Tracker played it."])
-    // (A tune from a MOD file has no such commands: there a slide by nothing is no slide.)
+    // (A tune from Scream Tracker whose slide of volume goes on from a number given to a slide of
+    // pitch is played as Scream Tracker played it, and has nothing to say: see below.)
+    #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x02, 0x08, 0, 0x40, 0x0A, 0x00]), format: .gdm).info.shortfalls.isEmpty)
     #expect(try TuneLoader.load(gdm(rows: [0x60, gdmC4, 1, 0x02, 0x08, 0, 0x40, 0x0A, 0x00], origin: 1), format: .gdm).info.shortfalls.isEmpty)
 
     // PTM: a slide by steps, which is played smooth, and a sample played backwards with no note.
