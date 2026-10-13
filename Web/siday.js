@@ -366,7 +366,7 @@ async function seek(seconds) {
 }
 
 /// Every tune the page has been given since it was opened, by its name: where a playlist's tunes are
-/// looked for. A browser shows a page only the files it is handed, so a playlist cannot be followed to
+/// looked for. A web page can only read the files it is given, so a playlist cannot be followed to
 /// its tunes on the disk as it is by a program: they have to be here, handed over with it or before
 /// it. (A tune taken out of the list is still here.)
 const given = new Map();

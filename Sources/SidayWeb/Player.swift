@@ -289,7 +289,7 @@ final class Player {
         let whose = list.isEmpty ? "The playlists name" : "\(list) names"
         let count = missing < named ? "\(named) tunes, and \(missing) of them \(missing == 1 ? "was" : "were") not found"
             : named == 1 ? "a tune that was not found" : "\(named) tunes, and none of them were found"
-        return "\(whose) \(count). A browser shows a page only the files it is handed, so the page cannot go to them itself."
+        return "\(whose) \(count). A web page can only read the files it is given, so it cannot fetch these tunes itself."
     }
 
     /// The listener is to say where the tunes are that the playlists name and were not found.

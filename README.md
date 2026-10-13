@@ -46,8 +46,8 @@ and `Web/` is where it comes from. It is Swift too: the emulators and the page i
 to WebAssembly. Drop tunes or a whole folder on it and it plays them. Nothing is uploaded: the files
 are read where they are and never leave your computer.
 
-A playlist can be dropped too. A browser shows a page only the files it is handed, so the page
-cannot go from a list to its tunes on the disk. Dropped by itself, a list says so and asks for the
+A playlist can be dropped too. A web page can only read the files it is given, so it cannot go
+from a list to its tunes on the disk. Dropped by itself, a list says so and asks for the
 folder its tunes are in, which is then only looked in, and stays known for the lists dropped after
 it. Or drop the folder that holds both.
 
