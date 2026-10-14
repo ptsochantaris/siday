@@ -43,6 +43,8 @@ final class ST2Module {
     private let cellCount: Int
     /// The sound of all the samples, one after another. Bytes with a sign.
     let sound: UnsafeMutablePointer<UInt8>
+    /// What gives `cells` and `sound` back, also for a file that turns out not to be an STM.
+    private let cellMemory: Memory<UInt8>, soundMemory: Memory<UInt8>
     /// The samples by their numbers, from 1; there is no sample 0.
     let samples: [Sample]
     let shortfalls: [String]
@@ -91,7 +93,8 @@ final class ST2Module {
         var at = ordersAt + listed
         guard data.count >= at + patterns * Self.rows * Self.channels else { throw TuneError.malformed("an STM file that ends before its patterns do") }
         cellCount = patterns * Self.patternSize
-        cells = .allocate(capacity: max(1, cellCount))
+        cellMemory = Memory(capacity: max(1, cellCount))
+        cells = cellMemory.pointer
         for pattern in 0 ..< patterns {
             for cell in 0 ..< Self.rows * Self.channels {
                 let to = cells + pattern * Self.patternSize + cell * 4
@@ -138,7 +141,8 @@ final class ST2Module {
                 used[Int(cells[Int(orders[place]) * Self.patternSize + cell * 4 + 1] >> 3)] = true
             }
         }
-        sound = .allocate(capacity: max(1, room))
+        soundMemory = Memory(capacity: max(1, room))
+        sound = soundMemory.pointer
         sound.initialize(repeating: 0, count: max(1, room))
         for number in 1 ... Self.samplesInAll where samples[number].base >= 0 {
             let from = file.u16le(Self.header + (number - 1) * Self.sampleHeader + 14) << 4
@@ -148,11 +152,6 @@ final class ST2Module {
         }
         self.samples = samples
         shortfalls = cut.sentence.map { [$0] } ?? []
-    }
-
-    deinit {
-        cells.deallocate()
-        sound.deallocate()
     }
 
     /// The four bytes at a place among the patterns. A pattern the file has none of is one with

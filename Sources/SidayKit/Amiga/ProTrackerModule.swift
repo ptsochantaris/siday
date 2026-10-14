@@ -73,17 +73,14 @@ final class ProTrackerModule {
     let initialTempo: Int
     let patterns: UnsafeMutablePointer<Note>
     let memory: UnsafeMutablePointer<Int8>
+    /// What gives `patterns` and `memory` back, also for a file that turns out not to be a module.
+    private let patternSpace: Memory<Note>, sampleMemory: Memory<Int8>
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`.
     private(set) var shortfalls: [String] = []
 
     private let file: ByteReader
     /// Where in the file each sample's bytes are, and how many of them were taken.
     private var sources = [(from: Int, count: Int)](repeating: (0, 0), count: 31)
-
-    deinit {
-        patterns.deallocate()
-        memory.deallocate()
-    }
 
     /// A name as the tracker shows it: what is not plain text is a space, and so is a gap in the middle.
     private static func text(_ file: ByteReader, at start: Int, length: Int) -> String {
@@ -163,9 +160,11 @@ final class ProTrackerModule {
         sampleSpace = space
         let memorySize = (31 + 2) * space + 0xFFFF * 2
 
-        patterns = .allocate(capacity: Self.mostPatterns * Self.rows * Self.channels)
+        patternSpace = Memory(capacity: Self.mostPatterns * Self.rows * Self.channels)
+        patterns = patternSpace.pointer
         patterns.initialize(repeating: Note(), count: Self.mostPatterns * Self.rows * Self.channels)
-        memory = .allocate(capacity: memorySize)
+        sampleMemory = Memory(capacity: memorySize)
+        memory = sampleMemory.pointer
         memory.initialize(repeating: 0, count: memorySize)
 
         // The song's name: anything that is not plain text becomes a space.

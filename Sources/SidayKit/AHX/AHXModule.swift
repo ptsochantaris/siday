@@ -54,12 +54,8 @@ final class AHXModule {
     /// The instruments by number, `instrumentSpace` to each. The one numbered nought is the one the
     /// player gives a note that asks for an instrument the file does not have.
     let instruments: UnsafeMutablePointer<UInt8>
-
-    deinit {
-        positions.deallocate()
-        tracks.deallocate()
-        instruments.deallocate()
-    }
+    /// What gives those three back, also for a file that turns out not to be a module.
+    private let held: [Memory<UInt8>]
 
     /// How many times a second the player is run.
     var ticksPerSecond: Double { (Paula.clockHz / 5.0) / Double(Int(timerPeriod) + 1) }
@@ -112,9 +108,9 @@ final class AHXModule {
         subsongStarts = (0 ..< subsongs).map { UInt16(file.u16be(at + $0 * 2)) }
         at += subsongs * 2
 
-        let positions = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(positionCount) * 8)
-        let tracks = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.trackSpace)
-        let instruments = UnsafeMutablePointer<UInt8>.allocate(capacity: (Self.mostInstruments + 1) * Self.instrumentSpace)
+        held = [Memory(capacity: Int(positionCount) * 8), Memory(capacity: Self.trackSpace),
+                Memory(capacity: (Self.mostInstruments + 1) * Self.instrumentSpace)]
+        let positions = held[0].pointer, tracks = held[1].pointer, instruments = held[2].pointer
         tracks.initialize(repeating: 0, count: Self.trackSpace)
         instruments.initialize(repeating: 0, count: (Self.mostInstruments + 1) * Self.instrumentSpace)
         self.positions = positions

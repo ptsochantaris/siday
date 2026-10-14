@@ -88,10 +88,8 @@ final class HVLModule {
     let instruments: [Instrument]
     let entries: [ListEntry]
 
-    deinit {
-        positions.deallocate()
-        tracks.deallocate()
-    }
+    /// What gives `positions` and `tracks` back, also for a file that turns out not to be a module.
+    private let positionMemory: Memory<UInt8>, trackMemory: Memory<Step>
 
     /// How many samples a tick lasts. The tracker counts time in samples and not by the Amiga's
     /// timer, so a tick is a whole number of them and there are fifty to the second exactly.
@@ -165,10 +163,12 @@ final class HVLModule {
         }
         at += subsongs * 2
 
-        let positions = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(positionCount) << 5)
+        positionMemory = Memory(capacity: Int(positionCount) << 5)
+        let positions = positionMemory.pointer
         positions.initialize(repeating: 0, count: Int(positionCount) << 5)
         let trackSpace = 256 * Self.rows + 1
-        let tracks = UnsafeMutablePointer<Step>.allocate(capacity: trackSpace)
+        trackMemory = Memory(capacity: trackSpace)
+        let tracks = trackMemory.pointer
         tracks.initialize(repeating: Step(), count: trackSpace)
         self.positions = positions
         self.tracks = tracks
