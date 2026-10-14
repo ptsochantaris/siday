@@ -72,6 +72,9 @@ let found = 0;
 const rest = 1;
 /// True while `work` has another turn coming.
 let working = false;
+/// True while what is heard is not yet what the listener last asked for: a voice muted or brought
+/// back, or the song being made again for another output or setting, that has not yet caught up.
+let remaking = false;
 let reported = 0;
 
 /// The run of sound being sent: the page starts another, with another number, for each tune and for
@@ -299,6 +302,15 @@ function report() {
   self.postMessage({ type: "rendered", tune, seconds: (chunks * chunkFrames) / sampleRate, length });
 }
 
+/// Tells the page when the song starts or stops being made again for the listener (see `remaking`),
+/// so that it can show the controls that asked for it as busy.
+function sayRemaking() {
+  const now = file !== undefined && (source !== kept || kept.mutes !== written(mask));
+  if (now === remaking) return;
+  remaking = now;
+  self.postMessage({ type: "remaking", tune, busy: now });
+}
+
 // Rendering is done a turn at a time, with a message to itself between turns, so that word from the
 // page and from the audio thread is heard promptly however long the song.
 const turns = new MessageChannel();
@@ -311,6 +323,7 @@ function work() {
     send();
   }
   report();
+  sayRemaking();
   working = !complete;
   if (working) turns.port2.postMessage(0);
 }
@@ -320,6 +333,7 @@ function played(message) {
   if (message.serial !== serial) return;
   waiting--;
   send();
+  sayRemaking();
 }
 
 self.onmessage = async (event) => {
@@ -423,4 +437,5 @@ self.onmessage = async (event) => {
       withBytes(message.bytes, (data, length) => core.siday_set_songlengths(data, length));
       break;
   }
+  if (core) sayRemaking();
 };

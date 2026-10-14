@@ -900,6 +900,25 @@ button.song.on {
   to { transform: rotate(1turn); }
 }
 
+/* While the song is being made again for a change the listener has asked for, and they still hear it
+   as it was: the controls that ask for such a change show it, and the time bar waits as it does for
+   a place that is not ready. */
+.remaking div.lights, .remaking .light, .remaking select.output, .remaking button.view.settings {
+  cursor: progress;
+}
+
+.remaking select.output, .remaking button.view.settings {
+  animation: remaking 0.9s ease-in-out infinite alternate;
+}
+
+.remaking .seek .fill {
+  animation: waiting 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes remaking {
+  to { border-color: var(--accent); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .adding .wheel {
     animation: waiting 1.2s ease-in-out infinite alternate;

@@ -275,6 +275,31 @@ function tell() {
   listeners?.progress(told.position, [...told.bars, ...voices], lights);
 }
 
+// While the song is being made again for something the listener changed (a voice muted or brought
+// back, mono or stereo, a setting), what they hear is still the song as it was. The controls that
+// lead to that are shown as busy (see style.css) until the change can be heard: from a quarter of a second in, so
+// that a short tune, which is made again at once, shows nothing; and once shown, for half a second
+// at least, so that it does not blink.
+let remakingWait;
+let remakingSince;
+function remaking(busy) {
+  clearTimeout(remakingWait);
+  const root = document.documentElement.classList;
+  if (busy) {
+    if (remakingSince === undefined) {
+      remakingWait = setTimeout(() => {
+        remakingSince = performance.now();
+        root.add("remaking");
+      }, 250);
+    }
+  } else if (remakingSince !== undefined) {
+    remakingWait = setTimeout(() => {
+      remakingSince = undefined;
+      root.remove("remaking");
+    }, Math.max(0, 500 - (performance.now() - remakingSince)));
+  }
+}
+
 function heard(message) {
   if (message.type === "connected") return direct();
   // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
@@ -285,6 +310,9 @@ function heard(message) {
       break;
     case "rendered":
       listeners?.rendered(message.seconds, message.length);
+      break;
+    case "remaking":
+      remaking(message.busy);
       break;
     case "muted":
       // A light has been pressed. It is shown at once, playing or not.
@@ -321,6 +349,7 @@ let starting = Promise.resolve();
 
 async function play(index, subsong) {
   const request = ++asked;
+  remaking(false);
   const tune = tunes[index];
   // The audio hardware was let go while the player was paused: it is taken up again now, while the
   // listener is pressing something.
@@ -606,6 +635,7 @@ function remove(index) {
 /// none after it. The sound stops as it does for a pause, and the engine lets the song go.
 function stop() {
   asked++;
+  remaking(false);
   pause(true);
   void sound?.then(({ engine }) => engine.postMessage({ type: "stop" }));
 }
