@@ -594,16 +594,28 @@ final class Player {
     }
 
     /// Moves to a place in the playing song: how far through it, from 0 to 1. A paused player stays
-    /// paused, and will start from there.
+    /// paused, and will start from there. After the last tune of the list has finished, the song
+    /// that finished it is still there to be moved about in, and is played again from that place.
     func seek(to place: Double) {
-        guard let tune, !finished, tune.length > 0 else { return }
+        guard let tune, tune.length > 0 else { return }
         position = max(0, min(1, place)) * tune.length
         rest()
+        if finished {
+            finished = false
+            paused = false
+            try? sidayPause(false)
+        }
         try? sidaySeek(position)
     }
 
+    /// Pauses or plays. After the last tune of the list has finished, it plays the song that finished
+    /// it again, from its start.
     func togglePause() {
-        guard tune != nil, !finished else { return }
+        if finished, tune != nil {
+            seek(to: 0)
+            return
+        }
+        guard tune != nil else { return }
         paused.toggle()
         if paused { rest() }
         try? sidayPause(paused)
