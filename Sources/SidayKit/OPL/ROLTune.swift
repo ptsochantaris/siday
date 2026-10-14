@@ -141,6 +141,13 @@ struct ROLFile {
 /// only at its own tick, so one that comes out of order is never found, and holds up those behind it.
 /// The names are the reference's.
 final class ROLTune: OPLTune {
+    /// Set by measure, as for the other tunes on the chip. The middle one of a hundred ROL tunes was
+    /// some 4 dB below the rest, but ROL tunes are more unlike each other in loudness than other
+    /// kinds, and raised that far a tenth of them would go past full scale: so they are raised by
+    /// 1.6 dB, which puts their loudest tenth beside the loudest tenth of the other kinds, and leaves
+    /// one tune in thirty touching full scale.
+    static var gain: Float { 1.4 * 1.2 }
+
     private struct VoiceState {
         var noteEnd = false, pitchEnd = false, instrEnd = false, volumeEnd = false
         var mNoteDuration: Int16 = 0

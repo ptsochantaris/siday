@@ -18,7 +18,9 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
     private let clockHz: Double
     private let ntsc: Bool
     private var idleAddress: UInt16 = 0
-    private let gain: Float = 1.0 / 32768.0
+    /// Set by measure, so that the middle one of a hundred tunes is about as loud as the middle one
+    /// of the other kinds (it was some 4 dB louder at full scale).
+    private let gain: Float = 0.64 / 32768.0
 
     public private(set) var info: TuneInfo
     public private(set) var currentSubsong = 0

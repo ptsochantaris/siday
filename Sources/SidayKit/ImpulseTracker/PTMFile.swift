@@ -341,7 +341,7 @@ enum PTMFile {
         return ITRenderer(module: module, format: "PTM", shortfalls: shortfalls, options: options)
     }
 
-    /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are
-    /// about as loud as IT files are, and the loudest of them, which have 32 channels, have room.
-    private static let mixVolume: UInt8 = 36
+    /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that the middle one
+    /// of these files is about as loud as the middle one of every other kind.
+    private static let mixVolume: UInt8 = 54
 }
