@@ -241,7 +241,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .mptm: false
             case .mt2: false
             case .sfx, .okt: false
-            case .composer669, .stm, .stx, .far: false
+            case .composer669, .stm, .stx, .far, .dbm: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid

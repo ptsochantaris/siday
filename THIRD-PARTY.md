@@ -260,6 +260,41 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## libdigibooster3 — DBM files
+
+`Sources/SidayKit/DigiBooster` is a Swift port of libdigibooster3 1.2, DigiBooster 3's replayer,
+which its makers published in 2014 as "the official loader/replayer portable library for
+DigiBooster 3 music modules": its `player.c` (`DBMPlayer.swift`), with its tables
+(`DBMTables.swift`); its `dsp_wavetable.c`, `dsp_linresampler.c`, `dsp_panoramizer.c` and
+`dsp_echo.c` (`DBMVoice.swift`); and its `loader.c` (`DBMModule.swift`), where what it would refuse
+a file for is made the best of instead. The package came from Amiga Future's archive of downloads,
+where the DigiBooster site sent it.
+
+```
+Copyright (c) 2014, Grzegorz Kraszewski
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+This software is provided by the copyright holders and contributors "as is" and
+any express or implied warranties, including, but not limited to the implied
+warranties of merchantability and fitness for a particular purpose are
+disclaimed. In no event shall the copyright owner or contributors be liable for
+any direct, indirect, incidental, special, exemplary, or consequential damages
+(including, but not limited to, procurement of substitute goods or services;
+loss of use, data, or profits; or business interruption) however caused and
+on any theory of liability, whether in contract  strict liability or tort
+(including negligence or otherwise) arising in any way out of the use of this
+software, even if advised of the possibility of such damage.
+```
+
 ## ft2play — FastTracker 2
 
 `Sources/SidayKit/FastTracker` is a Swift port of ft2play (https://github.com/8bitbubsy/ft2play), Olav
@@ -995,3 +1030,5 @@ to use, and players commonly carry it.
 - The SID file format and environment follow `SID_file_format.txt` from the High Voltage SID Collection.
 - The `.ay` format follows the ZXAYEMUL description by Patrik Rak and Sergey Bulba.
 - The 6510 core was written for this project and verified with SingleStepTests/65x02.
+- What DigiBooster Pro's commands are, and which of them DigiBooster 3's replayer leaves out, is from
+  `DigiBooster_E.guide`, the guide that came with DigiBooster Pro 2.21.
