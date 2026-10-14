@@ -329,7 +329,7 @@ async function play(index, subsong) {
     renew(false);
   }
   try {
-    const [bytes, { engine, output }] = await Promise.all([tune.file.arrayBuffer(), audio()]);
+    const [bytes, { engine, output }] = await Promise.all([read(tune.file), audio()]);
     if (request !== asked) return;
     // The output drops what it was playing at once; the engine starts on the new tune.
     const run = ++serial;
@@ -379,7 +379,7 @@ const given = new Map();
 async function listed(lists, known) {
   const texts = await Promise.all(
     lists.map(async (list) => {
-      const bytes = new Uint8Array(await list.file.arrayBuffer());
+      const bytes = new Uint8Array(await read(list.file));
       let text = "";
       for (let at = 0; at < bytes.length; at += 8192) text += String.fromCharCode.apply(null, bytes.subarray(at, at + 8192));
       return text;
@@ -520,7 +520,7 @@ async function add(chosen) {
   // HVSC's song-length database is taken for what it is and not for a tune.
   const database = chosen.find((item) => item.name.split("/").pop().toLowerCase() === "songlengths.md5");
   if (database) {
-    songLengths = await database.file.arrayBuffer();
+    songLengths = await read(database.file);
     if (sound) (await sound).engine.postMessage({ type: "songlengths", bytes: songLengths });
   }
   // Tunes and playlists, in the order of their names.
@@ -627,30 +627,36 @@ function chooser(folder, then) {
 // (The third is for the folder that a playlist's tunes are in, which is looked in and not added.)
 const choosers = { files: chooser(false, take), folder: chooser(true, take), tunes: chooser(true, (chosen) => take(chosen, finish)) };
 
+/// The bytes of a file: one that was chosen, or one that came in a drop, which is only an entry in
+/// a folder until it is wanted (see `dropped`).
+async function read(file) {
+  if (file instanceof Blob) return file.arrayBuffer();
+  const opened = await new Promise((resolve, reject) => file.file(resolve, reject));
+  return opened.arrayBuffer();
+}
+
 /// Everything in what was dropped, folders included. A file that was dropped itself, and did not
 /// come in a folder, is marked as its own.
+///
+/// What is kept of a file in a folder is its entry, and the file is opened only when it is played
+/// or read as a playlist: a drop of a whole collection is many thousands of files, and opening each
+/// of them as it is found was most of the time it took. (A file that cannot be read is found out
+/// when it is played, and is said to be unreadable then.)
 async function dropped(items) {
   const found = [];
-  /// The files of an entry, or nothing for one that cannot be read.
-  const fileOf = (entry, own) =>
-    new Promise((resolve, reject) => entry.file(resolve, reject)).then(
-      (file) => ({ name: entry.fullPath.replace(/^\//, ""), file, own }),
-      () => null,
-    );
+  const itemOf = (entry, own) => ({ name: entry.fullPath.replace(/^\//, ""), file: entry, own });
   let told = 0;
   async function walk(entry, own) {
     if (entry.isFile) {
-      const item = await fileOf(entry, own);
-      if (item) found.push(item);
+      found.push(itemOf(entry, own));
     } else if (entry.isDirectory) {
       const reader = entry.createReader();
-      // A folder is read in batches until a batch comes back empty: the files of a batch are asked
-      // for all at once, and the folders in it are gone into one after another.
+      // A folder is read in batches until a batch comes back empty, and the folders in each are gone
+      // into one after another.
       for (;;) {
         const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
         if (batch.length === 0) break;
-        const items = await Promise.all(batch.filter((child) => child.isFile).map((child) => fileOf(child, false)));
-        for (const item of items) if (item) found.push(item);
+        for (const child of batch) if (child.isFile) found.push(itemOf(child, false));
         if (found.length - told >= 250) {
           told = found.length;
           busy(`Looking through folders… ${counted(found.length)} files found`);
