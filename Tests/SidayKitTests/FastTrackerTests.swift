@@ -186,15 +186,27 @@ private func sixChannelMOD(second: Bool = false) -> [UInt8] {
 
 // MARK: What is not played as the file asks
 
-@Test func xmSampleInStereoIsPlayedWithItsSidesTogether() throws {
+@Test func xmSampleInStereoIsPlayedWithItsSidesApart() throws {
     // The square wave made twice as long and said to be in stereo: its left side is then the
     // wave's first half, which is high, and its right the second, which is low. Played as the
-    // trackers that make such samples play them, the two together are silence; played as
-    // FastTracker would, one after the other, they are the square wave still.
+    // trackers that make such samples play them, the left side is heard on the left and the right
+    // on the right, and in mono the two together are silence; played as FastTracker would, one
+    // after the other, they are the square wave still.
     var file = xm()
     file[file.count - 32 - 40 + 14] |= 0x20
     // (Each side is stored as differences of its own, so the right side begins at -128 and stays.)
     file[file.count - 16] = 0x80
+    var options = LoadOptions()
+    options.stereo = .abc
+    let apart = stereo(try TuneLoader.load(file, format: .xm, options: options), seconds: 0.5)
+    #expect(apart.left[4800...].allSatisfy { $0 > 0.05 } && apart.right[4800...].allSatisfy { $0 < -0.05 })
+    // (And it goes on for as long as it is held, and not for a tick only.)
+    #expect(apart.left[20000] > 0.05)
+    // At the far left, its right side is not heard at all.
+    var leftmost = file
+    leftmost[leftmost.count - 32 - 40 + 15] = 0
+    let left = stereo(try TuneLoader.load(leftmost, format: .xm, options: options), seconds: 0.5)
+    #expect(left.left[4800...].allSatisfy { $0 > 0.05 } && left.right[4800...].map(abs).max()! < 0.001)
     let renderer = try #require(try TuneLoader.load(file, format: .xm) as? XMRenderer)
     let heard = stereo(renderer, seconds: 0.5)
     #expect(heard.left[4800...].map(abs).max()! < 0.001)
@@ -282,10 +294,10 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .xm).info.shortfalls }
     #expect(try shortfalls(xm()).isEmpty)
 
-    // A sample said to be in stereo, which FastTracker's mixer has no way to play as two.
+    // A sample said to be in stereo, which is played so: nothing is missing.
     var stereo = xm()
     stereo[stereo.count - 32 - 40 + 14] |= 0x20
-    #expect(try shortfalls(stereo) == ["One of its samples is in stereo, and is heard with its two sides mixed into one."])
+    #expect(try shortfalls(stereo).isEmpty)
     // One packed as ModPlug Tracker packed them.
     var packed = xm()
     packed[packed.count - 32 - 40 + 17] = 0xAD

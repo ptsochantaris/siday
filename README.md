@@ -618,7 +618,8 @@ instrument between the speakers where the module says. FastTracker itself reads 
 channels and only an even number; files from later trackers have any number, and are played the same
 way. One thing is done as those later trackers did it. A sample can be in stereo in a file of theirs,
 its two sides one after the other, and to FastTracker that is one long sample: here the two sides are
-played together, mixed into one, since that mixer has no way to keep them apart. And they have
+played together, the left side on the left and the right on the right, each as loud as the channel's
+place between them makes that side, as OpenMPT plays them. And they have
 commands of ModPlug Tracker's, which are played as OpenMPT plays them: Y, to sweep a channel from
 side to side, with X5 to choose its wave; and Z and the command after it, which send a macro, and
 that is how such a file sets a channel's filter, at once or a little at a time over a row. The
@@ -655,8 +656,8 @@ in a DTM file were heard both ways as well and are left as they were, on every t
 the first: OpenMPT slides on the first too, and a tune whose sweeps go up a fifth and stay in key
 this way went out of key that way.) What FastTracker cannot be
 told is left out: Digital Tracker 2.04 set how loud a channel was on each side, of which the place
-between the speakers is kept and the loudness is not; a stereo sample in a DTM file is made one
-sound; DSMI's surround sound is the middle.
+between the speakers is kept and the loudness is not; DSMI's surround sound is the middle. A stereo
+sample in a DTM file is played in stereo, as in an XM file of a later tracker's.
 
 There is no player of these trackers to be right against, so the check is against two that have
 read these files for decades, libxmp and OpenMPT, and the loaders are written from theirs. What

@@ -260,10 +260,16 @@ private func dtm(rows: [Int: [UInt8]] = [0: [0x41, 0, 0x10, 0]], packing: String
     let wide = stereo(try TuneLoader.load(dtm(bits: 16), format: .dtm), seconds: 1)
     #expect(abs(pitch(wide.left) - 261) <= 2)
     #expect(loudest(wide.left) > 0.02)
-    // A stereo sample is made one sound; this one's sides are each other turned over, and make silence.
+    // A stereo sample is played in stereo; this one's sides are each other turned over, which in
+    // mono is silence and in stereo is one side going up as the other goes down.
     let both = try DTMFile.read(dtm(sides: 2))
-    #expect(both.samples[0]!.data.count == 256)
-    #expect(both.samples[0]!.data.allSatisfy { $0 == 0 })
+    #expect(both.samples[0]!.data.count == 256 && both.samples[0]!.right?.count == 256)
+    #expect(zip(both.samples[0]!.data, both.samples[0]!.right!).allSatisfy { Int8(bitPattern: $0) == 0 &- Int8(bitPattern: $1) })
+    var options = LoadOptions()
+    options.stereo = .abc
+    let apart = stereo(try TuneLoader.load(dtm(sides: 2), format: .dtm, options: options), seconds: 1)
+    #expect(loudest(apart.left) > 0.02 && loudest(apart.right) > 0.02)
+    #expect(loudest(stereo(try TuneLoader.load(dtm(sides: 2), format: .dtm), seconds: 1).left) < 0.001)
     let bothWide = try DTMFile.read(dtm(bits: 16, sides: 2))
     #expect(bothWide.samples[0]!.sixteenBit && bothWide.samples[0]!.data.count == 512 && bothWide.samples[0]!.repeatLength == 512)
 }
@@ -445,8 +451,8 @@ private func amf(events: [[UInt8]] = [[0, 0x80, 0], [0, 60, 0xFF]], version: Int
     #expect(try TuneLoader.load(Array(mtm().dropLast(100)), format: .mtm).info.shortfalls == ["The file is cut short: its last sample ends in silence."])
     #expect(try TuneLoader.load(Array(mtm().dropLast(3)), format: .mtm).info.shortfalls.isEmpty)
 
-    // DTM: a sample in stereo, and a channel turned down on both sides at once.
-    #expect(try TuneLoader.load(dtm(sides: 2), format: .dtm).info.shortfalls == ["One of its samples is in stereo, and is played as one sound."])
+    // DTM: a sample in stereo, which is played so, and a channel turned down on both sides at once.
+    #expect(try TuneLoader.load(dtm(sides: 2), format: .dtm).info.shortfalls.isEmpty)
     #expect(try TuneLoader.load(dtm(rows: [0: [0x41, 0, 0x18, 0x48]]), format: .dtm).info.shortfalls
         == ["Where it sets how loud a channel is on each side, the channel's place between them is kept and its loudness is not."])
     #expect(try TuneLoader.load(dtm(rows: [0: [0x41, 0, 0x18, 0xF4]]), format: .dtm).info.shortfalls.isEmpty)

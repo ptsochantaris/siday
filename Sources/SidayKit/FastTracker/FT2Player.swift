@@ -14,6 +14,11 @@ private let SType_Fwd: UInt8 = 1, SType_Rev: UInt8 = 2, SType_RevDir: UInt8 = 4,
 /// one fades out on one voice while the new one starts on the other, which is what keeps it from clicking.
 struct FT2Voice {
     var SBase: UnsafeRawPointer?, SRevBase: UnsafeRawPointer?
+    /// For a sample in stereo, from a later tracker's file: where its right side is, read as the
+    /// left is, and its filter's last two samples. The left side is then heard on the left only and
+    /// the right on the right.
+    var SBaseR: UnsafeRawPointer?, SRevBaseR: UnsafeRawPointer?
+    var filterY1R: Float = 0, filterY2R: Float = 0
     var SType: UInt8 = 0, SPan: UInt8 = 0, SVol: UInt8 = 0
     // The volume wanted on each side, the volume it has got to, and the step from one towards the other.
     var SLVol1: Int32 = 0, SRVol1: Int32 = 0, SLVol2: Int32 = 0, SRVol2: Int32 = 0, SLVolIP: Int32 = 0, SRVolIP: Int32 = 0, SVolIPLen: Int32 = 0
@@ -252,6 +257,8 @@ final class FT2Player {
             v.pointee.filtered = false
             v.pointee.filterY1 = 0
             v.pointee.filterY2 = 0
+            v.pointee.filterY1R = 0
+            v.pointee.filterY2R = 0
         }
         var type = s.typ
         let sample16Bit = (type >> 4) & 1 != 0
@@ -263,6 +270,7 @@ final class FT2Player {
                 repS >>= 1
             }
             v.pointee.SRevBase = s.pek.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
+            v.pointee.SRevBaseR = s.pekR.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
             v.pointee.SRepL = repL
             v.pointee.SRepS = repS
             len = repS &+ repL
@@ -278,6 +286,7 @@ final class FT2Player {
         v.pointee.SPos = smpStartPos
         v.pointee.SPosDec = 0
         v.pointee.SBase = UnsafeRawPointer(s.pek)
+        v.pointee.SBaseR = s.pekR.map { UnsafeRawPointer($0) }
         v.pointee.sixteen = sample16Bit
         v.pointee.SType = type
         notes.struck[nr] = true
@@ -321,6 +330,8 @@ final class FT2Player {
         if ch.filtered, !v.pointee.filtered {
             v.pointee.filterY1 = 0
             v.pointee.filterY2 = 0
+            v.pointee.filterY1R = 0
+            v.pointee.filterY2R = 0
         }
         v.pointee.filtered = ch.filtered
         guard ch.filtered else { return }
@@ -411,10 +422,19 @@ final class FT2Player {
             if realPos >= v.pointee.SLen, !wrap(v, &realPos) { return }
             v.pointee.SPosDec = UInt32(samplesFrac & 0xFFFF) << 16
             v.pointee.SPos = realPos
+        } else if let right = v.pointee.SBaseR {
+            // (A sample in stereo: see `FT2Module.playStereoSamples`.)
+            if v.pointee.sixteen {
+                mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0,
+                    right: right.assumingMemoryBound(to: Int16.self), rightReverse: v.pointee.SRevBaseR?.assumingMemoryBound(to: Int16.self))
+            } else {
+                mix(v, numSamples, base.assumingMemoryBound(to: Int8.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int8.self), shift: 8,
+                    right: right.assumingMemoryBound(to: Int8.self), rightReverse: v.pointee.SRevBaseR?.assumingMemoryBound(to: Int8.self))
+            }
         } else if v.pointee.sixteen {
-            mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0)
+            mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0, right: nil, rightReverse: nil)
         } else {
-            mix(v, numSamples, base.assumingMemoryBound(to: Int8.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int8.self), shift: 8)
+            mix(v, numSamples, base.assumingMemoryBound(to: Int8.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int8.self), shift: 8, right: nil, rightReverse: nil)
         }
     }
 
@@ -436,8 +456,11 @@ final class FT2Player {
     /// FastTracker's mixing of one voice into the tick, with its interpolation between one sample
     /// and the next and its ramp from the volume a voice had to the volume it is to have. The
     /// oddities are FastTracker's, and are what make the result the same as its own to the bit.
+    /// With `right`, the voice is a sample in stereo, whose left side is `linear` and is heard on
+    /// the left, and whose right side is read in step with it and heard on the right.
     @inline(__always) private func mix<T: FixedWidthInteger & SignedInteger>(
-        _ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32, _ linear: UnsafePointer<T>, _ reverse: UnsafePointer<T>?, shift: Int32
+        _ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32, _ linear: UnsafePointer<T>, _ reverse: UnsafePointer<T>?, shift: Int32,
+        right: UnsafePointer<T>?, rightReverse: UnsafePointer<T>?
     ) {
         var audioMix = mixBuffer
         // (A voice of a channel that is left out of the sound is mixed where it is not heard.)
@@ -448,9 +471,12 @@ final class FT2Player {
         var lVolIP = v.pointee.SLVolIP, rVolIP = v.pointee.SRVolIP
         let filtered = v.pointee.filtered, a0 = v.pointee.filterA0, b0 = v.pointee.filterB0, b1 = v.pointee.filterB1
         var y1 = v.pointee.filterY1, y2 = v.pointee.filterY2
+        var y1R = v.pointee.filterY1R, y2R = v.pointee.filterY2R
         defer {
             v.pointee.filterY1 = y1
             v.pointee.filterY2 = y2
+            v.pointee.filterY1R = y1R
+            v.pointee.filterY2R = y2R
         }
 
         var bytesLeft = numSamples
@@ -480,15 +506,20 @@ final class FT2Player {
             var lVol = v.pointee.SLVol2, rVol = v.pointee.SRVol2
             let backwards = v.pointee.SType & (SType_Rev + SType_RevDir) == SType_Rev + SType_RevDir
             let origin: UnsafePointer<T>
+            // (The right side of a sample in stereo, at the same place as the left.)
+            let originR: UnsafePointer<T>?
             if backwards, let reverse {
                 frq = 0 &- frq
                 realPos = ~realPos
                 origin = reverse
+                originR = rightReverse
                 pos ^= 0xFFFF_0000
             } else {
                 origin = linear
+                originR = right
             }
             var smpPtr = origin + Int(realPos)
+            let offsetR = originR.map { $0 - origin } ?? 0
             pos &+= UInt32(mixBuffPos)
             let ipValH = Int(frq >> 16)
             let ipValL = (UInt32(bitPattern: frq & 0xFFFF) << 16) &+ 8
@@ -515,8 +546,27 @@ final class FT2Player {
                 if sample2 < low { low = sample2 }
                 if sample2 > high { high = sample2 }
                 sample2 <<= 28 - 16
+                var sampleR = sample2
+                if right != nil {
+                    let p = smpPtr + offsetR
+                    let first = Int32(p[0]) << shift
+                    var next = (Int32(p[1]) << shift) &- first
+                    // (The same fraction of the way to the next as the left side: `pos` is back to twice it.)
+                    next = Int32(truncatingIfNeeded: (Int64(next) &* Int64(Int32(bitPattern: pos >> 1))) >> 32)
+                    next &+= next
+                    next &+= first
+                    if filtered {
+                        let out = Float(next) * a0 + y1R * b0 + y2R * b1
+                        y2R = y1R
+                        y1R = max(-131_072, min(131_072, out))
+                        next = Int32(y1R)
+                    }
+                    if next < low { low = next }
+                    if next > high { high = next }
+                    sampleR = next << (28 - 16)
+                }
                 audioMix[0] &+= Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(lVol)) >> 32)
-                audioMix[1] &+= Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(rVol)) >> 32)
+                audioMix[1] &+= Int32(truncatingIfNeeded: (Int64(sampleR) &* Int64(rVol)) >> 32)
                 audioMix += 2
                 smpPtr += ipValH
                 if ipValL > ~pos { smpPtr += 1 }
