@@ -14,6 +14,8 @@ struct ForeignModule {
     struct Sample {
         /// The sample, signed, eight bits or sixteen with the low byte first.
         var data: [UInt8] = []
+        /// For a sample in stereo: its right side, as `data` is then its left.
+        var right: [UInt8]?
         var sixteenBit = false
         /// The part that repeats, in bytes. None, if it has no length.
         var repeatStart = 0

@@ -26,8 +26,8 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum, Amstrad CPC | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs; VTX and YM register recordings; AY program rips, beeper music included | each tracker's own player, or the tune's own program on a Z80, on the AY chip |
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
-| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
-| PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
+| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
+| PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
@@ -240,10 +240,11 @@ uses is said, and only what might be heard.
 Not played:
 
 - **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-- **Amiga:** a MOD or a DBM packed with XPK; a song that MED saved before it had modules (MED2,
-  MED3, MED4); a module of the later SoundFX, of 31 samples.
+- **Amiga:** a MOD or a DBM packed with XPK; a song that MED saved before MED4 (MED2, MED3), and
+  a MED4 song whose instruments are kept in files of their own; a module of the later SoundFX, of
+  31 samples.
 - **PC:** an IT file packed with MMCMP; a DTM file from Digital Home Studio; the other kind of
-  file called AMF, ASYLUM's; an STM song saved without its samples, and an STX file.
+  file called AMF, ASYLUM's; an STM song saved without its samples.
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
   or for samples kept in other files; and one with an instrument tuned to a scale that is not a
   temperament of twelve steps to the octave.
@@ -253,18 +254,19 @@ Played, with a difference:
 - **SID:** a few RSID tunes that depend on exact video or serial-port timing do not play correctly.
 - **SNDH:** a tune that sends its notes out of the MIDI port is silent, and of some 5,900 files
   tried a handful do not start; the reference player does not start them either.
-- **MED:** notes for a MIDI synthesiser are not heard.
+- **MED:** notes for a MIDI synthesiser are not heard; in a MED4 file, a synthetic or hybrid sound
+  is silent, and the hold and decay of notes are not read.
 - **DBM:** played as DigiBooster 3 plays it, which leaves out three of DigiBooster Pro's commands:
   setting how far into an envelope a note is, sliding where a sample starts, and setting the tempo
   in beats a minute.
-- **XM** from a later tracker: played as FastTracker 2 would play it, and without its plug-ins.
-- **IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
+- **XM** from a later tracker: played as FastTracker 2 would play it.
+- **XM, IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
   (ADPCM) is silent; and in a file tuned to a temperament each note starts at the pitch that
   gives it, and slides as Impulse Tracker slides.
 - **GDM, PTM, ULT:** a command that Impulse Tracker's replayer has no room or no like for is
   left out.
-- **STM:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
+- **STM and STX:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
 - **ROL:** an instrument that no bank has is silent.
 
 ## How it is built
@@ -488,6 +490,31 @@ module is. `SIDAY_MED_TRACE=1 siday --raw /dev/null tune.med` writes what the pl
 chip, a line a tick; or for five to eight channels what it mixes for the chip (the bytes go to the
 file `SIDAY_MED_MIXED` names); or in mixing mode what it tells its mixer.
 
+Before it saved modules, MED saved songs, and the last kind of those, MED4, is what MED 2.10 to
+3.00 saved: a file that begins "MED" and a 4. It says what an MMD0 module says, packed tight. Of
+each instrument only the few words that are not as they would be by default are written, after a
+mask of which instruments there are; and of each block only the lines and tracks that have
+something on them, a nibble at a time, a note or a command in twelve bits that are the first or
+the last twelve of the three bytes an MMD0 module gives a note. The samples are as an MMD0
+module's are. So a MED4 file is read into the MMD0 module MED would have saved of it, and played
+as that is. A song of MED 2 is taken, as libxmp takes it, not to keep how many ticks a line
+lasts, and is given five where it asks for the trackers' sliding and six where it does not; none
+of the files to hand is of MED 2, to show whether that is so. Left out: a
+synthetic or hybrid sound, which MED4 keeps in a shape of its own; the hold and decay of notes,
+in a part of the file no description lays out; and a song whose instruments are in files of
+their own, which a page in a browser could not open. A file that uses the first two says so.
+
+OctaMED's players do not read MED4 files, so the check is in three parts, on the three files to
+hand, all three of MED 3.00. libxmp reads each of them as it reads the MMD0 module that a separate
+script makes of it, note for note and command for command. That module, played by OctaMED's
+player in the emulated Amiga, and the MED4 file played here, give the sound chip the same periods,
+volumes and samples on every tick, the whole of each tune; and the file is played here as the
+module is, to the sample. Where libxmp plays the file differently, it slips: it rounds where an
+instrument's repeat begins down to a whole 256 bytes (the name it copies runs over into the
+number). And it would read the two bits beside a note that an MMD0 module gives to the
+instrument's number as part of the note; here they are the instrument's, as in a module, though
+none of these files has an instrument past the fifteenth to show which is right.
+
 ### SFX and OKT — SoundFX and Oktalyzer
 
 A SoundFX module is played as SoundFX played it, and an Oktalyzer module as Oktalyzer did. As with
@@ -696,12 +723,18 @@ instrument between the speakers where the module says. FastTracker itself reads 
 channels and only an even number; files from later trackers have any number, and are played the same
 way. One thing is done as those later trackers did it. A sample can be in stereo in a file of theirs,
 its two sides one after the other, and to FastTracker that is one long sample: here the two sides are
-played together, mixed into one, since that mixer has no way to keep them apart. And they have
+played together, the left side on the left and the right on the right, each as loud as the channel's
+place between them makes that side, as OpenMPT plays them. And they have
 commands of ModPlug Tracker's, which are played as OpenMPT plays them: Y, to sweep a channel from
 side to side, with X5 to choose its wave; and Z and the command after it, which send a macro, and
 that is how such a file sets a channel's filter, at once or a little at a time over a row. The
 filter is OpenMPT's, of two poles, put into FastTracker's mixer between a sample and its volume,
-and a macro that is for anything but the filter is left out and said to be. That is for a file that gives itself away as another tracker's: by saying so, or,
+and a macro that is for anything but the filter is left out and said to be. And such a file is
+heard through its plug-ins, where they are OpenMPT's own, as an IT file of the same trackers is: a
+voice goes to its instrument's plug-in, or else its channel's, in FastTracker's whole numbers, and
+the plug-ins are given it at the level OpenMPT plays an XM file. Set beside libopenmpt, the 107
+files to hand that send something through a plug-in agree in spectrum to 0.993 for the middle
+one, where without the plug-ins it was 0.982. That is for a file that gives itself away as another tracker's: by saying so, or,
 where it says FastTracker as ModPlug Tracker's files do, by a name padded with nothing instead of
 spaces or by what ModPlug Tracker writes after all that FastTracker reads. FastTracker lets any
 letter be typed for a command, and in a file of its own a letter it has no command for is
@@ -733,8 +766,8 @@ in a DTM file were heard both ways as well and are left as they were, on every t
 the first: OpenMPT slides on the first too, and a tune whose sweeps go up a fifth and stay in key
 this way went out of key that way.) What FastTracker cannot be
 told is left out: Digital Tracker 2.04 set how loud a channel was on each side, of which the place
-between the speakers is kept and the loudness is not; a stereo sample in a DTM file is made one
-sound; DSMI's surround sound is the middle.
+between the speakers is kept and the loudness is not; DSMI's surround sound is the middle. A stereo
+sample in a DTM file is played in stereo, as in an XM file of a later tracker's.
 
 There is no player of these trackers to be right against, so the check is against two that have
 read these files for decades, libxmp and OpenMPT, and the loaders are written from theirs. What
@@ -771,7 +804,9 @@ bytes; files from later trackers have sixteen-bit and longer ones, which are pla
 and samples tuned higher than Scream Tracker had room to write down, which are played at the pitch
 they say and not at the highest Scream Tracker could have given them. They have samples in stereo
 too, the right side after the left, of which Scream Tracker would play the left alone: the two are
-played together, mixed into one, since its cards have no way to keep them apart. And they have
+played together, on a Gravis Ultrasound in a file that is in stereo the left side on the left and
+the right on the right, as the card's voices each have a place between the speakers; on a Sound
+Blaster, whose channels are each to one side, or in a file in mono, they are mixed into one. And they have
 three commands that Scream Tracker passes over and the trackers after it play, in an S3M file as
 in any: M, which sets a channel's volume, N, which slides it, and W, which slides the volume of the
 whole tune. Those are played, as OpenMPT plays them, in a file that Scream Tracker did not save; in
@@ -794,7 +829,7 @@ a note let go and struck again in one tick is heard to be. The samples of a tune
 loud as in any other tune: st3play turns them down by a third at the card's first note, to leave room
 for it.
 
-### STM — Scream Tracker 2
+### STM and STX — Scream Tracker 2, and its Music Interface Kit
 
 An STM file is from Scream Tracker 2, the same author's tracker of 1990, from when no sound card
 did any mixing: four channels, 31 samples of eight bits, and the program adding the four
@@ -840,9 +875,29 @@ file, the next sample, which is what OpenMPT's authors found Scream Tracker 2 to
 such samples, most of them over by one byte. st2play brings the end in, and `siday --raw file.raw tune.stm`, which writes what
 st2play makes, a sample for each of its own, does so too. A sample with no volume of its own is
 not loaded, as in st2play, and its notes are silence. One file named for the format is something
-else, and is refused; and an STX file, which is what a converter for the Scream Tracker Music
-Interface Kit made of an STM, is not played. The files are as loud as XM files are, by measure:
-the middle one of each is the same.
+else, and is refused. The files are as loud as XM files are, by measure: the middle one of each is
+the same.
+
+An STX file is a Scream Tracker 2 tune made ready for the Scream Tracker Music Interface Kit, the
+library Future Crew gave out in the early 1990s for putting their tracker's music into other
+people's programs. The kit's papers call it a beta of Scream Tracker 3's format, and it looks like
+one: an S3M file's header and samples, and its way of packing a pattern a row at a time with only
+the channels that have something in them. What is packed is an STM file's, though, for the kit
+came with a converter, STM2STX, and its music was written in Scream Tracker 2: four channels,
+Scream Tracker 2's commands under its letters, nothing remembered from one command to the next,
+and a tempo in two halves. The kit's own replayer has never been published. OpenMPT and Schism
+Tracker play these files as the STM files they were, and so they are played here: read back into
+one, and played by Scream Tracker 2's replayer like any other. (libxmp plays them with Scream
+Tracker 3's ways instead, under which a command with no value goes on with the last one's, and
+the tempo has one half.)
+
+So the check is of the reading. The two files to hand, one of each of the converter's two
+versions, agree to the sample with st2play, for an hour of each, when st2play is given the STM
+file that a separate script makes of them. And OpenMPT plays that STM file as it plays the STX
+file itself: every voice at the same pitch and volume on every tick. An STX file has room for
+what an STM has not, more channels, more samples, longer ones and ones of sixteen bits; the
+converter made none of those, and a file that has them and uses them says so. A volume over 64,
+which Scream Tracker 2 would play as silence, is taken for 64, as OpenMPT takes it.
 
 ### IT — Impulse Tracker, and ModPlug Tracker after it
 
@@ -896,7 +951,7 @@ which OpenMPT has since built into itself, and some eight hundred IT files to ha
 the same effects, wired the same way, as for an MPTM file (see below), and a plug-in that is
 anybody else's is left out and said to be. Set beside libopenmpt, three hundred of those files
 agree in spectrum to 0.983 for the middle one, where without the plug-ins it was 0.960. (An XM file
-of those trackers can have plug-ins too, and is still played without them.)
+of those trackers can have plug-ins too, and is heard through them in the same way: see XM.)
 
 The fourth is the filter itself. ModPlug Tracker had a filter of its own before it had Impulse
 Tracker's. It is the same kind of filter, but it rings half as much for the same resonance, and it
@@ -1061,7 +1116,8 @@ go on into the rows below it; a note can be delayed and cut by one command, star
 sample names, and played backwards. An envelope can have more than 25 points, and a point to go to
 when its key is let go. A filter can let the high through instead of the low, and can be moved at
 random from note to note; and it is OpenMPT's own filter unless the file asks for Impulse
-Tracker's (see above, where the same is told of an IT file). And a file can ask
+Tracker's (see above, where the same is told of an IT file). An instrument can be tied to a tempo,
+and is then played as much higher or lower as the song is faster or slower than that. And a file can ask
 for OpenMPT's own way of adding its channels up, which is twice as loud as Impulse Tracker's and
 puts a channel that is to one side at no more than one in the middle.
 
@@ -1434,8 +1490,9 @@ What it is made from:
   itself is by Lars Hamre, Anders Hamre, Sven Vahsen and Rune Johnsrud, after Karsten Obarski's
   Ultimate Soundtracker, where the module began.
 - MED and OctaMED are by Teijo Kinnunen, and the MED module is as he describes it in the notes on
-  the format that came with OctaMED. The players of MED modules here, and the mixing, are siday's
-  own: nothing in them is taken from OctaMED's, which they were written to do the same as.
+  the format that came with OctaMED; the MED4 file is as libxmp's authors read it. The players of
+  MED modules here, and the mixing, are siday's own: nothing in them is taken from OctaMED's,
+  which they were written to do the same as.
 - SoundFX is by Christian Haller and Christian A. Weber (Linel, 1988), and Oktalyzer by Armin Sander
   (1989). Their modules are as Claudio Matsuoka (for libxmp) and Harald Zappe wrote them down. The
   players of both here are siday's own: nothing in them is taken from the trackers' routines, which

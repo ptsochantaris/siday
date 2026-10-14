@@ -36,14 +36,21 @@ public final class STMRenderer: Renderer, ReferenceComparable {
     /// Set by measure, so that these files are about as loud as XM files are.
     private static let gain: Float = 0.5
 
-    public init(_ data: [UInt8], options _: LoadOptions) throws {
+    public convenience init(_ data: [UInt8], options _: LoadOptions) throws {
+        try self.init(data, format: "STM", detail: "Scream Tracker 2.3", shortfalls: [])
+    }
+
+    /// - Parameters:
+    ///   - data: an STM file, or what another kind of file has been read into (see `STXFile`).
+    ///   - shortfalls: what was lost in that reading.
+    init(_ data: [UInt8], format: String, detail: String, shortfalls: [String]) throws {
         self.data = data
         let module = try ST2Module(data)
         self.module = module
-        var info = TuneInfo(format: "STM")
+        var info = TuneInfo(format: format)
         info.title = module.title
-        info.detail = "Scream Tracker 2.3"
-        info.shortfalls = module.shortfalls
+        info.detail = detail
+        info.shortfalls = shortfalls + module.shortfalls
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is. A tune is what lies

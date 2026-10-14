@@ -192,9 +192,8 @@ extension IT2Player {
     }
 
     /// The command after Z, in a file of ModPlug Tracker's or OpenMPT's: Z's macro, sent on every
-    /// tick of the row, and what it sets the filter to come to a little at a time, so that the
-    /// filter is where the macro puts it only on the row's last tick. (What it sets of a plug-in
-    /// is set at once.)
+    /// tick of the row, and what it sets the filter, or a plug-in, to come to a little at a time,
+    /// so that it is where the macro puts it only on the row's last tick.
     func InitCommandSmoothMacro(_ hc: IT2HostPointer) {
         InitCommandZ(hc, comingTo: true)
         hc.pointee.Flags |= HF_ALWAYS_UPDATE_EFX
@@ -212,12 +211,15 @@ extension IT2Player {
         let sc = hc.pointee.SlaveChnPtr
         let channel = Int(hc.pointee.HostChnNum) & 63
         let cutoff = FilterParameters[channel], resonance = FilterParameters[64 + channel]
+        let left = Int(CurrentTick) + (RowDelayOn ? (Int(RowDelay) - 1) * Int(CurrentSpeed) : 0)
+        // (A plug-in's setting is brought nearer as it is sent: see `modPlugMacro`.)
+        macroTicksLeft = comingTo ? left : 0
+        defer { macroTicksLeft = 0 }
         if hc.pointee.CmdVal >= 0x80 {
             MIDITranslate(hc, sc, 0x320 + (UInt16(hc.pointee.CmdVal & 0x7F) << 5))
         } else {
             MIDITranslate(hc, sc, 0x120 + (UInt16(hc.pointee.EfxMem_SFx & 0xF) << 5))
         }
-        let left = Int(CurrentTick) + (RowDelayOn ? (Int(RowDelay) - 1) * Int(CurrentSpeed) : 0)
         guard comingTo, left > 1 else { return }
         func nearer(_ from: UInt8, _ to: UInt8) -> UInt8 {
             UInt8(max(0, min(127, Int((Float(from) + Float(Int(to) - Int(from)) / Float(left)).rounded()))))
@@ -385,10 +387,16 @@ extension IT2Player {
             plugIn = Int(module.instrument(Int(hc.pointee.Ins) - 1).MixPlug)
         }
         guard plugIn > 0 else { return }
+        // Sent a little at a time over a row, a value is brought as far towards where it is to be as
+        // the ticks left of the row allow, and set exactly on the last (see `sendMacro`).
+        func nearer(_ now: Float, _ wanted: Float) -> Float {
+            macroTicksLeft > 1 ? now + (wanted - now) / Float(macroTicksLeft) : wanted
+        }
         if code == 3 {
-            mixer.setPlugInDryRatio(place: plugIn - 1, Float(127 - Int(value)) / 127)
+            mixer.setPlugInDryRatio(place: plugIn - 1, nearer(mixer.plugInDryRatio(place: plugIn - 1), Float(127 - Int(value)) / 127))
         } else if code >= 0x80 {
-            mixer.setPlugInParameter(place: plugIn - 1, Int(code & 0x7F), Float(value) / 127)
+            let index = Int(code & 0x7F)
+            mixer.setPlugInParameter(place: plugIn - 1, index, nearer(mixer.plugInParameter(place: plugIn - 1, index), Float(value) / 127))
         }
     }
 

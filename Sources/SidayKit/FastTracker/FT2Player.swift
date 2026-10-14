@@ -14,6 +14,11 @@ private let SType_Fwd: UInt8 = 1, SType_Rev: UInt8 = 2, SType_RevDir: UInt8 = 4,
 /// one fades out on one voice while the new one starts on the other, which is what keeps it from clicking.
 struct FT2Voice {
     var SBase: UnsafeRawPointer?, SRevBase: UnsafeRawPointer?
+    /// For a sample in stereo, from a later tracker's file: where its right side is, read as the
+    /// left is, and its filter's last two samples. The left side is then heard on the left only and
+    /// the right on the right.
+    var SBaseR: UnsafeRawPointer?, SRevBaseR: UnsafeRawPointer?
+    var filterY1R: Float = 0, filterY2R: Float = 0
     var SType: UInt8 = 0, SPan: UInt8 = 0, SVol: UInt8 = 0
     // The volume wanted on each side, the volume it has got to, and the step from one towards the other.
     var SLVol1: Int32 = 0, SRVol1: Int32 = 0, SLVol2: Int32 = 0, SRVol2: Int32 = 0, SLVolIP: Int32 = 0, SRVolIP: Int32 = 0, SVolIPLen: Int32 = 0
@@ -26,6 +31,9 @@ struct FT2Voice {
     var filterA0: Float = 0, filterB0: Float = 0, filterB1: Float = 0, filterY1: Float = 0, filterY2: Float = 0
     /// True for a voice of a channel that is left out of the sound: it plays on, and is not heard.
     var muted = false
+    /// The place of the plug-in the voice is sent to, for a song that has OpenMPT's (see
+    /// `FT2Player.playsPlugIns`); less than nought if it goes straight to the listener.
+    var place = -1
 }
 
 /// FastTracker 2's replayer and mixer, playing a module: the replayer is in `FT2Replayer.swift`, and
@@ -76,6 +84,19 @@ final class FT2Player {
     /// The lowest and highest the voice being mixed has had its sample, and the most its volume has been.
     private var swing = Swing<Int32>(from: -65536, to: 65536)
     private var loudest: Float = 0
+
+    /// The song's plug-ins, for a song that has OpenMPT's and is to be heard: see `playsPlugIns`.
+    private var plugIns: OpenMPTPlugIns?
+    /// A tick for each place of a plug-in that voices are sent to, in the mixer's whole numbers,
+    /// and which of them have had a voice mixed into them in the tick being made.
+    private var placeTicks: [UnsafeMutablePointer<Int32>?] = []
+    private var placesUsed: [Int] = []
+    /// The tick as the plug-ins have it, left and right in turn.
+    private var plugInTick: UnsafeMutablePointer<Float>?
+    /// From the mixer's whole numbers to what OpenMPT gives a plug-in, which is a number from -1 to
+    /// 1 for its loudest sample; and so at the level OpenMPT plays an XM file, which is that much
+    /// louder than FastTracker's own sixteen bits. (Set by measure, beside libopenmpt.)
+    static let plugInLevel: Float = 2.3 / (256 * 32768)
 
     private let visited: UnsafeMutablePointer<Bool>
     /// True when the tick just run began a row that has been played before.
@@ -172,6 +193,19 @@ final class FT2Player {
         mixBuffer.deallocate()
         unheard?.deallocate()
         visited.deallocate()
+        for tick in placeTicks { tick?.deallocate() }
+        plugInTick?.deallocate()
+    }
+
+    /// Makes the song's plug-ins, for a player whose sound is to be heard: one that only finds how
+    /// long a tune is, or plays as FastTracker would, has no use for them.
+    func playsPlugIns() {
+        guard plugIns == nil, let sound = module.sound, let made = OpenMPTPlugIns(sound) else { return }
+        plugIns = made
+        placeTicks = [UnsafeMutablePointer<Int32>?](repeating: nil, count: sound.plugIns.count)
+        let tick = UnsafeMutablePointer<Float>.allocate(capacity: (Self.mostSamplesPerTick + 1) * 2)
+        tick.initialize(repeating: 0, count: (Self.mostSamplesPerTick + 1) * 2)
+        plugInTick = tick
     }
 
     @inline(__always) func note2Period(_ i: Int) -> UInt16 {
@@ -252,6 +286,8 @@ final class FT2Player {
             v.pointee.filtered = false
             v.pointee.filterY1 = 0
             v.pointee.filterY2 = 0
+            v.pointee.filterY1R = 0
+            v.pointee.filterY2R = 0
         }
         var type = s.typ
         let sample16Bit = (type >> 4) & 1 != 0
@@ -263,6 +299,7 @@ final class FT2Player {
                 repS >>= 1
             }
             v.pointee.SRevBase = s.pek.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
+            v.pointee.SRevBaseR = s.pekR.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
             v.pointee.SRepL = repL
             v.pointee.SRepS = repS
             len = repS &+ repL
@@ -278,6 +315,9 @@ final class FT2Player {
         v.pointee.SPos = smpStartPos
         v.pointee.SPosDec = 0
         v.pointee.SBase = UnsafeRawPointer(s.pek)
+        v.pointee.SBaseR = s.pekR.map { UnsafeRawPointer($0) }
+        // (Where it is sent: to its instrument's plug-in, or else its channel's.)
+        if let plugIns { v.pointee.place = plugIns.place(instrumentPlugIn: module.instrumentPlugIns[Int(stm[nr].instrNr)], channel: nr) }
         v.pointee.sixteen = sample16Bit
         v.pointee.SType = type
         notes.struck[nr] = true
@@ -321,6 +361,8 @@ final class FT2Player {
         if ch.filtered, !v.pointee.filtered {
             v.pointee.filterY1 = 0
             v.pointee.filterY2 = 0
+            v.pointee.filterY1R = 0
+            v.pointee.filterY2R = 0
         }
         v.pointee.filtered = ch.filtered
         guard ch.filtered else { return }
@@ -378,6 +420,10 @@ final class FT2Player {
         mix_UpdateChannelVolPanFrq()
         let count = Int(speedVal)
         mixBuffer.update(repeating: 0, count: count * 2)
+        if let plugIns {
+            plugIns.begin(frames: count)
+            placesUsed.removeAll(keepingCapacity: true)
+        }
         // A voice at its loudest, in the mixer's numbers, whichever side it is on.
         let full = Float(255 * CDA_Amp) * 4096
         for i in 0 ..< Int(song.antChn) * 2 {
@@ -389,6 +435,7 @@ final class FT2Player {
             if i & 1 == 0 || level > levels.now[i >> 1] { levels.now[i >> 1] = level }
         }
         levels.tickMade()
+        if plugIns != nil { sendThroughPlugIns(count) }
         for i in 0 ..< Int(song.antChn) {
             // The channel's own voice, and not the one a note before it is dying away on.
             let v = CI + chnReloc[i]
@@ -396,6 +443,47 @@ final class FT2Player {
             notes.pitches[i] = playing ? ChannelPitch.note(ofRate: Double(v.pointee.SFrq) * Double(Self.rate) / 65536) : 0
         }
         return count
+    }
+
+    /// What OpenMPT does to a tick once its voices are mixed, for a song with plug-ins of its own:
+    /// what was sent to each plug-in is given to it, the plug-ins are run, and what they make is
+    /// added to the tick, which master effects then work on as a whole.
+    private func sendThroughPlugIns(_ count: Int) {
+        guard let plugIns, let tick = plugInTick else { return }
+        let level = Self.plugInLevel
+        for place in placesUsed {
+            guard let sent = placeTicks[place] else { continue }
+            let input = plugIns.buffer(ofPlace: place)
+            for i in 0 ..< count * 2 { input[i] += Float(sent[i]) * level }
+        }
+        if !placesUsed.isEmpty || (0 ..< Int(song.antChn) * 2).contains(where: { CI[$0].SType & SType_Off == 0 }) { plugIns.voiceMixed() }
+        for i in 0 ..< count * 2 { tick[i] = Float(mixBuffer[i]) * level }
+        plugIns.process(master: tick, frames: count)
+        let back = 1 / level
+        for i in 0 ..< count * 2 {
+            let value = (tick[i] * back).rounded()
+            mixBuffer[i] = value >= 2_147_483_648 ? Int32.max : value < -2_147_483_648 ? Int32.min : Int32(value)
+        }
+    }
+
+    /// The tick a voice is mixed into: the song's, or the one for the plug-in it is sent to, or for
+    /// a voice of a channel left out of the sound, one that is not heard.
+    @inline(__always) private func target(of v: UnsafeMutablePointer<FT2Voice>) -> UnsafeMutablePointer<Int32> {
+        if v.pointee.muted, let unheard { return unheard }
+        let place = v.pointee.place
+        guard place >= 0, plugIns != nil, place < placeTicks.count else { return mixBuffer }
+        if let tick = placeTicks[place] {
+            if !placesUsed.contains(place) {
+                tick.update(repeating: 0, count: Int(speedVal) * 2)
+                placesUsed.append(place)
+            }
+            return tick
+        }
+        let tick = UnsafeMutablePointer<Int32>.allocate(capacity: (Self.mostSamplesPerTick + 1) * 2)
+        tick.initialize(repeating: 0, count: (Self.mostSamplesPerTick + 1) * 2)
+        placeTicks[place] = tick
+        placesUsed.append(place)
+        return tick
     }
 
     private func mix(_ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32) {
@@ -411,10 +499,19 @@ final class FT2Player {
             if realPos >= v.pointee.SLen, !wrap(v, &realPos) { return }
             v.pointee.SPosDec = UInt32(samplesFrac & 0xFFFF) << 16
             v.pointee.SPos = realPos
+        } else if let right = v.pointee.SBaseR {
+            // (A sample in stereo: see `FT2Module.playStereoSamples`.)
+            if v.pointee.sixteen {
+                mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0,
+                    right: right.assumingMemoryBound(to: Int16.self), rightReverse: v.pointee.SRevBaseR?.assumingMemoryBound(to: Int16.self))
+            } else {
+                mix(v, numSamples, base.assumingMemoryBound(to: Int8.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int8.self), shift: 8,
+                    right: right.assumingMemoryBound(to: Int8.self), rightReverse: v.pointee.SRevBaseR?.assumingMemoryBound(to: Int8.self))
+            }
         } else if v.pointee.sixteen {
-            mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0)
+            mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0, right: nil, rightReverse: nil)
         } else {
-            mix(v, numSamples, base.assumingMemoryBound(to: Int8.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int8.self), shift: 8)
+            mix(v, numSamples, base.assumingMemoryBound(to: Int8.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int8.self), shift: 8, right: nil, rightReverse: nil)
         }
     }
 
@@ -436,21 +533,26 @@ final class FT2Player {
     /// FastTracker's mixing of one voice into the tick, with its interpolation between one sample
     /// and the next and its ramp from the volume a voice had to the volume it is to have. The
     /// oddities are FastTracker's, and are what make the result the same as its own to the bit.
+    /// With `right`, the voice is a sample in stereo, whose left side is `linear` and is heard on
+    /// the left, and whose right side is read in step with it and heard on the right.
     @inline(__always) private func mix<T: FixedWidthInteger & SignedInteger>(
-        _ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32, _ linear: UnsafePointer<T>, _ reverse: UnsafePointer<T>?, shift: Int32
+        _ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32, _ linear: UnsafePointer<T>, _ reverse: UnsafePointer<T>?, shift: Int32,
+        right: UnsafePointer<T>?, rightReverse: UnsafePointer<T>?
     ) {
-        var audioMix = mixBuffer
         // (A voice of a channel that is left out of the sound is mixed where it is not heard.)
-        if v.pointee.muted, let unheard { audioMix = unheard }
+        var audioMix = target(of: v)
         var realPos = v.pointee.SPos
         var pos = v.pointee.SPosDec
         var mixBuffPos: UInt16 = (32768 + 96) - 8
         var lVolIP = v.pointee.SLVolIP, rVolIP = v.pointee.SRVolIP
         let filtered = v.pointee.filtered, a0 = v.pointee.filterA0, b0 = v.pointee.filterB0, b1 = v.pointee.filterB1
         var y1 = v.pointee.filterY1, y2 = v.pointee.filterY2
+        var y1R = v.pointee.filterY1R, y2R = v.pointee.filterY2R
         defer {
             v.pointee.filterY1 = y1
             v.pointee.filterY2 = y2
+            v.pointee.filterY1R = y1R
+            v.pointee.filterY2R = y2R
         }
 
         var bytesLeft = numSamples
@@ -480,15 +582,20 @@ final class FT2Player {
             var lVol = v.pointee.SLVol2, rVol = v.pointee.SRVol2
             let backwards = v.pointee.SType & (SType_Rev + SType_RevDir) == SType_Rev + SType_RevDir
             let origin: UnsafePointer<T>
+            // (The right side of a sample in stereo, at the same place as the left.)
+            let originR: UnsafePointer<T>?
             if backwards, let reverse {
                 frq = 0 &- frq
                 realPos = ~realPos
                 origin = reverse
+                originR = rightReverse
                 pos ^= 0xFFFF_0000
             } else {
                 origin = linear
+                originR = right
             }
             var smpPtr = origin + Int(realPos)
+            let offsetR = originR.map { $0 - origin } ?? 0
             pos &+= UInt32(mixBuffPos)
             let ipValH = Int(frq >> 16)
             let ipValL = (UInt32(bitPattern: frq & 0xFFFF) << 16) &+ 8
@@ -515,8 +622,27 @@ final class FT2Player {
                 if sample2 < low { low = sample2 }
                 if sample2 > high { high = sample2 }
                 sample2 <<= 28 - 16
+                var sampleR = sample2
+                if right != nil {
+                    let p = smpPtr + offsetR
+                    let first = Int32(p[0]) << shift
+                    var next = (Int32(p[1]) << shift) &- first
+                    // (The same fraction of the way to the next as the left side: `pos` is back to twice it.)
+                    next = Int32(truncatingIfNeeded: (Int64(next) &* Int64(Int32(bitPattern: pos >> 1))) >> 32)
+                    next &+= next
+                    next &+= first
+                    if filtered {
+                        let out = Float(next) * a0 + y1R * b0 + y2R * b1
+                        y2R = y1R
+                        y1R = max(-131_072, min(131_072, out))
+                        next = Int32(y1R)
+                    }
+                    if next < low { low = next }
+                    if next > high { high = next }
+                    sampleR = next << (28 - 16)
+                }
                 audioMix[0] &+= Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(lVol)) >> 32)
-                audioMix[1] &+= Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(rVol)) >> 32)
+                audioMix[1] &+= Int32(truncatingIfNeeded: (Int64(sampleR) &* Int64(rVol)) >> 32)
                 audioMix += 2
                 smpPtr += ipValH
                 if ipValL > ~pos { smpPtr += 1 }

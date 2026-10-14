@@ -30,6 +30,8 @@ final class ST3Cards {
         /// sample has been of late.
         var owner = -1
         var low: Int32 = .max, high: Int32 = .min
+        /// True for a voice playing a sample in stereo, whose right side is in `samplesRight`.
+        var stereo = false
     }
 
     /// What of a channel the Sound Blaster's mixer needs, kept apart from the channel while it mixes.
@@ -65,6 +67,10 @@ final class ST3Cards {
     private let card: ST3Card
     private let samples: UnsafePointer<Int16>
     private let samplesCount: Int
+    /// For a song whose samples in stereo are played so: their right sides, at the same places as
+    /// their left sides in `samples`, and where those begin.
+    private let samplesRight: UnsafePointer<Int16>?
+    private let stereoBases: Set<Int>
     /// True for a file with samples Scream Tracker could not hold, whose lengths are not cut to sixteen bits.
     private let wide: Bool
     private let stereo: Bool
@@ -95,6 +101,9 @@ final class ST3Cards {
         self.stereo = stereo
         samples = UnsafePointer(module.samples)
         samplesCount = module.samplesCount
+        let apart = card == .gus && stereo && module.stereoApart
+        samplesRight = apart ? module.samplesRight.map { UnsafePointer($0) } : nil
+        stereoBases = apart ? module.stereoBases : []
         wide = module.beyondScreamTracker
         sinc = .allocate(capacity: st3Sinc.count)
         for i in 0 ..< st3Sinc.count { sinc[i] = st3Sinc[i] }
@@ -341,6 +350,7 @@ final class ST3Cards {
         select(Int(voicetry))
         voices[gv].owner = Int(ch.channelnum)
         voices[gv].heard = isMuted(Int(ch.channelnum)) ? 0 : -1
+        voices[gv].stereo = samplesRight != nil && stereoBases.contains(ch.m_base)
         if ch.m_end == 0 {
             voiceused[Int(ch.aguschannel)] = -1
             ch.aguschannel = -1
@@ -404,9 +414,16 @@ final class ST3Cards {
                     if smp > v.pointee.high { v.pointee.high = smp }
                     let volL = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.LOff))))
                     let volR = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.ROff))))
+                    // (A sample in stereo: its right side, read as its left is, is what goes to the right.)
+                    var smpR = smp
+                    if v.pointee.stereo, let samplesRight {
+                        let firstR = at >= 0 && at < samplesCount ? Int32(samplesRight[at]) : 0
+                        let secondR = at + 1 >= 0 && at + 1 < samplesCount ? Int32(samplesRight[at + 1]) : 0
+                        smpR = Int32(Int16(truncatingIfNeeded: firstR &+ (((secondR &- firstR) &* Int32(Int16(bitPattern: v.pointee.SA_frac))) >> 9)))
+                    }
                     // (A voice of a channel that is left out of the sound adds nothing to it.)
                     left &+= ((smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))) & v.pointee.heard
-                    right &+= ((smp &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard
+                    right &+= ((smpR &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard
                     v.pointee.SA_frac &+= v.pointee.SFCI
                     v.pointee.SA += Int(v.pointee.SA_frac >> 9)
                     v.pointee.SA_frac &= (1 << 9) - 1

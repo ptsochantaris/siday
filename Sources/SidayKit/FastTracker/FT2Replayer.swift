@@ -19,6 +19,8 @@ struct FT2Sample {
     /// The sample's data, eight bits or sixteen to a sample, with room after it for the mixer to read
     /// one sample past the end.
     var pek: UnsafeMutableRawPointer?
+    /// For a sample in stereo, from a later tracker's file: its right side, as `pek` is then its left.
+    var pekR: UnsafeMutableRawPointer?
     /// For a sample from another tracker's file, which says how fast each of its samples was
     /// recorded: the rate it is played at where FastTracker would play one of its own at 8363 Hz.
     /// Nought for FastTracker's own, which have no such thing.

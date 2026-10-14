@@ -248,8 +248,8 @@ enum MPTMFile {
         /// 1 for a filter that lets the high notes through and not the low.
         var filterMode = 0xFF
         var cutoffSwing = 0, resonanceSwing = 0
-        /// The tempo it is to keep time with; nought for none.
-        var pitchTempoLock = 0
+        /// The tempo it is to keep time with, its whole part and its ten-thousandths; nought for none.
+        var pitchTempoLock = 0, pitchTempoLockFraction = 0
         var releaseNode = Int(IT2Envelope.noReleaseNode)
         /// For each of its three envelopes, how many points and their ticks and levels, where the
         /// file gives them apart from the instrument: for an envelope of more than 25.
@@ -289,6 +289,8 @@ enum MPTMFile {
                 case "CS..": extras[index].cutoffSwing = number()
                 case "RS..": extras[index].resonanceSwing = number()
                 case "PTTL": extras[index].pitchTempoLock = number()
+                // (The fraction is written first letter first, unlike every other name.)
+                case "FTTP": extras[index].pitchTempoLockFraction = number()
                 case "VERN": extras[index].releaseNode = number() & 0xFF
                 case "VE..", "PE..", "PiE.": extras[index].points[name == "VE.." ? 0 : name == "PE.." ? 1 : 2] = min(240, number())
                 case "VP[.", "PP[.", "PiP[": extras[index].ticks[name == "VP[." ? 0 : name == "PP[." ? 1 : 2] = (0 ..< size / 2).map { _ in UInt16(field.u16()) }
@@ -1035,7 +1037,7 @@ enum MPTMFile {
         var silentInstruments = Set<Int>(), elsewhereInstruments = Set<Int>(), usedInstruments = Set<Int>()
         // The plug-ins that are not OpenMPT's own, and so are not played.
         let leftOut = plugins.filter { sound.plugIns[$0 - 1].kind == nil }
-        var smoothPlugInMacros = 0, bends = 0, reverbs = 0, speakerCommands = 0
+        var bends = 0, reverbs = 0, speakerCommands = 0
         // The file's MIDI macros, for telling one that sets a filter from one that sets a plug-in:
         // sixteen that a command chooses among and gives a value, and 128 with a value of their own.
         let macros = file.midiData ?? IT2Module.defaultMIDIData()
@@ -1166,10 +1168,6 @@ enum MPTMFile {
                     asNow(&cell)
                     if cell.hasCommand {
                         switch cell.command & 31 {
-                        case Own.smoothMacro:
-                            // A macro sent a little at a time over the row: the filter comes to
-                            // what it sets that way, and a plug-in's setting is moved at once.
-                            if played[index], macroIsForPlugIn(cell.value < 0x80 ? 9 + chosenMacro[channel] : 25 + Int(cell.value & 0x7F)) { smoothPlugInMacros += 1 }
                         case Own.bend, Own.smoothBend:
                             cell.clearCommand()
                             if played[index] { bends += 1 }
@@ -1215,15 +1213,6 @@ enum MPTMFile {
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
         if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
-        if instrumentMode {
-            let used = usedInstruments.filter { $0 >= 1 && $0 <= header.instruments }
-
-            say(used.filter { instrumentExtras[$0 - 1].pitchTempoLock != 0 }.count, one: "One of its instruments is tied to the tempo, and is played at its own pitch whatever the tempo.",
-                many: " of its instruments are tied to the tempo, and are played at their own pitch whatever the tempo.")
-        }
-        if smoothPlugInMacros > 0, plugins.count > leftOut.count {
-            shortfalls.append("Where it slides a plug-in's setting over a row, the setting is moved in one step at the row's start.")
-        }
         say(bends, one: "One command that bends a note's pitch is left out.", many: " commands that bend a note's pitch are left out.")
         if reverbs > 0 { shortfalls.append("Its reverb is left out.") }
         if speakerCommands > 0 { shortfalls.append("What it asks of four speakers, and of filters on its whole sound, is left out.") }
@@ -1275,7 +1264,14 @@ enum MPTMFile {
                                                  surroundIsMoved: !asks(Behaviour.surroundIsNotMoved))
         }
         if instrumentMode {
-            for index in 0 ..< header.instruments { file.instrument(index).MixPlug = UInt8(max(0, min(255, instrumentExtras[index].plugin))) }
+            for index in 0 ..< header.instruments {
+                file.instrument(index).MixPlug = UInt8(max(0, min(255, instrumentExtras[index].plugin)))
+                let lock = instrumentExtras[index]
+                if lock.pitchTempoLock > 0 || lock.pitchTempoLockFraction > 0 {
+                    file.instrument(index).TempoLock = UInt32(max(0, min(1000, lock.pitchTempoLock))) * UInt32(OpenMPTSong.tempoUnit)
+                        + UInt32(max(0, min(OpenMPTSong.tempoUnit - 1, lock.pitchTempoLockFraction)))
+                }
+            }
         }
         let instrumentPlugIns = instrumentMode ? (0 ..< header.instruments).map { instrumentExtras[$0].plugin } : []
         let heard = sound.adLib != nil || sound.sendsToPlugIns(instruments: instrumentPlugIns)

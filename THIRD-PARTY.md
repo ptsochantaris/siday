@@ -133,6 +133,12 @@ play on the Paula above, its renderer (`MEDRenderer.swift`) is made after `MODRe
 its table of periods is built from the table in `ProTrackerReplayer.swift`, so those parts of it
 stand on pt2-clone as the rest of this folder does.
 
+`MED4File.swift`, which reads a MED4 file, the songs of MED 2.10 to 3.00, into the MMD0 module
+the player plays, is made after libxmp's loader of that format (https://github.com/libxmp/libxmp,
+`src/loaders/med4_load.c`): the layout of the file. libxmp's player is not used. Under the MIT
+licence, Copyright (C) 1996-2026 Claudio Matsuoka and Hipolito Carraro Jr, the text of which is
+below, under "libxmp and OpenMPT — reading MTM, DTM and AMF files".
+
 Nor are the players of SoundFX modules (`Sources/SidayKit/SoundFX`) and of Oktalyzer modules
 (`Sources/SidayKit/Oktalyzer`) ports of anything: they were written for this project, to do what the
 trackers' own replay routines do, and none of those routines' code is in them. They play on the Paula
@@ -454,6 +460,12 @@ file; and the player is told which rows it has played, so that a tune's length c
 - Apache License, Version 2.0, the text of which is below, under "fmdrv — Creative's driver for CMF
   files", with what that licence means for this project as a whole
 - Source: https://github.com/viiri/st2play
+
+`Sources/SidayKit/ScreamTracker2/STXFile.swift`, which reads an STX file into the STM file it was
+made from, is made after the STX loaders of OpenMPT (https://openmpt.org, `soundlib/Load_stm.cpp`)
+and libxmp (https://github.com/libxmp/libxmp, `src/loaders/stx_load.c`): the layout of the file, its
+two versions, and the checks a file is held to. Under the licences set out above, under "libxmp and
+OpenMPT — reading MTM, DTM and AMF files".
 
 ## it2play — Impulse Tracker 2
 
