@@ -420,6 +420,12 @@ file; and the player is told which rows it has played, so that a tune's length c
   files", with what that licence means for this project as a whole
 - Source: https://github.com/viiri/st2play
 
+`Sources/SidayKit/ScreamTracker2/STXFile.swift`, which reads an STX file into the STM file it was
+made from, is made after the STX loaders of OpenMPT (https://openmpt.org, `soundlib/Load_stm.cpp`)
+and libxmp (https://github.com/libxmp/libxmp, `src/loaders/stx_load.c`): the layout of the file, its
+two versions, and the checks a file is held to. Under the licences set out above, under "libxmp and
+OpenMPT — reading MTM, DTM and AMF files".
+
 ## it2play — Impulse Tracker 2
 
 `Sources/SidayKit/ImpulseTracker` is a Swift port of it2play (https://github.com/8bitbubsy/it2play),

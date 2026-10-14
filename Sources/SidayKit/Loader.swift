@@ -9,7 +9,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case mptm
     case sfx, okt
     case composer669 = "669"
-    case stm
+    case stm, stx
     case far
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
@@ -34,6 +34,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sfx, .okt: "SFX"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
+        case .stx: "STM"
         default: rawValue.uppercased()
         }
     }
@@ -94,6 +95,9 @@ public enum TuneLoader {
             return try Composer669Renderer(data, options: options)
         case .stm:
             return try STMRenderer(data, options: options)
+        case .stx:
+            // A Scream Tracker 2 module in another kind of file, read into an STM file.
+            return try STXFile.renderer(data, options: options)
         case .far:
             return try FarandoleRenderer(data, options: options)
         case .ahx, .hvl:

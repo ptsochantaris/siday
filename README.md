@@ -27,7 +27,7 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's on its own mixer) |
-| PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
+| PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
@@ -243,7 +243,7 @@ Not played:
 - **Amiga:** a MOD packed with XPK; a song that MED saved before it had modules (MED2, MED3,
   MED4); a module of the later SoundFX, of 31 samples.
 - **PC:** an IT file packed with MMCMP; a DTM file from Digital Home Studio; the other kind of
-  file called AMF, ASYLUM's; an STM song saved without its samples, and an STX file.
+  file called AMF, ASYLUM's; an STM song saved without its samples.
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
   or for samples kept in other files; and one with an instrument tuned to a scale that is not a
   temperament of twelve steps to the octave.
@@ -261,7 +261,7 @@ Played, with a difference:
   gives it, and slides as Impulse Tracker slides.
 - **GDM, PTM, ULT:** a command that Impulse Tracker's replayer has no room or no like for is
   left out.
-- **STM:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
+- **STM and STX:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
 - **ROL:** an instrument that no bank has is silent.
 
 ## How it is built
@@ -724,7 +724,7 @@ a note let go and struck again in one tick is heard to be. The samples of a tune
 loud as in any other tune: st3play turns them down by a third at the card's first note, to leave room
 for it.
 
-### STM — Scream Tracker 2
+### STM and STX — Scream Tracker 2, and its Music Interface Kit
 
 An STM file is from Scream Tracker 2, the same author's tracker of 1990, from when no sound card
 did any mixing: four channels, 31 samples of eight bits, and the program adding the four
@@ -770,9 +770,29 @@ file, the next sample, which is what OpenMPT's authors found Scream Tracker 2 to
 such samples, most of them over by one byte. st2play brings the end in, and `siday --raw file.raw tune.stm`, which writes what
 st2play makes, a sample for each of its own, does so too. A sample with no volume of its own is
 not loaded, as in st2play, and its notes are silence. One file named for the format is something
-else, and is refused; and an STX file, which is what a converter for the Scream Tracker Music
-Interface Kit made of an STM, is not played. The files are as loud as XM files are, by measure:
-the middle one of each is the same.
+else, and is refused. The files are as loud as XM files are, by measure: the middle one of each is
+the same.
+
+An STX file is a Scream Tracker 2 tune made ready for the Scream Tracker Music Interface Kit, the
+library Future Crew gave out in the early 1990s for putting their tracker's music into other
+people's programs. The kit's papers call it a beta of Scream Tracker 3's format, and it looks like
+one: an S3M file's header and samples, and its way of packing a pattern a row at a time with only
+the channels that have something in them. What is packed is an STM file's, though, for the kit
+came with a converter, STM2STX, and its music was written in Scream Tracker 2: four channels,
+Scream Tracker 2's commands under its letters, nothing remembered from one command to the next,
+and a tempo in two halves. The kit's own replayer has never been published. OpenMPT and Schism
+Tracker play these files as the STM files they were, and so they are played here: read back into
+one, and played by Scream Tracker 2's replayer like any other. (libxmp plays them with Scream
+Tracker 3's ways instead, under which a command with no value goes on with the last one's, and
+the tempo has one half.)
+
+So the check is of the reading. The two files to hand, one of each of the converter's two
+versions, agree to the sample with st2play, for an hour of each, when st2play is given the STM
+file that a separate script makes of them. And OpenMPT plays that STM file as it plays the STX
+file itself: every voice at the same pitch and volume on every tick. An STX file has room for
+what an STM has not, more channels, more samples, longer ones and ones of sixteen bits; the
+converter made none of those, and a file that has them and uses them says so. A volume over 64,
+which Scream Tracker 2 would play as silence, is taken for 64, as OpenMPT takes it.
 
 ### IT — Impulse Tracker, and ModPlug Tracker after it
 
