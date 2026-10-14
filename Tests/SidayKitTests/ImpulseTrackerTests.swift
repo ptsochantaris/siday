@@ -388,6 +388,12 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     schism[40 ... 41] = [0x00, 0x10]
     #expect(try shortfalls(schism)
         == ["One of its commands is left out, which Impulse Tracker did not have: a smooth change to a filter or a plug-in's setting."])
+    // Its S9B (four speakers) is left out of a file of its own, and nothing in Impulse Tracker's;
+    // its reverb, S99, is played.
+    #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x9B])))
+        == ["One of its commands is left out, which Impulse Tracker did not have: settings for four speakers and for how a note's filter starts."])
+    #expect(try shortfalls(it(row: [0x81, 0x0B, 60, 1, 19, 0x9B])).isEmpty)
+    #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x99]))).isEmpty)
     // A sample kept in a form that is not read (here, with its bytes the other way round), which a
     // note plays; and the same sample with no note to play it, which is nobody's loss.
     var odd = it()

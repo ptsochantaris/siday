@@ -664,7 +664,7 @@ private func ways(without left: Int...) -> Song {
     let commands = Pattern([(0, 0, .note()), (1, 0, Cell(command: "^", value: 1)), (2, 0, .command("\\", 0x10)), (3, 0, .command("S", 0x99)),
                             (4, 0, .command("S", 0x9B))])
     let said = try player(mptm([commands])).info.shortfalls
-    #expect(said == ["What it asks of four speakers, and of filters on its whole sound, is left out."])
+    #expect(said == ["Its settings for four speakers and for how a note's filter starts are left out."])
 }
 
 @Test func mptmVibratoStartsFromTheTopWithEveryNote() throws {

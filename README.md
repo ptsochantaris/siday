@@ -263,7 +263,8 @@ Played, with a difference:
 - **XM** from a later tracker: played as FastTracker 2 would play it.
 - **XM, IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
-  (ADPCM) is silent.
+  (ADPCM) is silent; and in an IT or MPTM file, S9A to S9D, which choose two speakers or four for a
+  channel in surround and how a note's filter starts, are left out.
 - **GDM, PTM, ULT, MDL:** a command that Impulse Tracker's replayer has no room or no like for is
   left out. An MDL file's command that chooses another of the tune's envelopes turns on the
   instrument's own.

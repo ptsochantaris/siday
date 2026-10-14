@@ -1152,7 +1152,7 @@ enum MPTMFile {
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
         if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
-        if speakerCommands > 0 { shortfalls.append("What it asks of four speakers, and of filters on its whole sound, is left out.") }
+        if speakerCommands > 0 { shortfalls.append("Its settings for four speakers and for how a note's filter starts are left out.") }
 
         // MARK: The rest
 

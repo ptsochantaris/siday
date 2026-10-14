@@ -282,8 +282,8 @@ extension IT2Player {
     }
 
     /// What S9x does in an MPTM file beyond surround: S9E and S9F play the channel's sample
-    /// forwards and backwards. (The rest are to do with OpenMPT's reverb and its ways of putting
-    /// sound between four speakers, which are not here.)
+    /// forwards and backwards. (S98 and S99, its reverb, are seen to with S91; the rest are to do with
+    /// four speakers and with how a note's filter starts, and are not here.)
     func OpenMPTCommandS9(_ hc: IT2HostPointer, _ value: UInt8) {
         switch value {
         case 0xE:

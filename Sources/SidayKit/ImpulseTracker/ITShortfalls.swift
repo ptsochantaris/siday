@@ -56,6 +56,10 @@ extension IT2Module {
                     // for a file that another tracker made. The command after Z is ModPlug Tracker's.)
                     if command == 28, !madeByModPlug { commands.note(1) }
                     if command == 27 || (command >= 29 && command <= 31) { commands.note(2) }
+                    // (And S9A to S9D, ModPlug Tracker's: two speakers or four for a channel in
+                    // surround, and whether a note starts with its channel's filter. S98 and S99,
+                    // its reverb, are played.)
+                    if command == 19, lastValues[channel] >= 0x9A, lastValues[channel] <= 0x9D, madeByModPlug { commands.note(3) }
                 }
             }
         }
@@ -100,7 +104,7 @@ extension IT2Module {
                                             many: "samples are kept in a form this player does not read, and are silent."))
         }
         if let sentence = Shortfall.commandsLeftOut(commands.named(["playing a sample backwards", "a smooth change to a filter or a plug-in's setting",
-                                                                    "commands of OpenMPT's own"]),
+                                                                    "commands of OpenMPT's own", "settings for four speakers and for how a note's filter starts"]),
                                                     why: "which Impulse Tracker did not have") {
             sentences.append(sentence)
         }
