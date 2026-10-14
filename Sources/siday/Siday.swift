@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, DBM, XM, S3M, IT, MPTM, MT2, MTM, DTM, AMF, GDM, PTM, ULT, 669, STM, STX, FAR and C67 modules and CMF, ROL and FMT tunes for the AdLib from files, folders and playlists.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, DBM, XM, S3M, IT, MPTM, MT2, MTM, DTM, AMF, GDM, PTM, ULT, 669, STM, STX, FAR, C67 and MDL modules and CMF, ROL and FMT tunes for the AdLib from files, folders and playlists.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Each voice of a tune has a light on the status line. 1 to 9, and 0 for the tenth, leave a voice out or bring it back; [ and ] choose one, m leaves it out or brings it back, and s plays it alone (s again brings the others back). A voice left out goes on playing, unheard, and the tune is as long as it is whole. Every tune starts with all its voices.

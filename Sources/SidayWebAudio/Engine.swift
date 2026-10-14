@@ -103,6 +103,7 @@ final class WebPlayer {
                 || format == .mt2
                 || format == .sfx || format == .okt
                 || format == .composer669 || format == .far || format == .dbm
+                || format == .mdl
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

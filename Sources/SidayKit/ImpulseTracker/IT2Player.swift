@@ -118,6 +118,16 @@ final class IT2Player {
     private var slidesCarried: UInt64 = 0
     /// True if that voice's key had been let go, or it was fading, before the new note came.
     private var lastWasLetGo = false
+    /// True while a Digitrakker instrument named alone is being seen to: see `digitrakkerInstrumentAlone`.
+    var digitrakkerAlone = false
+    /// For a module of Digitrakker's (and made for no other): the sample each channel last started
+    /// a note of, and the note; and for each voice, its last rates and their periods (see `digitrakkerSlide`).
+    lazy var digitrakkerSamples = [IT2Sample?](repeating: nil, count: MAX_HOST_CHANNELS)
+    lazy var digitrakkerNotes = [UInt8](repeating: 0, count: MAX_HOST_CHANNELS)
+    lazy var digitrakkerKnownPeriods = [(frequency: Int32, period: Int64)](repeating: (0, 0), count: MAX_SLAVE_CHANNELS * (IT2Player.periodsKept + 1))
+    lazy var digitrakkerNextPeriod = [UInt8](repeating: 0, count: MAX_SLAVE_CHANNELS)
+    /// And each channel's slide of volume, if it is one of Digitrakker's own (see `IT2DigitrakkerSlide`).
+    lazy var digitrakkerSlides = [IT2DigitrakkerSliding](repeating: IT2DigitrakkerSliding(), count: MAX_HOST_CHANNELS)
 
     func RecalculateAllVolumes() {
         for i in 0 ..< NumChannels { sChn[i].Flags |= SF_RECALC_PAN | SF_RECALC_VOL }
@@ -809,6 +819,11 @@ final class IT2Player {
         }
         // The Amiga's way: by periods.
         sc.pointee.Flags |= SF_FREQ_CHANGE
+        // (Digitrakker's are its own: see `digitrakkerSlide`.)
+        if module.playsAsDigitrakker {
+            digitrakkerSlide(sc, SlideValue)
+            return
+        }
         let PeriodBase: UInt32 = 1712 * 8363
         func stop() {
             sc.pointee.Flags |= SF_NOTE_STOP
@@ -928,6 +943,8 @@ final class IT2Player {
         }
 
         InitCommand(hc)
+        // (And for a module of Digitrakker's, a place between the speakers that had no room.)
+        if module.playsAsDigitrakker { digitrakkerRowPan(hc) }
 
         hc.pointee.Flags |= HF_ROW_UPDATED
         let ChannelMuted = module.ChnlPan[Int(hc.pointee.HostChnNum)] & 128 != 0
@@ -1131,6 +1148,10 @@ final class IT2Player {
 
     /// The vibrato a sample has of its own.
     private func UpdateAutoVibrato(_ sc: IT2SlavePointer) {
+        if module.playsAsDigitrakker {
+            digitrakkerAutoVibrato(sc)
+            return
+        }
         guard let smp = sc.pointee.SmpPtr, smp.AutoVibratoDepth != 0 else { return }
         if module.madTracker { return madTrackerAutoVibrato(sc, smp) }
         sc.pointee.AutoVibratoDepth &+= UInt16(asImpulseTracker ? smp.AutoVibratoRate : smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate)
@@ -1221,7 +1242,10 @@ final class IT2Player {
                 if followed, UpdateEnvelope(asImpulseTracker ? ins.PitchEnv : ins.PitchEnvAsModPlug ?? ins.PitchEnv, &sc.pointee.PitchEnvState, SustainReleased) {
                     sc.pointee.Flags &= ~SF_PITCHENV_ON
                 }
-                if ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
+                if module.playsAsDigitrakker {
+                    // (Digitrakker's goes a little more than a third as far.)
+                    digitrakkerPitchEnvelope(sc)
+                } else if ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     let EnvVal = Int16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.PitchEnvState.Value) >> 8) >> 3
                     if EnvVal != 0, let hc = sc.pointee.HostChnPtr {
                         PitchSlideUpLinear(hc, sc, EnvVal)
@@ -1250,6 +1274,7 @@ final class IT2Player {
                     sc.pointee.Flags |= SF_RECALC_VOL
                     if UpdateEnvelope(ins.VolEnv, &sc.pointee.VolEnvState, SustainReleased) {
                         // The envelope is over: at nothing the note is too, and otherwise it fades.
+                        // (In Digitrakker it stays where it ended, and only a fade already begun goes on.)
                         sc.pointee.Flags &= ~SF_VOLENV_ON
                         if module.madTracker {
                             // (In MadTracker's way, as FastTracker's, a note whose key is held stays
@@ -1261,6 +1286,8 @@ final class IT2Player {
                                 sc.pointee.Flags |= SF_FADEOUT
                                 HandleNoteFade = true
                             }
+                        } else if module.playsAsDigitrakker {
+                            HandleNoteFade = sc.pointee.Flags & SF_FADEOUT != 0
                         } else if sc.pointee.VolEnvState.Value & 0x00FF_0000 == 0 {
                             TurnOffCh = true
                         } else {
@@ -1268,8 +1295,9 @@ final class IT2Player {
                             HandleNoteFade = true
                         }
                     } else if sc.pointee.Flags & SF_FADEOUT == 0 {
-                        // A key let go while the envelope loops: the note fades.
-                        if SustainReleased, ins.VolEnv.Flags & ENVF_LOOP != 0 {
+                        // A key let go while the envelope loops: the note fades. (In Digitrakker,
+                        // whatever the envelope does.)
+                        if SustainReleased, ins.VolEnv.Flags & ENVF_LOOP != 0 || module.playsAsDigitrakker {
                             sc.pointee.Flags |= SF_FADEOUT
                             HandleNoteFade = true
                         }
@@ -1286,6 +1314,9 @@ final class IT2Player {
                 if HandleNoteFade {
                     if module.madTracker {
                         if !madTrackerFadeStep(sc, ins) { TurnOffCh = true }
+                    } else if module.playsAsDigitrakker {
+                        // (A Digitrakker instrument's fade is of 65,536 a tick: see `digitrakkerFade`.)
+                        digitrakkerFade(sc, ins)
                     } else {
                         sc.pointee.FadeOut &-= ins.FadeOut
                     }

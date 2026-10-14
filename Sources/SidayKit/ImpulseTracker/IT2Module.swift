@@ -186,6 +186,15 @@ final class IT2Module {
     /// Where in the list a module of another tracker's goes on from when it has come to the end.
     /// (An MPTM file's songs each have their own: see `OpenMPTSong`.)
     var restartOrder = 0
+    /// True for a module of Digitrakker's, which is played as OpenMPT plays one where Digitrakker
+    /// and Impulse Tracker differ: see `IT2Digitrakker.swift`.
+    var playsAsDigitrakker = false
+    /// For such a module: where a note starts further into its sample than Oxx reaches, the part
+    /// beyond, in 65,536 bytes; and a place between the speakers, or a move of it, that had no room
+    /// in its cell. Each under its pattern, row and channel (see `OpenMPTSong.place`).
+    var digitrakkerHighOffsets: [Int: UInt8] = [:], digitrakkerPans: [Int: IT2DigitrakkerPan] = [:]
+    /// And the slides of volume that are finer or faster than Impulse Tracker's (see `IT2DigitrakkerSlide`).
+    var digitrakkerSlides: [Int: IT2DigitrakkerSlide] = [:]
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
@@ -666,21 +675,24 @@ final class IT2Module {
     }
 
     /// A module that did not come from an IT file: one of another tracker's, set down as Impulse
-    /// Tracker would hold it so that this replayer can play it (see `IT2ForeignModule`). It has samples
-    /// and, most often, no instruments, and none of what only an IT file can say.
+    /// Tracker would hold it so that this replayer can play it (see `IT2ForeignModule`). It has samples,
+    /// instruments if it is given them, and none of what only an IT file can say.
     /// - Parameters:
     ///   - samples: as many as the replayer is to have room for, which is at least `MAX_SAMPLES`.
     ///   - patterns: packed as an IT file packs them, and `rows` how many rows each has; at least
     ///     `MAX_PATTERNS` of each.
-    ///   - instruments: for a module that has them (`flags` then says so), at least `MAX_INSTRUMENTS`.
+    ///   - instruments: none for a module of samples alone; for one that has instruments, which
+    ///     `flags` is then to say, as many as the replayer is to have room for (at least `MAX_INSTRUMENTS`).
     ///   - channelVolumes: each channel's of 64; all at 64 if nil.
     ///   - openMPT: for a module that keeps time in OpenMPT's ways, as an MT2 file does.
+    ///   - playsAsDigitrakker: for an MDL file (see `IT2Digitrakker`).
     init(title: String, madeWith: String, orders: [UInt8], flags: UInt16, globalVolume: UInt8, mixVolume: UInt8, speed: UInt8, tempo: UInt8,
          channelPans: [UInt8], samples: [IT2Sample], patterns: [[UInt8]?], rows: [UInt16], slidesToNotesCarryOn: Bool = false,
          instrumentAloneStartsNothing: Bool = false, restart: Int = 0, sound: ModPlugSound? = nil, instruments: [IT2Instrument] = [],
-         channelVolumes: [UInt8]? = nil, openMPT: OpenMPTSong? = nil, filter: Filter = .impulseTrackers) {
+         channelVolumes: [UInt8]? = nil, openMPT: OpenMPTSong? = nil, filter: Filter = .impulseTrackers, playsAsDigitrakker: Bool = false) {
         self.slidesToNotesCarryOn = slidesToNotesCarryOn
         self.instrumentAloneStartsNothing = instrumentAloneStartsNothing
+        self.playsAsDigitrakker = playsAsDigitrakker
         restartOrder = restart < orders.count && orders[restart] < 200 ? restart : 0
         self.title = title
         self.madeWith = madeWith

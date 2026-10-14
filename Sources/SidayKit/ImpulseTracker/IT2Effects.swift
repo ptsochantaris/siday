@@ -116,6 +116,7 @@ extension IT2Player {
         // (And a note for the FM chip is kept sixteen times finer than a sample's rate needs to be:
         // see `OpenMPTAdLib.fineShift`.)
         let fine = fineFMPitch && s?.AdLib != nil
+        if module.playsAsDigitrakker { return digitrakkerFrequency(sc, note) }
         if let tuning = sc.pointee.InsPtr?.Tuning, sc.pointee.Ins != 0xFF, Int(note) < tuning.count {
             return openMPTTunedFrequency(s, fine ? tuning[Int(note)] * Float(1 << OpenMPTAdLib.fineShift) : tuning[Int(note)])
         }
@@ -144,7 +145,9 @@ extension IT2Player {
     /// The first tick of a vibrato. With "old effects" it does not move on, but plays where it was.
     private func InitVibrato(_ hc: IT2HostPointer) {
         if module.madTracker { return madTrackerVibrato(hc, moving: false) }
-        if module.Flags & ITF_OLD_EFFECTS != 0 {
+        if module.playsAsDigitrakker {
+            digitrakkerVibrato(hc, movesOn: false)
+        } else if module.Flags & ITF_OLD_EFFECTS != 0 {
             guard let sc = hc.pointee.SlaveChnPtr else { return }
             sc.pointee.Flags |= SF_FREQ_CHANGE
             CommandH5(hc, sc, hc.pointee.LastVibratoData)
@@ -156,6 +159,8 @@ extension IT2Player {
     /// Sets a volume slide going from what D, K and L remember between them.
     private func InitCommandD7(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) {
         sc.pointee.Flags |= SF_RECALC_VOL
+        // (One of Digitrakker's that is finer or faster than these: see `IT2DigitrakkerSlide`.)
+        if module.playsAsDigitrakker, digitrakkerInitSlide(hc, sc) { return }
 
         let hi = hc.pointee.EfxMem_DKL & 0xF0
         let lo = hc.pointee.EfxMem_DKL & 0x0F
@@ -164,12 +169,14 @@ extension IT2Player {
             // Up. (DF0 slides on the first tick as well.)
             hc.pointee.VolSlideDelta = Int8(hi >> 4)
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
-            if hc.pointee.VolSlideDelta == 15 { CommandD(hc) }
+            // (Not in a module of Digitrakker's, whose slides are by more than fifteen and never
+            // on a row's first tick: see `MDLFile.convert`.)
+            if hc.pointee.VolSlideDelta == 15, !module.playsAsDigitrakker { CommandD(hc) }
         } else if hi == 0 {
             // Down. (And so does D0F.)
             hc.pointee.VolSlideDelta = -Int8(lo)
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
-            if hc.pointee.VolSlideDelta == -15 { CommandD(hc) }
+            if hc.pointee.VolSlideDelta == -15, !module.playsAsDigitrakker { CommandD(hc) }
         } else if lo == 0x0F {
             // Up, once.
             hc.pointee.VolSlideDelta = 0
@@ -351,7 +358,8 @@ extension IT2Player {
 
             // (A sample there is none of, as a MIDI note's, has no volume. The original reads past
             // its table.)
-            vol = module.sample(Int(hc.pointee.Smp) - 1)?.Vol ?? 0
+            let s = module.playsAsDigitrakker ? digitrakkerRowSample(hc) : module.sample(Int(hc.pointee.Smp) - 1)
+            vol = s.map { $0.hasVolume ? $0.Vol : hc.pointee.VolSet } ?? 0
         }
 
         hc.pointee.VolSet = vol
@@ -387,6 +395,11 @@ extension IT2Player {
     /// What a row does that has no effect, and what every effect's row does besides: its note is
     /// started (or released, cut or faded), and its volume set.
     func InitNoCommand(_ hc: IT2HostPointer) {
+        // (Digitrakker's instrument named alone is otherwise: see `digitrakkerInstrumentAlone`.)
+        if module.playsAsDigitrakker, hc.pointee.NotePackMask & 0x11 == 0, hc.pointee.NotePackMask & 0x22 != 0, !digitrakkerAlone {
+            digitrakkerInstrumentAlone(hc)
+            return
+        }
         var hcFlags = UInt8(truncatingIfNeeded: hc.pointee.Flags)
 
         if hc.pointee.NotePackMask & 0x33 == 0 {
@@ -467,6 +480,13 @@ extension IT2Player {
         sc.pointee.HasLooped = false
         sc.pointee.FrequencySet = noteFrequency(sc, hc.pointee.TranslatedNote)
         sc.pointee.Frequency = sc.pointee.FrequencySet
+        // (Digitrakker's vibrato and tremolo start their waves again with every note.)
+        if module.playsAsDigitrakker {
+            hc.pointee.VibratoPos = 0
+            hc.pointee.TremoloPos = 0
+            digitrakkerSamples[Int(hc.pointee.HostChnNum) & 63] = s
+            digitrakkerNotes[Int(hc.pointee.HostChnNum) & 63] = hc.pointee.RawNote
+        }
 
         hcFlags |= UInt8(HF_CHAN_ON)
         hcFlags &= ~UInt8(HF_PITCH_SLIDE_ONGOING)
@@ -659,7 +679,9 @@ extension IT2Player {
             }
         }
 
-        if module.Flags & ITF_INSTR_MODE != 0 || hc.pointee.NotePackMask & 0x11 != 0 {
+        // (In Digitrakker, as OpenMPT plays it, a slide with no note goes on to where the last
+        // slide was going, if it has not got there, and nowhere after a note.)
+        if module.Flags & ITF_INSTR_MODE != 0 && !module.playsAsDigitrakker || hc.pointee.NotePackMask & 0x11 != 0 {
             // Where the slide is to end.
             if hc.pointee.TranslatedNote < 120 {
                 if hc.pointee.Smp != midiSample { sc.pointee.Note = hc.pointee.TranslatedNote }
@@ -694,7 +716,7 @@ extension IT2Player {
         }
 
         if volFromVolColumn || hc.pointee.NotePackMask & 0x22 != 0 {
-            if !volFromVolColumn { vol = sc.pointee.SmpPtr?.Vol ?? 0 }
+            if !volFromVolColumn { vol = sc.pointee.SmpPtr.map { $0.hasVolume ? $0.Vol : hc.pointee.VolSet } ?? 0 }
 
             sc.pointee.Flags |= SF_RECALC_VOL
             hc.pointee.VolSet = vol
@@ -885,6 +907,10 @@ extension IT2Player {
 
         InitNoCommand(hc)
 
+        if module.playsAsDigitrakker {
+            digitrakkerOffset(hc)
+            return
+        }
         if hc.pointee.NotePackMask & 0x33 != 0, hc.pointee.TranslatedNote < 120, hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr {
             if module.openMPT != nil { // whose offsets are longer, and are reckoned with the volume column's
                 OpenMPTCommandO(hc, sc)
@@ -954,7 +980,9 @@ extension IT2Player {
 
     /// The first tick of a tremolo, which with "old effects" does not move on, as vibrato's.
     private func InitTremolo(_ hc: IT2HostPointer) {
-        if module.Flags & ITF_OLD_EFFECTS != 0 {
+        if module.playsAsDigitrakker {
+            digitrakkerTremolo(hc, movesOn: false)
+        } else if module.Flags & ITF_OLD_EFFECTS != 0 {
             guard let sc = hc.pointee.SlaveChnPtr else { return }
             sc.pointee.Flags |= SF_UPDATE_MIXERVOL
             CommandR2(hc, sc, hc.pointee.LastTremoloData)
@@ -1120,9 +1148,19 @@ extension IT2Player {
         case 0xC0: // the note is cut after some ticks
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
             InitNoCommand(hc)
+            // (Digitrakker's SC0 cuts it now.)
+            if module.playsAsDigitrakker, val == 0 {
+                hc.pointee.Flags &= ~HF_UPDATE_EFX_IF_CHAN_ON
+                digitrakkerCut(hc)
+            }
 
         case 0xD0: // the note is started after some ticks, and not now
-            hc.pointee.Flags |= HF_ALWAYS_UPDATE_EFX
+            // (Digitrakker's SD0 starts it now.)
+            if module.playsAsDigitrakker, val == 0 {
+                InitNoCommand(hc)
+            } else {
+                hc.pointee.Flags |= HF_ALWAYS_UPDATE_EFX
+            }
 
         case 0xE0: // the row is played some times more
             if !RowDelayOn {
@@ -1276,6 +1314,10 @@ extension IT2Player {
 
     func CommandD(_ hc: IT2HostPointer) {
         guard let sc = hc.pointee.SlaveChnPtr else { return }
+        if module.playsAsDigitrakker, digitrakkerSlides[Int(hc.pointee.HostChnNum) & 63].active {
+            digitrakkerVolumeSlide(hc, sc)
+            return
+        }
 
         var vol = sc.pointee.VolSet &+ UInt8(bitPattern: hc.pointee.VolSlideDelta)
         if Int8(bitPattern: vol) < 0 {
@@ -1347,6 +1389,10 @@ extension IT2Player {
 
     func CommandH(_ hc: IT2HostPointer) {
         if module.madTracker { return madTrackerVibrato(hc, moving: true) }
+        if module.playsAsDigitrakker {
+            digitrakkerVibrato(hc, movesOn: true)
+            return
+        }
         guard let sc = hc.pointee.SlaveChnPtr else { return }
         sc.pointee.Flags |= SF_FREQ_CHANGE
 
@@ -1392,6 +1438,11 @@ extension IT2Player {
         SetMiscEfxWord(hc, 0, tick)
 
         let arpNote = Int(MiscEfxWord(hc, Int(tick)))
+        // (Digitrakker's, as OpenMPT has it, is by its period: see `digitrakkerArpeggio`.)
+        if module.playsAsDigitrakker {
+            digitrakkerArpeggio(sc, semitones: arpNote - 60)
+            return
+        }
         let multiplier = arpNote < it2PitchTable.count ? it2PitchTable[arpNote] : 0
 
         // (The original widens the rate, a signed number, to sixty-four bits before it multiplies.)
@@ -1528,6 +1579,10 @@ extension IT2Player {
     }
 
     func CommandR(_ hc: IT2HostPointer) {
+        if module.playsAsDigitrakker {
+            digitrakkerTremolo(hc, movesOn: true)
+            return
+        }
         guard let sc = hc.pointee.SlaveChnPtr else { return }
         sc.pointee.Flags |= SF_RECALC_VOL
 
@@ -1567,6 +1622,12 @@ extension IT2Player {
             hc.pointee.MiscEfxData[1] &-= 1
             if Int8(bitPattern: hc.pointee.MiscEfxData[1]) > 0 { return }
 
+            // (Digitrakker's cut turns the note down, and it plays on.)
+            if module.playsAsDigitrakker {
+                hc.pointee.Flags &= ~HF_UPDATE_EFX_IF_CHAN_ON
+                digitrakkerCut(hc)
+                return
+            }
             hc.pointee.Flags &= ~HF_CHAN_ON
 
             // The driver ramps volumes, so the voice is told to stop and left to it.
