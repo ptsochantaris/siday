@@ -301,6 +301,10 @@ final class ST3Module {
         if ins[i].lend < ins[i].lbeg { ins[i].lend = ins[i].lbeg + 1 }
         if ins[i].lbeg > ins[i].length { ins[i].lbeg = ins[i].length }
         if ins[i].lend > ins[i].length { ins[i].lend = ins[i].length }
+        // (A loop that lies past the sample's end is closed up to nothing by those two, and is no loop:
+        // Scream Tracker's player, which repeats a short loop until it is long enough, would go round
+        // one of no length for ever.)
+        if ins[i].lend <= ins[i].lbeg { ins[i].flags &= 0xFE }
 
         let p = samples + ins[i].baseptr
         let length = Int(ins[i].length)

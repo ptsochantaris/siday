@@ -149,6 +149,16 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     #expect(short.loopCount == 4)
 }
 
+@Test func s3mLoopPastTheEndOfItsSampleIsNoLoop() throws {
+    // The first instrument's loop from 40 to 50, of a sample of 32: brought within the sample, it is
+    // a loop of nothing, which once made the player go round it for ever.
+    var file = s3m()
+    file.replaceSubrange(0x70 + 20 ..< 0x70 + 28, with: long(40) + long(50))
+    let renderer = try TuneLoader.load(file, format: .s3m)
+    let sound = stereoSound(renderer, seconds: 0.2)
+    #expect(sound.left.contains { $0 != 0 })
+}
+
 @Test func s3mSamplesOfSixteenBitsArePlayed() throws {
     // Scream Tracker had none; trackers after it wrote them. The same wave, the same pitch.
     let renderer = try TuneLoader.load(s3m(sixteen: true), format: .s3m)
