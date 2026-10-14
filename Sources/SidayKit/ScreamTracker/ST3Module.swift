@@ -257,11 +257,11 @@ final class ST3Module {
     /// Others are not counted. M, N and W, a channel's volume and the slides of it and of the
     /// whole tune's, are played in a file that a later tracker made (see
     /// `ST3Player.playsLaterCommands`). In a file that Scream Tracker itself saved, all of these
-    /// are nothing, as they were to Scream Tracker and to whoever heard the tune there. And three
-    /// put a channel somewhere between the speakers (X), slide it there (P) or sweep it from side
-    /// to side (Y): one S3M file in ten has the first of them, from having been saved by Impulse
-    /// Tracker, and all it loses is where its channels are; a mark on so many files would say
-    /// little about any of them.
+    /// are nothing, as they were to Scream Tracker and to whoever heard the tune there. So are the
+    /// three that put a channel somewhere between the speakers (X), slide it there (P) or sweep it
+    /// from side to side (Y), on a card whose voices have places (see `ST3Player.laterPanning`);
+    /// on the Sound Blaster, whose channels are each to a side, they are nothing, and that is not
+    /// said: a file of a later tracker's is played on the Gravis Ultrasound unless it is asked for.
     private static let commandsOfLaterTrackers: [UInt8] = [26]
     private static let whatTheyDo = ["the setting of a filter", "ModPlug's reverb"]
 

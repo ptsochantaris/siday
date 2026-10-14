@@ -194,6 +194,22 @@ final class ST3Cards {
         for i in 0 ..< 32 { voices[i].heard = isMuted(voices[i].owner) ? 0 : -1 }
     }
 
+    /// Which of the card's sixteen places a channel of samples is at.
+    func balance(of ch: ST3Channel) -> UInt8 {
+        ch.apanpos >= 0xF0 ? ch.apanpos & 0x0F : stchannelpan[Int(ch.channelnum) & 15]
+    }
+
+    /// Puts a channel's voice at one of the card's sixteen places as it plays, on a card that has
+    /// them: for a later tracker's commands (see `ST3Player.laterPanning`). Unless it is only moving
+    /// for a moment, the channel's next notes start there too.
+    func place(_ ch: ST3Channel, balance: UInt8, moving: Bool) {
+        if !moving { ch.apanpos = 0xF0 | balance }
+        guard stereo, card == .gus, ch.aguschannel >= 0, Int(ch.aguschannel) < activeVoices else { return }
+        let voice = Int(ch.aguschannel)
+        voices[voice].LOff = Self.panOffsTable[Int(balance & 15)]
+        voices[voice].ROff = Self.panOffsTable[15 - Int(balance & 15)]
+    }
+
     private func isMuted(_ channel: Int) -> Bool {
         channel >= 0 && channel < 16 && muted & (1 << UInt32(channel)) != 0
     }

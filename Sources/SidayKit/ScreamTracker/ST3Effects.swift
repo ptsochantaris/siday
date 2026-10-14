@@ -28,6 +28,11 @@ extension ST3Player {
                 }
             }
             if ch.info > 0 { ch.alastnfo = ch.info }
+            // (A panbrello lasts as long as its rows: after them the channel is where it was.)
+            if ch.swung, ch.cmd != 25 {
+                ch.swung = false
+                cards.place(ch, balance: cards.balance(of: ch), moving: false)
+            }
 
             if ch.cmd > 0 {
                 ch.achannelused |= 0x80
@@ -90,6 +95,7 @@ extension ST3Player {
         case 19: s_scommand1(ch) // S
         case 20: if musiccount == 0 { settempo(ch.info) } // T
         case 13, 14, 23: if playsLaterCommands { laterCommand(ch, firstTick: true) } // M, N, W
+        case 16, 24, 25: if playsLaterCommands { laterPanning(ch, firstTick: true) } // P, X, Y
         default: break
         }
     }
@@ -115,9 +121,52 @@ extension ST3Player {
         case 21: s_finevibrato(ch) // U
         case 22: s_setgvol(ch) // V
         case 14, 23: if playsLaterCommands { laterCommand(ch, firstTick: false) } // N, W
+        case 16, 25: if playsLaterCommands { laterPanning(ch, firstTick: false) } // P, Y
         default: break
         }
     }
+
+    /// X, P and Y in a file that a later tracker made, as OpenMPT plays them in an S3M file, on a
+    /// card whose voices each have a place between the speakers: X puts the channel somewhere, of
+    /// 128 (A4, surround, is nothing here); P slides it, by the usual rule of slides, its first
+    /// digit to the left and its second to the right, four 256ths for each; and Y sweeps it from
+    /// side to side for as long as its row lasts, on ProTracker's wave of 64 steps. The card has
+    /// sixteen places, and the voice is put at the nearest.
+    private func laterPanning(_ ch: ST3Channel, firstTick: Bool) {
+        if ch.laterPan < 0 { ch.laterPan = (Int(cards.balance(of: ch)) * 256 + 7) / 15 }
+        var pan = ch.laterPan
+        switch ch.cmd {
+        case 24:
+            guard ch.info <= 0x80 else { return }
+            pan = Int(ch.info) << 1
+        case 16:
+            if ch.info != 0 { ch.lastPanSlide = ch.info }
+            let value = ch.lastPanSlide, left = Int(value >> 4), right = Int(value & 0x0F)
+            var moved = 0
+            if right == 0x0F, left != 0 {
+                if firstTick { moved = -(left * 16 / 4) }
+            } else if left == 0x0F, right != 0 {
+                if firstTick { moved = right * 4 }
+            } else if !firstTick {
+                moved = right != 0 ? right * 4 : -(left * 16 / 4)
+            }
+            pan = max(0, min(256, pan + moved))
+        default:
+            if ch.info & 0x0F != 0 { ch.panbrelloDepth = ch.info & 0x0F }
+            if ch.info & 0xF0 != 0 { ch.panbrelloSpeed = ch.info >> 4 }
+            let wave = Int(openMPTSineWave[Int((Int(ch.panbrelloPos) + 0x10) >> 2) & 0x3F])
+            ch.panbrelloPos &+= ch.panbrelloSpeed
+            let swung = max(0, min(256, pan + (wave * Int(ch.panbrelloDepth) + 2) / 8))
+            cards.place(ch, balance: Self.balance(swung), moving: true)
+            ch.swung = true
+            return
+        }
+        ch.laterPan = pan
+        cards.place(ch, balance: Self.balance(pan), moving: false)
+    }
+
+    /// The nearest of the card's sixteen places to one of OpenMPT's, from 0 to 256.
+    private static func balance(_ pan: Int) -> UInt8 { UInt8(min(15, (pan * 15 + 128) >> 8)) }
 
     /// M, N and W in a file that a later tracker made, as OpenMPT plays them in an S3M file.
     /// M sets the channel's volume, of 64. N slides it and W slides the whole tune's volume, by

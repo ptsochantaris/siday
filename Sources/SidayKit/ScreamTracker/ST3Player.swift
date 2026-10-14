@@ -28,6 +28,12 @@ final class ST3Channel {
     /// volume, of 64, which every note on it is turned down by; and the last slides of that and
     /// of the whole tune's volume that the channel was given, which a slide of nothing repeats.
     var chanvol: UInt8 = 64, lastChannelSlide: UInt8 = 0, lastGlobalSlide: UInt8 = 0
+    /// And where it is between the speakers as OpenMPT reckons it, from 0 to 256, once X or P has
+    /// moved it (less than nought until then); the last slide of that; and its panbrello, the sweep
+    /// from side to side that Y makes: how far through its wave, how fast and how deep.
+    var laterPan = -1, lastPanSlide: UInt8 = 0
+    var panbrelloPos: UInt8 = 0, panbrelloSpeed: UInt8 = 0, panbrelloDepth: UInt8 = 0
+    var swung = false
     var m_pos: UInt32 = 0, m_poslow: UInt32 = 0, m_oldpos: UInt32 = 0, m_end: UInt32 = 0, m_loop: UInt32 = 0, m_speed: UInt32 = 0
     // For the AdLib card: the instrument its voice was last given, whether its note is to be struck
     // again and its level set again, and its pitch in hertz.

@@ -438,3 +438,26 @@ private func sessionLength(_ renderer: any Renderer, song: Int) -> Double {
     while !session.finished, session.elapsed < 60 { _ = block.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 512) } }
     return session.elapsed
 }
+
+@Test func s3mFromALaterTrackerHasItsChannelsPlacedOnTheGravisUltrasound() throws {
+    // The first channel is on the left. X80 puts it hard right in a file that a later tracker
+    // saved, and is nothing in one of Scream Tracker's own.
+    func sides(_ file: [UInt8]) throws -> (left: Float, right: Float) {
+        var buffer = [Float](repeating: 0, count: 9600 * 2)
+        var options = LoadOptions()
+        options.stereo = .abc
+        let renderer = try TuneLoader.load(file, format: .s3m, options: options)
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 9600) }
+        func loudness(_ side: Int) -> Float { (stride(from: 2400 * 2 + side, to: 9600 * 2, by: 2).reduce(Float(0)) { $0 + buffer[$1] * buffer[$1] } / 7200).squareRoot() }
+        return (loudness(0), loudness(1))
+    }
+    let left = try sides(byImpulseTracker(s3m(stereo: true)))
+    let right = try sides(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 24, 0x80], stereo: true)))
+    let own = try sides(s3m(row: [0xA0, 0x40, 1, 24, 0x80], stereo: true))
+    #expect(left.left > left.right * 1.5 && right.right > right.left * 10 && own.left > own.right * 1.5)
+    // P slides it, and Y sweeps it about where it is.
+    let slid = try sides(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 16, 0x0F], stereo: true)))
+    #expect(slid.right > left.right * 1.5)
+    let swept = try sides(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 25, 0x8F], stereo: true)))
+    #expect(swept.right != left.right)
+}
