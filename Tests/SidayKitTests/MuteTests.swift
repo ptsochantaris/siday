@@ -115,6 +115,46 @@ private func twoVoiceModule() -> [UInt8] {
     let silent = run(try session(muted: [true, true, true, true], following: ending))
     #expect(silent.count == sound.count)
     #expect(loudest(silent) < 0.001)
+    // Heard through another player of the song with voices left out, from the start or from part of
+    // the way in, it is the same as that song played to the ending.
+    for voices in [[true, true, true, true], [false, true, false, false]] {
+        let following = run(try session(muted: voices, following: ending))
+        for from in [0, 512 * 40] {
+            let live = try session(muted: [])
+            let twin = try TuneLoader.load(twoVoiceModule(), format: .mod)
+            var heard = [Float](repeating: 0, count: max(1, from) * 2)
+            var all: [Float] = []
+            var block = [Float](repeating: 0, count: 1024)
+            while live.framesRendered < from {
+                let made = block.withUnsafeMutableBufferPointer { live.render(into: $0.baseAddress!, frames: 512) }
+                all += block[..<(made * 2)]
+            }
+            // (The second player is brought to where the first is, and then told which voices.)
+            heard.withUnsafeMutableBufferPointer { twin.render(into: $0.baseAddress!, frames: from) }
+            twin.setMuted(voices)
+            live.heard = twin
+            all += run(live)
+            #expect(all.count == sound.count)
+            #expect(Array(all[..<(from * 2)]) == Array(sound[..<(from * 2)]))
+            if from == 0 {
+                #expect(all == following)
+            } else {
+                // From part of the way in, it is the song with the voices left out from there on (what
+                // the Amiga's filters still held of them dying away), faded as the whole song is.
+                let alone = try TuneLoader.load(twoVoiceModule(), format: .mod)
+                var rest = [Float](repeating: 0, count: max(from, ending.frames - from) * 2)
+                rest.withUnsafeMutableBufferPointer { alone.render(into: $0.baseAddress!, frames: from) }
+                alone.setMuted(voices)
+                rest.withUnsafeMutableBufferPointer { alone.render(into: $0.baseAddress!, frames: ending.frames - from) }
+                for frame in 0 ..< ending.frames - from where ending.fadeStart >= 0 && from + frame >= ending.fadeStart {
+                    let gain = max(0, 1 - Float(from + frame - ending.fadeStart) / Float(max(1, ending.fadeFrames)))
+                    rest[frame * 2] *= gain
+                    rest[frame * 2 + 1] *= gain
+                }
+                #expect(Array(all[(from * 2)...]) == Array(rest[..<((ending.frames - from) * 2)]))
+            }
+        }
+    }
     // Left to judge for itself it would have stopped for never having made a sound.
     let judged = try session(muted: [true, true, true, true])
     _ = run(judged)

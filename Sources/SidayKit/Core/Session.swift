@@ -123,6 +123,15 @@ public final class TuneSession {
     /// The ending this session is to come to, if it was given one.
     private let script: Ending?
 
+    /// Another player of the same song, at the same place in it, with some of its voices left out
+    /// (`Renderer.setMuted`): if there is one, it is what is heard, while the session goes on judging
+    /// the song by `renderer`, whole. So a song with voices left out as it plays lasts as long as
+    /// the whole song does, and fades where that fades, as one played to an ending already found
+    /// does (`init(renderer:policy:following:)`); and the voices can be left out and brought back
+    /// at any moment, since this player only has to be told. It must have been given as many frames
+    /// as the session has (`framesRendered`) when it is set.
+    public var heard: (any Renderer)?
+
     public init(renderer: any Renderer, policy: PlaybackPolicy) {
         self.renderer = renderer
         self.policy = policy
@@ -285,6 +294,7 @@ public final class TuneSession {
     /// where the ending fades and stopped where it stops.
     private func follow(_ script: Ending, into buffer: UnsafeMutablePointer<Float>, frames: Int) -> Int {
         next(into: buffer, frames: frames)
+        heard?.render(into: buffer, frames: frames)
         let produced = max(0, min(frames, script.frames - framesRendered))
         if script.fadeStart >= 0 {
             for i in 0 ..< produced where framesRendered + i >= script.fadeStart {
@@ -318,6 +328,10 @@ public final class TuneSession {
         let quietBefore = quietFrames
         loudest = max(loudest, swing)
         quietFrames = swing < max(0.0005, loudest * 0.02) ? quietFrames + frames : 0
+
+        // What is heard, if it is not the song whole, is now that song's sound in its place: what
+        // follows is done to it as it would have been to the song's.
+        heard?.render(into: buffer, frames: frames)
 
         let rate = Double(outputSampleRate)
         let t = Double(framesRendered) / rate
