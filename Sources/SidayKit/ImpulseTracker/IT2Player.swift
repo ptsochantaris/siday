@@ -1365,7 +1365,10 @@ final class IT2Player {
         // A song that is over reads no more rows: its notes go on, envelopes and fades and all.
         if !over { UpdateData() }
         // (An MPTM file keeps time in OpenMPT's ways, and its tick is as long as they make it.)
-        if let song = module.openMPT { mixer.setTickFrames(openMPTTickFrames(song)) }
+        if let song = module.openMPT {
+            mixer.setTickFrames(openMPTTickFrames(song))
+            mixer.setMusicTempo(UInt64(Tempo) * UInt64(OpenMPTSong.tempoUnit) + UInt64(TempoFraction))
+        }
         if module.Flags & ITF_INSTR_MODE != 0 { UpdateInstruments() } else { UpdateSamples() }
         // (And for a file of ModPlug Tracker's or OpenMPT's with FM instruments or plug-ins: see `ModPlugSound`.)
         if sound != nil {

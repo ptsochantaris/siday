@@ -410,6 +410,16 @@ final class IT2Mixer {
         BytesToMixFractional = 0
     }
 
+    /// The tempo the song is at, in ten-thousandths of a beat a minute, for an MPTM file's
+    /// instruments that keep their pitch to it (see `IT2Instrument.TempoLock`).
+    private var musicTempo: UInt64 = 0
+    private var musicTempoChanged = false
+    func setMusicTempo(_ tempo: UInt64) {
+        guard tempo != musicTempo else { return }
+        musicTempo = tempo
+        musicTempoChanged = true
+    }
+
     /// HQ_SetMixVolume
     func setMixVolume(_ volume: UInt8) {
         MixVolume = UInt16(volume)
@@ -544,7 +554,10 @@ final class IT2Mixer {
             // (What the voices that are left out add up to is thrown away tick by tick.)
             if mutedChannels != 0 { fMutedBuffer?.update(repeating: 0, count: Int(RealBytesToMix) * 2) }
         }
-        defer { if !silent { levels.tickMade() } }
+        defer {
+            if !silent { levels.tickMade() }
+            musicTempoChanged = false
+        }
 
         for i in 0 ..< MAX_SLAVE_CHANNELS {
             let sc = sChn + i
@@ -585,7 +598,9 @@ final class IT2Mixer {
                 sc.pointee.Flags |= SF_UPDATE_MIXERVOL
             }
 
-            if sc.pointee.Flags & SF_FREQ_CHANGE != 0 {
+            // (A note of an instrument tied to the tempo has its pitch again when the tempo moves.)
+            let tempoLock = musicTempo > 0 ? sc.pointee.InsPtr?.TempoLock ?? 0 : 0
+            if sc.pointee.Flags & SF_FREQ_CHANGE != 0 || (tempoLock != 0 && musicTempoChanged) {
                 // Not a limit of Impulse Tracker's, but needed for safety.
                 if UInt32(bitPattern: sc.pointee.Frequency) >= UInt32(Int32.max / 2) {
                     sc.pointee.Flags = SF_NOTE_STOP
@@ -595,8 +610,13 @@ final class IT2Mixer {
                     continue
                 }
 
-                // How far through the sample one frame of output goes, with 32 bits of fraction.
-                sc.pointee.Delta64 = UInt64(bitPattern: (Int64(sc.pointee.Frequency) &* Int64(FreqMulVal)) >> Self.FREQ_MUL_EXTRA_BITS)
+                // How far through the sample one frame of output goes, with 32 bits of fraction. For
+                // an instrument tied to the tempo, as much higher as the song is faster than its tempo.
+                var frequency = Int64(sc.pointee.Frequency)
+                if tempoLock != 0 {
+                    frequency = min(Int64(Int32.max), (frequency * Int64(musicTempo) + Int64(tempoLock / 2)) / Int64(tempoLock))
+                }
+                sc.pointee.Delta64 = UInt64(bitPattern: (frequency &* Int64(FreqMulVal)) >> Self.FREQ_MUL_EXTRA_BITS)
             }
 
             if sc.pointee.Flags & SF_NEW_NOTE != 0 {

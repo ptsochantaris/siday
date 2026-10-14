@@ -248,8 +248,8 @@ enum MPTMFile {
         /// 1 for a filter that lets the high notes through and not the low.
         var filterMode = 0xFF
         var cutoffSwing = 0, resonanceSwing = 0
-        /// The tempo it is to keep time with; nought for none.
-        var pitchTempoLock = 0
+        /// The tempo it is to keep time with, its whole part and its ten-thousandths; nought for none.
+        var pitchTempoLock = 0, pitchTempoLockFraction = 0
         var releaseNode = Int(IT2Envelope.noReleaseNode)
         /// For each of its three envelopes, how many points and their ticks and levels, where the
         /// file gives them apart from the instrument: for an envelope of more than 25.
@@ -289,6 +289,8 @@ enum MPTMFile {
                 case "CS..": extras[index].cutoffSwing = number()
                 case "RS..": extras[index].resonanceSwing = number()
                 case "PTTL": extras[index].pitchTempoLock = number()
+                // (The fraction is written first letter first, unlike every other name.)
+                case "FTTP": extras[index].pitchTempoLockFraction = number()
                 case "VERN": extras[index].releaseNode = number() & 0xFF
                 case "VE..", "PE..", "PiE.": extras[index].points[name == "VE.." ? 0 : name == "PE.." ? 1 : 2] = min(240, number())
                 case "VP[.", "PP[.", "PiP[": extras[index].ticks[name == "VP[." ? 0 : name == "PP[." ? 1 : 2] = (0 ..< size / 2).map { _ in UInt16(field.u16()) }
@@ -1215,12 +1217,6 @@ enum MPTMFile {
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
         if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
-        if instrumentMode {
-            let used = usedInstruments.filter { $0 >= 1 && $0 <= header.instruments }
-
-            say(used.filter { instrumentExtras[$0 - 1].pitchTempoLock != 0 }.count, one: "One of its instruments is tied to the tempo, and is played at its own pitch whatever the tempo.",
-                many: " of its instruments are tied to the tempo, and are played at their own pitch whatever the tempo.")
-        }
         if smoothPlugInMacros > 0, plugins.count > leftOut.count {
             shortfalls.append("Where it slides a plug-in's setting over a row, the setting is moved in one step at the row's start.")
         }
@@ -1275,7 +1271,14 @@ enum MPTMFile {
                                                  surroundIsMoved: !asks(Behaviour.surroundIsNotMoved))
         }
         if instrumentMode {
-            for index in 0 ..< header.instruments { file.instrument(index).MixPlug = UInt8(max(0, min(255, instrumentExtras[index].plugin))) }
+            for index in 0 ..< header.instruments {
+                file.instrument(index).MixPlug = UInt8(max(0, min(255, instrumentExtras[index].plugin)))
+                let lock = instrumentExtras[index]
+                if lock.pitchTempoLock > 0 || lock.pitchTempoLockFraction > 0 {
+                    file.instrument(index).TempoLock = UInt32(max(0, min(1000, lock.pitchTempoLock))) * UInt32(OpenMPTSong.tempoUnit)
+                        + UInt32(max(0, min(OpenMPTSong.tempoUnit - 1, lock.pitchTempoLockFraction)))
+                }
+            }
         }
         let instrumentPlugIns = instrumentMode ? (0 ..< header.instruments).map { instrumentExtras[$0].plugin } : []
         let heard = sound.adLib != nil || sound.sendsToPlugIns(instruments: instrumentPlugIns)

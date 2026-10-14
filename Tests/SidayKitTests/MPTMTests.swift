@@ -1104,3 +1104,19 @@ private func silent(_ samples: [Float]) -> Bool { samples.allSatisfy { $0 == 0 }
         #expect(silent(nothing.left) && silent(nothing.right))
     }
 }
+
+@Test func mptmInstrumentTiedToTheTempoIsAsMuchHigherAsTheSongIsFaster() throws {
+    // An instrument tied to 125 beats a minute and a quarter (its whole part, and its ten-thousandths
+    // under a name written the other way round), in a song at 150: a fifth again as fast as it would be.
+    let note = Pattern([(0, 0, .note(60))])
+    var song = Song()
+    song.tempo = 150
+    let plain = try player(mptm([note], song: song, instruments: [(1, [], 0)]))
+    let tied = try player(mptm([note], song: song, instruments: [(1, [], 0)],
+                               instrumentExtras: [("PTTL", 2, [word(125)]), ("FTTP", 2, [word(2500)])]))
+    #expect(plain.info.shortfalls.isEmpty && tied.info.shortfalls.isEmpty)
+    let low = crossings(stereo(plain, seconds: 1).left[4800 ..< 43200])
+    let high = crossings(stereo(tied, seconds: 1).left[4800 ..< 43200])
+    #expect(low > 100)
+    #expect(abs(Double(high) / Double(low) - 150.0 / 125.25) < 0.01)
+}

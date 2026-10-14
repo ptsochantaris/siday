@@ -991,7 +991,8 @@ go on into the rows below it; a note can be delayed and cut by one command, star
 sample names, and played backwards. An envelope can have more than 25 points, and a point to go to
 when its key is let go. A filter can let the high through instead of the low, and can be moved at
 random from note to note; and it is OpenMPT's own filter unless the file asks for Impulse
-Tracker's (see above, where the same is told of an IT file). And a file can ask
+Tracker's (see above, where the same is told of an IT file). An instrument can be tied to a tempo,
+and is then played as much higher or lower as the song is faster or slower than that. And a file can ask
 for OpenMPT's own way of adding its channels up, which is twice as loud as Impulse Tracker's and
 puts a channel that is to one side at no more than one in the middle.
 
