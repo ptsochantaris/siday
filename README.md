@@ -254,8 +254,8 @@ Played, with a difference:
 - **SNDH:** a tune that sends its notes out of the MIDI port is silent, and of some 5,900 files
   tried a handful do not start; the reference player does not start them either.
 - **MED:** notes for a MIDI synthesiser are not heard.
-- **XM** from a later tracker: played as FastTracker 2 would play it, and without its plug-ins.
-- **IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
+- **XM** from a later tracker: played as FastTracker 2 would play it.
+- **XM, IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
   (ADPCM) is silent; and in a file tuned to a temperament each note starts at the pitch that
   gives it, and slides as Impulse Tracker slides.
@@ -624,7 +624,12 @@ commands of ModPlug Tracker's, which are played as OpenMPT plays them: Y, to swe
 side to side, with X5 to choose its wave; and Z and the command after it, which send a macro, and
 that is how such a file sets a channel's filter, at once or a little at a time over a row. The
 filter is OpenMPT's, of two poles, put into FastTracker's mixer between a sample and its volume,
-and a macro that is for anything but the filter is left out and said to be. That is for a file that gives itself away as another tracker's: by saying so, or,
+and a macro that is for anything but the filter is left out and said to be. And such a file is
+heard through its plug-ins, where they are OpenMPT's own, as an IT file of the same trackers is: a
+voice goes to its instrument's plug-in, or else its channel's, in FastTracker's whole numbers, and
+the plug-ins are given it at the level OpenMPT plays an XM file. Set beside libopenmpt, the 107
+files to hand that send something through a plug-in agree in spectrum to 0.993 for the middle
+one, where without the plug-ins it was 0.982. That is for a file that gives itself away as another tracker's: by saying so, or,
 where it says FastTracker as ModPlug Tracker's files do, by a name padded with nothing instead of
 spaces or by what ModPlug Tracker writes after all that FastTracker reads. FastTracker lets any
 letter be typed for a command, and in a file of its own a letter it has no command for is
@@ -819,7 +824,7 @@ which OpenMPT has since built into itself, and some eight hundred IT files to ha
 the same effects, wired the same way, as for an MPTM file (see below), and a plug-in that is
 anybody else's is left out and said to be. Set beside libopenmpt, three hundred of those files
 agree in spectrum to 0.983 for the middle one, where without the plug-ins it was 0.960. (An XM file
-of those trackers can have plug-ins too, and is still played without them.)
+of those trackers can have plug-ins too, and is heard through them in the same way: see XM.)
 
 The fourth is the filter itself. ModPlug Tracker had a filter of its own before it had Impulse
 Tracker's. It is the same kind of filter, but it rings half as much for the same resonance, and it

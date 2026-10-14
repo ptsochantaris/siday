@@ -318,18 +318,40 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try shortfalls(byFastTracker(withZ)).isEmpty)
 
     // An instrument sent through a plug-in, which is written after all that FastTracker reads: it
-    // has a sample, and that is heard. Sent through a place with no plug-in in it, it loses nothing.
+    // has a sample, and that is heard; the plug-in, which is not one of OpenMPT's own, is not, and
+    // that is said whether anything is sent through it or not, as for an IT file. Sent through a
+    // place with no plug-in in it, it loses nothing more.
     func extras(plugIn: UInt8) -> [UInt8] {
         var bytes = Array("FX00".utf8) + long(128) + [1, 2, 3, 4] + [UInt8](repeating: 0, count: 124)
         bytes += Array("XTPM".utf8) + Array(".PiM".utf8) + word(1) + [plugIn]
         return bytes
     }
-    #expect(try shortfalls(xm() + extras(plugIn: 1)) == ["One of its instruments is sent through a plug-in, and is heard without it."])
-    #expect(try shortfalls(xm() + extras(plugIn: 2)).isEmpty)
+    #expect(try shortfalls(xm() + extras(plugIn: 1)) == ["Its plug-in is left out, and it is heard without what that does to its sound."])
+    #expect(try shortfalls(xm() + extras(plugIn: 2)) == ["Its plug-in is left out, and it is heard without what that does to its sound."])
 
     // And a file that ends before its sample does.
     #expect(try shortfalls(Array(xm().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])
     #expect(try shortfalls(Array(xm().dropLast(1))).isEmpty)
+}
+
+@Test func xmInstrumentIsHeardThroughItsPlugIn() throws {
+    // OpenMPT's echo, set to give back what it is given a thousandth of a second later (48 frames)
+    // and nothing else, in the first place, and the instrument sent through it.
+    var piece = long(0x4458_4D4F) + long(0xEF3E_932C) + [0, 0, 0, 0] + long(0) + [UInt8](repeating: 0, count: 16)
+    piece += [UInt8](repeating: 0, count: 32) + Array("Echo".utf8) + [UInt8](repeating: 0, count: 60)
+    let settings = long(0) + [Float(1), 0, 0, 0, 0].flatMap { long(Int($0.bitPattern)) }
+    piece += long(settings.count) + settings + long(0)
+    let file = xm() + Array("FX00".utf8) + long(piece.count) + piece + Array("XTPM".utf8) + Array(".PiM".utf8) + word(1) + [1]
+    var options = LoadOptions()
+    options.stereo = .abc
+    let echoed = try TuneLoader.load(file, format: .xm, options: options)
+    #expect(echoed.info.shortfalls.isEmpty)
+    let wet = stereo(echoed, seconds: 0.5).left
+    let dry = stereo(try TuneLoader.load(xm(), format: .xm, options: options), seconds: 0.5).left
+    // What is heard is the instrument 48 frames late, but for the last place or so of its numbers.
+    #expect(wet[..<40].allSatisfy { abs($0) < 0.0001 })
+    #expect(dry.map(abs).max()! > 0.05)
+    #expect((1000 ..< 20000).allSatisfy { abs(wet[$0 + 48] - dry[$0]) < 0.001 })
 }
 
 /// How loud a player says each of its voices has been since it was last asked.

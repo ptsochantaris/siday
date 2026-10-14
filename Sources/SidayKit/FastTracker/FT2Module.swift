@@ -52,6 +52,13 @@ final class FT2Module {
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An XM file
     /// from a later tracker may have what FastTracker never had, and is read as FastTracker reads it.
     private(set) var shortfalls: [String] = []
+    /// What an XM file of ModPlug Tracker's or OpenMPT's has to be heard through besides its
+    /// samples, if it has any: plug-ins that are OpenMPT's own, with something sent through them
+    /// (see `ModPlugSound`).
+    private(set) var sound: ModPlugSound?
+    /// And the plug-in each instrument plays through, counted from 1, by the instrument's number;
+    /// nought for none.
+    private(set) var instrumentPlugIns = [Int](repeating: 0, count: 256)
     /// What is found on the way through a file that `shortfalls` is made from: samples the file
     /// ends before the end of, samples in stereo, and samples ModPlug Tracker packed its own way.
     private var cutShort = Shortfall.CutShort()
@@ -246,12 +253,24 @@ final class FT2Module {
         }
 
         extras.readInstrumentExtras(file, from: afterPieces, instruments: Int(song.antInstrs))
-        var unheard = 0, bare = 0
-        for i in 1 ... 128 where used[i] && extras.playsThroughPlugIn(instrument: i - 1) {
+        // The plug-ins that are OpenMPT's own are played, as they are for an IT file of these
+        // trackers'; a voice goes to the one its instrument plays through, or else its channel's.
+        var sound = ModPlugSound()
+        sound.plugIns = extras.plugIns
+        sound.channelPlugIns = Array(extras.channelPlugIns.prefix(Int(song.antChn)))
+        for i in 1 ... 128 where i - 1 < extras.instrumentPlugIns.count { instrumentPlugIns[i] = extras.instrumentPlugIns[i - 1] }
+        if !madeByFastTracker, sound.sendsToPlugIns(instruments: instrumentPlugIns) { self.sound = sound }
+        // What is not heard: an instrument that is a plug-in that is not played, and nothing else
+        // (one with a sample is heard, through its plug-in or without it), and the plug-ins that
+        // are somebody else's program.
+        var unheard = 0
+        for i in 1 ... 128 where used[i] && extras.playsThroughPlugIn(instrument: i - 1) && !extras.isPlayed(plugIn: instrumentPlugIns[i]) {
             let hasSample = instr[i].map { ins in (0 ..< 16).contains { ins.samp[$0].len > 0 } } ?? false
-            if hasSample { bare += 1 } else { unheard += 1 }
+            if !hasSample { unheard += 1 }
         }
-        shortfalls.append(contentsOf: Shortfall.plugIns(unheard: unheard, bare: bare, channels: extras.channelsThroughPlugIns))
+        shortfalls.append(contentsOf: Shortfall.plugIns(unheard: unheard, bare: 0, channels: 0))
+        let leftOut = extras.plugInsLeftOut
+        if let sentence = Shortfall.plugInsLeftOut(leftOut.names, of: leftOut.all) { shortfalls.append(sentence) }
     }
 
     /// A module of another tracker's, already read into what FastTracker can play.
