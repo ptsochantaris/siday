@@ -462,7 +462,7 @@ final class FT2Player {
         let back = 1 / level
         for i in 0 ..< count * 2 {
             let value = (tick[i] * back).rounded()
-            mixBuffer[i] = value >= 2_147_483_647 ? Int32.max : value <= -2_147_483_648 ? Int32.min : Int32(value)
+            mixBuffer[i] = value >= 2_147_483_648 ? Int32.max : value < -2_147_483_648 ? Int32.min : Int32(value)
         }
     }
 

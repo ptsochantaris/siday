@@ -390,6 +390,10 @@ final class IT2Mixer {
         plugIns?.parameter(place: place, index) ?? 0
     }
 
+    func plugInDryRatio(place: Int) -> Float {
+        plugIns?.dryRatio(place: place) ?? 0
+    }
+
     func setPlugInDryRatio(place: Int, _ ratio: Float) {
         plugIns?.setDryRatio(place: place, ratio)
     }

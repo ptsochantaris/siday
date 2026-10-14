@@ -1037,7 +1037,7 @@ enum MPTMFile {
         var silentInstruments = Set<Int>(), elsewhereInstruments = Set<Int>(), usedInstruments = Set<Int>()
         // The plug-ins that are not OpenMPT's own, and so are not played.
         let leftOut = plugins.filter { sound.plugIns[$0 - 1].kind == nil }
-        var smoothPlugInMacros = 0, bends = 0, reverbs = 0, speakerCommands = 0
+        var bends = 0, reverbs = 0, speakerCommands = 0
         // The file's MIDI macros, for telling one that sets a filter from one that sets a plug-in:
         // sixteen that a command chooses among and gives a value, and 128 with a value of their own.
         let macros = file.midiData ?? IT2Module.defaultMIDIData()
@@ -1168,10 +1168,6 @@ enum MPTMFile {
                     asNow(&cell)
                     if cell.hasCommand {
                         switch cell.command & 31 {
-                        case Own.smoothMacro:
-                            // A macro sent a little at a time over the row: the filter comes to
-                            // what it sets that way, and a plug-in's setting is moved at once.
-                            if played[index], macroIsForPlugIn(cell.value < 0x80 ? 9 + chosenMacro[channel] : 25 + Int(cell.value & 0x7F)) { smoothPlugInMacros += 1 }
                         case Own.bend, Own.smoothBend:
                             cell.clearCommand()
                             if played[index] { bends += 1 }
@@ -1217,9 +1213,6 @@ enum MPTMFile {
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
         if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
-        if smoothPlugInMacros > 0, plugins.count > leftOut.count {
-            shortfalls.append("Where it slides a plug-in's setting over a row, the setting is moved in one step at the row's start.")
-        }
         say(bends, one: "One command that bends a note's pitch is left out.", many: " commands that bend a note's pitch are left out.")
         if reverbs > 0 { shortfalls.append("Its reverb is left out.") }
         if speakerCommands > 0 { shortfalls.append("What it asks of four speakers, and of filters on its whole sound, is left out.") }

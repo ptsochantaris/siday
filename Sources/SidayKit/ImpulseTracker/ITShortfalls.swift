@@ -51,7 +51,7 @@ extension IT2Module {
                     if mask & 0x11 != 0, notes[channel] < 120 { usedNotes[Int(instruments[channel]) * 120 + Int(notes[channel])] = true }
                 }
                 if mask & 0x88 != 0 {
-                    let command = lastCommands[channel], value = lastValues[channel]
+                    let command = lastCommands[channel]
                     // (Playing a sample backwards, S9F, is nothing to Impulse Tracker, and is done
                     // for a file that another tracker made. The command after Z is ModPlug Tracker's.)
                     if command == 28, !madeByModPlug { commands.note(1) }
