@@ -140,6 +140,9 @@ final class IT2Sample {
     var DataR: UnsafeMutableRawPointer?, OrigDataR: UnsafeMutableRawPointer?
     /// The places in it that an MPTM file's volume column can start a note from; none in any other file.
     var cues: [UInt32] = []
+    /// False for a sample of Digitrakker's that has no volume of its own: an instrument named beside
+    /// a note leaves the channel's volume as it was.
+    var hasVolume = true
     /// For a file of OpenMPT's: the eleven numbers of a patch for the AdLib's FM chip, and one to
     /// spare, if that is what the sample is in place of a sound (see `OpenMPTAdLib`). Nil for a sample.
     var AdLib: [UInt8]?
@@ -237,6 +240,8 @@ struct IT2SlaveChannel {
     var OldLeftVolume: Int32 = 0, OldRightVolume: Int32 = 0
     var FinalVol128: UInt8 = 0, Vol: UInt8 = 0, VolSet: UInt8 = 0, ChnVol: UInt8 = 0, SmpVol: UInt8 = 0, FinalPan: UInt8 = 0
     var FadeOut: UInt16 = 0
+    /// For a module of Digitrakker's only, whose fades are finer: the part of `FadeOut` below one, of 64.
+    var FadeOutFraction: UInt8 = 0
     var DCT: UInt8 = 0, DCA: UInt8 = 0, Pan: UInt8 = 0, PanSet: UInt8 = 0
     var InsPtr: IT2Instrument?
     var SmpPtr: IT2Sample?
