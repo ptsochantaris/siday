@@ -1107,7 +1107,7 @@ as loud as XM files are, by measure.
 
 ### MDL — Digitrakker
 
-An MDL file is from Digitrakker, which Prodatron (Jörn Mika) wrote for DOS in the middle of the
+An MDL file is from Digitrakker, which Prodatron wrote for DOS in the middle of the
 nineties; its files came in three kinds, from its version 2 to its version 3. A tune has up to 32
 channels, each at any of 128 places between the speakers, and instruments as FastTracker 2's are:
 a sample for each range of notes, with envelopes for the volume, the place and the pitch, a fade,
@@ -1709,7 +1709,7 @@ What it is made from:
 - And again: how an MDL file is read, and what Digitrakker does otherwise than Impulse Tracker,
   made after OpenMPT's; and how its samples are unpacked, as the description that came with the
   program has it, which libxmp quotes. libopenmpt is the player those files were checked against.
-  Digitrakker is by Prodatron (Jörn Mika).
+  Digitrakker is by Prodatron.
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.
