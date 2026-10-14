@@ -81,7 +81,7 @@ final class SampleRing: @unchecked Sendable {
 }
 
 /// Default-output Core Audio unit pulling interleaved stereo Float32 from a `SampleRing`.
-final class AudioOutput {
+final class AudioOutput: @unchecked Sendable {
     private var unit: AudioUnit?
     let ring: SampleRing
     /// For testing the player where nothing is to be heard: with SIDAY_SOUND_TO set to a file's path,
