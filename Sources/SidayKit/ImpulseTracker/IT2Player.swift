@@ -158,7 +158,9 @@ final class IT2Player {
     /// A byte on its way to a MIDI port. There is none: the bytes are watched for the messages that
     /// set the filter, as Impulse Tracker's own software drivers watch them.
     private func MIDISendFilter(_ hc: IT2HostPointer, _ sc: IT2SlavePointer?, _ Data: UInt8) {
-        if Data >= 0x80, Data < 0xF0 {
+        // (A byte that says the same as the last is not sent again, as on a MIDI port; but where a
+        // plug-in's setting is named, in a file with plug-ins that are played, it is not that kind of byte.)
+        if Data >= 0x80, Data < 0xF0, !(sound != nil && MIDIInterpretState == 2) {
             if Data == LastMIDIByte { return }
             LastMIDIByte = Data
         }
@@ -1394,7 +1396,10 @@ final class IT2Player {
         // A song that is over reads no more rows: its notes go on, envelopes and fades and all.
         if !over { UpdateData() }
         // (An MPTM file keeps time in OpenMPT's ways, and its tick is as long as they make it.)
-        if let song = module.openMPT { mixer.setTickFrames(openMPTTickFrames(song)) }
+        if let song = module.openMPT {
+            mixer.setTickFrames(openMPTTickFrames(song))
+            mixer.setMusicTempo(UInt64(Tempo) * UInt64(OpenMPTSong.tempoUnit) + UInt64(TempoFraction))
+        }
         if module.Flags & ITF_INSTR_MODE != 0 { UpdateInstruments() } else { UpdateSamples() }
         // (And for a file of ModPlug Tracker's or OpenMPT's with FM instruments or plug-ins: see `ModPlugSound`.)
         if sound != nil {
@@ -1434,6 +1439,9 @@ final class IT2Player {
     /// is sliding (see `openMPTParameterNotes`).
     var RowJustRead = false
     var parameterSlides: [ParameterSlide] = []
+    /// While a macro is being sent a little at a time over a row: how many ticks of the row are
+    /// left, this one among them; nought while one is sent at once. See `sendMacro`.
+    var macroTicksLeft = 0
 
     /// - Parameters:
     ///   - order: where in the list of patterns to start.

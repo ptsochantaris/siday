@@ -173,8 +173,8 @@ enum DTMFile {
     /// What is met in a file that FastTracker cannot do, for `ForeignModule.shortfalls`.
     private struct Found {
         var tempoHasFraction = false
-        /// Samples in stereo, and samples said to be louder than FastTracker's loudest.
-        var stereoSamples = 0, loudSamples = 0
+        /// Samples said to be louder than FastTracker's loudest.
+        var loudSamples = 0
         /// True if a channel has been turned down on both its sides at once.
         var turnsChannelsDown = false
         /// Which of `commandsLeftOut` are in the patterns.
@@ -187,9 +187,6 @@ enum DTMFile {
 
         var sentences: [String] {
             var sentences: [String] = []
-            if stereoSamples > 0 {
-                sentences.append(Shortfall.some(stereoSamples, one: "samples is in stereo, and is played as one sound.", many: "samples are in stereo, and are played as one sound."))
-            }
             if loudSamples > 0 {
                 sentences.append(Shortfall.some(loudSamples, one: "samples is louder than FastTracker's loudest, and is played at that.",
                                                 many: "samples are louder than FastTracker's loudest, and are played at that."))
@@ -213,7 +210,6 @@ enum DTMFile {
         let cutShort = sound.start + sound.length >= file.count
         var bytes = file.sample(at: sound.start, length: cutShort ? length : min(length, sound.length))
         if cutShort { found.cutShort.add(length: length, there: file.count - sound.start) }
-        if !bytes.isEmpty, file[record + 40] & 1 != 0 { found.stereoSamples += 1 }
         if !bytes.isEmpty, file[record + 9] > 64 { found.loudSamples += 1 }
         var repeatStart = file.size32be(record + 10), repeatLength = file.size32be(record + 14)
         if repeatStart >= bytes.count {
@@ -228,27 +224,27 @@ enum DTMFile {
         sample.sixteenBit = bits > 8
         let width = sample.sixteenBit ? 2 : 1
         if file[record + 40] & 1 != 0 {
-            // In stereo, left and right in turn. FastTracker plays one sound from a sample, so the
-            // two sides are made one.
+            // In stereo, left and right in turn: the two sides are taken apart, and played apart.
             let frames = bytes.count / (width * 2)
-            var mixed = [UInt8](repeating: 0, count: frames * width)
+            var left = [UInt8](repeating: 0, count: frames * width), right = left
             for frame in 0 ..< frames {
-                let left = frame * width * 2, right = left + width
-                if sample.sixteenBit {
-                    let both = (Int(Int16(bitPattern: UInt16(bytes[left]) << 8 | UInt16(bytes[left + 1]))) + Int(Int16(bitPattern: UInt16(bytes[right]) << 8 | UInt16(bytes[right + 1])))) >> 1
-                    mixed[frame * 2] = UInt8(truncatingIfNeeded: both >> 8)
-                    mixed[frame * 2 + 1] = UInt8(truncatingIfNeeded: both)
-                } else {
-                    mixed[frame] = UInt8(truncatingIfNeeded: (Int(Int8(bitPattern: bytes[left])) + Int(Int8(bitPattern: bytes[right]))) >> 1)
+                for byte in 0 ..< width {
+                    left[frame * width + byte] = bytes[frame * width * 2 + byte]
+                    right[frame * width + byte] = bytes[frame * width * 2 + width + byte]
                 }
             }
-            bytes = mixed
+            bytes = left
+            sample.right = right
             repeatStart /= 2
             repeatLength /= 2
         }
         if sample.sixteenBit {
             // The Falcon has the high byte first.
             for i in stride(from: 0, to: bytes.count - 1, by: 2) { bytes.swapAt(i, i + 1) }
+            if var right = sample.right {
+                for i in stride(from: 0, to: right.count - 1, by: 2) { right.swapAt(i, i + 1) }
+                sample.right = right
+            }
         }
         sample.data = bytes
         // A repeat of a single sample is how the tracker writes none.

@@ -53,10 +53,20 @@ final class ST3Module {
     /// from a later tracker may have what Scream Tracker never had.
     private(set) var shortfalls: [String] = []
     /// The samples that are in stereo: which they are, and each as Scream Tracker has it, its left
-    /// side alone, and with its two sides mixed into one. See `playStereoSamples`.
+    /// side alone, its right side, and with its two sides mixed into one. See `playStereoSamples`.
     /// (And where the file says a loop of it was last written out again, which putting a sample
     /// in order changes.)
-    private var inStereo: [(instrument: Int, left: [Int16], mixed: [Int16], lend512: UInt16)] = []
+    private var inStereo: [(instrument: Int, left: [Int16], right: [Int16], mixed: [Int16], lend512: UInt16)] = []
+    /// For a file with samples in stereo: the right side of each, at the same place as its left
+    /// side is in `samples`, while they are played apart (see `playStereoSamples`).
+    private var rightMemory: Memory<Int16>?
+    var samplesRight: UnsafeMutablePointer<Int16>? { rightMemory?.pointer }
+    /// True while samples in stereo are played with their sides apart.
+    private(set) var stereoApart = false
+    /// Where in `samples` each sample in stereo begins.
+    var stereoBases: Set<Int> { Set(inStereo.map { ins[$0.instrument].baseptr }) }
+    /// What is said of samples in stereo, if there are any the tune plays, for when they are mixed into one.
+    private(set) var stereoSentence: String?
 
     deinit {
         samples.deallocate()
@@ -171,8 +181,13 @@ final class ST3Module {
             let bytes = length * (sixteenBit ? 2 : 1)
             if ins[i].flags & 2 != 0, length > 0, offsets[i] + bytes * 2 <= data.count {
                 let right = Self.side(f, from: offsets[i] + bytes, length: length, sixteenBit: sixteenBit, unsigned: unsigned)
-                inStereo.append((i, left, (0 ..< length).map { k in Int16((Int(left[k]) + Int(right[k])) >> 1) }, ins[i].lend512))
+                inStereo.append((i, left, right, (0 ..< length).map { k in Int16((Int(left[k]) + Int(right[k])) >> 1) }, ins[i].lend512))
             }
+        }
+        if !inStereo.isEmpty {
+            let memory = Memory<Int16>(capacity: samplesCount)
+            memory.pointer.initialize(repeating: 0, count: samplesCount)
+            rightMemory = memory
         }
 
         // Was it saved with a Sound Blaster? Scream Tracker left a mark in each sample when it was:
@@ -198,15 +213,25 @@ final class ST3Module {
     /// Says how samples in stereo are to be played. Scream Tracker knows nothing of them, and no
     /// file of its own has one: it plays the left side, which comes first in the file, and never
     /// gets to the right. The trackers that came after it, which are the ones that make such
-    /// samples, play the two sides together, and that is how they are played here, mixed into one
-    /// since Scream Tracker's sound cards have no way to keep them apart. They can be had as
-    /// Scream Tracker has them for setting what is played beside the player this is ported from.
-    func playStereoSamples(asScreamTracker: Bool) {
+    /// samples, play the two sides together: `apart`, the left side on the left and the right on
+    /// the right, as a Gravis Ultrasound can, each of its voices having its own place between the
+    /// speakers; otherwise mixed into one, as for the Sound Blaster, whose channels are each to
+    /// one side. They can be had as Scream Tracker has them for setting what is played beside the
+    /// player this is ported from.
+    func playStereoSamples(asScreamTracker: Bool, apart: Bool = false) {
+        stereoApart = apart && !asScreamTracker && rightMemory != nil
         for one in inStereo {
-            let base = ins[one.instrument].baseptr, sides = asScreamTracker ? one.left : one.mixed
+            let base = ins[one.instrument].baseptr, sides = asScreamTracker || stereoApart ? one.left : one.mixed
             // As the file has it, with nothing after its end, and then put in order afresh.
             for k in 0 ..< sides.count { samples[base + k] = sides[k] }
             for k in sides.count ..< sides.count + 512 + 2 { samples[base + k] = 0 }
+            if stereoApart, let right = samplesRight {
+                for k in 0 ..< one.right.count { right[base + k] = one.right[k] }
+                for k in one.right.count ..< one.right.count + 512 + 2 { right[base + k] = 0 }
+                // (In order as the left side is put: from the same point, the same way.)
+                ins[one.instrument].lend512 = one.lend512
+                checkins(one.instrument, in: right)
+            }
             ins[one.instrument].lend512 = one.lend512
             checkins(one.instrument)
         }
@@ -271,7 +296,9 @@ final class ST3Module {
             if ins[i].type >= 3, ins[i].type <= 7 { drums += 1 }
         }
         if stereo > 0 {
-            shortfalls.append(Shortfall.some(stereo, one: "samples is in stereo, and is heard with its two sides mixed into one.", many: "samples are in stereo, and are heard with their two sides mixed into one."))
+            let sentence = Shortfall.some(stereo, one: "samples is in stereo, and is heard with its two sides mixed into one.", many: "samples are in stereo, and are heard with their two sides mixed into one.")
+            stereoSentence = sentence
+            shortfalls.append(sentence)
         }
         if packed > 0 {
             shortfalls.append(Shortfall.some(packed, one: "samples is packed, which Scream Tracker's never were: it is not heard as it should be.",
@@ -286,7 +313,8 @@ final class ST3Module {
 
     /// Puts a sample in order: a loop is written out again past its end, 512 samples of it, so that
     /// the mixer need not think about the join; a sample with no loop is trailed away to silence.
-    private func checkins(_ i: Int) {
+    /// - Parameter memory: the samples it is put in order in: `samples`, or the right sides of those in stereo.
+    private func checkins(_ i: Int, in memory: UnsafeMutablePointer<Int16>? = nil) {
         guard ins[i].type == 1 else { return }
         guard ins[i].length != 0, ins[i].baseptr >= 0 else {
             ins[i].flags &= 0xFE
@@ -306,7 +334,7 @@ final class ST3Module {
         // one of no length for ever.)
         if ins[i].lend <= ins[i].lbeg { ins[i].flags &= 0xFE }
 
-        let p = samples + ins[i].baseptr
+        let p = (memory ?? samples) + ins[i].baseptr
         let length = Int(ins[i].length)
         // Scream Tracker kept, in the instrument, where it had last written a loop out again, and
         // saved that with the file; a sample that comes with it set is first closed up again.

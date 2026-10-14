@@ -103,6 +103,7 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     private func restart(asFastTracker: Bool = false) {
         let song = songList[currentSubsong]
         player = FT2Player(module, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asFastTracker: asFastTracker)
+        if !asFastTracker { player.playsPlugIns() }
         player.setMuted(muted)
         tickFrames = 0
         tickPosition = 0

@@ -367,6 +367,13 @@ final class OpenMPTPlugIns {
         return slot.effect.parameter(index)
     }
 
+    /// How much of what the plug-in in a place is given is heard beside what it makes; nought for
+    /// an empty place.
+    func dryRatio(place: Int) -> Float {
+        guard place >= 0, place < slots.count, let slot = slots[place] else { return 0 }
+        return slot.dryRatio
+    }
+
     /// Sets how much of what a plug-in is given is heard beside what it makes.
     func setDryRatio(place: Int, _ ratio: Float) {
         guard place >= 0, place < slots.count, let slot = slots[place] else { return }

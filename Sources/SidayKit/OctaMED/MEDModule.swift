@@ -213,6 +213,9 @@ final class MEDModule {
     /// 128 KB or more, or a loop that begins or ends on an odd byte. OctaMED then plays every sample
     /// by copying it, a little at a time, to where the chip is reading.
     let playsThroughBuffers: Bool
+    /// For a song saved in MED's first format (see `MED4File`), which MED saved it and what of it
+    /// could not be read into a module; nil for a module.
+    let firstFormat: (detail: String, shortfalls: [String])?
 
     deinit {
         memory.deallocate()
@@ -295,14 +298,21 @@ final class MEDModule {
         } else if packed.count > 4, packed[0] == 0x58, packed[1] == 0x50, packed[2] == 0x4B, packed[3] == 0x46 {
             throw TuneError.unsupported("a file packed with XPK")
         }
+        if MED4File.isOne(data) {
+            let read = try MED4File.mmd0(data)
+            data = read.file
+            firstFormat = (read.detail, read.shortfalls)
+        } else {
+            firstFormat = nil
+        }
         let file = ByteReader(data)
         let size = data.count
         func tag(_ at: Int, _ text: StaticString) -> Bool {
             text.withUTF8Buffer { letters in (0 ..< letters.count).allSatisfy { file[at + $0] == letters[$0] } }
         }
         if tag(0, "MMDC") { throw TuneError.unsupported("a MED module packed with MMDC") }
-        if tag(0, "MED"), file[3] >= 2, file[3] <= 4 {
-            throw TuneError.unsupported("a song in one of MED's first formats (MED2, MED3, MED4): only its modules, MMD0 to MMD3, are played")
+        if tag(0, "MED"), file[3] >= 2, file[3] <= 3 {
+            throw TuneError.unsupported("a song in one of MED's first formats (MED2, MED3): only MED4 and its modules, MMD0 to MMD3, are played")
         }
         guard size >= 52, tag(0, "MMD"), file[3] >= 0x30, file[3] <= 0x33 else { throw TuneError.malformed("not a MED module") }
 
