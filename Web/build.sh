@@ -32,7 +32,7 @@ optimise=()
 command -v wasm-opt > /dev/null || optimise=(--no-optimize)
 swift package $common js --configuration release --product SidayWeb --output $output $optimise
 cp $output/SidayWeb.wasm $output/instantiate.js $output/runtime.js $output/bridge-js.js generated/
-# And the README, of which the page shows the chapter on a format when the format's name is pressed.
-cp $package/README.md generated/
+# And FORMATS.md, of which the page shows the part on a format when the format's name is pressed.
+cp $package/FORMATS.md generated/
 
 ls -l generated | awk 'NR > 1 { printf "%9d  generated/%s\n", $5, $NF }'

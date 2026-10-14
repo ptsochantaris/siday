@@ -19,7 +19,7 @@ struct Siday: ParsableCommand {
         commandName: "siday",
         abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, DBM, XM, S3M, IT, MPTM, MT2, MTM, DTM, AMF, GDM, PTM, ULT, 669, STM, STX, FAR, C67 and MDL modules and CMF, ROL and FMT tunes for the AdLib from files, folders and playlists.",
         discussion: """
-        Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
+        Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · i the format's story · q quit.
         Each voice of a tune has a light on the status line. 1 to 9, and 0 for the tenth, leave a voice out or bring it back; [ and ] choose one, m leaves it out or brings it back, and s plays it alone (s again brings the others back). A voice left out goes on playing, unheard, and the tune is as long as it is whole. Every tune starts with all its voices.
         Folders are searched recursively. The files are only ever read.
         A playlist (Ay_Emul's AYL) plays the tunes it names, in its order. In a folder, the playlists add only the tunes the folder does not itself hold.
@@ -107,6 +107,9 @@ struct Siday: ParsableCommand {
     @Option(help: "Hear only this voice of every tune, played or rendered to WAV, by number from 1.")
     var solo: Int?
 
+    @Option(help: "Print what siday's FORMATS.md says of a format, given by its name (for example it or pt3) or by a file of it, and exit.")
+    var about: String?
+
     @Option(help: "Start multi-song files at this song number instead of the file's own start song.")
     var subsong: Int?
 
@@ -146,7 +149,7 @@ struct Siday: ParsableCommand {
     var raw: String?
 
     func validate() throws {
-        if paths.isEmpty, !testTone, zex == nil, sidTrace == nil {
+        if paths.isEmpty, !testTone, zex == nil, sidTrace == nil, about == nil {
             throw ValidationError("Give at least one file or folder.")
         }
         if !(0 ... 1).contains(sidFilterCurve) { throw ValidationError("--sid-filter-curve should be between 0 and 1") }
@@ -220,6 +223,15 @@ struct Siday: ParsableCommand {
     }
 
     func run() throws {
+        if let about {
+            // A format by its name, or by a file's.
+            let format = TuneFormat(rawValue: about.lowercased()) ?? TuneFormat(url: URL(fileURLWithPath: (about as NSString).expandingTildeInPath))
+            guard let format, let story = FormatStories.setOut(on: format, width: Terminal.width, bold: Terminal.interactive) else {
+                throw ValidationError("--about: no format called '\(about)'. Known: \(TuneFormat.allCases.map(\.rawValue).joined(separator: ", "))")
+            }
+            print(story)
+            return
+        }
         if let sidTrace {
             try SIDTrace.run(trace: sidTrace, options: sidTraceOptions)
             return
@@ -508,6 +520,8 @@ struct Siday: ParsableCommand {
         var chosen: Int?
         var voices = 0
         var muted: [Bool] = []
+        /// Which of the files is playing.
+        var playing = -1
         func clearStatus() {
             if statusShown, Terminal.interactive { print("\r\u{1B}[K", terminator: "") }
             statusShown = false
@@ -531,6 +545,13 @@ struct Siday: ParsableCommand {
                 if let chosen { engine.send(.mute(chosen)) }
             case .soloChosen:
                 if let chosen { engine.send(.solo(chosen)) }
+            case .about:
+                // The playing tune's format's story, above the status line.
+                if files.indices.contains(playing), let format = TuneFormat(url: files[playing]),
+                   let story = FormatStories.setOut(on: format, width: Terminal.width, bold: true) {
+                    clearStatus()
+                    print(story + "\n")
+                }
             case nil: break
             }
             let state = engine.nowPlaying.withLock { state -> NowPlaying in
@@ -547,6 +568,7 @@ struct Siday: ParsableCommand {
             }
             if state.generation != generation {
                 generation = state.generation
+                playing = state.index
                 length = state.length
                 chosen = nil
                 clearStatus()

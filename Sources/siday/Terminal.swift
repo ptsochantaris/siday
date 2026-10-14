@@ -11,6 +11,8 @@ enum Key {
     /// [ and ]: the voice that m and s are for, one to the left or the right.
     case choose(Int)
     case muteChosen, soloChosen
+    /// i: what FORMATS.md says of the playing tune's format.
+    case about
 }
 
 // Saved terminal state lives in globals so signal handlers can reach it.
@@ -106,6 +108,7 @@ enum Terminal {
         case UInt8(ascii: "]"): return .choose(1)
         case UInt8(ascii: "m"), UInt8(ascii: "M"): return .muteChosen
         case UInt8(ascii: "s"), UInt8(ascii: "S"): return .soloChosen
+        case UInt8(ascii: "i"), UInt8(ascii: "I"): return .about
         default: return nil
         }
     }

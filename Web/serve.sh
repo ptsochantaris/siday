@@ -15,8 +15,8 @@ if [[ ! -f generated/SidayWeb.wasm || ! -f generated/SidayWebAudio.wasm || -n "$
   ./build.sh
 fi
 
-# The README the page reads from is the one that is here now.
-cp ../README.md generated/
+# The FORMATS.md the page reads from is the one that is here now.
+cp ../FORMATS.md generated/
 
 if lsof -ti tcp:$port -sTCP:LISTEN > /dev/null; then
   echo "Port $port is already in use. Try another: ./serve.sh $((port + 1))" >&2

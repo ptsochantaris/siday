@@ -71,8 +71,8 @@ struct NowPlaying {
 
             if let tune = player.tune {
                 div(.class("what")) {
-                    // The format's name is a button: pressed, it tells the format's story, as the
-                    // README has it.
+                    // The format's name is a button: pressed, it tells the format's story, as
+                    // FORMATS.md has it.
                     if let chapter = player.chapter {
                         button(.class("format"), .title("About this format")) { tune.format }
                             .onClick { try? sidayAbout(chapter) }

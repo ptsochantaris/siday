@@ -71,7 +71,7 @@ final class Player {
         return notes[tuneFile]
     }
 
-    /// The chapter of the README that tells of the format of the tune that is showing, by the word
+    /// The part of FORMATS.md that tells of the format of the tune that is showing, by the word
     /// its heading begins with; nil if its file is of no format that is known by its name.
     var chapter: String? {
         guard let tuneFile, files.indices.contains(tuneFile) else { return nil }

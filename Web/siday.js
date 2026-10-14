@@ -717,25 +717,26 @@ document.addEventListener("drop", (event) => {
   void looking.then((chosen) => take(chosen), idle);
 });
 
-// What the README says of a format, shown over the page when the format's name is pressed. The
-// README is the one place it is written: the site carries a copy, fetched when first asked for, and
-// the chapter wanted is found in it by its heading and set out as it would be on GitHub.
+// What FORMATS.md says of a format, shown over the page when the format's name is pressed. The
+// file is the one place it is written: the site carries a copy, fetched when first asked for, and
+// the part wanted is found in it by its heading and set out as it would be on GitHub.
 const source = "https://github.com/ptsochantaris/siday";
+const formats = `${source}/blob/main/FORMATS.md`;
 let readme;
 let story;
 
-/// A chapter of the README's "How it is built": the one whose heading begins with this word.
+/// A part of FORMATS.md: the one whose heading begins with this word.
 function chapter(text, word) {
   const lines = text.split("\n");
-  const heading = new RegExp(`^### ${word.replace(/[^A-Za-z0-9]/g, "")}(?![A-Za-z0-9])`);
+  const heading = new RegExp(`^##+ ${word.replace(/[^A-Za-z0-9]/g, "")}(?![A-Za-z0-9])`);
   const start = lines.findIndex((line) => heading.test(line));
   if (start < 0) return null;
   let end = lines.findIndex((line, place) => place > start && /^##+ /.test(line));
   if (end < 0) end = lines.length;
-  return { title: lines[start].slice(4), lines: lines.slice(start + 1, end) };
+  return { title: lines[start].replace(/^#+ /, ""), lines: lines.slice(start + 1, end) };
 }
 
-/// A piece of the README's text as it is to be read: what is between backquotes as code, between
+/// A piece of FORMATS.md's text as it is to be read: what is between backquotes as code, between
 /// asterisks as stressed, and a link as a link.
 function written(text, into) {
   let at = 0;
@@ -745,8 +746,8 @@ function written(text, into) {
     const piece = document.createElement(code !== undefined ? "code" : strong !== undefined ? "strong" : stressed !== undefined ? "em" : "a");
     piece.textContent = code ?? strong ?? stressed ?? link;
     if (address !== undefined) {
-      // A link to another part of the README goes to it where it is whole.
-      piece.href = address.startsWith("#") ? source + address : address;
+      // A link to another part of the file goes to it where it is whole.
+      piece.href = address.startsWith("#") ? formats + address : address;
       piece.target = "_blank";
       piece.rel = "noopener";
     }
@@ -781,7 +782,7 @@ function setOut(lines, into) {
 }
 
 async function about(word) {
-  readme ??= fetch(new URL("./generated/README.md", import.meta.url)).then((reply) => (reply.ok ? reply.text() : Promise.reject(new Error("no README"))));
+  readme ??= fetch(new URL("./generated/FORMATS.md", import.meta.url)).then((reply) => (reply.ok ? reply.text() : Promise.reject(new Error("no FORMATS.md"))));
   let found;
   try {
     found = chapter(await readme, word);
@@ -793,8 +794,8 @@ async function about(word) {
   if (!story) {
     story = document.body.appendChild(document.createElement("dialog"));
     story.className = "about";
-    story.innerHTML = `<header><h2></h2><button title="Close (Esc)" aria-label="Close">×</button></header><div class="text" tabindex="0" autofocus></div><footer>From <a target="_blank" rel="noopener">siday's README</a>, which tells of every format.</footer>`;
-    story.querySelector("a").href = `${source}#how-it-is-built`;
+    story.innerHTML = `<header><h2></h2><button title="Close (Esc)" aria-label="Close">×</button></header><div class="text" tabindex="0" autofocus></div><footer>From <a target="_blank" rel="noopener">siday's FORMATS.md</a>, which tells of every format.</footer>`;
+    story.querySelector("a").href = formats;
     story.querySelector("button").addEventListener("click", () => story.close());
     // A press outside it puts it away. (All of the dialog itself is covered by what is in it.)
     story.addEventListener("click", (event) => {

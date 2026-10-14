@@ -29,8 +29,8 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         }
     }
 
-    /// The word that begins the heading under which the README's "How it is built" tells of this
-    /// format: its own name, or for a format that shares a chapter, the first name in that heading.
+    /// The word that begins the heading under which FORMATS.md tells of this format: its own name,
+    /// or for a format that shares a part, the first name in that heading.
     public var chapter: String {
         switch self {
         case .pt3, .pt2, .pt1, .stc, .stp, .asc, .sqt, .psc, .ftc, .fxm, .psm, .gtr, .vtx, .ay: "PT3"
