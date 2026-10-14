@@ -26,6 +26,8 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
 
     private let module: ST3Module
     private let card: ST3Card
+    /// True if samples in stereo are played with their sides apart: see `ST3Module.playStereoSamples`.
+    private let stereoApart: Bool
     private let mono: Bool
     /// One of the file's songs: where in the list of patterns it starts, how long it is, and whether
     /// it plays a note on the AdLib card at some point. The card is then mixed in from the start, so
@@ -72,6 +74,9 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     public init(_ data: [UInt8], options: LoadOptions) throws {
         module = try ST3Module(data)
         card = options.s3mCard ?? (module.savedWithSoundBlaster ? .sb : .gus)
+        // Samples in stereo are played so on a Gravis Ultrasound, in a file that is in stereo.
+        stereoApart = card == .gus && module.mastermul & 128 != 0
+        module.playStereoSamples(asScreamTracker: false, apart: stereoApart)
         mono = options.stereo == .mono
         left = .allocate(capacity: Self.tickSpace)
         right = .allocate(capacity: Self.tickSpace)
@@ -133,7 +138,8 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         var info = TuneInfo(format: "S3M")
         info.title = module.title
         info.detail = "Scream Tracker 3, " + (card == .gus ? "Gravis Ultrasound" : "Sound Blaster Pro") + (songList.contains { $0.adLib } ? " and AdLib" : "")
-        info.shortfalls = module.shortfalls
+        let apart = stereoApart, stereoSentence = module.stereoSentence
+        info.shortfalls = module.shortfalls.filter { !apart || $0 != stereoSentence }
         self.info = info
         currentSubsong = defaultSubsong
         restart()
@@ -272,7 +278,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         // (That player has a sample in stereo as Scream Tracker has it: its left side alone.)
         module.playStereoSamples(asScreamTracker: true)
         defer {
-            module.playStereoSamples(asScreamTracker: false)
+            module.playStereoSamples(asScreamTracker: false, apart: stereoApart)
             restart()
         }
         restart(asScreamTracker: true)
