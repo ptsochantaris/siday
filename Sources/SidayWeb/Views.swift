@@ -456,7 +456,7 @@ struct Playlist {
             } else {
                 div(.class("search")) {
                     // (What is typed is part of a file's name, which nothing is to put right.)
-                    input(.type(.search), .placeholder("Search \(grouped(player.files.count)) tunes"),
+                    input(.type(.search), .placeholder(player.files.count == 1 ? "Search 1 tune" : "Search \(grouped(player.files.count)) tunes"),
                           .custom(name: "autocorrect", value: "off"), .custom(name: "autocapitalize", value: "off"),
                           .custom(name: "autocomplete", value: "off"), .custom(name: "spellcheck", value: "false"))
                         .bindValue(#Binding(player.search))
