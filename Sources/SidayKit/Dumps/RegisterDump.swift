@@ -108,7 +108,12 @@ public final class RegisterDumpSource: AYFrameSource {
             (info.title, at) = r.cString(at: at, encoding: .atariST)
             (info.author, at) = r.cString(at: at, encoding: .atariST)
             (info.comment, at) = r.cString(at: at, encoding: .atariST)
-            guard frames > 0, at + frames * 16 <= bytes.count + 4 else { throw TuneError.malformed("truncated YM data") }
+            // (A file whose registers lie one after another, with the last two, which make no sound
+            // but hold the timings of the effects, short at their end, is played, and says so.)
+            guard frames > 0, at + frames * (attributes & 1 != 0 ? 14 : 16) <= bytes.count + 4 else { throw TuneError.malformed("truncated YM data") }
+            if at + frames * 16 > bytes.count + 4 {
+                info.shortfalls = [Shortfall.cutShort("The end of its last two registers, which hold the timings of its effects, is missing, and is read as nothing.")]
+            }
             return RegisterDumpSource(info: info, data: bytes, base: at, frames: frames, interleaved: attributes & 1 != 0, registersPerFrame: 16,
                                       loopFrame: loop, clock: clock > 0 ? Double(clock) : 2_000_000, frameHz: rate > 0 ? Double(rate) : 50, chip: .ym)
         default:

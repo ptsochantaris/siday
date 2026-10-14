@@ -174,11 +174,16 @@ public enum LH5 {
     public static func unwrapArchive(_ data: [UInt8]) -> [UInt8]? {
         guard data.count > 22, data[2] == UInt8(ascii: "-"), data[3] == UInt8(ascii: "l"), data[6] == UInt8(ascii: "-") else { return nil }
         let r = ByteReader(data)
-        let headerSize = Int(data[0])
+        var headerSize = Int(data[0])
         let method = data[5]
         var packed = r.u32le(7)
         let original = r.u32le(11)
         let level = data[20]
+        // (Many YM files were passed round with their first two bytes, the header's size and its
+        // checksum, written over with "xx", and the packed size too. The rest of the header is
+        // whole, and its size is that of a plain one with a name of the length it gives; the
+        // packed size is not needed.)
+        if level == 0, data[0] == UInt8(ascii: "x"), data[1] == UInt8(ascii: "x") { headerSize = 22 + Int(data[21]) }
         var dataStart = headerSize + 2
         if level == 1 {
             // Extended headers follow, each ending with the size of the next; their total is counted in `packed`.

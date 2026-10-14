@@ -533,3 +533,36 @@ private func ymTracker(second: Bool = true) -> [UInt8] {
     #expect(TextEncoding.atariST.decode([0x9E, 0xC2, 0xDD, 0xFF]) == "ßא§¯")
     #expect(TextEncoding.atariST.decode(Array(" ~AZaz09".utf8)) == " ~AZaz09")
 }
+
+@Test func ymFileWithItsArchiveHeaderWrittenOverIsRead() throws {
+    // A YM file stored in an LHA archive (as "-lh0-", not packed), whose first two bytes, the
+    // header's size and checksum, and its packed size have been written over with "xx", as many
+    // YM files were passed round: the rest of the header says enough to find the file in it.
+    let inner = ym6(clock: 2_000_000, sidVoice: false)
+    func le(_ value: Int) -> [UInt8] { [UInt8(value & 255), UInt8(value >> 8 & 255), UInt8(value >> 16 & 255), UInt8(value >> 24 & 255)] }
+    let name = Array("LEVEL.YM".utf8)
+    var archive = [UInt8(22 + name.count), 0] + Array("-lh0-".utf8) + le(inner.count) + le(inner.count) + le(0) + [0x20, 0, UInt8(name.count)] + name + [0, 0]
+    archive += inner
+    #expect(try TuneLoader.load(archive, format: .ym).info.format == "YM6")
+    archive[0 ... 1] = [0x78, 0x78]
+    archive[7 ... 10] = [0x78, 0x78, 0, 0]
+    let read = try TuneLoader.load(archive, format: .ym)
+    #expect(read.info.format == "YM6" && read.info.title == "A level")
+}
+
+@Test func ymFileShortOnlyInItsLastRegistersIsPlayedAndSaysSo() throws {
+    // A YM5 file of 100 frames, its registers one after another: the last register's last frames
+    // missing is played, and said; the sound's own registers short is refused.
+    func ym5(cut: Int) -> [UInt8] {
+        var file = Array("YM5!LeOnArD!".utf8) + long(100) + long(1) + word(0) + long(2_000_000) + word(50) + long(0) + word(0)
+        file += Array("A level".utf8) + [0] + Array("siday".utf8) + [0] + [0]
+        for register in 0 ..< 16 {
+            for _ in 0 ..< 100 { file.append(register == 7 ? 0x3F : register == 8 ? 15 : 0) }
+        }
+        return Array(file.dropLast(cut))
+    }
+    #expect(try TuneLoader.load(ym5(cut: 0), format: .ym).info.shortfalls.isEmpty)
+    let short = try TuneLoader.load(ym5(cut: 40), format: .ym)
+    #expect(short.info.shortfalls.count == 1 && short.info.shortfalls[0].hasPrefix("The file is cut short"))
+    #expect(throws: TuneError.self) { try TuneLoader.load(ym5(cut: 300), format: .ym) }
+}

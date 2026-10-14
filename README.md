@@ -347,6 +347,12 @@ on some other machine and is played like a VTX, with the stereo choices that go 
 a chip, a clock or a frame rate by name (`--chip`, `--clock`, `--frame-rate`) gets the plain recording
 whatever the file is.
 
+Many YM files were passed round with the first two bytes of their archive's header, its size and
+checksum, written over with "xx", and its packed size too; the rest of that header is whole and
+says enough to unpack them, and they are played (twenty to hand). And a file whose registers lie
+one after another, with the end of the last two missing (those make no sound, and hold the timings
+of the effects), is played with that end read as nothing, and says so.
+
 ### SNDH — the Atari ST and STE
 
 The Atari ST of 1985 had the chip too, Yamaha's make of it, and no other sound. Its musicians got
