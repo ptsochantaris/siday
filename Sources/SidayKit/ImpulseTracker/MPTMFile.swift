@@ -331,7 +331,7 @@ enum MPTMFile {
         static let compatiblePlay = 0, oldSwing = 1, tempoClamp = 8, tremorAsImpulseTracker = 22, offsetAsImpulseTracker = 27, legacyReleaseNode = 94
         static let jumpsEndLoops = 103, jumpsEndLoopsOld = 49, unmappedNotesDoNothing = 123
         static let fmFlexibleNoteOff = 99, fmKeepsVoiceWhenLetGo = 105, surroundIsNotMoved = 37
-        static let itVibrato = 21
+        static let itVibrato = 21, periodsAreHertz = 7
 
         /// The ways of playing that "compatible play" stood for until OpenMPT 1.26, each with the
         /// version that brought it in, as OpenMPT gives them to a file saved before then.
@@ -711,6 +711,13 @@ enum MPTMFile {
         for (behaviour, since) in [(Behaviour.jumpsEndLoops, 0x0129_0032), (Behaviour.unmappedNotesDoNothing, 0x0132_0013)] {
             if saved < since, saved != since & 0x7FFF_0000 { set(behaviour, false) }
         }
+        // (Pitches in Hertz came in with 1.24 for a song with linear slides, and were the only way
+        // until 1.26; and for one without, with 1.30.00.36.)
+        if file.Flags & ITF_LINEAR_FRQ != 0 {
+            if saved < 0x0124_0000 { set(Behaviour.periodsAreHertz, false) } else if saved < 0x0126_0000 { set(Behaviour.periodsAreHertz, true) }
+        } else if saved < 0x0130_0036, saved != 0x0130_0000 {
+            set(Behaviour.periodsAreHertz, false)
+        }
 
         // (And with anything random in an instrument, what is random is played as it was before 1.17.02.50.)
         if saved < 0x0117_0250, (0 ..< header.instruments).contains(where: {
@@ -904,6 +911,7 @@ enum MPTMFile {
         openMPT.loopsOutlastJumps = !asks(Behaviour.jumpsEndLoops) && !asks(Behaviour.jumpsEndLoopsOld)
         openMPT.unmappedNotesKeepCommands = !asks(Behaviour.unmappedNotesDoNothing)
         openMPT.itVibrato = asks(Behaviour.itVibrato)
+        openMPT.pitchesArePeriods = !asks(Behaviour.periodsAreHertz)
 
         // Each pattern's own rows to a beat and swing, where it has them.
         openMPT.patternRowsPerBeat = [UInt16](repeating: 0, count: file.patternLimit)

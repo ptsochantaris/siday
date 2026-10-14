@@ -111,8 +111,10 @@ private struct Song {
     var restart: Int?
     var mixLevels = 4
     /// OpenMPT's ways of playing that the file asks for, by their numbers.
-    var behaviours: [Int] = [0] + Array(8 ... 48) + [50]
+    var behaviours: [Int] = [0, 7] + Array(8 ... 48) + [50]
     var version = 0x0130_0000
+    /// Whether its slides of pitch are linear, and not the Amiga's.
+    var linear = true
 }
 
 /// An MPTM file: an IT file's header, instruments, samples and patterns, and after them the song's
@@ -142,7 +144,7 @@ private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? =
     let orders = orders ?? patterns.indices.map { UInt8($0) }
     var file = text("IMPM") + padded(text("a square wave"), to: 26) + [UInt8(song.rowsPerBeat), 16]
     file += word(orders.count) + word(instruments.count) + word(samples.count) + word(patterns.count) + word(0x0891) + word(0x0888)
-    file += word(0x0009 | (instruments.isEmpty ? 0 : 4)) + word(macros.isEmpty ? 4 : 12)
+    file += word((song.linear ? 0x0009 : 0x0001) | (instruments.isEmpty ? 0 : 4)) + word(macros.isEmpty ? 4 : 12)
     file += [128, 48, UInt8(song.speed), UInt8(min(song.tempo, 255)), 128, 0] + word(0) + long(0) + text("OMPT")
     file += [UInt8](repeating: 32, count: 64) + [UInt8](repeating: 64, count: 64)
     #expect(file.count == 192)
@@ -708,6 +710,29 @@ private func ways(without left: Int...) -> Song {
     #expect(impulse[0] > 8363 && impulse[0] < impulse[3] && own[0] < 8363 && own[0] == own.min())
     // (Down by about as much as Impulse Tracker's goes up: half a semitone, 31 of 768ths of an octave.)
     #expect(abs(Double(own[0]) - 8363 * pow(2.0, -31.0 / 768)) < 25 && abs(Double(impulse[3]) - 8363 * pow(2.0, 32.0 / 768)) < 25)
+}
+
+@Test func mptmOfAnOlderOpenMPTKeepsItsPitchesAsPeriods() throws {
+    // OpenMPT kept a note's pitch as a period, a whole number, before its version 1.24 for a song
+    // with linear slides (and before 1.30 for one without), and still does for a file that does
+    // not ask for pitches in Hertz (switch 7). A high note's period is small, and moves in large
+    // steps: C-9's is 107, which the least slide up moves to 106; and B-9's is 56, which without
+    // linear slides it takes four from. The rate is 1,712 times the sample's over the period.
+    func rates(_ song: Song, _ note: UInt8) throws -> [Int] {
+        let file = mptm([Pattern([(0, 0, .note(note, "F", 0xF1))])], song: song, samples: [.sound(square, loops: true)])
+        return try player(file).ticks(seconds: 0.2).map { $0.rates.max() ?? 0 }
+    }
+    var old = Song(), asked = Song(), amiga = Song(), hertz = Song()
+    old.version = 0x0123_0000
+    asked.behaviours.removeAll { $0 == 7 }
+    amiga.linear = false
+    amiga.version = 0x0128_0000
+    for song in [old, asked] { #expect(try rates(song, 108).last == (8363 * 1712 + 53) / 106) }
+    #expect(try rates(amiga, 119).last == (8363 * 1712 + 26) / 52)
+    // (In Hertz the slide is a sixty-fourth of a semitone, and B-9 is nearer its true pitch.)
+    #expect(try rates(hertz, 108).last! < (8363 * 1712) / 106 - 500)
+    hertz.linear = false
+    #expect(try rates(hertz, 119).last! < (8363 * 1712) / 52 - 2000)
 }
 
 @Test func mptmFinetuneBendsTheNoteAsFarAsItsInstrumentAllows() throws {

@@ -594,12 +594,15 @@ three ways of keeping time, its swing and its tempos that are fractions (`CSound
 in `soundlib/Sndfile.cpp`); its values that go on into the rows below a command, its delayed and cut
 note, its offsets by cue point, and its sample played backwards (`soundlib/Snd_fx.cpp`); the point an
 envelope goes to when a key is let go, the filter that lets the high through, and where a channel to
-one side is put (`soundlib/Sndmix.cpp`, `Snd_flt.cpp`). Changed from the original: carried over from
-C++ to Swift; none of OpenMPT's own player is here, only these parts of it set into another
-replayer, which plays the rest as Impulse Tracker would; an instrument tuned to a temperament has
-its notes started at the tuning's pitches and nothing more of the tuning, and a tuning further from
-the usual one is not played at all; and of the many ways of playing that a file can ask OpenMPT for,
-one by one, only the few that the source names are followed. Used under the BSD 3-Clause licence set
+one side is put (`soundlib/Sndmix.cpp`, `Snd_flt.cpp`). `OpenMPTTuning.swift` is OpenMPT's tunings
+(`soundlib/tuning.cpp`), and the lines of `IT2OpenMPT.swift` for a tuned instrument are how its
+player moves such a note (`soundlib/Snd_fx.cpp`, `Sndmix.cpp`). `IT2Periods.swift` is how its player
+keeps a note's pitch as a period, for a file that asks for that and for a module of Digitrakker's
+(`soundlib/Snd_fx.cpp`, `Sndmix.cpp`, with the tables of `Tables.cpp`). Changed from the original:
+carried over from C++ to Swift; none of OpenMPT's own player is here, only these parts of it set
+into another replayer, which plays the rest as Impulse Tracker would; and of the many ways of
+playing that a file can ask OpenMPT for, one by one, only the few that the source names are
+followed. Used under the BSD 3-Clause licence set
 out below, under "OpenMPT — FM Tracker files": Copyright (c) 2004-2026 OpenMPT Project Developers and
 Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
 

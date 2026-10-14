@@ -121,11 +121,13 @@ final class IT2Player {
     /// True while a Digitrakker instrument named alone is being seen to: see `digitrakkerInstrumentAlone`.
     var digitrakkerAlone = false
     /// For a module of Digitrakker's (and made for no other): the sample each channel last started
-    /// a note of, and the note; and for each voice, its last rates and their periods (see `digitrakkerSlide`).
+    /// a note of, and the note.
     lazy var digitrakkerSamples = [IT2Sample?](repeating: nil, count: MAX_HOST_CHANNELS)
     lazy var digitrakkerNotes = [UInt8](repeating: 0, count: MAX_HOST_CHANNELS)
-    lazy var digitrakkerKnownPeriods = [(frequency: Int32, period: Int64)](repeating: (0, 0), count: MAX_SLAVE_CHANNELS * (IT2Player.periodsKept + 1))
-    lazy var digitrakkerNextPeriod = [UInt8](repeating: 0, count: MAX_SLAVE_CHANNELS)
+    /// For a module whose pitches are periods: each voice's last rates and their periods (see
+    /// `rememberedFrequency`).
+    lazy var knownPeriods = [(frequency: Int32, period: Int64)](repeating: (0, 0), count: MAX_SLAVE_CHANNELS * (IT2Player.periodsKept + 1))
+    lazy var nextKnownPeriod = [UInt8](repeating: 0, count: MAX_SLAVE_CHANNELS)
     /// And each channel's slide of volume, if it is one of Digitrakker's own (see `IT2DigitrakkerSlide`).
     lazy var digitrakkerSlides = [IT2DigitrakkerSliding](repeating: IT2DigitrakkerSliding(), count: MAX_HOST_CHANNELS)
 
@@ -811,8 +813,11 @@ final class IT2Player {
 
     // MARK: Slides of pitch, in whole numbers as Impulse Tracker had them before its version 2.15
 
-    func PitchSlideUp(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ SlideValue: Int16) {
+    /// - Parameter lasting: false for a slide of this tick alone, as a vibrato's, which matters
+    ///   only where pitches are periods (see `openMPTPeriodSlide`).
+    func PitchSlideUp(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ SlideValue: Int16, lasting: Bool = true) {
         if module.madTracker { return madTrackerSlide(sc, Int(SlideValue)) }
+        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodSlide(sc, Int(SlideValue), lasting: lasting) }
         if module.Flags & ITF_LINEAR_FRQ != 0 {
             PitchSlideUpLinear(hc, sc, SlideValue)
             return
@@ -887,8 +892,8 @@ final class IT2Player {
         }
     }
 
-    func PitchSlideDown(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ SlideValue: Int16) {
-        PitchSlideUp(hc, sc, 0 &- SlideValue)
+    func PitchSlideDown(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ SlideValue: Int16, lasting: Bool = true) {
+        PitchSlideUp(hc, sc, 0 &- SlideValue, lasting: lasting)
     }
 
     // MARK: Reading patterns
@@ -1265,6 +1270,8 @@ final class IT2Player {
                     digitrakkerPitchEnvelope(sc)
                 } else if ins.Tuning != nil, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     if ins.PitchEnv.Flags & ENVF_ENABLED != 0 { openMPTTunedPitchEnvelope(sc) }
+                } else if module.openMPT?.pitchesArePeriods == true, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
+                    openMPTPeriodPitchEnvelope(sc)
                 } else if ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     let EnvVal = Int16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.PitchEnvState.Value) >> 8) >> 3
                     if EnvVal != 0, let hc = sc.pointee.HostChnPtr {

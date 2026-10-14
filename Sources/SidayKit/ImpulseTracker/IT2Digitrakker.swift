@@ -48,44 +48,19 @@ extension IT2Player {
         return digitrakkerFrequency(sc, period: period, lasting: true)
     }
 
-    // A period is kept by OpenMPT as a whole number, and moved, multiplied and divided as one; the
-    // rate is worked out from it each tick. This replayer keeps the rate, in whole samples a
-    // second, and a low note's period is finer than that. So a voice remembers the periods of its
-    // last few rates: of those that last (a note's, and where a slide has got to) and of the one
-    // of this tick alone (a vibrato's or an envelope's), and the period of a rate is the one
-    // remembered, if there is one, and only else worked out from the rate.
+    /// What a period of 1 is the rate of: the sample's rate at middle C times 856.
+    private func digitrakkerBase(_ sc: IT2SlavePointer) -> Int64 {
+        Int64(digitrakkerRate(sc.pointee.SmpPtr) * 856)
+    }
 
-    /// How many of its lasting rates a voice remembers; and one more for the tick's own.
-    static let periodsKept = 4
-
-    /// The rate of a period, which the voice is to remember.
+    /// The rate of a period, which the voice is to remember (see `rememberedFrequency`).
     private func digitrakkerFrequency(_ sc: IT2SlavePointer, period: Int64, lasting: Bool) -> Int32 {
-        let base = Int64(digitrakkerRate(sc.pointee.SmpPtr) * 856)
-        let frequency = Int32(truncatingIfNeeded: min(Int64(Int32.max), (base + period / 2) / period))
-        let voice = sc - sChn
-        if voice >= 0, voice < MAX_SLAVE_CHANNELS {
-            var slot = (voice + 1) * (Self.periodsKept + 1) - 1
-            if lasting {
-                slot = voice * (Self.periodsKept + 1) + Int(digitrakkerNextPeriod[voice] % UInt8(Self.periodsKept))
-                digitrakkerNextPeriod[voice] &+= 1
-            }
-            digitrakkerKnownPeriods[slot] = (frequency, period)
-        }
-        return frequency
+        rememberedFrequency(sc, period: period, base: digitrakkerBase(sc), lasting: lasting)
     }
 
     /// The period of a voice's rate as it is.
     private func digitrakkerPeriod(_ sc: IT2SlavePointer) -> Int64? {
-        let base = Int64(digitrakkerRate(sc.pointee.SmpPtr) * 856), frequency = Int64(sc.pointee.Frequency)
-        guard frequency > 0 else { return nil }
-        let voice = sc - sChn
-        if voice >= 0, voice < MAX_SLAVE_CHANNELS {
-            for slot in voice * (Self.periodsKept + 1) ..< (voice + 1) * (Self.periodsKept + 1) {
-                let known = digitrakkerKnownPeriods[slot]
-                if Int64(known.frequency) == frequency, known.period > 0, (base + known.period / 2) / known.period == frequency { return known.period }
-            }
-        }
-        return max(1, (base + frequency / 2) / frequency)
+        rememberedPeriod(sc, base: digitrakkerBase(sc))
     }
 
     /// A slide of pitch up by so many of a period's units (down for fewer than none), as OpenMPT

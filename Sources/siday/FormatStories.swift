@@ -1036,7 +1036,12 @@ Impulse Tracker's vibratos and tremolos and OpenMPT's own (a file in four asks f
 ProTracker's wave, begun a quarter of the way along and the other way about, with a sample's own
 vibrato that comes in by a sweep and moves by a share between two of the slide tables' steps); and
 OpenMPT's ways with a sample's own vibrato and a vibrato's start where the file asks for Impulse
-Tracker's are OpenMPT's too. For the rest this is Impulse Tracker's replayer, and the file gets
+Tracker's are OpenMPT's too. So is the one that keeps a note's pitch as a period, a whole number,
+and not as a rate in hertz, which is how OpenMPT played a song before its version 1.24 (or before
+1.30 for a song without linear slides), and still plays a file made then: one file in ten. A high
+note's period is a small number, so its pitch is a little out, and a slide or a vibrato moves it in
+steps of a whole period, which can be several cents. Set beside libopenmpt tick by tick, the pitch
+of those 73 files is within a cent of it on 99.7% of their ticks, where it was 45%. For the rest this is Impulse Tracker's replayer, and the file gets
 Impulse Tracker's answer. What that comes to was measured against
 libopenmpt, OpenMPT's own player as a library. What is read from each of 625 files is the same
 as what libopenmpt reads, but for a fade and a place between the speakers that the extras give
@@ -1053,8 +1058,8 @@ agrees to 0.997 for the middle file and 0.976 for the file a tenth of the way up
 for those whose plug-ins are all OpenMPT's own, to 0.994 and 0.959, where without the plug-ins it
 was 0.972 and 0.894; and for those with a plug-in that is left out, which libopenmpt leaves out
 too, to 0.997 and 0.979. The files with FM come to 0.984 and 0.957. The rest of the difference is
-slides in a tune that uses the Amiga's; a pitch that OpenMPT rounds where Impulse Tracker does
-not; and whatever an instrument does at random.
+a pitch that OpenMPT rounds where Impulse Tracker does not, and whatever an instrument does at
+random.
 
 ## MT2 — MadTracker 2
 

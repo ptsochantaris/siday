@@ -72,6 +72,10 @@ struct OpenMPTSong {
     /// of ProTracker's sixty-four steps, which is so far followed only for an instrument with a
     /// tuning of its own (see `openMPTTunedVibrato`).
     var itVibrato = true
+    /// True if a note's pitch is kept as a period, as OpenMPT kept it before its version 1.24 for
+    /// a song with linear slides and before 1.30 for one without, and keeps it still for a file
+    /// made then: see `IT2Periods.swift`. False for one in Hertz, as Impulse Tracker keeps it.
+    var pitchesArePeriods = false
     /// True if a voice to one side of the middle is no louder on its nearer side than one in the
     /// middle is on both, and only quieter on its further one: OpenMPT's way since its version 1.17
     /// ("soft panning"). Impulse Tracker's, which OpenMPT also has, makes the nearer side louder.
@@ -618,7 +622,7 @@ extension IT2Player {
         let depth = Int(hc.pointee.VibratoDepth) >> (old ? 1 : 0)
         let slide = -wave * depth / (1 << (old ? 6 : 7))
         sc.pointee.Flags |= SF_FREQ_CHANGE
-        if slide < 0 { PitchSlideDown(hc, sc, Int16(-slide)) } else if slide > 0 { PitchSlideUp(hc, sc, Int16(slide)) }
+        if slide < 0 { PitchSlideDown(hc, sc, Int16(-slide), lasting: false) } else if slide > 0 { PitchSlideUp(hc, sc, Int16(slide), lasting: false) }
     }
 
     /// A tick of tremolo in such a file, OpenMPT's own way: ProTracker's wave again, read and moved
@@ -661,6 +665,7 @@ extension IT2Player {
         default: wave = -Int(it2FineSineData[position])
         }
         var n = wave * depth / 256
+        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodOwnAutoVibrato(sc, by: n) }
         let first: Int, second: Int
         if n < 0 {
             n = -n
@@ -696,6 +701,7 @@ extension IT2Player {
         }
         wave = wave * (depth / 256) / 64
         guard wave != 0 else { return }
+        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodAutoVibrato(sc, steps: wave) }
         // (In 256ths of the rate, as OpenMPT reckons it.)
         let steps = abs(wave), rate = Int64(sc.pointee.Frequency) * 256
         func step(_ factor: UInt32) -> Int64 { rate * Int64(factor) / 65536 - rate }
