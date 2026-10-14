@@ -546,6 +546,7 @@ final class IT2Player {
                 if NNA != NNA_NOTE_CUT, sc.pointee.VolSet > 0, sc.pointee.ChnVol > 0, sc.pointee.SmpVol > 0 {
                     if NNA == NNA_NOTE_OFF {
                         sc.pointee.Flags |= SF_NOTE_OFF
+                        if module.madTracker { madTrackerFade(sc) }
                         GetLoopInformation(sc)
                     } else if NNA >= NNA_NOTE_FADE {
                         sc.pointee.Flags |= SF_FADEOUT
@@ -799,6 +800,7 @@ final class IT2Player {
     // MARK: Slides of pitch, in whole numbers as Impulse Tracker had them before its version 2.15
 
     func PitchSlideUp(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ SlideValue: Int16) {
+        if module.madTracker { return madTrackerSlide(sc, Int(SlideValue)) }
         if module.Flags & ITF_LINEAR_FRQ != 0 {
             PitchSlideUpLinear(hc, sc, SlideValue)
             return
@@ -886,6 +888,13 @@ final class IT2Player {
             if module.Flags & ITF_INSTR_MODE == 0 || hc.pointee.RawNote >= 120 || hc.pointee.Ins == 0 {
                 hc.pointee.TranslatedNote = hc.pointee.RawNote
                 hc.pointee.Smp = hc.pointee.Ins
+                // (Impulse Tracker takes an instrument beside a note-off for the sample of its
+                // number, whose volume the note is given; OpenMPT, in an MT2 file, for the sample
+                // the instrument plays the last note on.)
+                if module.madTracker, hc.pointee.RawNote >= 120, hc.pointee.Ins != 0, module.Flags & ITF_INSTR_MODE != 0 {
+                    let last = hc.pointee.SlaveChnPtr.map { Int($0.pointee.Note) } ?? 60
+                    hc.pointee.Smp = UInt8(module.instrument(Int(hc.pointee.Ins) - 1).SmpNoteTable[min(119, last)] >> 8)
+                }
             } else {
                 let ins = module.instrument(Int(hc.pointee.Ins) - 1)
                 let entry = ins.SmpNoteTable[Int(hc.pointee.RawNote)]
@@ -1018,6 +1027,7 @@ final class IT2Player {
             if chnNum == 0 { break }
             let hc = readChannel(chnNum, command: true)
             if hc.pointee.NotePackMask & 1 != 0, hc.pointee.RawNote < 120 { playedNote = true }
+            if module.madTracker { madTrackerRow(hc) }
             if module.slidesToNotesCarryOn {
                 onTheRow |= 1 << UInt64(hc.pointee.HostChnNum & 63)
                 carryOnSlideToNote(hc)
@@ -1120,6 +1130,7 @@ final class IT2Player {
     /// The vibrato a sample has of its own.
     private func UpdateAutoVibrato(_ sc: IT2SlavePointer) {
         guard let smp = sc.pointee.SmpPtr, smp.AutoVibratoDepth != 0 else { return }
+        if module.madTracker { return madTrackerAutoVibrato(sc, smp) }
         sc.pointee.AutoVibratoDepth &+= UInt16(asImpulseTracker ? smp.AutoVibratoRate : smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate)
         if sc.pointee.AutoVibratoDepth >> 8 > UInt16(smp.AutoVibratoDepth) {
             sc.pointee.AutoVibratoDepth = (UInt16(smp.AutoVibratoDepth) << 8) | (sc.pointee.AutoVibratoDepth & 0xFF)
@@ -1238,7 +1249,17 @@ final class IT2Player {
                     if UpdateEnvelope(ins.VolEnv, &sc.pointee.VolEnvState, SustainReleased) {
                         // The envelope is over: at nothing the note is too, and otherwise it fades.
                         sc.pointee.Flags &= ~SF_VOLENV_ON
-                        if sc.pointee.VolEnvState.Value & 0x00FF_0000 == 0 {
+                        if module.madTracker {
+                            // (In MadTracker's way, as FastTracker's, a note whose key is held stays
+                            // at the envelope's last level, and one the channel has let go of ends
+                            // there if that is nothing.)
+                            if sc.pointee.VolEnvState.Value & 0x00FF_0000 == 0, sc.pointee.HostChnNum & CHN_DISOWNED != 0 {
+                                TurnOffCh = true
+                            } else if SustainReleased {
+                                sc.pointee.Flags |= SF_FADEOUT
+                                HandleNoteFade = true
+                            }
+                        } else if sc.pointee.VolEnvState.Value & 0x00FF_0000 == 0 {
                             TurnOffCh = true
                         } else {
                             sc.pointee.Flags |= SF_FADEOUT
@@ -1261,7 +1282,11 @@ final class IT2Player {
                 }
 
                 if HandleNoteFade {
-                    sc.pointee.FadeOut &-= ins.FadeOut
+                    if module.madTracker {
+                        if !madTrackerFadeStep(sc, ins) { TurnOffCh = true }
+                    } else {
+                        sc.pointee.FadeOut &-= ins.FadeOut
+                    }
                     if Int16(bitPattern: sc.pointee.FadeOut) <= 0 {
                         sc.pointee.FadeOut = 0
                         TurnOffCh = true

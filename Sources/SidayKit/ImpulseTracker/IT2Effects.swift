@@ -143,6 +143,7 @@ extension IT2Player {
 
     /// The first tick of a vibrato. With "old effects" it does not move on, but plays where it was.
     private func InitVibrato(_ hc: IT2HostPointer) {
+        if module.madTracker { return madTrackerVibrato(hc, moving: false) }
         if module.Flags & ITF_OLD_EFFECTS != 0 {
             guard let sc = hc.pointee.SlaveChnPtr else { return }
             sc.pointee.Flags |= SF_FREQ_CHANGE
@@ -397,6 +398,15 @@ extension IT2Player {
         if hc.pointee.TranslatedNote >= 120 {
             if hcFlags & UInt8(HF_CHAN_ON) != 0, let sc = hc.pointee.SlaveChnPtr {
                 if hc.pointee.TranslatedNote == 255 {
+                    // (MadTracker's, to a note with no envelope for its volume, is silence: see
+                    // `madTrackerLetGo`. The row's instrument is then no instrument.)
+                    if module.madTracker, !madTrackerLetGo(hc, sc) {
+                        let mask = hc.pointee.NotePackMask
+                        hc.pointee.NotePackMask &= ~0x22
+                        NoOldEffect(hc, hcFlags)
+                        hc.pointee.NotePackMask = mask
+                        return
+                    }
                     sc.pointee.Flags |= SF_NOTE_OFF
                     InitNoCommand11(hc, sc, hcFlags)
                     return
@@ -416,6 +426,8 @@ extension IT2Player {
         // An instrument alone, the same as is playing and at the same note, starts nothing.
         if hcFlags & UInt8(HF_CHAN_ON) != 0, let sc = hc.pointee.SlaveChnPtr {
             if hc.pointee.NotePackMask & 0x11 == 0, sc.pointee.Note == hc.pointee.RawNote, sc.pointee.Ins == hc.pointee.Ins {
+                // (Though in MadTracker's it starts the instrument's envelopes again.)
+                if module.madTracker { madTrackerInstrumentAgain(sc) }
                 NoOldEffect(hc, hcFlags)
                 return
             }
@@ -458,6 +470,8 @@ extension IT2Player {
 
         hcFlags |= UInt8(HF_CHAN_ON)
         hcFlags &= ~UInt8(HF_PITCH_SLIDE_ONGOING)
+        // (OpenMPT starts a vibrato's wave again with every note, in these files.)
+        if module.madTracker { hc.pointee.VibratoPos = 0 }
 
         InitNoCommand11(hc, sc, hcFlags)
         if module.openMPT != nil { OpenMPTVolumeColumnOffset(hc, sc) }
@@ -654,8 +668,10 @@ extension IT2Player {
                 hc.pointee.Flags |= HF_PITCH_SLIDE_ONGOING
             } else if hc.pointee.Flags & HF_CHAN_ON != 0 {
                 if hc.pointee.TranslatedNote == 255 {
-                    sc.pointee.Flags |= SF_NOTE_OFF
-                    GetLoopInformation(sc)
+                    if !module.madTracker || madTrackerLetGo(hc, sc) {
+                        sc.pointee.Flags |= SF_NOTE_OFF
+                        GetLoopInformation(sc)
+                    }
                 } else if hc.pointee.TranslatedNote == 254 {
                     hc.pointee.Flags &= ~HF_CHAN_ON
                     sc.pointee.Flags = SF_NOTE_STOP
@@ -1330,6 +1346,7 @@ extension IT2Player {
     }
 
     func CommandH(_ hc: IT2HostPointer) {
+        if module.madTracker { return madTrackerVibrato(hc, moving: true) }
         guard let sc = hc.pointee.SlaveChnPtr else { return }
         sc.pointee.Flags |= SF_FREQ_CHANGE
 

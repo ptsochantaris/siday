@@ -180,6 +180,9 @@ final class IT2Module {
     /// started one, and was that instrument's volume and no more. Impulse Tracker starts the note
     /// again if the channel has stopped playing it.
     var instrumentAloneStartsNothing = false
+    /// True for an MT2 file's module, which OpenMPT plays with a few of FastTracker's ways where
+    /// MadTracker had them: see `MT2File`.
+    var madTracker = false
     /// Where in the list a module of another tracker's goes on from when it has come to the end.
     /// (An MPTM file's songs each have their own: see `OpenMPTSong`.)
     var restartOrder = 0
@@ -664,14 +667,18 @@ final class IT2Module {
 
     /// A module that did not come from an IT file: one of another tracker's, set down as Impulse
     /// Tracker would hold it so that this replayer can play it (see `IT2ForeignModule`). It has samples
-    /// and no instruments, and none of what only an IT file can say.
+    /// and, most often, no instruments, and none of what only an IT file can say.
     /// - Parameters:
     ///   - samples: as many as the replayer is to have room for, which is at least `MAX_SAMPLES`.
     ///   - patterns: packed as an IT file packs them, and `rows` how many rows each has; at least
     ///     `MAX_PATTERNS` of each.
+    ///   - instruments: for a module that has them (`flags` then says so), at least `MAX_INSTRUMENTS`.
+    ///   - channelVolumes: each channel's of 64; all at 64 if nil.
+    ///   - openMPT: for a module that keeps time in OpenMPT's ways, as an MT2 file does.
     init(title: String, madeWith: String, orders: [UInt8], flags: UInt16, globalVolume: UInt8, mixVolume: UInt8, speed: UInt8, tempo: UInt8,
          channelPans: [UInt8], samples: [IT2Sample], patterns: [[UInt8]?], rows: [UInt16], slidesToNotesCarryOn: Bool = false,
-         instrumentAloneStartsNothing: Bool = false, restart: Int = 0, sound: ModPlugSound? = nil) {
+         instrumentAloneStartsNothing: Bool = false, restart: Int = 0, sound: ModPlugSound? = nil, instruments: [IT2Instrument] = [],
+         channelVolumes: [UInt8]? = nil, openMPT: OpenMPTSong? = nil, filter: Filter = .impulseTrackers) {
         self.slidesToNotesCarryOn = slidesToNotesCarryOn
         self.instrumentAloneStartsNothing = instrumentAloneStartsNothing
         restartOrder = restart < orders.count && orders[restart] < 200 ? restart : 0
@@ -681,7 +688,6 @@ final class IT2Module {
         for i in 0 ..< min(orders.count, Self.MAX_ORDERS) { Orders[i] = orders[i] }
         self.Orders = Orders
         OrdNum = min(orders.count, Self.MAX_ORDERS) + 1
-        InsNum = 0
         SmpNum = samples.count
         PatNum = patterns.count
         // (Impulse Tracker 2.14's numbers, which nothing here takes to mean anything.)
@@ -697,17 +703,20 @@ final class IT2Module {
         var ChnlPan = [UInt8](repeating: 32 | 128, count: MAX_HOST_CHANNELS)
         for i in 0 ..< min(channelPans.count, MAX_HOST_CHANNELS) { ChnlPan[i] = channelPans[i] }
         self.ChnlPan = ChnlPan
-        ChnlVol = [UInt8](repeating: 64, count: MAX_HOST_CHANNELS)
+        ChnlVol = channelVolumes ?? [UInt8](repeating: 64, count: MAX_HOST_CHANNELS)
         midiData = nil
-        instruments = (0 ..< Self.MAX_INSTRUMENTS).map { _ in Self.blankInstrument() }
+        InsNum = instruments.count
+        self.instruments = instruments.isEmpty ? (0 ..< Self.MAX_INSTRUMENTS).map { _ in Self.blankInstrument() } : instruments
         self.samples = samples
         self.patterns = patterns
         self.rows = rows
         samplesNotRead = []
         cutShort = Shortfall.CutShort()
         extras = ModPlugExtras()
-        modPlug = ModPlugWays()
-        openMPT = nil
+        var ways = ModPlugWays()
+        ways.filter = filter
+        modPlug = ways
+        self.openMPT = openMPT
         self.sound = sound
     }
 

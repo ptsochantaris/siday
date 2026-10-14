@@ -163,6 +163,10 @@ final class IT2Mixer {
     private let fSincLUT: UnsafeMutablePointer<Float>
     /// What the voice last mixed last added to each side.
     private var fLastLeftValue: Float = 0, fLastRightValue: Float = 0
+    /// How much of what a sample that has ended last put out is lost on each frame after: a 4096th
+    /// as the "WAV writer" driver has it, and for an MT2 file, which is played as OpenMPT plays it,
+    /// a 256th as OpenMPT has it.
+    private let endDecay: Float
 
     /// Sets a voice's filter as OpenMPT sets its own (`SetupChannelFilter`, where a file does not
     /// ask for Impulse Tracker's): the same kind of filter, of two poles, with half the ring to it
@@ -237,6 +241,7 @@ final class IT2Mixer {
         FreqMultiplier = Float((1.0 / (2.0 * Double.pi * 110.0 * exp2Quarter)) * Double(mixingFrequency))
         ownFilterStep = Float(filterStep)
         ownFilterRate = Float(mixingFrequency)
+        endDecay = module.madTracker ? 1.0 / 256.0 : 1.0 / 4096.0
 
         // and the gain.
         MixGain = Self.mixGain(of: module)
@@ -528,8 +533,8 @@ final class IT2Mixer {
                 fMixBufPtr[0] = left
                 fMixBufPtr[1] = right
                 fMixBufPtr += 2
-                left -= left * (1.0 / 4096.0)
-                right -= right * (1.0 / 4096.0)
+                left -= left * endDecay
+                right -= right * endDecay
             }
             fLastClickRemovalLeft = left
             fLastClickRemovalRight = right
@@ -792,8 +797,8 @@ final class IT2Mixer {
                                             fMixBufferPtr[1] += right
                                             fMixBufferPtr += 2
 
-                                            left -= left * (1.0 / 4096.0)
-                                            right -= right * (1.0 / 4096.0)
+                                            left -= left * endDecay
+                                            right -= right * endDecay
                                             MixBlockSize -= 1
                                         }
                                         fLastLeftValue = left
@@ -889,8 +894,8 @@ final class IT2Mixer {
                                     fMixBufferPtr[1] += right
                                     fMixBufferPtr += 2
 
-                                    left -= left * (1.0 / 4096.0)
-                                    right -= right * (1.0 / 4096.0)
+                                    left -= left * endDecay
+                                    right -= right * endDecay
                                     MixBlockSize -= 1
                                 }
                                 fLastLeftValue = left

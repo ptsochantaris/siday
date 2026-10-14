@@ -187,6 +187,9 @@ struct IT2HostChannel {
     var OffsetMemory: UInt32 = 0
     /// For an MPTM file only: true if its filter lets the high through. See `IT2Instrument`.
     var HighPass = false
+    /// For an MT2 file only: the last note the channel was given that is a note; 255 for none yet.
+    /// See `madTrackerRow`.
+    var LastNote: UInt8 = 255
     /// For an instrument whose filter is moved at random (see `IT2Instrument.CutSwing`): what the
     /// channel's cutoff and resonance were before the note's were moved, and one more, to be put
     /// back when the next note comes, or nought for nothing to put back; and how far they were moved.
@@ -237,6 +240,8 @@ struct IT2SlaveChannel {
     var OldLeftVolume: Int32 = 0, OldRightVolume: Int32 = 0
     var FinalVol128: UInt8 = 0, Vol: UInt8 = 0, VolSet: UInt8 = 0, ChnVol: UInt8 = 0, SmpVol: UInt8 = 0, FinalPan: UInt8 = 0
     var FadeOut: UInt16 = 0
+    /// For an MT2 file only: the part of the fade below `FadeOut`'s steps, in 64ths of one. See `madTrackerFadeStep`.
+    var FadeFraction: UInt8 = 0
     var DCT: UInt8 = 0, DCA: UInt8 = 0, Pan: UInt8 = 0, PanSet: UInt8 = 0
     var InsPtr: IT2Instrument?
     var SmpPtr: IT2Sample?
