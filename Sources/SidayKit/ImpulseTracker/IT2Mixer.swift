@@ -279,17 +279,22 @@ final class IT2Mixer {
         return 32768.0 * PreAmpTable[highestChannel(of: module) / 2]
     }
 
-    /// How much louder than this mixer makes it OpenMPT plays an IT file that ModPlug Tracker or
-    /// OpenMPT made: by the way of adding its channels up that the file asks for, and by a
-    /// pre-amp of more than the header can hold. One, for any other file. (The mixer turns a file
-    /// with one of ModPlug Tracker's two signatures down by its count of channels itself, as the
-    /// player it is ported from does: that much is taken out again here, so that every such file
-    /// comes out as loud as OpenMPT has it, whichever of them it is.)
+    /// How much louder than this mixer makes it an IT file that ModPlug Tracker or OpenMPT made is
+    /// played: by a pre-amp of more than the header can hold, which is the composer's. One, for
+    /// any other file.
+    ///
+    /// And by OpenMPT's ways of adding channels up only as far as they leave a file of each way
+    /// about as loud as any other tune: the tunes of every kind are to be about as loud as each
+    /// other, and ModPlug Tracker's own way turns its files down together, by some 8 dB, and the
+    /// more the more channels a file has, which measured over the files to hand makes the
+    /// few-channel ones louder than the rest and not more like them. So that way is not followed,
+    /// and the mixer's own turning down of a file with one of ModPlug Tracker's two signatures, by
+    /// its count of channels, which the player it is ported from does, is taken out again too.
+    /// The ways of OpenMPT 1.17 are followed, which measured so are as loud as the rest.
     static func modPlugLevel(of module: IT2Module) -> Float {
         guard let levels = module.modPlugLevels else { return 1 }
         var level: Float = levels.mixLevels == 3 ? 2 : 1
-        // (By as many channels as OpenMPT takes the file to have: those its patterns use, or those it says it has, if that is more.)
-        if levels.mixLevels < 3 { level = PreAmpTable[max(1, min(31, max(highestChannel(of: module) + 1, levels.channels))) / 2] }
+        if levels.mixLevels == 2 { level = PreAmpTable[max(1, min(31, max(highestChannel(of: module) + 1, levels.channels))) / 2] }
         if module.MixVolume > 0 { level *= Float(levels.preAmp) / Float(module.MixVolume) }
         return level * 32768.0 / mixGain(of: module)
     }

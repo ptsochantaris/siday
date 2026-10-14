@@ -50,7 +50,8 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     init(_ module: FT2Module, options: LoadOptions) {
         self.module = module
         mono = options.stereo == .mono
-        level = Self.gain * (module.foreign?.loudness ?? 1)
+        // (And for a file of ModPlug Tracker's or OpenMPT's, as much louder or quieter as OpenMPT plays it.)
+        level = Self.gain * (module.foreign?.loudness ?? 1) * module.openMPTLevel
         var info = TuneInfo(format: module.foreign?.format ?? (module.isMOD ? "MOD" : "XM"))
         info.title = module.title
         info.detail = "\(module.foreign?.tracker ?? "FastTracker 2"), \(module.song.antChn) channels"
@@ -200,6 +201,8 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         text += " undo \(module.speedAndTempoUndoEachOther ? 1 : 0) linear \(module.linearFrqTab ? 1 : 0)\n"
         text += "orders" + song.songTab[0 ..< Int(song.len)].map { " \($0)" }.joined() + "\n"
         text += "pans" + module.channelPanning.map { " \($0)" }.joined() + "\n"
+        // (How OpenMPT adds it up, for a file of ModPlug Tracker's or OpenMPT's: see `FT2Module.openMPTMix`.)
+        if let mix = module.openMPTMix { text += "mix \(mix.mode) preamp \(mix.preAmp) channels \(mix.channels)\n" }
         for (number, instrument) in module.instr.enumerated() where number > 0 {
             guard let instrument, let bytes = instrument.samp[0].pek else { continue }
             let s = instrument.samp[0]

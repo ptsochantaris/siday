@@ -450,7 +450,8 @@ final class FT2Player {
     /// added to the tick, which master effects then work on as a whole.
     private func sendThroughPlugIns(_ count: Int) {
         guard let plugIns, let tick = plugInTick else { return }
-        let level = Self.plugInLevel
+        // (What a plug-in is given is as loud as OpenMPT makes it, in a file that it plays louder or quieter.)
+        let level = Self.plugInLevel * module.openMPTLevel
         for place in placesUsed {
             guard let sent = placeTicks[place] else { continue }
             let input = plugIns.buffer(ofPlace: place)

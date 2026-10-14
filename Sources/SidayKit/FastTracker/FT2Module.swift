@@ -59,6 +59,24 @@ final class FT2Module {
     /// And the plug-in each instrument plays through, counted from 1, by the instrument's number;
     /// nought for none.
     private(set) var instrumentPlugIns = [Int](repeating: 0, count: 256)
+    /// For an XM file that ModPlug Tracker or OpenMPT made: how OpenMPT adds its channels up (its
+    /// "mix levels", by their numbers), the song's pre-amp, and how many channels OpenMPT takes it
+    /// to have. Nil for any other file, which is played as loud as FastTracker plays it.
+    private(set) var openMPTMix: (mode: Int, preAmp: Int, channels: Int)?
+    /// How much louder such a file is played than one of FastTracker's own: by its pre-amp, the
+    /// composer's, against the usual one of the way it asks to be added up by (48, or 128 in the
+    /// ways of OpenMPT 1.17). One for any other file.
+    ///
+    /// Not by its way of adding up, though OpenMPT plays it by that (ModPlug Tracker's, some 8 dB
+    /// quieter, and more so the more channels; or the "compatible" one, whose panning puts a
+    /// channel in the middle at half on each side where FastTracker's has it at seven tenths).
+    /// Those turn a whole tracker's files up or down together, and the tunes of every kind are to
+    /// be about as loud as each other. Measured over the files to hand, the files of each way come
+    /// out about as loud as FastTracker's own this way, whatever their count of channels.
+    var openMPTLevel: Float {
+        guard let mix = openMPTMix else { return 1 }
+        return Float(max(1, min(2000, mix.preAmp))) / (mix.mode >= 1 && mix.mode <= 3 ? 128 : 48)
+    }
     /// What is found on the way through a file that `shortfalls` is made from: samples the file
     /// ends before the end of, samples in stereo, and samples ModPlug Tracker packed its own way.
     private var cutShort = Shortfall.CutShort()
@@ -193,6 +211,11 @@ final class FT2Module {
                 .contains(extras.u32le(f.at)) || (f.at + 4 <= data.count && extras[f.at] == 0x46 && extras[f.at + 1] == 0x58)
             madeByFastTracker = saysFastTracker && (reader.u16le(58) < 0x0104 || !h[17 ..< 37].contains(0) && !modPlugWroteMore)
             noteWhatLaterTrackersAdded(data, after: f.at)
+            // (ModPlug Tracker's: by the signs above, or by the name its first versions gave the format.
+            // OpenMPT goes by more signs than these, and the two agree on all but about one file in
+            // a hundred of those that have them.)
+            let byModPlug = saysFastTracker && !madeByFastTracker || Array(h[38 ..< 58]) == Array("FastTracker v 2.00  ".utf8)
+            openMPTMix = Self.openMPTMix(of: data, name: Array(h[38 ..< 58]), byModPlug: byModPlug, channels: Int(song.antChn))
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         if song.repS > song.len { song.repS = 0 }
@@ -210,6 +233,31 @@ final class FT2Module {
     /// FastTracker has them for setting what is played beside the player this is ported from.
     func playStereoSamples(asFastTracker: Bool) {
         for one in inStereo { instr[one.instrument]?.samp[one.sample] = asFastTracker ? one.plain : one.sides }
+    }
+
+    /// How OpenMPT adds the channels of an XM file up, as its loader works it out, for a file of
+    /// OpenMPT's (by its name, from its version) or ModPlug Tracker's (by the signs it leaves, or by a
+    /// version of its own written in the song's extras), and as the song's extras then say, if
+    /// they do. Nil for a file of any other tracker's.
+    private static func openMPTMix(of data: [UInt8], name: [UInt8], byModPlug: Bool, channels: Int) -> (mode: Int, preAmp: Int, channels: Int)? {
+        var extras = ModPlugExtras()
+        extras.readSongExtras(ByteReader(data))
+        var mode: Int?
+        // (A version in four parts, a byte each: "1.22.07.19" was the first to add up as FastTracker does.)
+        var version = extras.savedWith ?? 0
+        let addsUpAsFastTracker = 1 << 24 | 22 << 16 | 7 << 8 | 19
+        if name.starts(with: Array("OpenMPT ".utf8)) {
+            let parts = String(decoding: name.dropFirst(8), as: UTF8.self).split(separator: ".").map { Int($0.filter { $0.isNumber }) ?? 0 }
+            version = (0 ..< 4).reduce(0) { $0 << 8 | ($1 < parts.count ? min(255, parts[$1]) : 0) }
+            mode = version < addsUpAsFastTracker ? 4 : 5
+        } else if byModPlug || extras.savedWith != nil {
+            mode = 0
+        }
+        if let said = extras.mixLevels, mode != nil || extras.hasSongExtras { mode = said }
+        guard var mode else { return nil }
+        // (A file of the versions after that and before 1.23.01.04 says it adds up the old way, and does not.)
+        if mode == 4, version >= addsUpAsFastTracker, version < (1 << 24 | 23 << 16 | 1 << 8 | 4) { mode = 5 }
+        return (mode, extras.preAmp ?? 48, max(channels, extras.channels))
     }
 
     /// Looks over an XM file for what a later tracker put in it that FastTracker does not play,

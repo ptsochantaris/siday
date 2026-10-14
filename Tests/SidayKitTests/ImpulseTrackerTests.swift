@@ -261,18 +261,22 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     // OpenMPT's way of 1.17 is twice as loud.
     #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 3), version: 0x17)) == 2)
     #expect(abs(try heard(asOpenMPTPlays(it() + extras(mixLevels: 3), version: 0x17)) / own - 2) < 0.05)
-    // Its oldest ways are quieter the more channels the song has: by those its patterns use, or
-    // by those the file says it has, if that is more. A file with no such word is played the oldest way.
-    #expect(try level(asOpenMPTPlays(it(), version: 0x17)) == 64.0 / 0x60)
+    // Its oldest way, ModPlug Tracker's, OpenMPT plays quieter the more channels the song has;
+    // here it is not followed, so that such files are about as loud as all the others. A file
+    // with no word of its way is played the oldest way, and is as loud as Impulse Tracker's.
+    #expect(try level(asOpenMPTPlays(it(), version: 0x17)) == 1)
+    #expect(abs(try heard(asOpenMPTPlays(it() + extras(mixLevels: 0, channels: 16), version: 0x17)) / own - 1) < 0.02)
+    // Its way of 1.17 that comes before that one is followed, by those channels its patterns use,
+    // or those the file says it has, if that is more: measured, it leaves its files as loud as the rest.
     #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 2, channels: 32), version: 0x28)) == 64.0 / 0xBC)
-    #expect(abs(try heard(asOpenMPTPlays(it() + extras(mixLevels: 0, channels: 16), version: 0x17)) / own - 64.0 / 0xA0) < 0.02)
     // The ways that are like Impulse Tracker's are as loud as Impulse Tracker; and a pre-amp of
     // more than the header can hold is that much more.
     #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 4), version: 0x28)) == 1)
     #expect(try level(asOpenMPTPlays(it() + extras(mixLevels: 4, preAmp: 96), version: 0x28)) == 2)
-    // ModPlug Tracker's own files the mixer turns down itself, and they are not turned down twice.
-    #expect(try level(byModPlugTracker(it())) == 1)
-    #expect(abs(try heard(byModPlugTracker(it())) / own - 64.0 / 0x60) < 0.02)
+    // ModPlug Tracker's own files the mixer turns down itself, as the player it is ported from
+    // does; that is taken out again, and they are as loud as any other.
+    #expect(try level(byModPlugTracker(it())) > 1)
+    #expect(abs(try heard(byModPlugTracker(it())) / own - 1) < 0.02)
     // Set beside the player this one is ported from, none of it is done.
     let reference = try #require(try TuneLoader.load(asOpenMPTPlays(it() + extras(mixLevels: 3), version: 0x17), format: .it) as? any ReferenceComparable)
     let itsOwn = try #require(try TuneLoader.load(it(), format: .it) as? any ReferenceComparable)

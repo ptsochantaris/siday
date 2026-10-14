@@ -418,3 +418,26 @@ private func levels(_ renderer: any Renderer) -> [Float] {
     renderer.select(subsong: 0)
     #expect(stereo(renderer, seconds: 0.5).left.allSatisfy { $0 == 0 })
 }
+
+@Test func xmFromOpenMPTIsAsLoudAsItsPreAmpMakesIt() throws {
+    // A song's own extras, as OpenMPT and ModPlug Tracker put them at a file's end: which way of
+    // adding the channels up, and the pre-amp. The pre-amp is followed, against OpenMPT's usual
+    // 48; the way is not, so that such files are about as loud as all the others.
+    func extras(mixLevels: Int, preAmp: Int?) -> [UInt8] {
+        var bytes = Array("STPM".utf8) + Array(".MMP".utf8) + word(4) + long(mixLevels)
+        if let preAmp { bytes += Array(".APS".utf8) + word(4) + long(preAmp) }
+        return bytes
+    }
+    func loud(_ file: [UInt8]) throws -> Float {
+        let left = stereo(try TuneLoader.load(file, format: .xm), seconds: 0.5).left[4800...]
+        return (left.reduce(0) { $0 + $1 * $1 } / Float(left.count)).squareRoot()
+    }
+    let own = try loud(xm())
+    #expect(own > 0.01)
+    for mode in [0, 4, 5] {
+        #expect(abs(try loud(xm() + extras(mixLevels: mode, preAmp: nil)) / own - 1) < 0.01)
+        #expect(abs(try loud(xm() + extras(mixLevels: mode, preAmp: 96)) / own - 2) < 0.02)
+    }
+    // In OpenMPT 1.17's ways the usual pre-amp is 128.
+    #expect(abs(try loud(xm() + extras(mixLevels: 3, preAmp: 128)) / own - 1) < 0.01)
+}

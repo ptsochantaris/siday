@@ -729,7 +729,11 @@ channels and only an even number; files from later trackers have any number, and
 way. One thing is done as those later trackers did it. A sample can be in stereo in a file of theirs,
 its two sides one after the other, and to FastTracker that is one long sample: here the two sides are
 played together, the left side on the left and the right on the right, each as loud as the channel's
-place between them makes that side, as OpenMPT plays them. And they have
+place between them makes that side, as OpenMPT plays them. Such a file's own pre-amp, which ModPlug
+Tracker and OpenMPT keep at its end, makes it louder or quieter, as it does in OpenMPT, against
+the usual one of the way it asks its channels to be added up by; the ways themselves, which turn a
+whole tracker's files down together (see IT, below), are not followed, so that the middle file of
+each is as loud as the middle one of FastTracker's own. And they have
 commands of ModPlug Tracker's, which are played as OpenMPT plays them: Y, to sweep a channel from
 side to side, with X5 to choose its wave; and Z and the command after it, which send a macro, and
 that is how such a file sets a channel's filter, at once or a little at a time over a row. The
@@ -995,14 +999,18 @@ counted out of 64 and not out of 100, before 1.20. Of 300 such IT files set besi
 were nearer to it in where their sound sits between the speakers and 6 further, which with
 anything random is as near as two playings of one file come.
 
-Such a file is also as loud as OpenMPT plays it, beside another. OpenMPT has had several ways of
-adding a song's channels up, and a file says which it was made for. The oldest, which are ModPlug
-Tracker's own, turn a song down by the number of channels it has, by a table; the one of version
-1.17 is twice as loud as Impulse Tracker and puts a channel that is to one side at no more than
-one in the middle; the later ones are as loud as Impulse Tracker is. A file read as ModPlug
-Tracker's that does not say is played the oldest way. The count of channels is OpenMPT's: those
-the patterns use, or those the file says it has, if that is more. Before this, such files came
-out anywhere from six decibels quieter than OpenMPT has them to nine louder.
+How loud such a file is follows OpenMPT only as far as that keeps it about as loud as every other
+tune here, which comes first: a loud tune is to be loud whatever kind of file it is, and a quiet one
+quiet. A file's own pre-amp, the composer's, is followed. OpenMPT has also had several ways of
+adding a song's channels up, and a file says which it was made for. The oldest, ModPlug Tracker's
+own, turns a song down by the number of channels it has, by a table, and leaves such files some
+8 dB below the rest; and over the files to hand, the fewer their channels the louder it leaves them
+beside the others. So that way is not followed, and the turning down that the player this one is
+ported from gives ModPlug Tracker's own files is taken out again. The ways of OpenMPT 1.17, of
+which one is twice as loud as Impulse Tracker and puts a channel that is to one side at no more
+than one in the middle, are followed, and measured so they leave their files as loud as the rest.
+Measured over three hundred ModPlug Tracker and OpenMPT files and three hundred others, the middle
+file of every way is now within about a decibel of the middle IT file, and of the middle XM file.
 
 All of that was checked by setting every sounding channel's filter beside libopenmpt's on every
 tick of a file's first minute: whether it is on, and the three numbers it is worked by. Of the 215
