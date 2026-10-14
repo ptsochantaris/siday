@@ -1397,6 +1397,7 @@ final class IT2Player {
             UpdateAutoVibrato(sc)
             if tunings { openMPTTunedPitch(sc) }
             if module.openMPT != nil { openMPTBend(sc) }
+            if reverbs, sc.pointee.HostChnNum & CHN_DISOWNED == 0, let hc = sc.pointee.HostChnPtr { sc.pointee.Reverb = hc.pointee.Reverb }
         }
     }
 
@@ -1423,6 +1424,7 @@ final class IT2Player {
                 }
             }
             UpdateAutoVibrato(sc)
+            if reverbs, sc.pointee.HostChnNum & CHN_DISOWNED == 0, let hc = sc.pointee.HostChnPtr { sc.pointee.Reverb = hc.pointee.Reverb }
         }
     }
 
@@ -1496,6 +1498,8 @@ final class IT2Player {
     /// the ticks that SEx and S6x add.
     let tunings: Bool
     var tickOfRow = 0
+    /// True for a file whose patterns put channels in ModPlug's reverb, which is played (see `IT2Module.reverb`).
+    let reverbs: Bool
     /// True for a tick on which a row was read; and the plug-in settings that the row being played
     /// is sliding (see `openMPTParameterNotes`).
     var RowJustRead = false
@@ -1526,6 +1530,7 @@ final class IT2Player {
         adLib = sound?.adLib.map { OpenMPTAdLib(behaviour: $0) }
         fineFMPitch = adLib != nil && module.Flags & ITF_LINEAR_FRQ != 0
         tunings = module.Flags & ITF_INSTR_MODE != 0 && (0 ..< module.InsNum).contains { module.instrument($0).Tuning != nil }
+        reverbs = module.reverb != nil && !asImpulseTracker
         self.module = module
         midiSample = module.midiSample
         midiVoiceSample = module.midiVoiceSample
@@ -1546,7 +1551,8 @@ final class IT2Player {
         visited = .allocate(capacity: Self.rowsInAll(of: module))
         visited.initialize(repeating: false, count: Self.rowsInAll(of: module))
         // (An IT file that asks for OpenMPT's way of 1.17 of adding up has its way of placing channels too.)
-        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound, filter: asImpulseTracker ? .impulseTrackers : module.filter,
+        mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound, reverb: reverbs ? module.reverb : nil,
+                         filter: asImpulseTracker ? .impulseTrackers : module.filter,
                          softPanning: module.modPlugLevels.map { $0.mixLevels == 3 && !asImpulseTracker })
         mixer.adLib = adLib
         if forSound { mixer.playsPlugIns() }

@@ -1130,6 +1130,8 @@ extension IT2Player {
 
         case 0x90: // S91: surround
             InitNoCommand(hc)
+            // (And S98 and S99, in a file with ModPlug's own reverb, take a channel out of it and put it in.)
+            if reverbs, val == 8 || val == 9 { hc.pointee.Reverb = val == 9 }
             if val == 1 {
                 InitCommandX2(hc, PAN_SURROUND)
             } else if module.openMPT != nil {

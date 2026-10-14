@@ -211,6 +211,9 @@ struct IT2HostChannel {
     /// For an MPTM file: how far OpenMPT's finetune command bends the channel's notes, from the
     /// most down at -32,768 to the most up at 32,767 (see `IT2Player.openMPTBend`).
     var Bend: Int16 = 0
+    /// For a file of ModPlug Tracker's or OpenMPT's: true from S99, which sends the channel's notes
+    /// to ModPlug's own reverb, until S98 (see `IT2Module.reverb`).
+    var Reverb = false
 }
 
 /// What OpenMPT keeps on a channel playing an instrument with a tuning of its own, whose pitch it
@@ -277,8 +280,10 @@ struct IT2SlaveChannel {
     /// vibrato this tick, as a ratio less one, if it has one.
     var Tuned = IT2TunedChannel()
     var TunedAutoVibrato: Float?
-    /// For an MPTM file: its channel's `Bend` when it had the note last.
+    /// For an MPTM file: its channel's `Bend` when it had the note last; and for a file with a reverb,
+    /// its channel's `Reverb`.
     var Bend: Int16 = 0
+    var Reverb = false
     var AutoVibratoPos: UInt8 = 0
     var AutoVibratoDepth: UInt16 = 0
     var OldLeftVolume: Int32 = 0, OldRightVolume: Int32 = 0

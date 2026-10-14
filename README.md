@@ -1260,10 +1260,20 @@ its channel; what a plug-in makes goes to the listener or on to another plug-in;
 put on the whole sound; and how much of what it was given is heard beside what it makes, how the
 two are put together and how loud, are the file's to say. A tune can change a plug-in's settings as
 it plays, by a kind of note that is for nothing else or by a macro, and that is done; a change slid
-over a row is made in one step at its start. A plug-in that is not OpenMPT's own is left out as
+over a row is made a little at each of its ticks. A plug-in that is not OpenMPT's own is left out as
 OpenMPT leaves out one it cannot find: what was sent to it is heard as it is. An instrument that is
 nothing but such a plug-in is not heard, and a file whose notes are, half or more, for such
 instruments is refused.
+
+ModPlug Tracker's mixer had a reverb of its own, which is not a plug-in, and which OpenMPT keeps:
+S99 puts a channel's notes in it and S98 takes them out. It is here, carried over from OpenMPT's,
+and set beside it as the plug-ins were: given the same sound, in every one of its twenty-nine
+rooms and at four rates, it gives what OpenMPT's gives to the last bit. It is played in an MPTM
+file, and in an IT file of ModPlug Tracker's or OpenMPT's (Impulse Tracker has no S99, and in a file
+it saved the command is nothing). Of the 196 such files to hand, the sound of 78 comes nearer to
+libopenmpt's by its spectrum and 2 go further, and their two sides come nearer in 109 and go
+further in 9. (OpenMPT can also put every channel in the reverb, by a setting of its player's;
+that is the listener's to choose, not the file's, and is not done here.)
 
 And an instrument can be tuned to a scale of its own: a temperament, twelve steps to the octave
 that are not quite equal, or a scale with more or fewer steps than twelve (nineteen, twenty-two,

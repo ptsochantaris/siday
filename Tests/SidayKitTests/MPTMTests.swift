@@ -659,11 +659,12 @@ private func ways(without left: Int...) -> Song {
     // What is said is only what the file uses.
     let unused = mptm([Pattern([(0, 0, .note())])], samples: [.sound(square, loops: true), .fm], instruments: [(1, [], 0), (2, [], 0)])
     #expect(try player(unused).info.shortfalls.isEmpty)
-    // The reverb is left out. (A command that bends a pitch, and a macro slid over a row, are
-    // played, and so are nothing to speak of.)
-    let commands = Pattern([(0, 0, .note()), (1, 0, Cell(command: "^", value: 1)), (2, 0, .command("\\", 0x10)), (3, 0, .command("S", 0x99))])
+    // What it asks of four speakers is left out. (A command that bends a pitch, a macro slid over a
+    // row, and the reverb, are played, and so are nothing to speak of.)
+    let commands = Pattern([(0, 0, .note()), (1, 0, Cell(command: "^", value: 1)), (2, 0, .command("\\", 0x10)), (3, 0, .command("S", 0x99)),
+                            (4, 0, .command("S", 0x9B))])
     let said = try player(mptm([commands])).info.shortfalls
-    #expect(said == ["Its reverb is left out."])
+    #expect(said == ["What it asks of four speakers, and of filters on its whole sound, is left out."])
 }
 
 @Test func mptmVibratoStartsFromTheTopWithEveryNote() throws {
@@ -676,6 +677,21 @@ private func ways(without left: Int...) -> Song {
     let after = try rates([(0, 0, .note(60, "H", 0x48)), (1, 0, .command("H", 0)), (4, 0, .note()), (6, 0, .command("H", 0x48))])
     let alone = try rates([(4, 0, .note()), (6, 0, .command("H", 0x48))])
     #expect(after[24] == 8363 && Array(after[36 ..< 42]) == Array(alone[36 ..< 42]) && after[37] != 8363)
+}
+
+@Test func mptmChannelPutInTheReverbIsHeardInIt() throws {
+    // A note cut on its third row: with S99 the reverb goes on after it, with S98 or without either
+    // there is nothing then; and the shortfalls say nothing of it.
+    func tail(_ command: UInt8?) throws -> Float {
+        var cells: [(row: Int, channel: Int, cell: Cell)] = [(0, 0, .note()), (2, 0, Cell(note: 254))]
+        if let command { cells[0].cell = .note(60, "S", command) }
+        let renderer = try player(mptm([Pattern(cells)], instruments: [(1, [], 0)]))
+        #expect(renderer.info.shortfalls.isEmpty)
+        let sound = stereo(renderer, seconds: 1.5)
+        return loudness(sound.left[24000 ..< 48000]) + loudness(sound.right[24000 ..< 48000])
+    }
+    let dry = try tail(nil), off = try tail(0x98), wet = try tail(0x99)
+    #expect(dry < 0.0001 && off < 0.0001 && wet > 0.001)
 }
 
 @Test func mptmFinetuneBendsTheNoteAsFarAsItsInstrumentAllows() throws {

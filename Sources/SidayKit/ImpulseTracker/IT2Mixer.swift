@@ -112,6 +112,13 @@ final class IT2Mixer {
     // (see `ModPlugSound`); for any other, nil and false, and the tick is mixed as it always was.
     /// The song's plug-ins, which voices are sent through.
     private var plugIns: OpenMPTPlugIns?
+    /// ModPlug's own reverb, for a file that puts channels in it and a mixer whose sound is to be
+    /// heard: what the voices sent to it add up to in a tick, the mix's level as the reverb has it,
+    /// and whether anything was sent this tick.
+    private var reverb: ModPlugReverb?
+    private let reverbSend: UnsafeMutablePointer<Float>?
+    private let reverbScale: Float
+    private var reverbSent = false
     /// The FM chip, which the replayer sets and whose sound is added to the voices'.
     var adLib: OpenMPTAdLib?
     private let adLibLevel: Float
@@ -190,8 +197,10 @@ final class IT2Mixer {
 
     /// - Parameter softPanning: OpenMPT's way of 1.17 of placing a channel: one to a side is no
     ///   louder there than one in the middle. Nil for what the module's own song says, if it has one.
+    /// - Parameter reverb: for a file whose channels can be put in ModPlug's reverb, what its sound
+    ///   would be, for the level the reverb works at (see `IT2Module.reverb`).
     init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>, sound: ModPlugSound? = nil,
-         filter: IT2Module.Filter = .impulseTrackers, softPanning: Bool? = nil) {
+         reverb: ModPlugSound? = nil, filter: IT2Module.Filter = .impulseTrackers, softPanning: Bool? = nil) {
         self.filter = filter
         globalVolumeAtMaster = sound?.globalVolumeAtMaster ?? false
         sChn = voices
@@ -256,6 +265,17 @@ final class IT2Mixer {
             return sound
         }
         adLibLevel = (sound?.adLibLevel ?? 1) / (level > 0 ? level : 1)
+        if let reverb {
+            // (OpenMPT's mix is of 32-bit whole numbers, with 27 bits for a sample at its loudest.)
+            var level = reverb.level
+            if reverb.levelIsTheMixers { level *= MixGain * (1.0 / 32768.0) }
+            reverbScale = (level > 0 ? level : 1) * Float(1 << 27)
+            reverbSend = .allocate(capacity: mixCapacity)
+            reverbSend?.initialize(repeating: 0, count: mixCapacity)
+        } else {
+            reverbScale = 1
+            reverbSend = nil
+        }
 
         // The original has no HQ_FixSamples: nothing is written about the samples' ends until a voice
         // is mixed. What voices have written there is cleared, though, so that a tune starts as it does
@@ -266,6 +286,7 @@ final class IT2Mixer {
     deinit {
         fMixBuffer.deallocate()
         fMutedBuffer?.deallocate()
+        reverbSend?.deallocate()
         SamplesPerTickInt.deallocate()
         SamplesPerTickFrac.deallocate()
         QualityFactorTable.deallocate()
@@ -387,6 +408,7 @@ final class IT2Mixer {
     /// long a tune is has no use for them.
     func playsPlugIns() {
         if plugIns == nil, let sound { plugIns = OpenMPTPlugIns(sound) }
+        if reverb == nil, reverbSend != nil { reverb = ModPlugReverb(sampleRate: outputSampleRate) }
     }
 
     /// Sets one of the settings of the plug-in in a place, counted from nought, while the tune
@@ -565,6 +587,10 @@ final class IT2Mixer {
                 notes.pitches[channel] = 0
             }
             plugIns?.begin(frames: Int(RealBytesToMix))
+            if reverb != nil, let reverbSend {
+                reverbSend.update(repeating: 0, count: Int(RealBytesToMix) * 2)
+                reverbSent = false
+            }
             // (What the voices that are left out add up to is thrown away tick by tick.)
             if mutedChannels != 0 { fMutedBuffer?.update(repeating: 0, count: Int(RealBytesToMix) * 2) }
         }
@@ -761,6 +787,9 @@ final class IT2Mixer {
                     place = plugIns.place(instrumentPlugIn: ofInstrument, channel: Int(sc.pointee.HostChnNum & 63))
                     plugIns.voiceMixed()
                 }
+                // (Or to what is sent to the reverb, for a voice put in it, unless it goes to a plug-in.)
+                let reverbed = place < 0 && !muted && sc.pointee.Reverb && reverb != nil
+                if reverbed { reverbSent = true }
 
                 if Int32(bitPattern: LoopLength) > 0, let s, let Data = s.Data {
                     // Where the sample's memory begins and ends, at the width the voice reads it at.
@@ -775,6 +804,7 @@ final class IT2Mixer {
 
                     var fMixBufferPtr = fMixBuffer
                     if place >= 0, let plugIns { fMixBufferPtr = plugIns.buffer(ofPlace: place) }
+                    if reverbed, let reverbSend { fMixBufferPtr = reverbSend }
                     if muted, let fMutedBuffer { fMixBufferPtr = fMutedBuffer }
                     if sc.pointee.LoopMode == LOOP_PINGPONG {
                         while MixBlockSize > 0 {
@@ -833,7 +863,9 @@ final class IT2Mixer {
                                         fLastLeftValue = left
                                         fLastRightValue = right
                                         // (Nothing of a voice that is left out goes on.)
-                                        if place < 0, !muted {
+                                        if reverbed {
+                                            reverbOffset(left, right)
+                                        } else if place < 0, !muted {
                                             fLastClickRemovalLeft += left
                                             fLastClickRemovalRight += right
                                         } else if place >= 0 {
@@ -932,7 +964,9 @@ final class IT2Mixer {
 
                                 // and what is left of it then goes on into the ticks after. (Nothing
                                 // of a voice that is left out does.)
-                                if place < 0, !muted {
+                                if reverbed {
+                                    reverbOffset(left, right)
+                                } else if place < 0, !muted {
                                     fLastClickRemovalLeft += left
                                     fLastClickRemovalRight += right
                                 } else if place >= 0 {
@@ -952,11 +986,45 @@ final class IT2Mixer {
             sc.pointee.Flags &= ~(SF_RECALC_PAN | SF_RECALC_VOL | SF_FREQ_CHANGE | SF_UPDATE_MIXERVOL | SF_NEW_NOTE | SF_NOTE_STOP | SF_LOOP_CHANGED | SF_PAN_CHANGED)
         }
 
-        if !silent, adLib != nil || plugIns != nil { finishTick(fMixBuffer, Int(RealBytesToMix)) }
+        if !silent, adLib != nil || plugIns != nil || reverb != nil { finishTick(fMixBuffer, Int(RealBytesToMix)) }
+    }
+
+    /// What is left of a voice in the reverb when it ends, which the reverb lets die away, as OpenMPT
+    /// lets it die away in what is sent to the reverb.
+    private func reverbOffset(_ left: Float, _ right: Float) {
+        guard let reverb else { return }
+        reverb.leftOffset &+= Int32((left * reverbScale).rounded())
+        reverb.rightOffset &+= Int32((right * reverbScale).rounded())
+    }
+
+    /// Adds ModPlug's reverb to a tick: of what was sent to it, block by block as OpenMPT makes its mix.
+    private func addReverb(_ fMixBuffer: UnsafeMutablePointer<Float>, _ frames: Int) {
+        guard let reverb, let reverbSend else { return }
+        let scale = reverbScale, back = 1 / reverbScale
+        withUnsafeTemporaryAllocation(of: Int32.self, capacity: ModPlugReverb.maxFrames * 2) { added in
+            guard let added = added.baseAddress else { return }
+            var done = 0
+            while done < frames {
+                let count = min(ModPlugReverb.maxFrames, frames - done)
+                let send = reverb.sendBuffer
+                if reverbSent {
+                    reverb.touch(send: send, frames: count)
+                    let from = reverbSend + done * 2
+                    for i in 0 ..< count * 2 { send[i] &+= Int32(max(-2.0e9, min(2.0e9, (from[i] * scale).rounded()))) }
+                }
+                // (What the reverb gives is only ever added to the mix, so it is given nothing to add to.)
+                added.update(repeating: 0, count: count * 2)
+                reverb.process(main: added, send: send, frames: count)
+                let to = fMixBuffer + done * 2
+                for i in 0 ..< count * 2 { to[i] += Float(added[i]) * back }
+                done += count
+            }
+        }
     }
 
     /// What OpenMPT does to a tick once its voices are mixed, for a song that has the means: the FM
-    /// chip's sound is added, the whole is sent through the plug-ins, and the song's volume is applied.
+    /// chip's sound is added, and the reverb's, the whole is sent through the plug-ins, and the
+    /// song's volume is applied.
     private func finishTick(_ fMixBuffer: UnsafeMutablePointer<Float>, _ frames: Int) {
         if let adLib {
             adLib.leaveOut(mutedChannels, sChn)
@@ -971,6 +1039,7 @@ final class IT2Mixer {
                 }
             }
         }
+        addReverb(fMixBuffer, frames)
         plugIns?.process(master: fMixBuffer, frames: frames)
         guard globalVolumeAtMaster else { return }
         // The song's volume, reached over a moment so that a change of it makes no click.

@@ -1152,7 +1152,6 @@ enum MPTMFile {
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
         if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
-        if reverbs > 0 { shortfalls.append("Its reverb is left out.") }
         if speakerCommands > 0 { shortfalls.append("What it asks of four speakers, and of filters on its whole sound, is left out.") }
 
         // MARK: The rest
@@ -1232,6 +1231,7 @@ enum MPTMFile {
                                speed: openMPT.sequences[0].speed, tempo: UInt8(min(255, openMPT.sequences[0].tempo / OpenMPTSong.tempoUnit)),
                                channelPans: pans, channelVolumes: volumes, patterns: packed, rows: rowCounts,
                                ways: ways)
+        if reverbs > 0 { module.reverb = sound }
         return ITRenderer(module: module, format: "MPTM", shortfalls: shortfalls, options: options)
     }
 

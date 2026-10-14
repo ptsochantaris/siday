@@ -215,6 +215,10 @@ final class IT2Module {
     /// What a file of ModPlug Tracker's or OpenMPT's has to be heard besides its samples, if it has
     /// any: plug-ins that are played, and instruments for the FM chip. Nil for every other module.
     let sound: ModPlugSound?
+    /// For a file of ModPlug Tracker's or OpenMPT's whose patterns put ModPlug's own reverb on a
+    /// channel (S99): what its sound would be, for the level of the mix that the reverb works at
+    /// (see `ModPlugReverb`). Nil for every other module, and for a file that has no reverb.
+    var reverb: ModPlugSound?
     /// For an IT file that ModPlug Tracker or OpenMPT made: which of OpenMPT's ways of adding the
     /// channels up it is played by (0 to 2 its oldest, which are quieter the more channels a song
     /// has; 3 that of its version 1.17, which is twice as loud; 4 and 5 those that are as loud as
@@ -669,9 +673,41 @@ final class IT2Module {
             sound.adLibLevel = ModPlugSound.adLibLevel(synthVolume: extras.synthVolume ?? 48)
             if samples.contains(where: { $0.AdLib != nil }) { sound.adLib = OpenMPTAdLib.Behaviour() }
             self.sound = sound.adLib != nil || sound.sendsToPlugIns(instruments: plugInOf) ? sound : nil
+            if patternsHaveCommand(19, value: 0x99) { reverb = sound }
         } else {
             self.sound = nil
         }
+    }
+
+    /// True if a command with this number and value is anywhere in the patterns.
+    func patternsHaveCommand(_ command: UInt8, value: UInt8) -> Bool {
+        for index in 0 ..< patternLimit where hasPattern(index) {
+            let pattern = pattern(index)
+            var masks = [UInt8](repeating: 0, count: 64)
+            var at = 0, row = 0
+            func next() -> UInt8 {
+                at += 1
+                return at <= pattern.data.count ? pattern.data[at - 1] : 0
+            }
+            while row < Int(pattern.rows), at < pattern.data.count {
+                let what = next()
+                if what == 0 {
+                    row += 1
+                    continue
+                }
+                let channel = (Int(what & 0x7F) - 1) & 63
+                if what & 0x80 != 0 { masks[channel] = next() }
+                let mask = masks[channel]
+                if mask & 1 != 0 { _ = next() }
+                if mask & 2 != 0 { _ = next() }
+                if mask & 4 != 0 { _ = next() }
+                if mask & 8 != 0 {
+                    let found = next(), with = next()
+                    if found == command, with == value { return true }
+                }
+            }
+        }
+        return false
     }
 
     /// A module that did not come from an IT file: one of another tracker's, set down as Impulse
