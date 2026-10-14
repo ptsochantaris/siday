@@ -95,8 +95,8 @@ public final class MEDRenderer: Renderer {
         var info = TuneInfo(format: "MED")
         info.title = module.songs[0].title
         info.comment = module.comment
-        info.detail = "MMD\(module.songs[0].version)"
-        info.shortfalls = Self.shortfalls(of: module)
+        info.detail = module.firstFormat?.detail ?? "MMD\(module.songs[0].version)"
+        info.shortfalls = (module.firstFormat?.shortfalls ?? []) + Self.shortfalls(of: module)
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is, and to find the songs
