@@ -820,7 +820,10 @@ Blaster, whose channels are each to one side, or in a file in mono, they are mix
 three commands that Scream Tracker passes over and the trackers after it play, in an S3M file as
 in any: M, which sets a channel's volume, N, which slides it, and W, which slides the volume of the
 whole tune. Those are played, as OpenMPT plays them, in a file that Scream Tracker did not save; in
-one that it did save they are nothing, as they were to it and to whoever made the tune there.
+one that it did save they are nothing, as they were to it and to whoever made the tune there. Two
+more of theirs are not played on Scream Tracker's cards, and such a file says so: Z, which sets a
+filter that neither card has, and S99, which puts a channel in ModPlug's own reverb (played in an
+IT, MPTM or XM file of those trackers; ten S3M files to hand ask for it).
 `siday --raw file.raw tune.s3m` writes what st3play writes to a file, a stereo sample's left side only. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.

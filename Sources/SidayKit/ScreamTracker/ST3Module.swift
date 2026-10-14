@@ -250,7 +250,9 @@ final class ST3Module {
 
     /// The command of later trackers that is found in S3M files and is not played, by its number
     /// (a command's letter, counted from A as 1) and by what it does: Z, which sets a filter that
-    /// Scream Tracker's sound cards have not got.
+    /// Scream Tracker's sound cards have not got. (And S99, which puts a channel in ModPlug's own
+    /// reverb: that is played in an IT, MPTM or XM file of ModPlug Tracker's or OpenMPT's, but not
+    /// on Scream Tracker's cards, and is said to be left out.)
     ///
     /// Others are not counted. M, N and W, a channel's volume and the slides of it and of the
     /// whole tune's, are played in a file that a later tracker made (see
@@ -261,7 +263,7 @@ final class ST3Module {
     /// Tracker, and all it loses is where its channels are; a mark on so many files would say
     /// little about any of them.
     private static let commandsOfLaterTrackers: [UInt8] = [26]
-    private static let whatTheyDo = ["the setting of a filter"]
+    private static let whatTheyDo = ["the setting of a filter", "ModPlug's reverb"]
 
     /// Looks over the file for what its patterns use that is not played as the file asks, and
     /// says so in `shortfalls`. Nothing that is played is changed by it.
@@ -280,6 +282,7 @@ final class ST3Module {
                 if what & 0x40 != 0 { at += 1 }
                 if what & 0x80 != 0 {
                     if at < pattern.count, !madeByScreamTracker, let kind = Self.commandsOfLaterTrackers.firstIndex(of: pattern[at]) { commands.note(kind) }
+                    if at + 1 < pattern.count, !madeByScreamTracker, pattern[at] == 19, pattern[at + 1] == 0x99 { commands.note(1) }
                     at += 2
                 }
             }

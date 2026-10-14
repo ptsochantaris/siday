@@ -317,6 +317,10 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x40])))
         == ["One of its commands is left out, which Scream Tracker did not have: the setting of a filter."])
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 26, 0x40])).isEmpty)
+    // Nor is ModPlug's reverb (S99), which only a later tracker's file can ask for.
+    #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])))
+        == ["One of its commands is left out, which Scream Tracker did not have: ModPlug's reverb."])
+    #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 19, 0x99])).isEmpty)
     // Where a channel is put (X) is not counted: too many files have it, and lose little by it.
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 24, 0x40])).isEmpty)
 
