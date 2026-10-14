@@ -23,7 +23,8 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length, empty: $0.empty) } }
     public var knownLength: Double? { songList[currentSubsong].length }
     public var endsByLooping: Bool { true }
-    public var hasEnded: Bool { player.stopped }
+    /// A song that stops itself, or runs off the end of the list into another: see `FT2Player.over`.
+    public var hasEnded: Bool { player.stopped || player.over }
 
     private let module: FT2Module
     private let songList: [ModuleSongs.Song]

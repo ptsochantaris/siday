@@ -72,6 +72,9 @@ final class IT2Player {
     private var metEarlierSong = false
     private(set) var ledIntoEarlierSong = false
     private var offTheEnd = false
+    /// True once the song has run off the end of the list of patterns, into a song before it: it is
+    /// over, and no more of it is read. What is sounding then is left to die away.
+    private(set) var over = false
     /// How many places the list of patterns has, and how many rows of each are kept track of in the
     /// table of who played a row first: 256 of each, but for an MPTM file, whose list can be longer
     /// and whose patterns have up to 1024 rows. (A pattern of any other file can be longer than
@@ -1006,6 +1009,8 @@ final class IT2Player {
         for i in 0 ..< MAX_HOST_CHANNELS {
             hChn[i].Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX | HF_ROW_UPDATED | HF_UPDATE_VOLEFX_IF_CHAN_ON)
         }
+        // (The row a song that is over has come to is another song's, and is not read.)
+        if over { return }
         let orderBefore = ProcessOrder, breakBefore = BreakRow
         var onTheRow: UInt64 = 0
         while true {
@@ -1357,7 +1362,8 @@ final class IT2Player {
                 sc.pointee.Flags |= SF_FREQ_CHANGE
             }
         }
-        UpdateData()
+        // A song that is over reads no more rows: its notes go on, envelopes and fades and all.
+        if !over { UpdateData() }
         // (An MPTM file keeps time in OpenMPT's ways, and its tick is as long as they make it.)
         if let song = module.openMPT { mixer.setTickFrames(openMPTTickFrames(song)) }
         if module.Flags & ITF_INSTR_MODE != 0 { UpdateInstruments() } else { UpdateSamples() }
@@ -1565,6 +1571,7 @@ final class IT2Player {
                 // Off the end of the list and round to its top, which a song before this one played:
                 // this one is over.
                 cameRound = true
+                over = true
                 visited.update(repeating: false, count: orderRoom * rowRoom)
             } else {
                 // On into what a song before this one played, which from here is part of this one.

@@ -222,8 +222,13 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     #expect(abs(renderer.knownLength! - 7.68) < 0.01)
     let sound = stereoSound(renderer, seconds: 8).left
     #expect(abs(crossings(sound[4800 ..< 48000]) * 10 / 9 - 261) <= 2)
-    // It is over where it runs off the end of the list, into the first song.
+    // It is over where it runs off the end of the list, into the first song: it ends there, and is
+    // not faded out over the first song as a song that comes round to itself is.
     #expect(renderer.loopCount == 1)
+    #expect(renderer.hasEnded)
+    #expect(abs(sessionLength(try TuneLoader.load(s3m(orders: [0, 255, 0, 255]), format: .s3m), song: 1) - 7.68) < 0.4)
+    // (The first song, which comes round to itself, is faded out as it goes on, for as long as it lasts.)
+    #expect(sessionLength(try TuneLoader.load(s3m(orders: [0, 255, 0, 255]), format: .s3m), song: 0) > 12)
 
     // A place in the list that a jump passes over only leads back into the song, and is not one.
     let jump: [UInt8] = [0x20, 0x40, 1, 0] + [UInt8](repeating: 0, count: 62) + [0x80, 2, 0]
@@ -394,4 +399,13 @@ private func levels(_ renderer: any Renderer) -> [Float] {
     renderer.setMuted([])
     renderer.select(subsong: 0)
     #expect(stereoSound(renderer, seconds: 0.5).left == wholeSound)
+}
+
+/// How long a session plays a song of a tune for, in seconds, with the tune played once through.
+private func sessionLength(_ renderer: any Renderer, song: Int) -> Double {
+    renderer.select(subsong: song)
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    var block = [Float](repeating: 0, count: 1024)
+    while !session.finished, session.elapsed < 60 { _ = block.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 512) } }
+    return session.elapsed
 }

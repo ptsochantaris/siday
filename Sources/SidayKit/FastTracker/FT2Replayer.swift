@@ -1276,8 +1276,17 @@ extension FT2Player {
             tickZero = true
         }
 
+        // (A song that is over reads no more rows, and its notes go on as they are, envelopes and all.)
+        if over {
+            for i in 0 ..< Int(song.antChn) { fixaEnvelopeVibrato(stm[i]) }
+            return
+        }
         if tickZero, song.pattDelTime2 == 0 {
             rowIsRead()
+            if over {
+                for i in 0 ..< Int(song.antChn) { fixaEnvelopeVibrato(stm[i]) }
+                return
+            }
             let row = module.patt[Int(UInt8(truncatingIfNeeded: song.pattNr))]
             let first = Int(song.pattPos) * Int(song.antChn)
             for i in 0 ..< Int(song.antChn) {

@@ -181,7 +181,9 @@ its own line as it starts.
   each ending in a jump back to its own start. Whatever the list of patterns holds that playing from
   its top never reaches is played from there as another song, and so on until nothing is left. A
   song is over when it comes round to where it has itself been. It may get there by way of a song
-  found before it: another beginning for a tune goes on as the tune does. A piece that only leads
+  found before it: another beginning for a tune goes on as the tune does. One that runs off the end
+  of the list of patterns, which the tracker would have started again from the top, where another
+  song is, stops there instead, with what is sounding left to die away. A piece that only leads
   into an earlier song is not counted unless it is half a minute long before it gets there, nor one
   with no note in it or shorter than a second; where the first song is such a nothing, the first
   real one is played.

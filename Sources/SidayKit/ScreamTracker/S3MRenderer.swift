@@ -16,6 +16,8 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     public private(set) var info: TuneInfo
     public private(set) var loopCount = 0
     public var endsByLooping: Bool { true }
+    /// A song that runs off the end of the list into another is over there: see `ST3Player.over`.
+    public var hasEnded: Bool { player.over }
     public var subsongCount: Int { songList.count }
     public private(set) var currentSubsong = 0
     public var defaultSubsong: Int { ModuleSongs.first(of: songList.map { $0.empty }) }

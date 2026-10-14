@@ -107,6 +107,10 @@ public final class ST3Player {
     /// the end of the list of patterns and starting at its top again.
     private(set) var ledIntoEarlierSong = false
     private var offTheEnd = false
+    /// True once the song has run off the end of the list of patterns, into a song before it: it is
+    /// over, and no more of it is read. (Scream Tracker would have started the list again from its
+    /// top, which is another song's.) What is sounding then is left to die away.
+    private(set) var over = false
     /// How many rows the table of who played a row first has: 64 for each of 256 places.
     static let rowsInAll = 256 * 64
     /// True for a module with no pattern to play.
@@ -301,7 +305,7 @@ public final class ST3Player {
     }
 
     func dorow() {
-        if np_pat == 255 { return } // a song with no patterns
+        if np_pat == 255 || over { return } // a song with no patterns, or one that is over
         patmusicrand = UInt16(truncatingIfNeeded: ((UInt32(patmusicrand) &* 0xCDEF) >> 16) &+ 0x1727)
 
         if musiccount == 0 {
@@ -383,6 +387,7 @@ public final class ST3Player {
                 // Off the end of the list and round to its top, which a song before this one played:
                 // this one is over.
                 cameRound = true
+                over = true
                 visited.update(repeating: false, count: 256 * 64)
             } else {
                 // On into what a song before this one played, which from here is part of this one.
@@ -483,6 +488,8 @@ public final class ST3Player {
             ch.cmd = 0
             ch.info = 0
         }
+        // (The row a song that is over has come to is another song's, and is not played.)
+        if over { return }
         seekpat()
         while true {
             let channel = getnote1()

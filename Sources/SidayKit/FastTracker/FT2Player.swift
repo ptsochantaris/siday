@@ -92,6 +92,9 @@ final class FT2Player {
     /// the end of the list of patterns and starting again where the file says to.
     private(set) var ledIntoEarlierSong = false
     var offTheEnd = false
+    /// True once the song has run off the end of the list of patterns, into a song before it: it is
+    /// over, and no more of it is read. What is sounding then is left to die away.
+    private(set) var over = false
     /// How many rows the table of who played a row first has: 256 for each of 256 places.
     static let rowsInAll = 256 * 256
     /// True once the song has stopped itself, with a speed of nothing.
@@ -190,6 +193,7 @@ final class FT2Player {
                 // Off the end of the list and round to its top, which a song before this one played:
                 // this one is over.
                 cameRound = true
+                over = true
                 visited.update(repeating: false, count: 256 * 256)
             } else {
                 // On into what a song before this one played, which from here is part of this one.

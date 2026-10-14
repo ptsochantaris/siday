@@ -112,6 +112,9 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
     two.select(subsong: 1)
     #expect(abs(two.knownLength! - 7.68) < 0.01)
     #expect(stereo(two, seconds: 0.5).left[4800...].map(abs).max()! > 0.02)
+    // It is over where it runs off the end of the list into the first song, and ends there.
+    #expect(abs(sessionLength(try TuneLoader.load(it(orders: [0, 255, 0, 255]), format: .it), song: 1) - 7.68) < 0.4)
+    #expect(sessionLength(try TuneLoader.load(it(orders: [0, 255, 0, 255]), format: .it), song: 0) > 12)
 }
 
 @Test func itFilterTakesTheEdgeOffASquareWave() throws {
@@ -467,4 +470,13 @@ private func played(_ renderer: any Renderer, seconds: Double = 0.5) -> (left: [
     let after = played(late, seconds: 0.1)
     #expect(before.right == Array(whole.right[..<9600]) && during.right.allSatisfy { $0 == 0 } && after.right == Array(whole.right[19200...]))
     #expect(before.left + during.left + after.left == whole.left)
+}
+
+/// How long a session plays a song of a tune for, in seconds, with the tune played once through.
+private func sessionLength(_ renderer: any Renderer, song: Int) -> Double {
+    renderer.select(subsong: song)
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    var block = [Float](repeating: 0, count: 1024)
+    while !session.finished, session.elapsed < 60 { _ = block.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 512) } }
+    return session.elapsed
 }
