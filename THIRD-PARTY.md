@@ -645,16 +645,19 @@ left set as OpenMPT leaves it; the chip itself is Nuked OPL3 (below) where OpenM
 note's pitch is Impulse Tracker's replayer's, which is not in every case OpenMPT's.
 
 `Sources/SidayKit/OpenMPT` has OpenMPT's own effects, which are its remakes of the effects that came
-with Windows as DirectX Media Objects, and one more: `OpenMPTEcho.swift`, `OpenMPTChorus.swift` (the
+with Windows as DirectX Media Objects, and three more: `OpenMPTEcho.swift`, `OpenMPTChorus.swift` (the
 chorus and both flangers), `OpenMPTGargle.swift`, `OpenMPTWavesReverb.swift`,
 `OpenMPTI3DL2Reverb.swift`, `OpenMPTDistortion.swift`, `OpenMPTParamEq.swift` and
 `OpenMPTCompressor.swift`, with `OpenMPTDMOUtils.swift`, from `soundlib/plugins/dmo/Echo.cpp`,
 `Chorus.cpp`, `Flanger.cpp`, `Gargle.cpp`, `WavesReverb.cpp`, `I3DL2Reverb.cpp`, `Distortion.cpp`,
 `ParamEq.cpp`, `Compressor.cpp` and `DMOUtils.cpp`; `OpenMPTDigiBoosterEcho.swift` from
-`soundlib/plugins/DigiBoosterEcho.cpp`; and `OpenMPTSymMODEcho.swift` from
-`soundlib/plugins/SymMODEcho.cpp`. `OpenMPTEffect.swift` is what they have in common
-(`soundlib/plugins/PlugInterface.h`). Changed from the originals: carried over from C++ to Swift,
-each as a class that is given sound and gives sound back and knows nothing of OpenMPT's mixer; their
+`soundlib/plugins/DigiBoosterEcho.cpp`; `OpenMPTSymMODEcho.swift` from
+`soundlib/plugins/SymMODEcho.cpp`; and `ModPlugReverb.swift`, the reverb of ModPlug's own mixer and
+not a plug-in, from `sounddsp/Reverb.cpp` and `Reverb.h` (its plain C path only: not the SSE2 one,
+nor the two functions for a reverb at half the rate, which the original never calls).
+`OpenMPTEffect.swift` is what the plug-ins have in common (`soundlib/plugins/PlugInterface.h`).
+Changed from the originals: carried over from C++ to Swift, each as a class that is given sound and
+gives sound back and knows nothing of OpenMPT's mixer; their
 delay lines are laid out once and nothing is allocated while they play; the six powers of 0.93 that
 set the lengths of the I3DL2 reverb's late delays are written out as the numbers they come to, so
 that no maths library can make a delay a sample longer or shorter; a few loops are written to go
