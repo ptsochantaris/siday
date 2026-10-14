@@ -239,6 +239,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .mtm, .dtm, .amf: false
             case .gdm, .ptm, .ult, .c67: false
             case .mptm: false
+            case .mt2: false
             case .sfx, .okt: false
             case .composer669, .stm, .far: false
             default: true

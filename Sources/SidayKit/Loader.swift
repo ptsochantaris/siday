@@ -7,6 +7,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case mtm, dtm, amf
     case gdm, ptm, ult, c67
     case mptm
+    case mt2
     case sfx, okt
     case composer669 = "669"
     case stm
@@ -130,6 +131,9 @@ public enum TuneLoader {
             // OpenMPT's own kind of file, which is an IT file with more after it: Impulse Tracker's
             // replayer plays as much of it as it has been taught to.
             return try MPTMFile.renderer(data, options: options)
+        case .mt2:
+            // MadTracker 2's, which OpenMPT reads into the shape of an IT file: so it is here.
+            return try MT2File.renderer(data, options: options)
         case .cmf:
             return try CMFTune.renderer(data)
         case .rol:

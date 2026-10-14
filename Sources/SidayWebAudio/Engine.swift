@@ -100,6 +100,7 @@ final class WebPlayer {
                 || format == .mtm || format == .dtm || format == .amf
                 || format == .gdm || format == .ptm || format == .ult || format == .c67
                 || format == .mptm
+                || format == .mt2
                 || format == .sfx || format == .okt
                 || format == .composer669 || format == .far
             select(policy.firstSubsong(of: loaded))
