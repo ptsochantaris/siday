@@ -113,10 +113,10 @@ final class IT2Instrument {
     /// which changes them as OpenMPT does when it reads such a file). Nil where the file's own
     /// number stands.
     var RandVolAsModPlug: UInt8?, RandPanAsModPlug: UInt8?, PitchPanSepAsModPlug: UInt8?
-    /// For an MPTM file's instrument only, and of those only one tuned to a scale of its own that is
-    /// near enough the usual one to be played (see `MPTMFile`): what each of the 120 notes is to
-    /// middle C, where the usual tuning has a semitone between each and the next. Nil for the usual.
-    var Tuning: [Float]?
+    /// For an MPTM file's instrument only: the scale it is tuned to, if it has one of its own, whose
+    /// notes are played as OpenMPT plays them (see `IT2Player.openMPTTunedPitch`). Nil for the usual
+    /// one, played as Impulse Tracker plays it.
+    var Tuning: OpenMPTTuning?
     /// For a file of ModPlug Tracker's or OpenMPT's: the plug-in its notes are sent through, counted
     /// from 1; nought for none, which is all any other file's instrument has.
     var MixPlug: UInt8 = 0
@@ -202,6 +202,30 @@ struct IT2HostChannel {
     /// back when the next note comes, or nought for nothing to put back; and how far they were moved.
     var RestoreCutoff: UInt8 = 0, RestoreResonance: UInt8 = 0
     var CutSwing: Int16 = 0, ResSwing: Int16 = 0
+    /// For a note of an instrument with a tuning of its own (see `IT2Player.openMPTTunedPitch`):
+    /// the channel's part of what OpenMPT keeps for it.
+    var Tuned = IT2TunedChannel()
+}
+
+/// What OpenMPT keeps on a channel playing an instrument with a tuning of its own, whose pitch it
+/// works out from a note and a number of the tuning's fine steps from it, and not from a rate.
+struct IT2TunedChannel {
+    /// The note, as the row gave it, and as the instrument plays it.
+    var note: UInt8 = 60, played: UInt8 = 60
+    /// How many fine steps the slides have taken it from that note: kept from note to note until the
+    /// row names an instrument. And how far it is to go on a slide to a note, of which how far it has
+    /// gone on this row; and how far a fine slide had gone by the last tick.
+    var steps: Int32 = 0, slideLeft: Int32 = 0, slideRow: Int32 = 0, fineSlideDone: Int8 = 0
+    /// Fine steps from S2x, or from the pitch envelope.
+    var fine: Int32 = 0
+    /// True to work the pitch out again this tick, or at the first tick of the next row.
+    var again = false, againAtRow = false
+    /// This tick's vibrato, as a ratio, and arpeggio, in notes.
+    var vibrato: Float = 1, arpeggio: Int32 = 0
+    /// S1x: a slide to a note goes by whole notes.
+    var glissando = false
+    /// Where a vibrato has got to, of 64, in OpenMPT's own way of vibrato (see `OpenMPTSong.itVibrato`).
+    var vibratoPos: UInt8 = 0
 }
 
 /// Where an envelope has got to.
@@ -242,6 +266,11 @@ struct IT2SlaveChannel {
     var VolNoGlobal: UInt16 = 0
     var LeftVolume: Int32 = 0, RightVolume: Int32 = 0
     var Frequency: Int32 = 0, FrequencySet: Int32 = 0
+    /// For a note of an instrument with a tuning of its own: what its channel kept when it had the
+    /// note last (it is the voice's own once its channel goes on to another); and its sample's
+    /// vibrato this tick, as a ratio less one, if it has one.
+    var Tuned = IT2TunedChannel()
+    var TunedAutoVibrato: Float?
     var AutoVibratoPos: UInt8 = 0
     var AutoVibratoDepth: UInt16 = 0
     var OldLeftVolume: Int32 = 0, OldRightVolume: Int32 = 0

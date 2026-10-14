@@ -942,6 +942,9 @@ final class IT2Player {
             }
         }
 
+        // (For an instrument with a tuning of its own, the note is seen to as OpenMPT sees to it, now,
+        // or when a note that is put off comes.)
+        if tunings, !delaysNote(hc) { openMPTTunedRow(hc) }
         InitCommand(hc)
         // (And for a module of Digitrakker's, a place between the speakers that had no room.)
         if module.playsAsDigitrakker { digitrakkerRowPan(hc) }
@@ -951,6 +954,16 @@ final class IT2Player {
         if ChannelMuted, hc.pointee.Flags & HF_FREEPLAY_NOTE == 0, hc.pointee.Flags & HF_CHAN_ON != 0 {
             hc.pointee.SlaveChnPtr?.pointee.Flags |= SF_CHN_MUTED
         }
+    }
+
+    /// True if the row's note is put off to a later tick, by SDx or an MPTM file's :xy.
+    private func delaysNote(_ hc: IT2HostPointer) -> Bool {
+        guard hc.pointee.NotePackMask & 0x88 != 0 else { return false }
+        if hc.pointee.Cmd == 19 {
+            let value = hc.pointee.CmdVal != 0 ? hc.pointee.CmdVal : hc.pointee.EfxMem_S
+            return value & 0xF0 == 0xD0 && !(module.playsAsDigitrakker && value == 0xD0)
+        }
+        return hc.pointee.Cmd == 29 && module.openMPT != nil && hc.pointee.CmdVal >> 4 != 0
     }
 
     /// For a module whose slides to a note go on by themselves (`IT2Module.slidesToNotesCarryOn`):
@@ -1074,6 +1087,7 @@ final class IT2Player {
 
     /// One tick of the song.
     private func UpdateData() {
+        tickOfRow += 1
         ProcessTick &-= 1
         CurrentTick &-= 1
         if CurrentTick == 0 {
@@ -1122,6 +1136,7 @@ final class IT2Player {
                 }
                 CurrentRow = NewRow
                 ProcessRow = NewRow
+                tickOfRow = 0
                 UpdateNoteData()
             } else {
                 // A row held up by a delay: its effects are started again.
@@ -1153,6 +1168,7 @@ final class IT2Player {
             return
         }
         guard let smp = sc.pointee.SmpPtr, smp.AutoVibratoDepth != 0 else { return }
+        if tunings, sc.pointee.Ins != 0xFF, sc.pointee.InsPtr?.Tuning != nil { return openMPTTunedAutoVibrato(sc, smp) }
         if module.madTracker { return madTrackerAutoVibrato(sc, smp) }
         sc.pointee.AutoVibratoDepth &+= UInt16(asImpulseTracker ? smp.AutoVibratoRate : smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate)
         if sc.pointee.AutoVibratoDepth >> 8 > UInt16(smp.AutoVibratoDepth) {
@@ -1245,6 +1261,8 @@ final class IT2Player {
                 if module.playsAsDigitrakker {
                     // (Digitrakker's goes a little more than a third as far.)
                     digitrakkerPitchEnvelope(sc)
+                } else if ins.Tuning != nil, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
+                    if ins.PitchEnv.Flags & ENVF_ENABLED != 0 { openMPTTunedPitchEnvelope(sc) }
                 } else if ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     let EnvVal = Int16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.PitchEnvState.Value) >> 8) >> 3
                     if EnvVal != 0, let hc = sc.pointee.HostChnPtr {
@@ -1375,6 +1393,7 @@ final class IT2Player {
                 }
             }
             UpdateAutoVibrato(sc)
+            if tunings { openMPTTunedPitch(sc) }
         }
     }
 
@@ -1420,6 +1439,13 @@ final class IT2Player {
                 sc.pointee.Flags |= SF_FREQ_CHANGE
             }
         }
+        // (A tuned instrument's vibrato and arpeggio are the tick's own: see `openMPTTunedPitch`.)
+        if tunings {
+            for i in 0 ..< MAX_HOST_CHANNELS {
+                hChn[i].Tuned.vibrato = 1
+                hChn[i].Tuned.arpeggio = 0
+            }
+        }
         // A song that is over reads no more rows: its notes go on, envelopes and fades and all.
         if !over { UpdateData() }
         // (An MPTM file keeps time in OpenMPT's ways, and its tick is as long as they make it.)
@@ -1462,6 +1488,11 @@ final class IT2Player {
     let adLib: OpenMPTAdLib?
     /// True if the rate of a note for the FM chip is kept in sixteenths: see `OpenMPTAdLib.fineShift`.
     let fineFMPitch: Bool
+    /// True if an instrument has a tuning of its own (see `openMPTTunedPitch`); and how many ticks
+    /// the row has been playing, as OpenMPT counts them for such an instrument's slides, through
+    /// the ticks that SEx and S6x add.
+    let tunings: Bool
+    var tickOfRow = 0
     /// True for a tick on which a row was read; and the plug-in settings that the row being played
     /// is sliding (see `openMPTParameterNotes`).
     var RowJustRead = false
@@ -1491,6 +1522,7 @@ final class IT2Player {
         sound = asImpulseTracker ? nil : module.sound
         adLib = sound?.adLib.map { OpenMPTAdLib(behaviour: $0) }
         fineFMPitch = adLib != nil && module.Flags & ITF_LINEAR_FRQ != 0
+        tunings = module.Flags & ITF_INSTR_MODE != 0 && (0 ..< module.InsNum).contains { module.instrument($0).Tuning != nil }
         self.module = module
         midiSample = module.midiSample
         midiVoiceSample = module.midiVoiceSample

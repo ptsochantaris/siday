@@ -68,6 +68,10 @@ struct OpenMPTSong {
     /// sample for, which is to do nothing with the row: OpenMPT's own, until its version 1.32, was
     /// to leave the note out and do what else the row says.
     var unmappedNotesKeepCommands = true
+    /// True if vibratos are Impulse Tracker's, finer and by its tables; false for OpenMPT's own,
+    /// of ProTracker's sixty-four steps, which is so far followed only for an instrument with a
+    /// tuning of its own (see `openMPTTunedVibrato`).
+    var itVibrato = true
     /// True if a voice to one side of the middle is no louder on its nearer side than one in the
     /// middle is on both, and only quieter on its further one: OpenMPT's way since its version 1.17
     /// ("soft panning"). Impulse Tracker's, which OpenMPT also has, makes the nearer side louder.
@@ -402,12 +406,205 @@ extension IT2Player {
 
     // MARK: Tunings
 
-    /// The rate of a note of an instrument that has a tuning of its own: the sample's rate at middle
-    /// C by what the tuning makes of the note, rounded as OpenMPT rounds it. (A slide from there, or
-    /// an arpeggio, then moves by the usual tuning's steps and not by this one's.)
+    // An instrument with a tuning of its own (see `OpenMPTTuning`) is played as OpenMPT plays one,
+    // which is not as it plays any other: a note's pitch is not a rate that slides and vibratos
+    // move, but is worked out afresh from the note, the number of the tuning's fine steps the slides
+    // have taken it from there, and the tick's vibrato, whenever one of those has changed. A slide
+    // up or down moves it by so many fine steps a tick, a slide to a note by so many a row, an
+    // arpeggio by whole notes of the tuning, and a vibrato by a ratio of up to a twentieth either way.
+    // What OpenMPT keeps for this is kept on the channel (`IT2TunedChannel`), and in a copy on its
+    // voice, which is the voice's own once its channel goes on to another note.
+
+    /// The rate of a note of an instrument that has a tuning of its own, before anything has moved
+    /// it: the sample's rate at middle C by what the tuning makes of the note.
     func openMPTTunedFrequency(_ s: IT2Sample?, _ ratio: Float) -> Int32 {
         let rate = (Float(s?.C5Speed ?? 0) * ratio).rounded()
         return rate >= 0 && rate < 2_147_483_520 ? Int32(rate) : 0
+    }
+
+    /// The tuning of the instrument a channel has, if it has one of its own.
+    @inline(__always) func tuning(of hc: IT2HostPointer) -> OpenMPTTuning? {
+        guard tunings, hc.pointee.Ins >= 1, hc.pointee.Ins != 0xFF, Int(hc.pointee.Ins) <= module.InsNum else { return nil }
+        return module.instrument(Int(hc.pointee.Ins) - 1).Tuning
+    }
+
+    /// A row's note and instrument, for a channel whose instrument has a tuning of its own: an
+    /// instrument named puts the slides' fine steps back to none, and a note with a slide to it
+    /// leaves the pitch where it was and has the slide go from there.
+    func openMPTTunedRow(_ hc: IT2HostPointer) {
+        let mask = hc.pointee.NotePackMask
+        guard mask & 0x33 != 0, let tuning = tuning(of: hc) else { return }
+        let note = hc.pointee.RawNote
+        let slides = mask & 0x88 != 0 && (hc.pointee.Cmd == 7 || hc.pointee.Cmd == 12) || mask & 0x44 != 0 && hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
+        // (A slide to a note with nothing sounding is a note.)
+        let sliding = slides && hc.pointee.Flags & HF_CHAN_ON != 0
+        if mask & 0x22 != 0 {
+            hc.pointee.Tuned.fine = 0
+            hc.pointee.Tuned.slideLeft = 0
+            hc.pointee.Tuned.steps = 0
+            hc.pointee.Tuned.again = true
+        }
+        guard mask & 0x11 != 0, note < 120 else { return }
+        if sliding {
+            hc.pointee.Tuned.slideLeft = (Int32(hc.pointee.TranslatedNote) - Int32(hc.pointee.Tuned.note)) * Int32(tuning.fineSteps + 1) - hc.pointee.Tuned.steps
+            hc.pointee.Tuned.steps = -hc.pointee.Tuned.slideLeft
+        } else {
+            hc.pointee.Tuned.slideLeft = 0
+        }
+        hc.pointee.Tuned.note = note
+        hc.pointee.Tuned.played = hc.pointee.TranslatedNote
+        hc.pointee.Tuned.again = true
+        // (And a vibrato starts again from the top of its wave; in OpenMPT's own way, a quarter
+        // of the way along, but for a file with "old effects".)
+        if !sliding {
+            if module.openMPT?.itVibrato != false {
+                hc.pointee.VibratoPos = 0
+            } else {
+                hc.pointee.Tuned.vibratoPos = module.Flags & ITF_OLD_EFFECTS != 0 ? 0 : 0x10
+            }
+        }
+    }
+
+    /// Exx and Fxx (and the volume column's), for a channel whose instrument has a tuning of its
+    /// own: so many fine steps every tick, the first among them; EFx and FFx so many over the row,
+    /// a share each tick; and EEx and FEx so many now. Down is less than nought.
+    func openMPTTunedSlide(_ hc: IT2HostPointer, _ param: Int32, alwaysWhole: Bool = false) {
+        let size = abs(param), way: Int32 = param < 0 ? -1 : 1
+        if !alwaysWhole, size >= 0xF0 {
+            let param = way * (size - 0xF0)
+            if tickOfRow == 0 { hc.pointee.Tuned.fineSlideDone = 0 }
+            let share = Int32(Double(tickOfRow + 1) * Double(param) / Double(CurrentSpeed))
+            let done = Int32(hc.pointee.Tuned.fineSlideDone)
+            hc.pointee.Tuned.steps &+= param >= 0 ? share - done : share + done
+            hc.pointee.Tuned.fineSlideDone = Int8(truncatingIfNeeded: tickOfRow + 1 == Int(CurrentSpeed) ? abs(param) : abs(share))
+        } else if !alwaysWhole, size >= 0xE0 {
+            if tickOfRow == 0 { hc.pointee.Tuned.steps &+= way * (size - 0xE0) }
+        } else {
+            hc.pointee.Tuned.steps &+= param
+        }
+        hc.pointee.Tuned.again = true
+    }
+
+    /// A tick of Gxx, for a channel whose instrument has a tuning of its own: so many fine steps a
+    /// row (or whole notes, after S11), a share of them each tick, until the note is reached.
+    func openMPTTunedSlideToNote(_ hc: IT2HostPointer, _ param: UInt8) {
+        guard param != 0, let tuning = tuning(of: hc) else { return }
+        let before = tickOfRow != 0 ? hc.pointee.Tuned.slideRow : 0
+        let speed = Int32(param) * (hc.pointee.Tuned.slideLeft < 0 ? -1 : 1)
+        hc.pointee.Tuned.slideRow = Int32(Double(tickOfRow + 1) * Double(speed) / Double(CurrentSpeed))
+        if hc.pointee.Tuned.glissando { hc.pointee.Tuned.slideRow &*= Int32(tuning.fineSteps + 1) }
+        let slide = hc.pointee.Tuned.slideRow &- before
+        if abs(hc.pointee.Tuned.slideLeft) <= abs(slide) {
+            if hc.pointee.Tuned.slideLeft != 0 {
+                hc.pointee.Tuned.steps &+= hc.pointee.Tuned.slideLeft
+                hc.pointee.Tuned.slideLeft = 0
+                hc.pointee.Tuned.again = true
+            }
+        } else {
+            hc.pointee.Tuned.steps &+= slide
+            hc.pointee.Tuned.slideLeft &-= slide
+            hc.pointee.Tuned.again = true
+        }
+    }
+
+    /// A tick of vibrato, for a channel whose instrument has a tuning of its own: the wave's point,
+    /// of 64, at the depth OpenMPT has for it (or in OpenMPT's own way of vibrato, a point of its own). The pitch is worked out again at the next row's first
+    /// tick too, when the vibrato may be over.
+    func openMPTTunedVibrato(_ hc: IT2HostPointer, _ wave: Int8) {
+        let old = module.Flags & ITF_OLD_EFFECTS != 0
+        let depth = Int(hc.pointee.VibratoDepth) >> (old ? 1 : 0)
+        var wave = Int(wave)
+        if module.openMPT?.itVibrato == false {
+            // OpenMPT's own way: a wave of 64 steps and of 127 a side, moved on after it is read,
+            // and not on a row's first tick with "old effects".
+            let position = Int(hc.pointee.Tuned.vibratoPos) & 0x3F
+            switch hc.pointee.VibratoWaveform & 3 {
+            case 1: wave = (position < 32 ? 0 : 255) - position * 4
+            case 2: wave = position < 32 ? 127 : -127
+            case 3: wave = Int(openMPTRandomWave[position])
+            default: wave = Int(openMPTSineWave[position])
+            }
+            if tickOfRow != 0 || !old { hc.pointee.Tuned.vibratoPos &+= hc.pointee.VibratoSpeed >> 2 }
+        }
+        hc.pointee.Tuned.vibrato += 0.05 * Float(wave * depth) / (128 * 60)
+        hc.pointee.Tuned.again = true
+        hc.pointee.Tuned.againAtRow = tickOfRow + 1 == Int(CurrentSpeed)
+    }
+
+    /// A tick of Jxy, for a channel whose instrument has a tuning of its own: the note, then x
+    /// notes of the tuning higher, then y.
+    func openMPTTunedArpeggio(_ hc: IT2HostPointer) {
+        switch tickOfRow % 3 {
+        case 1: hc.pointee.Tuned.arpeggio = Int32(hc.pointee.EfxMem_J >> 4)
+        case 2: hc.pointee.Tuned.arpeggio = Int32(hc.pointee.EfxMem_J & 0x0F)
+        default: hc.pointee.Tuned.arpeggio = 0
+        }
+        hc.pointee.Tuned.again = true
+        hc.pointee.Tuned.againAtRow = true
+    }
+
+    /// A tick of an instrument's pitch envelope, for one with a tuning of its own: so many of the
+    /// tuning's fine steps, eight to each of the envelope's half-semitones. (The envelope's place,
+    /// which OpenMPT reads to 512 a side, is here to 65,536 times the half-semitones.)
+    func openMPTTunedPitchEnvelope(_ sc: IT2SlavePointer) {
+        let fine = (sc.pointee.PitchEnvState.Value &+ 4096) >> 13
+        if sc.pointee.HostChnNum & CHN_DISOWNED == 0, let hc = sc.pointee.HostChnPtr {
+            if hc.pointee.Tuned.fine != fine {
+                hc.pointee.Tuned.fine = fine
+                hc.pointee.Tuned.again = true
+            }
+        } else if sc.pointee.Tuned.fine != fine {
+            sc.pointee.Tuned.fine = fine
+            sc.pointee.Tuned.again = true
+        }
+    }
+
+    /// A tick of a sample's own vibrato, for a voice of an instrument that has a tuning of its own,
+    /// which OpenMPT plays at the sample's depth from the start and in a way of its own.
+    func openMPTTunedAutoVibrato(_ sc: IT2SlavePointer, _ smp: IT2Sample) {
+        sc.pointee.AutoVibratoPos &+= smp.AutoVibratoSpeed
+        let position = Int(sc.pointee.AutoVibratoPos)
+        let wave: Int
+        switch smp.AutoVibratoWaveform {
+        case 1: wave = ((0x40 - position / 2) & 0x7F) - 0x40 // a ramp down
+        case 2: wave = position & 128 != 0 ? 64 : -64 // a square
+        case 3: // at random, from a table
+            wave = Int(openMPTRandomWave[position & 0x3F])
+            sc.pointee.AutoVibratoPos &+= 1
+        case 4: wave = ((0x40 + position / 2) & 0x7F) - 0x40 // a ramp up
+        default: wave = -Int(it2FineSineData[position])
+        }
+        sc.pointee.TunedAutoVibrato = 0.05 * Float(Int(smp.AutoVibratoDepth) * wave) / 4096
+    }
+
+    /// A voice's pitch at the end of a tick, for an instrument with a tuning of its own: worked
+    /// out again if anything has moved it, from what its channel keeps (or, for a voice its
+    /// channel has let go of, what the voice kept).
+    func openMPTTunedPitch(_ sc: IT2SlavePointer) {
+        guard sc.pointee.Ins != 0xFF, let tuning = sc.pointee.InsPtr?.Tuning else { return }
+        let hc = sc.pointee.HostChnNum & CHN_DISOWNED == 0 ? sc.pointee.HostChnPtr : nil
+        if let hc { sc.pointee.Tuned = hc.pointee.Tuned }
+        var t = sc.pointee.Tuned
+        let auto = sc.pointee.TunedAutoVibrato
+        if t.again || auto != nil || (t.againAtRow && tickOfRow == 0) {
+            var vibrato = t.vibrato
+            if let auto { vibrato += auto }
+            let ratio = tuning.ratio(Int(t.played) - 60 + Int(t.arpeggio), fine: Int(t.fine &+ t.steps))
+            // (OpenMPT's rate has four bits of fraction, which a note for the FM chip keeps.)
+            let sixteenths = (Float(sc.pointee.SmpPtr?.C5Speed ?? 0) * vibrato * ratio * 16).rounded()
+            let rate = sixteenths >= 0 && sixteenths < 4_294_967_040 ? UInt32(sixteenths) : UInt32.max
+            let fine = fineFMPitch && sc.pointee.SmpPtr?.AdLib != nil
+            let frequency = Int32(truncatingIfNeeded: fine ? min(rate, UInt32(Int32.max)) : (rate &+ 8) >> 4)
+            if t.again || auto != nil { t.again = false } else { t.againAtRow = false }
+            sc.pointee.Frequency = frequency
+            sc.pointee.FrequencySet = frequency
+            sc.pointee.Flags |= SF_FREQ_CHANGE
+        }
+        t.vibrato = 1
+        t.arpeggio = 0
+        sc.pointee.Tuned = t
+        sc.pointee.TunedAutoVibrato = nil
+        if let hc { hc.pointee.Tuned = t }
     }
 
     // MARK: Envelopes

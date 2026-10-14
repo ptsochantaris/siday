@@ -688,16 +688,45 @@ private func ways(without left: Int...) -> Song {
     #expect(refusal(mptm([pattern], instruments: [(1, [], 0), (0, [], 0)])) == "")
 }
 
-@Test func mptmFileInAnotherTuningIsRefused() throws {
-    // Twelve equal steps to the octave is what every module has, and is played; nineteen is not.
-    let pattern = Pattern([(0, 0, .note())])
-    let twelve = mptm([pattern], instruments: [(1, [], 0)], tunings: [("twelve", 12)], tuned: [1])
-    #expect(try player(twelve).info.shortfalls.isEmpty)
-    let nineteen = mptm([pattern], instruments: [(1, [], 0)], tunings: [("nineteen", 19)], tuned: [1])
-    #expect(throws: TuneError.self) { try TuneLoader.load(nineteen, format: .mptm) }
-    // A tuning the file carries and no instrument uses is no reason to refuse it.
-    let carried = mptm([pattern], instruments: [(1, [], 0)], tunings: [("nineteen", 19)], tuned: [0])
-    #expect(try player(carried).info.shortfalls.isEmpty)
+@Test func mptmFileInAnotherTuningIsPlayedInIt() throws {
+    // Nineteen equal steps to the octave, each of sixteen fine steps: a note is the sample's rate at
+    // middle C by so many nineteenths of an octave.
+    func rates(_ cells: [(row: Int, channel: Int, cell: Cell)], seconds: Double = 2) throws -> [Int] {
+        let file = mptm([Pattern(cells)], instruments: [(1, [], 0)], tunings: [("nineteen", 19)], tuned: [1])
+        let renderer = try player(file)
+        #expect(renderer.info.shortfalls.isEmpty)
+        return renderer.ticks(seconds: seconds).map { $0.rates.max() ?? 0 }
+    }
+    func near(_ rate: Int, _ wanted: Double) -> Bool { abs(Double(rate) - wanted) <= 1 }
+    let step = pow(2.0, 1.0 / 19)
+    let notes = try rates([(0, 0, .note(60)), (4, 0, .note(61)), (8, 0, .note(79)), (12, 0, .note(57))])
+    #expect(notes[0] == 8363 && near(notes[24], 8363 * step) && near(notes[48], 8363 * 2) && near(notes[72], 8363 / pow(step, 3)))
+
+    // F01 slides up by a fine step every tick, the first of the row among them; so a row of six
+    // ticks and ten more of them (F0A) go sixteen fine steps, which is a whole step.
+    let up = try rates([(0, 0, .note(60)), (1, 0, .command("F", 1)), (2, 0, .command("F", 0x0A))])
+    #expect((7 ... 11).allSatisfy { up[$0] > up[$0 - 1] } && near(up[11], 8363 * pow(step, 6.0 / 16)))
+    #expect(near(up[12], 8363 * pow(step, 16.0 / 16)) && up[17] > up[12])
+    // FF8 goes eight fine steps over the row, a share each tick; FE3 three, at once.
+    let fine = try rates([(0, 0, .note(60)), (1, 0, .command("F", 0xF8)), (2, 0, .command("F", 0xE3))])
+    #expect(near(fine[11], 8363 * pow(step, 8.0 / 16)) && fine[7] < fine[11] && near(fine[12], 8363 * pow(step, 11.0 / 16)) && fine[17] == fine[12])
+
+    // An arpeggio is by whole steps of the scale.
+    let arpeggio = try rates([(0, 0, .note(60, "J", 0x35))])
+    #expect(arpeggio[0] == 8363 && near(arpeggio[1], 8363 * pow(step, 3)) && near(arpeggio[2], 8363 * pow(step, 5)) && arpeggio[3] == 8363)
+
+    // A slide to a note goes so many fine steps a row: G10 sixteen, half the way from 60 to 62.
+    let slide = try rates([(0, 0, .note(60)), (1, 0, .note(62, "G", 0x10)), (2, 0, .command("G", 0))])
+    #expect(slide[6] < slide[11] && near(slide[11], 8363 * step) && near(slide[17], 8363 * step * step) && slide[18] == slide[17])
+
+    // And a vibrato moves the pitch by up to a fortieth either way at its deepest.
+    let vibrato = try rates([(0, 0, .note(60, "H", 0x8F))], seconds: 0.5)
+    let highest = Double(vibrato.max()!), lowest = Double(vibrato.min()!)
+    #expect(highest > 8363 * 1.024 && highest <= 8363 * 1.025 + 1 && lowest < 8363 / 1.024 + 1 && lowest >= 8363 * 0.975 - 1)
+
+    // A tuning the file carries and no instrument uses changes nothing.
+    let carried = mptm([Pattern([(0, 0, .note())])], instruments: [(1, [], 0)], tunings: [("nineteen", 19)], tuned: [0])
+    #expect(try player(carried).ticks(seconds: 0.1).allSatisfy { $0.rates.max() == 8363 })
 }
 
 @Test func mptmChannelToOneSideIsNoLouderThanOneInTheMiddle() throws {
@@ -755,20 +784,16 @@ private func ways(without left: Int...) -> Song {
     var steps = equal
     steps[4] *= Float(pow(2.0, -0.14 / 12)) // an E fourteen hundredths flat
     steps[7] *= Float(pow(2.0, 0.02 / 12))
+    steps[9] *= Float(pow(2.0, 0.3 / 12)) // and an A further out than that
     let notes = Pattern([(0, 0, .note(60)), (4, 0, .note(64)), (8, 0, .note(79)), (12, 0, .note(52))])
     let file = mptm([notes], instruments: [(1, [], 0)], tunings: [("well tempered", 12)], tuned: [1], temperament: steps)
     let renderer = try player(file)
-    #expect(renderer.info.shortfalls == ["It is tuned to \"well tempered\", which is nowhere more than fourteen hundredths of a semitone from the usual tuning: "
-            + "its notes start at that tuning's pitches, and its slides and arpeggios move by the usual tuning's steps."])
+    #expect(renderer.info.shortfalls.isEmpty)
     // Each note's rate is the sample's own by what the tuning makes of the note.
     let rates = renderer.ticks(seconds: 2).enumerated().filter { $0.offset % 24 == 0 }.map { $0.element.rates.max() ?? 0 }
-    let wanted = [steps[0], steps[4], steps[7] * 2, steps[4] / 2].map { Int((8363 * $0).rounded()) }
-    #expect(Array(rates.prefix(4)) == wanted)
-    #expect(wanted[1] != Int((8363 * equal[4]).rounded()))
-    // One that is further out than a quarter of a semitone anywhere is still refused.
-    steps[9] *= Float(pow(2.0, 0.3 / 12))
-    let far = mptm([notes], instruments: [(1, [], 0)], tunings: [("far", 12)], tuned: [1], temperament: steps)
-    #expect(throws: TuneError.self) { try TuneLoader.load(far, format: .mptm) }
+    let wanted = [steps[0], steps[4], steps[7] * 2, steps[4] / 2].map { 8363 * Double($0) }
+    #expect(zip(rates.prefix(4), wanted).allSatisfy { abs(Double($0) - $1) <= 1 })
+    #expect(rates[1] != Int((8363 * equal[4]).rounded()))
 }
 
 // MARK: The FM chip

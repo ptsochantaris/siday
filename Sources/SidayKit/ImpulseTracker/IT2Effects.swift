@@ -110,15 +110,17 @@ extension IT2Player {
     }
 
     /// The rate a voice's sample is played at for a note (which is below 120). An instrument of an
-    /// MPTM file may have a tuning of its own, and then the note's rate is what that makes of it.
+    /// MPTM file may have a tuning of its own, and then the note's rate is what that makes of it
+    /// (and what the note does after that is worked out otherwise: see `openMPTTunedPitch`).
     @inline(__always) private func noteFrequency(_ sc: IT2SlavePointer, _ note: UInt8) -> Int32 {
         let s = sc.pointee.SmpPtr
         // (And a note for the FM chip is kept sixteen times finer than a sample's rate needs to be:
         // see `OpenMPTAdLib.fineShift`.)
         let fine = fineFMPitch && s?.AdLib != nil
         if module.playsAsDigitrakker { return digitrakkerFrequency(sc, note) }
-        if let tuning = sc.pointee.InsPtr?.Tuning, sc.pointee.Ins != 0xFF, Int(note) < tuning.count {
-            return openMPTTunedFrequency(s, fine ? tuning[Int(note)] * Float(1 << OpenMPTAdLib.fineShift) : tuning[Int(note)])
+        if let tuning = sc.pointee.InsPtr?.Tuning, sc.pointee.Ins != 0xFF {
+            let ratio = tuning.ratio(Int(note) - 60)
+            return openMPTTunedFrequency(s, fine ? ratio * Float(1 << OpenMPTAdLib.fineShift) : ratio)
         }
         return Int32(truncatingIfNeeded: (UInt64(s?.C5Speed ?? 0) &* UInt64(it2PitchTable[Int(note)])) >> (fine ? 16 - OpenMPTAdLib.fineShift : 16))
     }
@@ -241,6 +243,10 @@ extension IT2Player {
                     if hc.pointee.Flags & HF_CHAN_ON != 0 { InitVibrato(hc) }
                 } else if cmd == 6 {
                     InitCommandG11(hc)
+                    if tuning(of: hc) != nil { VolumeCommandG(hc) }
+                } else if cmd >= 4, tuning(of: hc) != nil {
+                    // (OpenMPT's slides, for an instrument with a tuning of its own, start on the first tick.)
+                    if cmd == 4 { VolumeCommandE(hc) } else { VolumeCommandF(hc) }
                 }
             } else if cmd == 1 {
                 // Fine slide down.
@@ -283,14 +289,17 @@ extension IT2Player {
     }
 
     func VolumeCommandE(_ hc: IT2HostPointer) {
+        if tuning(of: hc) != nil { return openMPTTunedSlide(hc, -Int32(hc.pointee.EfxMem_EFG), alwaysWhole: true) }
         CommandEChain(hc, UInt16(hc.pointee.EfxMem_EFG) << 2)
     }
 
     func VolumeCommandF(_ hc: IT2HostPointer) {
+        if tuning(of: hc) != nil { return openMPTTunedSlide(hc, Int32(hc.pointee.EfxMem_EFG), alwaysWhole: true) }
         CommandFChain(hc, UInt16(hc.pointee.EfxMem_EFG) << 2)
     }
 
     func VolumeCommandG(_ hc: IT2HostPointer) {
+        if tuning(of: hc) != nil { return openMPTTunedSlideToNote(hc, module.Flags & ITF_COMPAT_GXX != 0 ? hc.pointee.EfxMem_G_Compat : hc.pointee.EfxMem_EFG) }
         if hc.pointee.Flags & HF_PITCH_SLIDE_ONGOING == 0 { return }
 
         let SlideValue = Int16(module.Flags & ITF_COMPAT_GXX != 0 ? hc.pointee.EfxMem_G_Compat : hc.pointee.EfxMem_EFG) << 2
@@ -552,6 +561,13 @@ extension IT2Player {
 
         if hc.pointee.Flags & HF_CHAN_ON == 0 || hc.pointee.EfxMem_EFG == 0 { return }
 
+        // (OpenMPT's, from the first tick, for an instrument with a tuning of its own.)
+        if tuning(of: hc) != nil {
+            openMPTTunedSlide(hc, -Int32(hc.pointee.EfxMem_EFG))
+            if hc.pointee.EfxMem_EFG & 0xF0 != 0xE0 { hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON }
+            return
+        }
+
         if hc.pointee.EfxMem_EFG & 0xF0 < 0xE0 {
             SetMiscEfxWord(hc, 0, UInt16(hc.pointee.EfxMem_EFG) << 2)
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
@@ -577,6 +593,13 @@ extension IT2Player {
         hc.pointee.EfxMem_EFG = CmdVal
 
         if hc.pointee.Flags & HF_CHAN_ON == 0 || hc.pointee.EfxMem_EFG == 0 { return }
+
+        // (OpenMPT's, from the first tick, for an instrument with a tuning of its own.)
+        if tuning(of: hc) != nil {
+            openMPTTunedSlide(hc, Int32(hc.pointee.EfxMem_EFG))
+            if hc.pointee.EfxMem_EFG & 0xF0 != 0xE0 { hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON }
+            return
+        }
 
         if hc.pointee.EfxMem_EFG & 0xF0 < 0xE0 {
             SetMiscEfxWord(hc, 0, UInt16(hc.pointee.EfxMem_EFG) << 2)
@@ -759,6 +782,10 @@ extension IT2Player {
         }
 
         InitCommandG11(hc)
+        if tuning(of: hc) != nil {
+            hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
+            CommandG(hc)
+        }
     }
 
     /// Hxy: vibrato.
@@ -827,6 +854,7 @@ extension IT2Player {
             // The two other notes, as entries in the table of pitches, whose entry 60 multiplies by one.
             SetMiscEfxWord(hc, 2, 60 + UInt16(hc.pointee.EfxMem_J >> 4))
             SetMiscEfxWord(hc, 4, 60 + UInt16(hc.pointee.EfxMem_J & 0x0F))
+            if tuning(of: hc) != nil { openMPTTunedArpeggio(hc) }
         }
     }
 
@@ -1173,6 +1201,17 @@ extension IT2Player {
             hc.pointee.EfxMem_SFx = val
             InitNoCommand(hc)
 
+        // (S1x and S2x are something only for an instrument with a tuning of its own, as OpenMPT
+        // plays one: a slide to a note by whole notes, and so many fine steps from each note.)
+        case 0x10 where tunings:
+            hc.pointee.Tuned.glissando = val != 0
+            InitNoCommand(hc)
+
+        case 0x20 where tuning(of: hc) != nil:
+            InitNoCommand(hc)
+            hc.pointee.Tuned.fine = Int32(val) - 8
+            hc.pointee.Tuned.again = true
+
         default: // S0x, S1x and S2x do nothing
             InitNoCommand(hc)
         }
@@ -1332,14 +1371,17 @@ extension IT2Player {
     }
 
     func CommandE(_ hc: IT2HostPointer) {
+        if tuning(of: hc) != nil { return openMPTTunedSlide(hc, -Int32(hc.pointee.EfxMem_EFG)) }
         CommandEChain(hc, MiscEfxWord(hc, 0))
     }
 
     func CommandF(_ hc: IT2HostPointer) {
+        if tuning(of: hc) != nil { return openMPTTunedSlide(hc, Int32(hc.pointee.EfxMem_EFG)) }
         CommandFChain(hc, MiscEfxWord(hc, 0))
     }
 
     func CommandG(_ hc: IT2HostPointer) {
+        if tuning(of: hc) != nil { return openMPTTunedSlideToNote(hc, module.Flags & ITF_COMPAT_GXX != 0 ? hc.pointee.EfxMem_G_Compat : hc.pointee.EfxMem_EFG) }
         if hc.pointee.Flags & HF_PITCH_SLIDE_ONGOING == 0 { return }
 
         let SlideValue = Int16(bitPattern: MiscEfxWord(hc, 0))
@@ -1377,6 +1419,7 @@ extension IT2Player {
     /// Bends the pitch by a step of the vibrato's wave times its depth. The result is cut to eight
     /// bits, as the original's is.
     private func CommandH5(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ VibratoData: Int8) {
+        if tuning(of: hc) != nil { return openMPTTunedVibrato(hc, VibratoData) }
         var VibratoData = Int8(truncatingIfNeeded: (((Int(VibratoData) * Int(Int8(bitPattern: hc.pointee.VibratoDepth))) << 2) + 128) >> 8)
         if module.Flags & ITF_OLD_EFFECTS != 0 { VibratoData = 0 &- VibratoData }
 
@@ -1423,6 +1466,7 @@ extension IT2Player {
     }
 
     func CommandJ(_ hc: IT2HostPointer) {
+        if tuning(of: hc) != nil { return openMPTTunedArpeggio(hc) }
         guard let sc = hc.pointee.SlaveChnPtr else { return }
         var tick = MiscEfxWord(hc, 0)
 
@@ -1608,6 +1652,7 @@ extension IT2Player {
             if Int8(bitPattern: hc.pointee.MiscEfxData[1]) > 0 { return }
 
             hc.pointee.Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX)
+            if tunings { openMPTTunedRow(hc) }
             InitNoCommand(hc)
             hc.pointee.Flags |= HF_ROW_UPDATED
 

@@ -25,9 +25,8 @@
 /// half a file's notes or more are for such instruments the file is refused.
 ///
 /// And OpenMPT tunes instruments to scales that are not the twelve equal steps of every other
-/// module. A temperament, which is twelve steps that are not quite equal, has each note started at
-/// the pitch it gives; a scale that is further from the usual one than that is not played, and a
-/// file with an instrument tuned to one is refused.
+/// module: a temperament, or a scale with more or fewer steps to the octave, or with no octave at
+/// all. Those are played as OpenMPT plays them (`OpenMPTTuning`).
 ///
 /// OpenMPT plays these files in its own way and not in Impulse Tracker's where the two differ, and
 /// which of its ways a file wants is written in the file, flag by flag. Those flags are not followed
@@ -329,6 +328,20 @@ enum MPTMFile {
         static let compatiblePlay = 0, oldSwing = 1, tempoClamp = 8, tremorAsImpulseTracker = 22, offsetAsImpulseTracker = 27, legacyReleaseNode = 94
         static let jumpsEndLoops = 103, jumpsEndLoopsOld = 49, unmappedNotesDoNothing = 123
         static let fmFlexibleNoteOff = 99, fmKeepsVoiceWhenLetGo = 105, surroundIsNotMoved = 37
+        static let itVibrato = 21
+
+        /// The ways of playing that "compatible play" stood for until OpenMPT 1.26, each with the
+        /// version that brought it in, as OpenMPT gives them to a file saved before then.
+        static let compatiblePlayWays: [(behaviour: Int, since: Int)] = [
+            (8, 0x0117_0302), (9, 0x0117_0302), (10, 0x0117_0302), (11, 0x0117_0246), (12, 0x0117_0249), (13, 0x0117_0249),
+            (14, 0x0117_0249), (15, 0x0117_0249), (16, 0x0117_0249), (17, 0x0117_0249), (18, 0x0117_0251), (19, 0x0117_0251),
+            (20, 0x0117_0252), (21, 0x0117_0302), (22, 0x0117_0302), (23, 0x0117_0302), (24, 0x0117_0302), (25, 0x0117_0302),
+            (26, 0x0117_0302), (27, 0x0117_0302), (28, 0x0118_0000), (29, 0x0118_0000), (30, 0x0118_0001), (31, 0x0118_0100),
+            (32, 0x0119_0001), (33, 0x0119_0021), (34, 0x0119_0030), (35, 0x0120_0014), (36, 0x0120_0035), (37, 0x0120_0053),
+            (38, 0x0120_0054), (39, 0x0120_0056), (88, 0x0120_0076), (40, 0x0120_0206), (41, 0x0121_0116), (42, 0x0121_0125),
+            (43, 0x0121_0125), (44, 0x0122_0709), (45, 0x0122_0719), (46, 0x0123_0403), (47, 0x0124_0106), (48, 0x0124_0106),
+            (49, 0x0125_0019),
+        ]
     }
 
     /// Half of how far an instrument's higher notes go to one side, rounded away from the middle.
@@ -438,100 +451,42 @@ enum MPTMFile {
         return extras
     }
 
-    /// A tuning: a scale that is not, or need not be, the twelve equal steps to the octave that a
-    /// module's notes otherwise are.
-    private struct Tuning {
-        var name: [UInt8] = []
-        var twelveTone = false
-        /// What it makes of each of the 120 notes, against middle C; empty if it is not one that is played.
-        var ratios: [Float] = []
-        /// How far the furthest of those is from the usual tuning, in hundredths of a semitone.
-        var furthest = 0.0
-    }
-
-    /// A tuning that is nowhere further than this from the usual one, in hundredths of a semitone,
-    /// is played: a quarter of a semitone, which lets in the well temperaments and keeps out a scale
-    /// with more or fewer than twelve steps to the octave.
-    private static let nearEnough = 25.0
-
-    /// The tunings the file carries, each looked at for whether it is twelve equal steps after all,
-    /// with sixteen parts to a step as Impulse Tracker's slides have: which is what OpenMPT's own
-    /// "12TET" is, and a file tuned to it is played as it would be anyway. One that is not, but is
-    /// never far from it (a temperament: twelve steps to the octave that are not quite equal), has
-    /// what it makes of each note kept, for its notes to be started at.
-    private static func tunings(_ data: [UInt8], at start: Int) -> [Tuning] {
+    /// The tunings the file carries, by name, as OpenMPT reads them: nil for one it would not read.
+    private static func tunings(_ data: [UInt8], at start: Int) -> [(name: [UInt8], tuning: OpenMPTTuning?)] {
         guard let collection = Chunk(data, at: start, named: "TC") else { return [] }
-        var tunings: [Tuning] = []
+        var tunings: [(name: [UInt8], tuning: OpenMPTTuning?)] = []
         for entry in collection.entries where entry.name == [0x32] { // "2"
             guard let chunk = Chunk(data, at: entry.start, named: "CTB244RTI") else {
-                tunings.append(Tuning())
+                tunings.append(([], nil))
                 continue
             }
-            var tuning = Tuning()
-            if let name = chunk.entry("0") {
-                var r = Reader(data, at: name.start)
-                tuning.name = r.bytes(min(255, r.adaptive64()))
-                if let end = tuning.name.firstIndex(of: 0) { tuning.name = Array(tuning.name[..<end]) }
+            var name: [UInt8] = []
+            if let entry = chunk.entry("0") {
+                var r = Reader(data, at: entry.start)
+                name = r.bytes(min(255, r.adaptive64()))
+                if let end = name.firstIndex(of: 0) { name = Array(name[..<end]) }
             }
-            let type = chunk.number("2", bytes: 2, in: data) ?? 0
-            let fineSteps = chunk.number("4", bytes: 4, in: data) ?? 0
-            let lowest = Int(Int16(truncatingIfNeeded: chunk.number("RTI1", bytes: 2, in: data) ?? 0))
-            let groupSize = Int(Int16(truncatingIfNeeded: chunk.number("RTI2", bytes: 2, in: data) ?? 0))
-            let groupRatio = Float(bitPattern: UInt32(truncatingIfNeeded: chunk.number("RTI3", bytes: 4, in: data) ?? 0))
             var ratios: [Float] = []
             if let table = chunk.entry("RTI0") {
                 var r = Reader(data, at: table.start)
                 let count = min(256, r.adaptive64())
                 ratios = (0 ..< count).map { _ in Float(bitPattern: UInt32(r.u16()) | UInt32(r.u16()) << 16) }
             }
-            /// What the tuning makes of a note, counted from the middle C that is played as it is.
-            func ratio(_ note: Int) -> Double {
-                switch type {
-                case 3: // every step the same
-                    return groupSize > 0 && groupRatio > 0 ? pow(Double(groupRatio), Double(note) / Double(groupSize)) : 0
-                case 1: // one group of steps, given, and the rest of the scale that group again higher and lower
-                    // (As many steps as are given: the file need not say how many apart from that.)
-                    let groupSize = ratios.count
-                    guard groupSize > 0, groupRatio > 0 else { return 0 }
-                    let from = note - lowest
-                    let group = from >= 0 ? from / groupSize : -((-from + groupSize - 1) / groupSize)
-                    return Double(ratios[from - group * groupSize]) * pow(Double(groupRatio), Double(group))
-                default: // every note given
-                    let index = note - lowest
-                    return index >= 0 && index < ratios.count ? Double(ratios[index]) : 0
-                }
-            }
-            // Within half a cent over ten octaves.
-            var equal = fineSteps == 15
-            for note in -60 ..< 60 where equal {
-                let found = ratio(note), wanted = pow(2.0, Double(note) / 12.0)
-                if !(found > wanted * 0.99971 && found < wanted * 1.00029) { equal = false }
-            }
-            tuning.twelveTone = equal
-            if !equal {
-                var kept: [Float] = [], near = true
-                for note in -60 ..< 60 where near {
-                    let found = ratio(note)
-                    // (In hundredths of a semitone: 1200 to the octave.)
-                    let apart = found > 0 ? abs(log(found) / log(2.0) * 1200 - Double(note) * 100) : Double.infinity
-                    if apart <= nearEnough {
-                        tuning.furthest = max(tuning.furthest, apart)
-                        kept.append(Float(found))
-                    } else {
-                        near = false
-                    }
-                }
-                if near { tuning.ratios = kept }
-            }
-            tunings.append(tuning)
+            // (What OpenMPT has for whatever is not said: a table that starts 64 notes below middle C.)
+            let tuning = OpenMPTTuning(kind: chunk.number("2", bytes: 2, in: data) ?? 0, given: ratios,
+                                       lowest: Int(Int16(truncatingIfNeeded: chunk.number("RTI1", bytes: 2, in: data) ?? 0xFFC0)),
+                                       notes: chunk.number("RTI4", bytes: 2, in: data) ?? 0,
+                                       groupSize: Int(Int16(truncatingIfNeeded: chunk.number("RTI2", bytes: 2, in: data) ?? 0)),
+                                       groupRatio: Float(bitPattern: UInt32(truncatingIfNeeded: chunk.number("RTI3", bytes: 4, in: data) ?? 0)),
+                                       fineSteps: chunk.number("4", bytes: 4, in: data) ?? 0)
+            tunings.append((name, tuning))
         }
         return tunings
     }
 
-    /// Which of the tunings each instrument has, for those tuned to something other than twelve
-    /// equal steps, and nil for the rest: the file gives each tuning in use a number, and each
-    /// instrument the number of its own.
-    private static func mistuned(_ data: [UInt8], at start: Int, instruments: Int, tunings: [Tuning]) -> [Int?] {
+    /// The tuning each instrument has, for those that have one: the file gives each tuning in use a
+    /// number, and each instrument the number of its own.
+    private static func tuned(_ data: [UInt8], at start: Int, instruments: Int, tunings: [(name: [UInt8], tuning: OpenMPTTuning?)]) -> [OpenMPTTuning?] {
         var r = Reader(data, at: start)
         var names: [Int: [UInt8]] = [:]
         let count = r.u16()
@@ -544,8 +499,7 @@ enum MPTMFile {
             guard r.left >= 2, let name = names[r.u16()] else { return nil }
             // OpenMPT's word for no tuning; and one it does not find among the file's is no tuning either.
             if name == Array("->MPT_ORIGINAL_IT<-".utf8) { return nil }
-            guard let tuning = tunings.firstIndex(where: { $0.name == name }), !tunings[tuning].twelveTone else { return nil }
-            return tuning
+            return tunings.first(where: { $0.name == name })?.tuning
         }
     }
 
@@ -745,12 +699,9 @@ enum MPTMFile {
         // "Compatible play", which until 1.26 was one switch for all of Impulse Tracker's ways together.
         let compatible = asks(Behaviour.compatiblePlay) && !(saved < 0x0117_0246 && saved != 0x0117_0000)
         if compatible, saved < 0x0126_0000 {
-            for behaviour in [Behaviour.tempoClamp, Behaviour.offsetAsImpulseTracker, Behaviour.tremorAsImpulseTracker] {
-                set(behaviour, saved >= 0x0117_0302 || saved == 0x0117_0000)
-            }
+            for (behaviour, since) in Behaviour.compatiblePlayWays { set(behaviour, saved >= since || saved == since & 0x7FFF_0000) }
         }
         if saved < 0x0117_0000 { set(Behaviour.tempoClamp, true) }
-        if compatible, saved < 0x0126_0000 { set(Behaviour.jumpsEndLoopsOld, saved >= 0x0125_0019 || saved == 0x0125_0000) }
         // (And a way of playing that came in with a later version is not one an earlier version
         // can have asked for, whatever its file says; but that a file made for another program
         // gives only the first two parts of the version.)
@@ -947,6 +898,7 @@ enum MPTMFile {
         openMPT.offsetAsImpulseTracker = asks(Behaviour.offsetAsImpulseTracker)
         openMPT.loopsOutlastJumps = !asks(Behaviour.jumpsEndLoops) && !asks(Behaviour.jumpsEndLoopsOld)
         openMPT.unmappedNotesKeepCommands = !asks(Behaviour.unmappedNotesDoNothing)
+        openMPT.itVibrato = asks(Behaviour.itVibrato)
 
         // Each pattern's own rows to a beat and swing, where it has them.
         openMPT.patternRowsPerBeat = [UInt16](repeating: 0, count: file.patternLimit)
@@ -999,27 +951,12 @@ enum MPTMFile {
 
         // MARK: Tunings
 
-        // An instrument tuned to a temperament has its notes started at the pitches that gives them.
-        // What happens to a note after that is another matter: OpenMPT slides a tuned instrument by
-        // the steps of its tuning and at speeds of its own, and that is not done. A scale that is
-        // further from the usual one is not played at all.
-        var temperaments: [String] = []
+        // An instrument can be tuned to a scale of OpenMPT's: see `OpenMPTTuning`, and the replayer's
+        // `openMPTTunedPitch`, which plays its notes, slides and vibratos as OpenMPT plays them.
         if header.instruments > 0, let map = own.entry("1") {
             let all = own.entry("0").map { tunings(data, at: $0.start) } ?? []
-            let mistuned = mistuned(data, at: map.start, instruments: header.instruments, tunings: all)
-            if mistuned.contains(where: { $0.map { all[$0].ratios.isEmpty } ?? false }) {
-                throw TuneError.unsupported("an MPTM file with instruments tuned to a scale of their own")
-            }
-            for index in all.indices where mistuned.contains(index) {
-                let name = all[index].name.isEmpty ? "a temperament of its own" : "\"" + String(decoding: all[index].name, as: UTF8.self) + "\""
-                // (To the hundredth above, but for what is a hair over one.)
-                let furthest = Int((all[index].furthest - 0.05).rounded(.up))
-                temperaments.append("It is tuned to \(name), which is nowhere more than \(Shortfall.number(max(1, furthest))) "
-                    + "\(furthest > 1 ? "hundredths" : "hundredth") of a semitone from the usual tuning: its notes start at that tuning's pitches, "
-                    + "and its slides and arpeggios move by the usual tuning's steps.")
-            }
-            for (instrument, tuning) in mistuned.enumerated() {
-                if let tuning { file.instrument(instrument).Tuning = all[tuning].ratios }
+            for (instrument, tuning) in tuned(data, at: map.start, instruments: header.instruments, tunings: all).enumerated() {
+                if let tuning { file.instrument(instrument).Tuning = tuning }
             }
         }
 
@@ -1204,7 +1141,7 @@ enum MPTMFile {
             throw TuneError.unsupported("an MPTM file most of whose samples are in other files")
         }
 
-        var shortfalls: [String] = temperaments
+        var shortfalls: [String] = []
         func say(_ count: Int, one: String, many: String) {
             if count == 1 { shortfalls.append(one) } else if count > 1 { shortfalls.append(Shortfall.capitalNumber(count) + many) }
         }

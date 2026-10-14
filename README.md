@@ -246,8 +246,7 @@ Not played:
 - **PC:** an IT file packed with MMCMP; a DTM file from Digital Home Studio; the other kind of
   file called AMF, ASYLUM's; an STM song saved without its samples.
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
-  or for samples kept in other files; and one with an instrument tuned to a scale that is not a
-  temperament of twelve steps to the octave.
+  or for samples kept in other files.
 - **MT2:** a file whose notes are, half of them or more, for VST instruments or MIDI devices, or for
   samples kept in other files.
 
@@ -264,8 +263,7 @@ Played, with a difference:
 - **XM** from a later tracker: played as FastTracker 2 would play it.
 - **XM, IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
-  (ADPCM) is silent; and in a file tuned to a temperament each note starts at the pitch that
-  gives it, and slides as Impulse Tracker slides.
+  (ADPCM) is silent.
 - **GDM, PTM, ULT, MDL:** a command that Impulse Tracker's replayer has no room or no like for is
   left out. An MDL file's command that chooses another of the tune's envelopes turns on the
   instrument's own.
@@ -1263,13 +1261,21 @@ OpenMPT leaves out one it cannot find: what was sent to it is heard as it is. An
 nothing but such a plug-in is not heard, and a file whose notes are, half or more, for such
 instruments is refused.
 
-And an instrument can be tuned to a scale of its own. Most such scales have nothing to do with the
-twelve steps a module's notes otherwise are, and a file with one is refused. A temperament is
-twelve steps that are not quite equal, and is played: each note is started at the pitch the
-temperament gives it, as OpenMPT starts it. (What OpenMPT then does with a slide on such an
-instrument is its own, and is not done; the slide is Impulse Tracker's.) Of 700 files, 694 are
-played: five are refused for their tunings, and one for keeping its samples in other files. And a
-file that is played with something left out says what, a sentence for each kind of thing.
+And an instrument can be tuned to a scale of its own: a temperament, twelve steps to the octave
+that are not quite equal, or a scale with more or fewer steps than twelve (nineteen, twenty-two,
+twenty-four), or with no octave in it at all (eleven steps to an octave and a fifth). Such a scale
+gives each of its notes a ratio to middle C, and has so many "fine steps" between a note and the
+next. OpenMPT plays a note of a tuned instrument in a way of its own, which has nothing to do with
+how it plays any other: the pitch is not a rate that slides move, but is worked out afresh from the
+note and how many fine steps it has been taken from there. A slide up or down goes so many fine
+steps a tick, a slide to a note so many a row, an arpeggio goes by the scale's own notes, the pitch
+envelope by fine steps, and a vibrato moves the pitch by up to a fortieth either way. That is done
+here as OpenMPT does it, with the scale's pitches worked out in OpenMPT's own arithmetic, and set
+beside libopenmpt tick by tick: in the nine files to hand with tuned instruments, the notes of
+those instruments are within a cent of it on 99.95% of their ticks or more, and the rest is one
+tick, where a song comes round to its start. Of 700 files, 699 are played; one is refused for
+keeping its samples in other files. And a file that is played with something left out says what,
+a sentence for each kind of thing.
 
 There is a difference of another kind, which no list of features covers. OpenMPT plays these files
 in its own way and not in Impulse Tracker's wherever the two differ, and the file says which of
