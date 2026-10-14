@@ -28,7 +28,7 @@ siday ~/Music/chiptunes --shuffle
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's on its own mixer) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
-| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67; MPTM; MT2 | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -247,6 +247,8 @@ Not played:
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
   or for samples kept in other files; and one with an instrument tuned to a scale that is not a
   temperament of twelve steps to the octave.
+- **MT2:** a file whose notes are, half of them or more, for VST instruments or MIDI devices, or for
+  samples kept in other files.
 
 Played, with a difference:
 
@@ -261,6 +263,8 @@ Played, with a difference:
   gives it, and slides as Impulse Tracker slides.
 - **GDM, PTM, ULT:** a command that Impulse Tracker's replayer has no room or no like for is
   left out.
+- **MT2:** the tracks' own effects, the automation and the VST plug-ins are left out, as OpenMPT
+  leaves them out; and a place between the speakers that has no room beside a volume and a command.
 - **STM:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
 - **ROL:** an instrument that no bank has is silent.
 
@@ -1061,6 +1065,77 @@ too, to 0.997 and 0.979. The files with FM come to 0.984 and 0.957. The rest of 
 slides in a tune that uses the Amiga's; a pitch that OpenMPT rounds where Impulse Tracker does
 not; and whatever an instrument does at random.
 
+### MT2 — MadTracker 2
+
+MadTracker was a tracker for Windows by Yannick Delwiche, from the late nineties into the 2000s, much
+used for the trance and the dance music of its day: up to 64 tracks; instruments
+with envelopes for volume, place, pitch and a resonant filter, which do what Impulse Tracker's do;
+samples of eight bits or sixteen and in stereo, which can be tied to the beat; beside a note,
+FastTracker's commands and Impulse Tracker's both, and a few of its own; eight tracks of drums laid
+out as a drum machine's are; and on each track effects of its own, VST plug-ins, and envelopes drawn
+over a pattern for any setting ("automation"). Its player has never been published, and nor has its
+format. OpenMPT reads the files (the loader is Olivier Lapicque's, from ModPlug Tracker's days), and is
+the only other player that does: nothing else is to be found, libxmp and Schism Tracker included, and
+nothing of MadTracker's own about the format beyond the names that OpenMPT's loader gives.
+
+OpenMPT reads one of these files into the shape of an IT file, instruments, envelopes, filters and
+all, and plays it as it plays an IT file, but for some twenty places where its player asks whether the
+file is an XM or an MT2 and goes FastTracker's way for both. So it is played here as OpenMPT plays it:
+by Impulse Tracker's replayer, keeping time in OpenMPT's ways (as for an MPTM file: a tick as long as
+MadTracker's samples to a tick make it, at a tempo that is a fraction, or Impulse Tracker's way for a
+file that sets its tempo as Impulse Tracker does), and taught those of OpenMPT's ways for these files
+that the files to hand were found to need, each in a way no other file reaches. A slide of volume,
+of the whole tune's volume or of place goes by its first half where both are set, as FastTracker's
+does, so that there is no fine slide but FastTracker's own; and a slide of place goes right by its
+first half and left by its second, as FastTracker's. A slide of pitch and a vibrato round to the
+nearest hertz where Impulse Tracker's cut to the one below, and a vibrato does not move on during a
+row's first tick. A sample's own vibrato comes in over so many ticks, as FastTracker's does, from the
+top of a wave that stays above the note. A key let go of a note with no envelope for its volume
+silences it, and the note goes on, silent; any other note fades as soon as its key is let go, if its
+instrument fades, and fades as finely as OpenMPT has it; and an envelope that has run out holds its
+last level. An instrument named without a note starts the note's envelopes again; it is for the
+last note the channel had that was a note, and not a note-off; and beside a note-off, its sample's
+volume is that of the sample the instrument plays the last note on. And a sample that ends dies
+away as quickly as OpenMPT lets it.
+
+The commands become Impulse Tracker's under the letters that do the same: a FastTracker command by
+its meaning, an Impulse Tracker command as itself, and MadTracker's own by what OpenMPT makes of them
+(slides of pitch every tick, vibrato, volume, tempo, a place between the speakers or surround, the
+filter's cutoff, playing backwards, a track's volume). Impulse Tracker has room for one command and a
+volume column; MadTracker has a third place for where a note goes between the speakers, and puts
+what OpenMPT cannot place nowhere, and so here too: in 15 of the files 2,552 such are left out, as
+OpenMPT leaves them out, and each file says so. A slide in the volume column can go by fifteen, and
+Impulse Tracker's goes to nine: where the command is free it is the command, and otherwise nine.
+The drums are eight more channels, each a sample struck at C-5 as loud as its pattern says, and a
+pattern that the list plays with more than one drum pattern is made once for each. A file can say it
+has 256 patterns or samples, which are more than a byte of Impulse Tracker's can number; only the
+patterns the list plays are kept, and a sample beyond the numbers takes the number of one that the file
+has not got and nothing plays.
+
+What OpenMPT leaves out is left out here, and said: the tracks' own effects, which 95 of the 106 files
+to hand have on some track; the automation, in 57; and VST plug-ins, in one, whose only plug-in is
+an instrument that its patterns never play. An instrument that is a plug-in or a MIDI device plays
+nothing, and a file whose notes are, half or more, for such instruments or for samples kept in files
+of their own is refused, as for an MPTM file; none of those to hand is. A command that OpenMPT does
+not know is left out and said to be, in ten files, most of them MadTracker's own that nothing
+describes; and so is FastTracker's command that sets where an envelope is, which OpenMPT plays and
+Impulse Tracker's replayer has not got, in two. And a sample that is to be played without smoothing between its points is played
+smoothed, which two files ask for.
+
+All 106 files to hand are played. Set beside libopenmpt, the two are at the same place on every tick,
+with every tick as many frames long, for ten minutes or to the song's end, in every one of them. Every
+channel's pitch and volume on every tick of the first two minutes: of 826,682 ticks they are alike on
+816,190, 52 files are alike on every tick and 43 more on all but one in fifty. Most of what is left is
+the reference's own way of looking, which loses a voice for a tick at the turn of a loop; in the rest,
+in two files a slide to a note starts from where libopenmpt has put the pitch back, for a reason not
+found in its code.
+What is heard was set beside it too, for the first minute of each: the spectrum agrees to 1.000 for the
+middle file and 0.999 for the file a tenth of the way up from the worst, the loudness over time to
+1.000 and 0.996, and left and right to 0.999 and 0.992. The furthest is a file that stacks fifty voices
+of the same short wave a hair apart in pitch: which of their overtones cancel at any moment depends on
+how their phases have drifted, and comes out otherwise. Played as loud as OpenMPT plays them, the
+middle file is 4 dB quieter than the middle XM file, and the files are made as loud as XM files are.
+
 ### 669 — Composer 669 and UNIS 669
 
 A 669 file is a module from Composer 669, which Tran of Renaissance wrote for the PC in 1992, or
@@ -1402,6 +1477,9 @@ What it is made from:
   has two commands, after neither; libopenmpt is the player those files were checked against. The
   format is as FreeJack of The Elven Nation describes it, and UltraTracker is by Marc André
   Schallehn.
+- And again: how an MT2 file is read, and the few ways in which OpenMPT plays one otherwise than an
+  IT file; libopenmpt is the player those files were checked against. MadTracker is by Yannick
+  Delwiche.
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.

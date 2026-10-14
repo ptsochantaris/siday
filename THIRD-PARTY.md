@@ -505,6 +505,20 @@ Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 volumes are taken to mean. It is used under OpenMPT's licence, the BSD 3-Clause, set out below under
 "OpenMPT — FM Tracker files".
 
+## OpenMPT — MT2 files
+
+`Sources/SidayKit/ImpulseTracker/MT2File.swift`, which reads a MadTracker 2 module into the shape
+Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
+(`soundlib/Load_mt2.cpp`, by Olivier Lapicque and the OpenMPT developers, with the way its samples
+are packed from `soundlib/SampleIO.cpp`): the layout of the file, the checks it is held to, and what
+its commands, instruments, envelopes, samples and drums are taken to mean. `IT2MadTracker.swift`,
+and the lines in `IT2Player.swift`, `IT2Effects.swift` and `IT2Mixer.swift` that are marked as an MT2
+file's, follow what OpenMPT's player does for these files and not for an IT file (`soundlib/Snd_fx.cpp`
+and `soundlib/Sndmix.cpp`): its slides by their first half, its rounded slides of pitch and
+vibrato, a sample's own vibrato, a key let go, a fade, an instrument named without a note, and how
+quickly a sample that ends dies away. They are used under OpenMPT's licence, the BSD 3-Clause, set
+out below under "OpenMPT — FM Tracker files".
+
 ## OpenMPT — MPTM files
 
 `Sources/SidayKit/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,
