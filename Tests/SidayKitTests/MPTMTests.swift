@@ -694,6 +694,22 @@ private func ways(without left: Int...) -> Song {
     #expect(dry < 0.0001 && off < 0.0001 && wet > 0.001)
 }
 
+@Test func mptmVibratoIsOpenMPTsOwnWhereTheFileAsksForIt() throws {
+    // A file that does not ask for Impulse Tracker's vibratos (switch 21) has OpenMPT's own: on
+    // ProTracker's wave, as deep, but begun a quarter of the way along and the other way about, so
+    // that the note is at its lowest at once, where Impulse Tracker's goes up from the middle.
+    func rates(itVibrato: Bool) throws -> [Int] {
+        var song = Song()
+        if !itVibrato { song.behaviours.removeAll { $0 == 21 } }
+        let file = mptm([Pattern([(0, 0, .note(60, "H", 0x48))])], song: song, instruments: [(1, [], 0)])
+        return try player(file).ticks(seconds: 0.3).map { $0.rates.max() ?? 0 }
+    }
+    let impulse = try rates(itVibrato: true), own = try rates(itVibrato: false)
+    #expect(impulse[0] > 8363 && impulse[0] < impulse[3] && own[0] < 8363 && own[0] == own.min())
+    // (Down by about as much as Impulse Tracker's goes up: half a semitone, 31 of 768ths of an octave.)
+    #expect(abs(Double(own[0]) - 8363 * pow(2.0, -31.0 / 768)) < 25 && abs(Double(impulse[3]) - 8363 * pow(2.0, 32.0 / 768)) < 25)
+}
+
 @Test func mptmFinetuneBendsTheNoteAsFarAsItsInstrumentAllows() throws {
     // The file's pitch wheel depth is two semitones, so a finetune of C0, a quarter of the way up
     // from the middle at 80, bends the note up by one; and 40 bends it down by one.

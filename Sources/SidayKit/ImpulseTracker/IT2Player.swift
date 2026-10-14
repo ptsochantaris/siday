@@ -1171,7 +1171,7 @@ final class IT2Player {
         guard let smp = sc.pointee.SmpPtr, smp.AutoVibratoDepth != 0 else { return }
         if tunings, sc.pointee.Ins != 0xFF, sc.pointee.InsPtr?.Tuning != nil { return openMPTTunedAutoVibrato(sc, smp) }
         if module.madTracker { return madTrackerAutoVibrato(sc, smp) }
-        if module.openMPT?.itVibrato == true { return openMPTAutoVibrato(sc, smp) }
+        if let song = module.openMPT { return song.itVibrato ? openMPTAutoVibrato(sc, smp) : openMPTOwnAutoVibrato(sc, smp) }
         sc.pointee.AutoVibratoDepth &+= UInt16(asImpulseTracker ? smp.AutoVibratoRate : smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate)
         if sc.pointee.AutoVibratoDepth >> 8 > UInt16(smp.AutoVibratoDepth) {
             sc.pointee.AutoVibratoDepth = (UInt16(smp.AutoVibratoDepth) << 8) | (sc.pointee.AutoVibratoDepth & 0xFF)

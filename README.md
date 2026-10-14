@@ -1312,8 +1312,13 @@ a sentence for each kind of thing.
 There is a difference of another kind, which no list of features covers. OpenMPT plays these files
 in its own way and not in Impulse Tracker's wherever the two differ, and the file says which of
 some hundred and forty small matters it wants played which way. A handful of those are followed
-here, where they decide the tempo or where a tune goes next; for the rest this is Impulse Tracker's
-replayer, and the file gets Impulse Tracker's answer. What that comes to was measured against
+here, where they decide the tempo or where a tune goes next, and the one that chooses between
+Impulse Tracker's vibratos and tremolos and OpenMPT's own (a file in four asks for OpenMPT's: on
+ProTracker's wave, begun a quarter of the way along and the other way about, with a sample's own
+vibrato that comes in by a sweep and moves by a share between two of the slide tables' steps); and
+OpenMPT's ways with a sample's own vibrato and a vibrato's start where the file asks for Impulse
+Tracker's are OpenMPT's too. For the rest this is Impulse Tracker's replayer, and the file gets
+Impulse Tracker's answer. What that comes to was measured against
 libopenmpt, OpenMPT's own player as a library. What is read from each of 625 files is the same
 as what libopenmpt reads, but for a fade and a place between the speakers that the extras give
 more finely than an IT file's instrument can hold. Where the tune is on every tick, and how many

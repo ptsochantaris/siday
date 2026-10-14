@@ -220,7 +220,15 @@ extension IT2Player {
         let slides = mask & 0x88 != 0 && (hc.pointee.Cmd == 7 || hc.pointee.Cmd == 12) || mask & 0x44 != 0 && hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
         let sliding = slides && hc.pointee.Flags & HF_CHAN_ON != 0
         if mask & 0x22 != 0, hc.pointee.Bend != 0, !sliding || hc.pointee.SlaveChnPtr?.pointee.Ins != hc.pointee.Ins { hc.pointee.Bend = 0 }
-        if mask & 0x11 != 0, hc.pointee.RawNote < 120, !sliding, module.openMPT?.itVibrato == true { hc.pointee.VibratoPos = 0 }
+        if mask & 0x11 != 0, hc.pointee.RawNote < 120, !sliding {
+            // (In OpenMPT's own way of vibrato, a quarter of the way along, but for a file with "old effects".)
+            if module.openMPT?.itVibrato == true {
+                hc.pointee.VibratoPos = 0
+            } else {
+                hc.pointee.OpenMPTVibratoPos = module.Flags & ITF_OLD_EFFECTS != 0 ? 0 : 0x10
+                hc.pointee.OpenMPTTremoloPos = 0
+            }
+        }
     }
 
     private func beginCut(_ hc: IT2HostPointer) {
@@ -509,7 +517,7 @@ extension IT2Player {
             if module.openMPT?.itVibrato != false {
                 hc.pointee.VibratoPos = 0
             } else {
-                hc.pointee.Tuned.vibratoPos = module.Flags & ITF_OLD_EFFECTS != 0 ? 0 : 0x10
+                hc.pointee.OpenMPTVibratoPos = module.Flags & ITF_OLD_EFFECTS != 0 ? 0 : 0x10
             }
         }
     }
@@ -566,14 +574,14 @@ extension IT2Player {
         if module.openMPT?.itVibrato == false {
             // OpenMPT's own way: a wave of 64 steps and of 127 a side, moved on after it is read,
             // and not on a row's first tick with "old effects".
-            let position = Int(hc.pointee.Tuned.vibratoPos) & 0x3F
+            let position = Int(hc.pointee.OpenMPTVibratoPos) & 0x3F
             switch hc.pointee.VibratoWaveform & 3 {
             case 1: wave = (position < 32 ? 0 : 255) - position * 4
             case 2: wave = position < 32 ? 127 : -127
             case 3: wave = Int(openMPTRandomWave[position])
             default: wave = Int(openMPTSineWave[position])
             }
-            if tickOfRow != 0 || !old { hc.pointee.Tuned.vibratoPos &+= hc.pointee.VibratoSpeed >> 2 }
+            if tickOfRow != 0 || !old { hc.pointee.OpenMPTVibratoPos &+= hc.pointee.VibratoSpeed >> 2 }
         }
         hc.pointee.Tuned.vibrato += 0.05 * Float(wave * depth) / (128 * 60)
         hc.pointee.Tuned.again = true
@@ -590,6 +598,82 @@ extension IT2Player {
         }
         hc.pointee.Tuned.again = true
         hc.pointee.Tuned.againAtRow = true
+    }
+
+    /// A tick of vibrato in an MPTM file that does not ask for Impulse Tracker's ways with vibrato:
+    /// OpenMPT's own, which is ProTracker's wave of 64 steps, of 127 a side and divided by twice as
+    /// much, read and then moved on (but on a row's first tick with "old effects"), and the other
+    /// way about from Impulse Tracker's.
+    func openMPTOwnVibrato(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) {
+        let old = module.Flags & ITF_OLD_EFFECTS != 0
+        let position = Int(hc.pointee.OpenMPTVibratoPos) & 0x3F
+        let wave: Int
+        switch hc.pointee.VibratoWaveform & 3 {
+        case 1: wave = (position < 32 ? 0 : 255) - position * 4
+        case 2: wave = position < 32 ? 127 : -127
+        case 3: wave = Int(openMPTRandomWave[position])
+        default: wave = Int(openMPTSineWave[position])
+        }
+        if tickOfRow != 0 || !old { hc.pointee.OpenMPTVibratoPos &+= hc.pointee.VibratoSpeed >> 2 }
+        let depth = Int(hc.pointee.VibratoDepth) >> (old ? 1 : 0)
+        let slide = -wave * depth / (1 << (old ? 6 : 7))
+        sc.pointee.Flags |= SF_FREQ_CHANGE
+        if slide < 0 { PitchSlideDown(hc, sc, Int16(-slide)) } else if slide > 0 { PitchSlideUp(hc, sc, Int16(slide)) }
+    }
+
+    /// A tick of tremolo in such a file, OpenMPT's own way: ProTracker's wave again, read and moved
+    /// on as the vibrato's is, a volume of 256 moved by the wave's point by the depth over 64, and
+    /// nothing done to a volume of nought.
+    func openMPTOwnTremolo(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) {
+        let old = module.Flags & ITF_OLD_EFFECTS != 0
+        let position = Int(hc.pointee.OpenMPTTremoloPos) & 0x3F
+        if tickOfRow != 0 || !old { hc.pointee.OpenMPTTremoloPos &+= hc.pointee.TremoloSpeed >> 2 }
+        guard sc.pointee.Vol > 0 else { return }
+        let wave: Int
+        switch hc.pointee.TremoloWaveform & 3 {
+        case 1: wave = (position < 32 ? 0 : 255) - position * 4
+        case 2: wave = position < 32 ? 127 : -127
+        case 3: wave = Int(openMPTRandomWave[position])
+        default: wave = Int(openMPTSineWave[position])
+        }
+        // (Its depth is twice the replayer's.)
+        let volume = max(0, min(256, Int(sc.pointee.Vol) * 4 + wave * Int(hc.pointee.TremoloDepth) * 2 / 64))
+        sc.pointee.Vol = UInt8((volume + 2) / 4)
+    }
+
+    /// A tick of a sample's own vibrato in such a file, as OpenMPT has it: it comes in by twice
+    /// the sample's sweep a tick, and moves the pitch by a share between two of the slide tables'
+    /// steps.
+    func openMPTOwnAutoVibrato(_ sc: IT2SlavePointer, _ smp: IT2Sample) {
+        let full = Int(smp.AutoVibratoDepth) * 256
+        let depth = min(Int(sc.pointee.AutoVibratoDepth) + Int(smp.AutoVibratoRate) * 2, full)
+        sc.pointee.AutoVibratoDepth = UInt16(depth)
+        sc.pointee.AutoVibratoPos &+= smp.AutoVibratoSpeed
+        let position = Int(sc.pointee.AutoVibratoPos)
+        let wave: Int
+        switch smp.AutoVibratoWaveform {
+        case 1: wave = ((0x40 - position / 2) & 0x7F) - 0x40 // a ramp down
+        case 2: wave = position & 128 != 0 ? 64 : -64 // a square
+        case 3:
+            wave = Int(openMPTRandomWave[position & 0x3F])
+            sc.pointee.AutoVibratoPos &+= 1
+        case 4: wave = ((0x40 + position / 2) & 0x7F) - 0x40 // a ramp up
+        default: wave = -Int(it2FineSineData[position])
+        }
+        var n = wave * depth / 256
+        let first: Int, second: Int
+        if n < 0 {
+            n = -n
+            first = Int(it2LinearSlideDownTable[min(255, n / 256)])
+            second = Int(it2LinearSlideDownTable[min(255, n / 256 + 1)])
+        } else {
+            first = Int(it2LinearSlideUpTable[min(255, n / 256)])
+            second = Int(it2LinearSlideUpTable[min(255, n / 256 + 1)])
+        }
+        n /= 4
+        let factor = first + (second - first) * (n & 0x3F) / 64
+        sc.pointee.Frequency = Int32(truncatingIfNeeded: min(Int64(Int32.max), Int64(sc.pointee.Frequency) * Int64(factor) / 65536))
+        sc.pointee.Flags |= SF_FREQ_CHANGE
     }
 
     /// A tick of a sample's own vibrato in an MPTM file that asks for Impulse Tracker's ways with

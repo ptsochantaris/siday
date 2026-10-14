@@ -1425,6 +1425,7 @@ extension IT2Player {
     /// bits, as the original's is.
     private func CommandH5(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ VibratoData: Int8) {
         if tuning(of: hc) != nil { return openMPTTunedVibrato(hc, VibratoData) }
+        if module.openMPT?.itVibrato == false { return openMPTOwnVibrato(hc, sc) }
         var VibratoData = Int8(truncatingIfNeeded: (((Int(VibratoData) * Int(Int8(bitPattern: hc.pointee.VibratoDepth))) << 2) + 128) >> 8)
         if module.Flags & ITF_OLD_EFFECTS != 0 { VibratoData = 0 &- VibratoData }
 
@@ -1615,6 +1616,7 @@ extension IT2Player {
 
     /// Moves the volume by a step of the tremolo's wave times its depth, for this tick only.
     private func CommandR2(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ TremoloData: Int8) {
+        if module.openMPT?.itVibrato == false { return openMPTOwnTremolo(hc, sc) }
         let TremoloData = Int8(truncatingIfNeeded: (((Int(TremoloData) * Int(Int8(bitPattern: hc.pointee.TremoloDepth))) << 2) + 128) >> 8)
 
         var vol = Int16(sc.pointee.Vol) + Int16(TremoloData)
