@@ -361,6 +361,11 @@ out: the chip's 250,000 steps a second come down to the output's rate through a 
 not a plain average, which keeps out tones that were never played. `siday --raw file.raw tune.sndh`
 writes the plain average, which is what agrees with AtariAudio to the sample.
 
+The STE's blitter is there too, the chip that copies blocks of memory for pictures, because a demo or
+two moves its sound about with it. Older SNDH files may be named `.snd`, as they were before the
+format had its name. The titles in SNDH and YM files are read in the ST's own characters, which are
+much the PC's, with Hebrew and more accented letters where the PC drew lines.
+
 ### SID — the Commodore 64
 
 A SID file is named for the chip, the Sound Interface Device, the 6581 that Bob Yannes designed for

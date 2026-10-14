@@ -49,7 +49,7 @@ struct SNDHFile {
                 return true
             }
         }
-        func text(at place: Int) -> (String, Int) { file.cString(at: place) }
+        func text(at place: Int) -> (String, Int) { file.cString(at: place, encoding: .atariST) }
         /// The number a run of digits spells, as C's `atoi` reads it.
         func number(at place: Int, digits: Int = .max) -> Int {
             var place = place, value = 0, read = 0

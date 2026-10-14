@@ -522,3 +522,14 @@ private func ymTracker(second: Bool = true) -> [UInt8] {
     #expect(silent.sound.allSatisfy { $0 == 0 })
     #expect(silent.levels == heard.levels)
 }
+
+@Test func atariTitlesAreReadInTheSTsOwnCharacters() {
+    // A title from a YM file of Turrican's loader music, by Jochen Hippel after Chris Hülsbeck.
+    #expect(TextEncoding.atariST.decode(Array("Orig. by H".utf8) + [0x81] + Array("lsbeck".utf8)) == "Orig. by Hülsbeck")
+    // The ST shares the PC's accented letters, but for its sharp s, and has Hebrew where the PC drew lines.
+    for byte in UInt8(0x80) ... 0xAF where byte != 0x9E {
+        #expect(TextEncoding.atariST.decode([byte]) == TextEncoding.dos.decode([byte]))
+    }
+    #expect(TextEncoding.atariST.decode([0x9E, 0xC2, 0xDD, 0xFF]) == "ßא§¯")
+    #expect(TextEncoding.atariST.decode(Array(" ~AZaz09".utf8)) == " ~AZaz09")
+}

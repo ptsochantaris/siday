@@ -102,9 +102,9 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
                 length += Double(reader.u32be(entry + 4)) * Double(min(16, reader.u16be(entry + 8))) / Double(rate)
             }
             place = pieceList + pieces * 12
-            (info.title, place) = reader.cString(at: place)
-            (info.author, place) = reader.cString(at: place)
-            (info.comment, place) = reader.cString(at: place)
+            (info.title, place) = reader.cString(at: place, encoding: .atariST)
+            (info.author, place) = reader.cString(at: place, encoding: .atariST)
+            (info.comment, place) = reader.cString(at: place, encoding: .atariST)
             bank = place
             knownLength = length
             info.detail = "Atari ST, samples"
@@ -127,9 +127,9 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             let flags = reader.u32be(place + 14)
             place += 18
             guard voiceCount > 0, voiceCount <= 8, rate > 0, rate <= 2000, ticks > 0, ticks < 1 << 24, sampleCount <= 64 else { return nil }
-            (info.title, place) = reader.cString(at: place)
-            (info.author, place) = reader.cString(at: place)
-            (info.comment, place) = reader.cString(at: place)
+            (info.title, place) = reader.cString(at: place, encoding: .atariST)
+            (info.author, place) = reader.cString(at: place, encoding: .atariST)
+            (info.comment, place) = reader.cString(at: place, encoding: .atariST)
             var samples: [Sample] = []
             for _ in 0 ..< sampleCount {
                 var sample = Sample()

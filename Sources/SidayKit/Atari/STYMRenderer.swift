@@ -144,9 +144,9 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
             self.drums = drums
             drumStarts = starts
             drumLengths = lengths
-            (info.title, place) = reader.cString(at: place)
-            (info.author, place) = reader.cString(at: place)
-            (info.comment, place) = reader.cString(at: place)
+            (info.title, place) = reader.cString(at: place, encoding: .atariST)
+            (info.author, place) = reader.cString(at: place, encoding: .atariST)
+            (info.comment, place) = reader.cString(at: place, encoding: .atariST)
             base = place
             stride = 16
             interleaved = flags & 1 != 0
