@@ -1175,7 +1175,7 @@ smoothed, which two files ask for.
 All 106 files to hand are played. Set beside libopenmpt, the two are at the same place on every tick,
 with every tick as many frames long, for ten minutes or to the song's end, in every one of them. Every
 channel's pitch and volume on every tick of the first two minutes: of 826,682 ticks they are alike on
-816,190, 52 files are alike on every tick and 43 more on all but one in fifty. Most of what is left is
+816,966, 53 files are alike on every tick and 43 more on all but one in fifty. Most of what is left is
 the reference's own way of looking, which loses a voice for a tick at the turn of a loop; in the rest,
 in two files a slide to a note starts from where libopenmpt has put the pitch back, for a reason not
 found in its code.
