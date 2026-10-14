@@ -945,6 +945,7 @@ final class IT2Player {
         // (For an instrument with a tuning of its own, the note is seen to as OpenMPT sees to it, now,
         // or when a note that is put off comes.)
         if tunings, !delaysNote(hc) { openMPTTunedRow(hc) }
+        if module.openMPT != nil, !delaysNote(hc) { openMPTRow(hc) }
         InitCommand(hc)
         // (And for a module of Digitrakker's, a place between the speakers that had no room.)
         if module.playsAsDigitrakker { digitrakkerRowPan(hc) }
@@ -1170,6 +1171,7 @@ final class IT2Player {
         guard let smp = sc.pointee.SmpPtr, smp.AutoVibratoDepth != 0 else { return }
         if tunings, sc.pointee.Ins != 0xFF, sc.pointee.InsPtr?.Tuning != nil { return openMPTTunedAutoVibrato(sc, smp) }
         if module.madTracker { return madTrackerAutoVibrato(sc, smp) }
+        if module.openMPT?.itVibrato == true { return openMPTAutoVibrato(sc, smp) }
         sc.pointee.AutoVibratoDepth &+= UInt16(asImpulseTracker ? smp.AutoVibratoRate : smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate)
         if sc.pointee.AutoVibratoDepth >> 8 > UInt16(smp.AutoVibratoDepth) {
             sc.pointee.AutoVibratoDepth = (UInt16(smp.AutoVibratoDepth) << 8) | (sc.pointee.AutoVibratoDepth & 0xFF)
@@ -1394,6 +1396,7 @@ final class IT2Player {
             }
             UpdateAutoVibrato(sc)
             if tunings { openMPTTunedPitch(sc) }
+            if module.openMPT != nil { openMPTBend(sc) }
         }
     }
 

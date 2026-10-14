@@ -117,6 +117,9 @@ final class IT2Instrument {
     /// notes are played as OpenMPT plays them (see `IT2Player.openMPTTunedPitch`). Nil for the usual
     /// one, played as Impulse Tracker plays it.
     var Tuning: OpenMPTTuning?
+    /// For an MPTM file's instrument: how many semitones either way its notes are bent by the most
+    /// that OpenMPT's finetune command can bend them (its "pitch wheel depth").
+    var PitchWheelDepth: Int8 = 0
     /// For a file of ModPlug Tracker's or OpenMPT's: the plug-in its notes are sent through, counted
     /// from 1; nought for none, which is all any other file's instrument has.
     var MixPlug: UInt8 = 0
@@ -205,6 +208,9 @@ struct IT2HostChannel {
     /// For a note of an instrument with a tuning of its own (see `IT2Player.openMPTTunedPitch`):
     /// the channel's part of what OpenMPT keeps for it.
     var Tuned = IT2TunedChannel()
+    /// For an MPTM file: how far OpenMPT's finetune command bends the channel's notes, from the
+    /// most down at -32,768 to the most up at 32,767 (see `IT2Player.openMPTBend`).
+    var Bend: Int16 = 0
 }
 
 /// What OpenMPT keeps on a channel playing an instrument with a tuning of its own, whose pitch it
@@ -271,6 +277,8 @@ struct IT2SlaveChannel {
     /// vibrato this tick, as a ratio less one, if it has one.
     var Tuned = IT2TunedChannel()
     var TunedAutoVibrato: Float?
+    /// For an MPTM file: its channel's `Bend` when it had the note last.
+    var Bend: Int16 = 0
     var AutoVibratoPos: UInt8 = 0
     var AutoVibratoDepth: UInt16 = 0
     var OldLeftVolume: Int32 = 0, OldRightVolume: Int32 = 0

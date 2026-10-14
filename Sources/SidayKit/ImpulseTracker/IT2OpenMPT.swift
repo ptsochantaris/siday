@@ -174,6 +174,55 @@ extension IT2Player {
         }
     }
 
+    /// OpenMPT's finetune: the channel's notes are bent, by as much as their instrument allows at
+    /// the most, to where the command's value (a byte, and another if the row below goes on with
+    /// it) is from the middle. A smooth one goes a share of the way there each tick of its row.
+    func InitCommandBend(_ hc: IT2HostPointer, smooth: Bool) {
+        InitNoCommand(hc)
+        if smooth {
+            hc.pointee.Flags |= HF_ALWAYS_UPDATE_EFX
+            CommandBend(hc)
+        } else {
+            hc.pointee.Bend = bendTarget(hc)
+        }
+    }
+
+    func CommandBend(_ hc: IT2HostPointer) {
+        let target = Int(bendTarget(hc)), now = Int(hc.pointee.Bend)
+        // (As many ticks as are left of the row, this among them, and of its repeats.)
+        let left = Int(CurrentTick) + (RowDelayOn ? (Int(RowDelay) - 1) * Int(CurrentSpeed) : 0)
+        hc.pointee.Bend = Int16(clamping: left > 1 ? now + (target - now) / left : target)
+    }
+
+    private func bendTarget(_ hc: IT2HostPointer) -> Int16 {
+        let (value, rows) = openMPTLongValueAndRows(hc)
+        return Int16(clamping: (rows > 0 ? value : value << 8) - 0x8000)
+    }
+
+    /// A voice's pitch, bent by its channel's finetune at the end of a tick, after everything else
+    /// has moved it: by as many semitones at the most as its instrument says, either way.
+    func openMPTBend(_ sc: IT2SlavePointer) {
+        if sc.pointee.HostChnNum & CHN_DISOWNED == 0, let hc = sc.pointee.HostChnPtr { sc.pointee.Bend = hc.pointee.Bend }
+        guard sc.pointee.Bend != 0, sc.pointee.Ins != 0xFF, let ins = sc.pointee.InsPtr, ins.PitchWheelDepth != 0 else { return }
+        let bend = Int(sc.pointee.Bend) * Int(ins.PitchWheelDepth)
+        let rate = (Double(sc.pointee.Frequency) * pow(2.0, Double(bend) / (12 * 256 * 128))).rounded()
+        sc.pointee.Frequency = rate >= 0 && rate < Double(Int32.max) ? Int32(rate) : Int32.max
+        sc.pointee.Flags |= SF_FREQ_CHANGE
+    }
+
+    /// A row's note and instrument, for a channel of an MPTM file, as OpenMPT sees to them: an
+    /// instrument named takes the bend away, unless the note slides from the last on the same
+    /// instrument; and a note that is struck starts its channel's vibrato from the top of its wave,
+    /// which in Impulse Tracker only a vibrato on the note's own row does.
+    func openMPTRow(_ hc: IT2HostPointer) {
+        let mask = hc.pointee.NotePackMask
+        guard mask & 0x33 != 0 else { return }
+        let slides = mask & 0x88 != 0 && (hc.pointee.Cmd == 7 || hc.pointee.Cmd == 12) || mask & 0x44 != 0 && hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
+        let sliding = slides && hc.pointee.Flags & HF_CHAN_ON != 0
+        if mask & 0x22 != 0, hc.pointee.Bend != 0, !sliding || hc.pointee.SlaveChnPtr?.pointee.Ins != hc.pointee.Ins { hc.pointee.Bend = 0 }
+        if mask & 0x11 != 0, hc.pointee.RawNote < 120, !sliding, module.openMPT?.itVibrato == true { hc.pointee.VibratoPos = 0 }
+    }
+
     private func beginCut(_ hc: IT2HostPointer) {
         hc.pointee.MiscEfxData[0] = 0xC0
         hc.pointee.MiscEfxData[1] = hc.pointee.MiscEfxData[2]
@@ -541,6 +590,41 @@ extension IT2Player {
         }
         hc.pointee.Tuned.again = true
         hc.pointee.Tuned.againAtRow = true
+    }
+
+    /// A tick of a sample's own vibrato in an MPTM file that asks for Impulse Tracker's ways with
+    /// vibrato, as OpenMPT has those: the wave is read where it was before it moves on (Impulse
+    /// Tracker's replayer moves it first), its depth is divided towards nought, and the pitch is
+    /// moved by the slide tables' coarse step and fine step together.
+    func openMPTAutoVibrato(_ sc: IT2SlavePointer, _ smp: IT2Sample) {
+        guard smp.AutoVibratoSpeed != 0 else { return }
+        let position = Int(sc.pointee.AutoVibratoPos)
+        let depth = min(Int(sc.pointee.AutoVibratoDepth) + Int(smp.AutoVibratoRate), Int(smp.AutoVibratoDepth) * 256)
+        sc.pointee.AutoVibratoDepth = UInt16(depth)
+        sc.pointee.AutoVibratoPos &+= smp.AutoVibratoSpeed
+        var wave: Int
+        switch smp.AutoVibratoWaveform {
+        case 1: wave = 64 - (position + 1) / 2 // a ramp down
+        case 2: wave = position < 128 ? 64 : 0 // a square
+        case 3: wave = Int(Random() & 127) - 64
+        case 4: wave = (position + 1) / 2 - 64 // a ramp up
+        default: wave = Int(it2FineSineData[position])
+        }
+        wave = wave * (depth / 256) / 64
+        guard wave != 0 else { return }
+        // (In 256ths of the rate, as OpenMPT reckons it.)
+        let steps = abs(wave), rate = Int64(sc.pointee.Frequency) * 256
+        func step(_ factor: UInt32) -> Int64 { rate * Int64(factor) / 65536 - rate }
+        var moved: Int64
+        if wave < 0 {
+            moved = step(UInt32(it2LinearSlideDownTable[min(256, steps / 4)]))
+            if steps & 3 != 0 { moved += step(UInt32(it2FineLinearSlideDownTable[steps & 3])) }
+        } else {
+            moved = step(it2LinearSlideUpTable[min(256, steps / 4)])
+            if steps & 3 != 0 { moved += step(it2FineLinearSlideUpTable[steps & 3]) }
+        }
+        sc.pointee.Frequency = Int32(truncatingIfNeeded: min(Int64(Int32.max), (rate + moved) / 256))
+        sc.pointee.Flags |= SF_FREQ_CHANGE
     }
 
     /// A tick of an instrument's pitch envelope, for one with a tuning of its own: so many of the

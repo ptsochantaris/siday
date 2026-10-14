@@ -51,6 +51,8 @@ extension IT2Player {
         case 26: InitCommandZ(hc)
         case 28 where smoothMacros: InitCommandSmoothMacro(hc) // ModPlug Tracker's \xx
         case 29 where module.openMPT != nil: InitCommandDelayCut(hc) // an MPTM file's :xy
+        case 30 where module.openMPT != nil: InitCommandBend(hc, smooth: false) // and its finetune, + and *
+        case 31 where module.openMPT != nil: InitCommandBend(hc, smooth: true)
         default: InitNoCommand(hc)
         }
     }
@@ -78,6 +80,7 @@ extension IT2Player {
         case 25: CommandY(hc)
         case 28 where smoothMacros: CommandSmoothMacro(hc)
         case 29 where module.openMPT != nil: CommandDelayCut(hc)
+        case 31 where module.openMPT != nil: CommandBend(hc)
         default: NoCommand(hc)
         }
     }
@@ -1653,6 +1656,7 @@ extension IT2Player {
 
             hc.pointee.Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX)
             if tunings { openMPTTunedRow(hc) }
+            if module.openMPT != nil { openMPTRow(hc) }
             InitNoCommand(hc)
             hc.pointee.Flags |= HF_ROW_UPDATED
 

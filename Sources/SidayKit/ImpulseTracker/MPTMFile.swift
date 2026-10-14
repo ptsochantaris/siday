@@ -250,6 +250,8 @@ enum MPTMFile {
         /// The tempo it is to keep time with, its whole part and its ten-thousandths; nought for none.
         var pitchTempoLock = 0, pitchTempoLockFraction = 0
         var releaseNode = Int(IT2Envelope.noReleaseNode)
+        /// How far a bend of its notes goes, in semitones, where it is not the file's.
+        var pitchWheelDepth: Int?
         /// For each of its three envelopes, how many points and their ticks and levels, where the
         /// file gives them apart from the instrument: for an envelope of more than 25.
         var points = [Int](repeating: -1, count: 3)
@@ -291,6 +293,7 @@ enum MPTMFile {
                 // (The fraction is written first letter first, unlike every other name.)
                 case "FTTP": extras[index].pitchTempoLockFraction = number()
                 case "VERN": extras[index].releaseNode = number() & 0xFF
+                case "MPWD": extras[index].pitchWheelDepth = Int(Int8(truncatingIfNeeded: number()))
                 case "VE..", "PE..", "PiE.": extras[index].points[name == "VE.." ? 0 : name == "PE.." ? 1 : 2] = min(240, number())
                 case "VP[.", "PP[.", "PiP[": extras[index].ticks[name == "VP[." ? 0 : name == "PP[." ? 1 : 2] = (0 ..< size / 2).map { _ in UInt16(field.u16()) }
                 case "VE[.", "PE[.", "PiE[": extras[index].levels[name == "VE[." ? 0 : name == "PE[." ? 1 : 2] = (0 ..< size).map { _ in UInt8(field.u8()) }
@@ -719,6 +722,8 @@ enum MPTMFile {
             let ins = file.instrument(index)
             if ins.MIDIChn >= 128, instrumentExtras[index].plugin == 0 { instrumentExtras[index].plugin = Int(ins.MIDIChn) - 128 }
             ins.MIDIChn = 0
+            // (Which is the file's for every instrument, unless the instrument says otherwise.)
+            ins.PitchWheelDepth = Int8(truncatingIfNeeded: instrumentExtras[index].pitchWheelDepth ?? Int(data.count > 0x35 ? data[0x35] : 0))
             // (A note that is to be played as no note at all is played as itself.)
             for note in 0 ..< 120 where ins.SmpNoteTable[note] & 0xFF >= 120 { ins.SmpNoteTable[note] = ins.SmpNoteTable[note] & 0xFF00 | UInt16(note) }
             let extras = instrumentExtras[index]
@@ -974,7 +979,7 @@ enum MPTMFile {
         var silentInstruments = Set<Int>(), elsewhereInstruments = Set<Int>(), usedInstruments = Set<Int>()
         // The plug-ins that are not OpenMPT's own, and so are not played.
         let leftOut = plugins.filter { sound.plugIns[$0 - 1].kind == nil }
-        var bends = 0, reverbs = 0, speakerCommands = 0
+        var reverbs = 0, speakerCommands = 0
         // The file's MIDI macros, for telling one that sets a filter from one that sets a plug-in:
         // sixteen that a command chooses among and gives a value, and 128 with a value of their own.
         let macros = file.midiData ?? IT2Module.defaultMIDIData()
@@ -1105,10 +1110,7 @@ enum MPTMFile {
                     asNow(&cell)
                     if cell.hasCommand {
                         switch cell.command & 31 {
-                        case Own.bend, Own.smoothBend:
-                            cell.clearCommand()
-                            if played[index] { bends += 1 }
-                        case IT2ForeignModule.Command.B, IT2ForeignModule.Command.C, IT2ForeignModule.Command.T, IT2ForeignModule.Command.O:
+                        case IT2ForeignModule.Command.B, IT2ForeignModule.Command.C, IT2ForeignModule.Command.T, IT2ForeignModule.Command.O, Own.bend, Own.smoothBend:
                             // A value that goes on into the rows below: for one row, or for an offset two.
                             var value = Int(cell.value), more = 0
                             let most = cell.command & 31 == IT2ForeignModule.Command.O ? 2 : 1
@@ -1150,7 +1152,6 @@ enum MPTMFile {
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
         if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
-        say(bends, one: "One command that bends a note's pitch is left out.", many: " commands that bend a note's pitch are left out.")
         if reverbs > 0 { shortfalls.append("Its reverb is left out.") }
         if speakerCommands > 0 { shortfalls.append("What it asks of four speakers, and of filters on its whole sound, is left out.") }
 

@@ -659,11 +659,41 @@ private func ways(without left: Int...) -> Song {
     // What is said is only what the file uses.
     let unused = mptm([Pattern([(0, 0, .note())])], samples: [.sound(square, loops: true), .fm], instruments: [(1, [], 0), (2, [], 0)])
     #expect(try player(unused).info.shortfalls.isEmpty)
-    // A command that bends a pitch is taken out. (A macro slid over a row is played, and so is
-    // nothing to speak of.)
+    // The reverb is left out. (A command that bends a pitch, and a macro slid over a row, are
+    // played, and so are nothing to speak of.)
     let commands = Pattern([(0, 0, .note()), (1, 0, Cell(command: "^", value: 1)), (2, 0, .command("\\", 0x10)), (3, 0, .command("S", 0x99))])
     let said = try player(mptm([commands])).info.shortfalls
-    #expect(said == ["One command that bends a note's pitch is left out.", "Its reverb is left out."])
+    #expect(said == ["Its reverb is left out."])
+}
+
+@Test func mptmVibratoStartsFromTheTopWithEveryNote() throws {
+    // OpenMPT starts a channel's vibrato from the top of its wave whenever a note is struck, where
+    // Impulse Tracker does only for a vibrato on the note's own row: so a vibrato begun after a
+    // note goes the same whether or not another went before it on the channel.
+    func rates(_ cells: [(row: Int, channel: Int, cell: Cell)]) throws -> [Int] {
+        try player(mptm([Pattern(cells)], instruments: [(1, [], 0)])).ticks(seconds: 1).map { $0.rates.max() ?? 0 }
+    }
+    let after = try rates([(0, 0, .note(60, "H", 0x48)), (1, 0, .command("H", 0)), (4, 0, .note()), (6, 0, .command("H", 0x48))])
+    let alone = try rates([(4, 0, .note()), (6, 0, .command("H", 0x48))])
+    #expect(after[24] == 8363 && Array(after[36 ..< 42]) == Array(alone[36 ..< 42]) && after[37] != 8363)
+}
+
+@Test func mptmFinetuneBendsTheNoteAsFarAsItsInstrumentAllows() throws {
+    // The file's pitch wheel depth is two semitones, so a finetune of C0, a quarter of the way up
+    // from the middle at 80, bends the note up by one; and 40 bends it down by one.
+    func rates(_ cells: [(row: Int, channel: Int, cell: Cell)]) throws -> [Int] {
+        var file = mptm([Pattern(cells)], instruments: [(1, [], 0)])
+        file[0x35] = 2
+        return try player(file).ticks(seconds: 1).map { $0.rates.max() ?? 0 }
+    }
+    let up = 8363 * pow(2.0, 1.0 / 12), down = 8363 / pow(2.0, 1.0 / 12)
+    let bent = try rates([(0, 0, .note()), (1, 0, .command("^", 0xC0)), (2, 0, .command("^", 0x40)), (3, 0, .note()), (4, 0, .command("^", 0x80))])
+    #expect(bent[0] == 8363 && abs(Double(bent[6]) - up) <= 1 && abs(Double(bent[11]) - up) <= 1 && abs(Double(bent[12]) - down) <= 1)
+    // A note with its instrument named takes the bend away; and 80 is no bend at all.
+    #expect(bent[18] == 8363 && bent[24] == 8363)
+    // The smooth one goes a share of the way each tick, and is there at the row's end.
+    let smooth = try rates([(0, 0, .note()), (1, 0, .command("_", 0xC0))])
+    #expect((7 ... 11).allSatisfy { smooth[$0] > smooth[$0 - 1] } && abs(Double(smooth[11]) - up) <= 1)
 }
 
 @Test func mptmFileThatIsMostlyNotHeardIsRefused() throws {

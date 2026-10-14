@@ -1234,12 +1234,16 @@ after each tick the chip is told what OpenMPT would have told it: which of its e
 note has, the patch, and from then on a pitch, a level and a side. OpenMPT's own chip is another
 emulator of the same chip, so the sound is not its sound to the sample, but what is set in the
 chip's registers can be put side by side, and was, tick by tick, for the first minute of every
-such file. Of the notes sounding in libopenmpt 99.97% are sounding here with the same patch; their
-pitch is the same number in 83% of ticks, within two of the chip's steps in 94% and within two
-hundredths in 99%; the level of the operator that is heard is within one step of 63 in 98.7%. What
-is left is not the chip's doing but the replayer's, which is Impulse Tracker's: a vibrato that
-starts from another point of its wave, an envelope a tick ahead, a note bent by a command that is
-left out. The chip is as loud against the samples as OpenMPT makes it.
+such file. Of the notes sounding in libopenmpt 99.98% are sounding here with the same patch; their
+pitch is the same number in 91% of ticks, within two of the chip's steps in 99.2% and within two
+hundredths in 99.8%; the level of the operator that is heard is within one step of 63 in 99.6%.
+Much of what once differed was not the chip's doing but the replayer's, and has been made
+OpenMPT's way for these files, for samples as much as for the chip: a sample's own vibrato, which
+OpenMPT reads a step before Impulse Tracker does and rounds otherwise; a vibrato, which OpenMPT
+starts from the top of its wave with every note struck, and Impulse Tracker only with a note on its
+own row; and OpenMPT's finetune command, which bends a channel's notes by up to so many semitones
+as the instrument says. What is left is mostly a step of rounding, and a note given another of the
+chip's voices than OpenMPT gives it. The chip is as loud against the samples as OpenMPT makes it.
 
 Half the MPTM files to hand use plug-ins. A plug-in is somebody's program, and none can be run
 here; but OpenMPT has a few of its own built in, which it plays on any machine, and four files in
