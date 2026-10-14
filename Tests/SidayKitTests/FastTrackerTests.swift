@@ -441,3 +441,19 @@ private func levels(_ renderer: any Renderer) -> [Float] {
     // In OpenMPT 1.17's ways the usual pre-amp is 128.
     #expect(abs(try loud(xm() + extras(mixLevels: 3, preAmp: 128)) / own - 1) < 0.01)
 }
+
+@Test func xmChannelPutInTheReverbIsHeardInItInALaterTrackersFile() throws {
+    // A note cut on its third row, with X99 beside it: in a file of a later tracker's the reverb
+    // goes on after it; without X99, or in a file of FastTracker's own, there is nothing then.
+    func file(_ effect: [UInt8]) -> [UInt8] {
+        let rows = [0x83 | (effect.isEmpty ? 0 : 0x18), 49, 1] + effect + [0x80] + [0x80, 0x80] + [0x81, 97, 0x80] + [UInt8](repeating: 0x80, count: 61 * 2)
+        return xm(pattern: (64, rows))
+    }
+    func tail(_ file: [UInt8]) throws -> Float {
+        let sound = stereo(try TuneLoader.load(file, format: .xm), seconds: 1.5)
+        let part = sound.left[24000 ..< 48000] + sound.right[24000 ..< 48000]
+        return (part.reduce(0) { $0 + $1 * $1 } / Float(part.count)).squareRoot()
+    }
+    let wet = try tail(file([33, 0x99])), dry = try tail(file([])), off = try tail(file([33, 0x98])), own = try tail(byFastTracker(file([33, 0x99])))
+    #expect(wet > 0.001 && dry < 0.0001 && off < 0.0001 && own < 0.0001)
+}

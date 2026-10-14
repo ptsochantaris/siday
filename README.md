@@ -741,7 +741,10 @@ heard through its plug-ins, where they are OpenMPT's own, as an IT file of the s
 voice goes to its instrument's plug-in, or else its channel's, in FastTracker's whole numbers, and
 the plug-ins are given it at the level OpenMPT plays an XM file. Set beside libopenmpt, the 107
 files to hand that send something through a plug-in agree in spectrum to 0.993 for the middle
-one, where without the plug-ins it was 0.982. That is for a file that gives itself away as another tracker's: by saying so, or,
+one, where without the plug-ins it was 0.982. X99 puts a channel in ModPlug's own reverb, and X98
+takes it out, as in an IT file of theirs (see MPTM, below); of the 16 such files to hand, how alike
+their two sides are to libopenmpt's went from 0.31 to 0.97 for the middle one. That is for a file
+that gives itself away as another tracker's: by saying so, or,
 where it says FastTracker as ModPlug Tracker's files do, by a name padded with nothing instead of
 spaces or by what ModPlug Tracker writes after all that FastTracker reads. FastTracker lets any
 letter be typed for a command, and in a file of its own a letter it has no command for is

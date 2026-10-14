@@ -91,6 +91,11 @@ final class FT2Player {
     /// and which of them have had a voice mixed into them in the tick being made.
     private var placeTicks: [UnsafeMutablePointer<Int32>?] = []
     private var placesUsed: [Int] = []
+    /// ModPlug's own reverb, for a song whose channels are put in it and that is to be heard: the
+    /// tick that the voices sent to it are mixed into, and whether anything was this tick.
+    private var reverb: ModPlugReverb?
+    private var reverbTick: UnsafeMutablePointer<Int32>?
+    private var reverbUsed = false
     /// The tick as the plug-ins have it, left and right in turn.
     private var plugInTick: UnsafeMutablePointer<Float>?
     /// From the mixer's whole numbers to what OpenMPT gives a plug-in, which is a number from -1 to
@@ -195,11 +200,18 @@ final class FT2Player {
         visited.deallocate()
         for tick in placeTicks { tick?.deallocate() }
         plugInTick?.deallocate()
+        reverbTick?.deallocate()
     }
 
     /// Makes the song's plug-ins, for a player whose sound is to be heard: one that only finds how
     /// long a tune is, or plays as FastTracker would, has no use for them.
     func playsPlugIns() {
+        if reverb == nil, module.reverbs {
+            reverb = ModPlugReverb(sampleRate: Int(Self.rate))
+            let tick = UnsafeMutablePointer<Int32>.allocate(capacity: (Self.mostSamplesPerTick + 1) * 2)
+            tick.initialize(repeating: 0, count: (Self.mostSamplesPerTick + 1) * 2)
+            reverbTick = tick
+        }
         guard plugIns == nil, let sound = module.sound, let made = OpenMPTPlugIns(sound) else { return }
         plugIns = made
         placeTicks = [UnsafeMutablePointer<Int32>?](repeating: nil, count: sound.plugIns.count)
@@ -424,6 +436,7 @@ final class FT2Player {
             plugIns.begin(frames: count)
             placesUsed.removeAll(keepingCapacity: true)
         }
+        reverbUsed = false
         // A voice at its loudest, in the mixer's numbers, whichever side it is on.
         let full = Float(255 * CDA_Amp) * 4096
         for i in 0 ..< Int(song.antChn) * 2 {
@@ -435,6 +448,7 @@ final class FT2Player {
             if i & 1 == 0 || level > levels.now[i >> 1] { levels.now[i >> 1] = level }
         }
         levels.tickMade()
+        if reverb != nil { addReverb(count) }
         if plugIns != nil { sendThroughPlugIns(count) }
         for i in 0 ..< Int(song.antChn) {
             // The channel's own voice, and not the one a note before it is dying away on.
@@ -467,12 +481,52 @@ final class FT2Player {
         }
     }
 
-    /// The tick a voice is mixed into: the song's, or the one for the plug-in it is sent to, or for
-    /// a voice of a channel left out of the sound, one that is not heard.
+    /// What OpenMPT does with ModPlug's reverb after a tick's voices are mixed, before the plug-ins:
+    /// what was sent to it is given to it, in OpenMPT's whole numbers and blocks, and what it makes
+    /// is added to the tick.
+    private func addReverb(_ count: Int) {
+        guard let reverb, let reverbTick else { return }
+        // (FastTracker's numbers as OpenMPT's, whose mix has 27 bits for a sample at its loudest.)
+        let scale = Double(Self.plugInLevel * module.openMPTLevel) * Double(1 << 27), back = 1 / scale
+        withUnsafeTemporaryAllocation(of: Int32.self, capacity: ModPlugReverb.maxFrames * 2) { added in
+            guard let added = added.baseAddress else { return }
+            var done = 0
+            while done < count {
+                let frames = min(ModPlugReverb.maxFrames, count - done)
+                let send = reverb.sendBuffer
+                if reverbUsed {
+                    reverb.touch(send: send, frames: frames)
+                    let from = reverbTick + done * 2
+                    for i in 0 ..< frames * 2 { send[i] &+= Int32(max(-2.0e9, min(2.0e9, (Double(from[i]) * scale).rounded()))) }
+                }
+                // (What the reverb gives is only ever added to the mix, so it is given nothing to add to.)
+                added.update(repeating: 0, count: frames * 2)
+                reverb.process(main: added, send: send, frames: frames)
+                let to = mixBuffer + done * 2
+                for i in 0 ..< frames * 2 where added[i] != 0 {
+                    to[i] = Int32(clamping: Int64(to[i]) + Int64((Double(added[i]) * back).rounded()))
+                }
+                done += frames
+            }
+        }
+    }
+
+    /// The tick a voice is mixed into: the song's, or the one for the plug-in it is sent to, or that
+    /// for ModPlug's reverb, or for a voice of a channel left out of the sound, one that is not heard.
     @inline(__always) private func target(of v: UnsafeMutablePointer<FT2Voice>) -> UnsafeMutablePointer<Int32> {
         if v.pointee.muted, let unheard { return unheard }
         let place = v.pointee.place
-        guard place >= 0, plugIns != nil, place < placeTicks.count else { return mixBuffer }
+        guard place >= 0, plugIns != nil, place < placeTicks.count else {
+            // (The two voices of a channel, its note and the one before dying away, are side by side.)
+            if let reverbTick, stm[(v - CI) / 2].reverb {
+                if !reverbUsed {
+                    reverbTick.update(repeating: 0, count: Int(speedVal) * 2)
+                    reverbUsed = true
+                }
+                return reverbTick
+            }
+            return mixBuffer
+        }
         if let tick = placeTicks[place] {
             if !placesUsed.contains(place) {
                 tick.update(repeating: 0, count: Int(speedVal) * 2)

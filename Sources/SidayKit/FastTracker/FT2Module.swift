@@ -56,6 +56,9 @@ final class FT2Module {
     /// samples, if it has any: plug-ins that are OpenMPT's own, with something sent through them
     /// (see `ModPlugSound`).
     private(set) var sound: ModPlugSound?
+    /// True for a file that a later tracker made whose patterns put a channel in ModPlug's own
+    /// reverb (X99): see `ModPlugReverb`.
+    private(set) var reverbs = false
     /// And the plug-in each instrument plays through, counted from 1, by the instrument's number;
     /// nought for none.
     private(set) var instrumentPlugIns = [Int](repeating: 0, count: 256)
@@ -290,6 +293,7 @@ final class FT2Module {
                 // were to FastTracker. What is left is a macro of the file's own that sends
                 // something else: the filter's kind, or a plug-in's setting.)
                 if note.effTyp == 35 || note.effTyp == 36, !madeByFastTracker { macroValues[Int(note.eff)] = true }
+                if note.effTyp == 33, note.eff == 0x99, !madeByFastTracker { reverbs = true }
             }
         }
         if macroValues.indices.contains(where: { value in

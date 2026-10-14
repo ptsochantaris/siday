@@ -87,6 +87,8 @@ final class FT2Channel {
     /// is, and whether the last tick was swept.
     var sweepPos: UInt8 = 0, sweepSpeed: UInt8 = 0, sweepDepth: UInt8 = 0, sweepWave: UInt8 = 0
     var swept = false
+    /// And true from X99, which puts its notes in ModPlug's reverb, until X98.
+    var reverb = false
     /// And its filter: where it closes, of 127, and how it rings; whether it is on, which it is
     /// from the first setting of either until the next note, and for a note begun with it closed
     /// at all; and whether the mixer has still to be told.
@@ -572,6 +574,8 @@ extension FT2Player {
         var param = value & 0x0F
         // (X5x in a later tracker's file chooses the wave of a sweep from side to side.)
         if type == 0x5, playsLaterCommands { ch.sweepWave = param & 7 }
+        // (And X98 and X99 take the channel out of ModPlug's reverb and put it in.)
+        if type == 0x9, playsLaterCommands, param == 8 || param == 9 { ch.reverb = param == 9 }
         if type == 0x1 {
             if param == 0 { param = ch.ePortaUpSpeed }
             ch.ePortaUpSpeed = param
