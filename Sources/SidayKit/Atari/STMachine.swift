@@ -4,12 +4,16 @@
 // Derived from AtariAudio, Copyright (c) Arnaud Carré, used under the MIT licence (see THIRD-PARTY.md).
 
 /// The Atari ST's hardware registers, as far as its music touches them: the sound chip, the timer
-/// chip and the STE's sample player, and a few places a player's code looks at to see what kind of
+/// chip, the STE's sample player and its blitter, and a few places a player's code looks at to see what kind of
 /// machine it is on.
 final class STHardware: M68000Bus {
     var chip: STSoundChip
     var timers: MFP
     var samples: STESound
+    var blitter = STBlitter()
+    /// The machine's memory, which the blitter works on.
+    var ram: UnsafeMutablePointer<UInt8>?
+    var ramSize = 0
 
     init(hostRate: Int) {
         chip = STSoundChip(hostRate: hostRate)
@@ -21,6 +25,28 @@ final class STHardware: M68000Bus {
         chip.reset()
         timers.reset()
         samples.reset()
+        blitter.reset()
+    }
+
+    /// A word of memory or of the hardware, as the blitter reads and writes them.
+    private func memoryRead16(_ address: UInt32) -> UInt16 {
+        if let ram, Int(address) < ramSize - 1 { return UInt16(ram[Int(address)]) << 8 | UInt16(ram[Int(address) + 1]) }
+        return read16(address)
+    }
+
+    private func memoryWrite16(_ address: UInt32, _ value: UInt16) {
+        if let ram, Int(address) < ramSize - 1 {
+            ram[Int(address)] = UInt8(truncatingIfNeeded: value >> 8)
+            ram[Int(address) + 1] = UInt8(truncatingIfNeeded: value)
+            return
+        }
+        write16(address, value)
+    }
+
+    private func runBlitter() {
+        var blitter = blitter
+        blitter.run(read: { memoryRead16($0) }, write: { memoryWrite16($0, $1) })
+        self.blitter = blitter
     }
 
     func read8(_ address: UInt32) -> UInt8 {
@@ -31,6 +57,7 @@ final class STHardware: M68000Bus {
         case 0xFF820A: 2
         case 0xFFFA00 ..< 0xFFFA26: timers.read8(address - 0xFFFA00)
         case 0xFF8900 ..< 0xFF8926: samples.read8(address - 0xFF8900)
+        case 0xFF8A00 ... 0xFF8A3D: blitter.read8(address - 0xFF8A00)
         // The keyboard and MIDI ports have nothing to say.
         case 0xFFFC00 ... 0xFFFC06: 0
         default: 0xFF
@@ -42,6 +69,7 @@ final class STHardware: M68000Bus {
         case 0xFF8800 ..< 0xFF8900: UInt16(chip.readPort(address & 0xFE)) << 8
         case 0xFFFA00 ..< 0xFFFA26: timers.read16(address - 0xFFFA00)
         case 0xFF8900 ..< 0xFF8926: samples.read16(address - 0xFF8900)
+        case 0xFF8A00 ... 0xFF8A3C: blitter.read16(address - 0xFF8A00)
         case 0xFFFC00 ... 0xFFFC06: 0
         default: 0xFFFF
         }
@@ -53,6 +81,7 @@ final class STHardware: M68000Bus {
         case 0xFF8800 ..< 0xFF8900: chip.writePort(address & 0xFE, value)
         case 0xFFFA00 ..< 0xFFFA26: timers.write8(address - 0xFFFA00, value)
         case 0xFF8900 ..< 0xFF8926: samples.write8(address - 0xFF8900, value)
+        case 0xFF8A00 ... 0xFF8A3D: if blitter.write8(address - 0xFF8A00, value) { runBlitter() }
         default: break
         }
     }
@@ -62,6 +91,7 @@ final class STHardware: M68000Bus {
         case 0xFF8800 ..< 0xFF8900: chip.writePort(address & 0xFE, UInt8(truncatingIfNeeded: value >> 8))
         case 0xFFFA00 ..< 0xFFFA26: timers.write16(address - 0xFFFA00, value)
         case 0xFF8900 ..< 0xFF8926: samples.write16(address - 0xFF8900, value)
+        case 0xFF8A00 ... 0xFF8A3C: if blitter.write16(address - 0xFF8A00, value) { runBlitter() }
         default: break
         }
     }
@@ -102,6 +132,8 @@ final class STMachine {
     init(hostRate: Int) {
         ram = .allocate(capacity: Self.ramSize)
         hardware = STHardware(hostRate: hostRate)
+        hardware.ram = ram
+        hardware.ramSize = Self.ramSize
         cpu = M68000(ram: ram, ramSize: Self.ramSize, bus: hardware)
     }
 
