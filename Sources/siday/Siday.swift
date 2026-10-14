@@ -20,6 +20,7 @@ struct Siday: ParsableCommand {
         abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, XM, S3M, IT, MPTM, MTM, DTM, AMF, GDM, PTM, ULT, 669, STM, FAR and C67 modules and CMF, ROL and FMT tunes for the AdLib from files, folders and playlists.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
+        Each voice of a tune has a light on the status line. 1 to 9, and 0 for the tenth, leave a voice out or bring it back; [ and ] choose one, m leaves it out or brings it back, and s plays it alone (s again brings the others back). A voice left out goes on playing, unheard, and the tune is as long as it is whole. Every tune starts with all its voices.
         Folders are searched recursively. The files are only ever read.
         A playlist (Ay_Emul's AYL) plays the tunes it names, in its order. In a folder, the playlists add only the tunes the folder does not itself hold.
         """
@@ -99,6 +100,12 @@ struct Siday: ParsableCommand {
 
     @Flag(help: "Render at full speed and report the multiple of real time.")
     var bench = false
+
+    @Option(help: "Leave these voices out of every tune, played or rendered to WAV, by number from 1, comma-separated (for example 2,4). They are numbered as the lights on the status line.")
+    var mute: String?
+
+    @Option(help: "Hear only this voice of every tune, played or rendered to WAV, by number from 1.")
+    var solo: Int?
 
     @Option(help: "Start multi-song files at this song number instead of the file's own start song.")
     var subsong: Int?
@@ -191,6 +198,14 @@ struct Siday: ParsableCommand {
         } else {
             FileHandle.standardError.write(Data("siday: --songlengths: no song lengths in \(songlengths); not used, and not remembered\n".utf8))
         }
+    }
+
+    /// The voices asked to be left out of every tune.
+    private var leftOut: LeftOut {
+        var leftOut = LeftOut()
+        leftOut.voices = Set((mute ?? "").split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }.filter { $0 > 0 }.map { $0 - 1 })
+        leftOut.alone = solo.flatMap { $0 > 0 ? $0 - 1 : nil }
+        return leftOut
     }
 
     private var policy: PlaybackPolicy {
@@ -473,7 +488,7 @@ struct Siday: ParsableCommand {
     private func play(_ files: [URL], notes: [URL: String]) throws {
         let ring = SampleRing(frames: 8192)
         let output = try AudioOutput(ring: ring)
-        let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: self.output.television)
+        let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: self.output.television, leftOut: leftOut)
         Terminal.enterKeyMode()
         engine.start()
 
@@ -481,6 +496,10 @@ struct Siday: ParsableCommand {
         var length = 0.0
         var paused = false
         var statusShown = false
+        /// The voice that m and s are for, once one has been chosen; shown on the status line.
+        var chosen: Int?
+        var voices = 0
+        var muted: [Bool] = []
         func clearStatus() {
             if statusShown, Terminal.interactive { print("\r\u{1B}[K", terminator: "") }
             statusShown = false
@@ -496,13 +515,24 @@ struct Siday: ParsableCommand {
             case .pause:
                 paused.toggle()
                 ring.paused.store(paused, ordering: .relaxed)
+            case let .voice(voice):
+                if voice < voices { engine.send(.mute(voice)) }
+            case let .choose(step):
+                if voices > 0 { chosen = ((chosen ?? (step > 0 ? -1 : voices)) + step + voices) % voices }
+            case .muteChosen:
+                if let chosen { engine.send(.mute(chosen)) }
+            case .soloChosen:
+                if let chosen { engine.send(.solo(chosen)) }
             case nil: break
             }
             let state = engine.nowPlaying.withLock { state -> NowPlaying in
                 let copy = state
                 state.messages.removeAll()
+                for voice in state.levels.indices { state.levels[voice] = 0 }
                 return copy
             }
+            voices = state.levels.count
+            muted = state.muted
             for message in state.messages {
                 clearStatus()
                 print(message)
@@ -510,6 +540,7 @@ struct Siday: ParsableCommand {
             if state.generation != generation {
                 generation = state.generation
                 length = state.length
+                chosen = nil
                 clearStatus()
                 print(state.header)
                 // What the playlist it came from says about it.
@@ -520,7 +551,9 @@ struct Siday: ParsableCommand {
             if state.finished { break loop }
             if Terminal.interactive, generation > 0 {
                 let played = Double(ring.framesPlayed.load(ordering: .relaxed)) / Double(outputSampleRate)
-                print("\r  \(formatTime(played)) / \(formatTime(length))\(paused ? "  paused" : "")\u{1B}[K", terminator: "")
+                let time = "  \(formatTime(played)) / \(formatTime(length))"
+                let lights = Self.lights(state.levels, muted: muted, chosen: chosen, room: Terminal.width - time.count - 12)
+                print("\r\(time)\(lights.isEmpty ? "" : "  " + lights)\(paused ? "  paused" : "")\u{1B}[K", terminator: "")
                 fflush(stdout)
                 statusShown = true
             }
@@ -529,6 +562,30 @@ struct Siday: ParsableCommand {
         fflush(stdout)
         output.stop()
         Terminal.restore()
+    }
+
+    /// A light for each voice, as on the web player's page but in a line of text: a bar as tall as the
+    /// voice is loud, faint for a voice left out, and the chosen voice shown the other way round.
+    /// Four to a group, so that a voice can be counted to. As many groups as there is room for.
+    static func lights(_ levels: [Float], muted: [Bool], chosen: Int?, room: Int) -> String {
+        let bars = Array("▁▂▃▄▅▆▇█")
+        var text = "", width = 0
+        for voice in levels.indices {
+            if voice > 0, voice % 4 == 0 {
+                if width + 6 > room {
+                    text += " …"
+                    break
+                }
+                text += " "
+                width += 1
+            }
+            var light = String(bars[max(0, min(bars.count - 1, Int(levels[voice] * Float(bars.count))))])
+            if voice < muted.count, muted[voice] { light = "\u{1B}[2m" + light + "\u{1B}[22m" }
+            if voice == chosen { light = "\u{1B}[7m" + light + "\u{1B}[27m" }
+            text += light
+            width += 1
+        }
+        return text
     }
 
     private func playTestTone() throws {
@@ -609,6 +666,14 @@ struct Siday: ParsableCommand {
                 for subsong in first ... last {
                     if renderer.subsongCount > 1 { renderer.select(subsong: subsong) }
                     let session = TuneSession(renderer: renderer, policy: policy)
+                    // Voices left out: heard through another player of the song, as when playing.
+                    let marks = leftOut.marks(renderer.channelCount)
+                    if marks.contains(true) {
+                        let twin = try tuneFiles.load(url)
+                        if twin.subsongCount > 1 { twin.select(subsong: subsong) }
+                        twin.setMuted(marks)
+                        session.heard = twin
+                    }
                     var writer = WAVWriter()
                     var television = output.television.map { Television($0) }
                     while !session.finished {

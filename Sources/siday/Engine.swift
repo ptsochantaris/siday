@@ -7,6 +7,37 @@ import Synchronization
 
 enum Command {
     case next, previous, nextSubsong, previousSubsong, quit
+    /// Leave a voice out, by its number from 0, or bring it back.
+    case mute(Int)
+    /// Hear a voice alone, or, if it is already heard alone, bring the others back.
+    case solo(Int)
+}
+
+/// The voices a listener asks to leave out, from the start of every tune.
+struct LeftOut: Sendable {
+    /// Voice numbers from 0.
+    var voices: Set<Int> = []
+    var alone: Int?
+
+    /// For a tune of so many voices: true for each that is left out.
+    func marks(_ count: Int) -> [Bool] {
+        if let alone, alone < count { return (0 ..< count).map { $0 != alone } }
+        return (0 ..< count).map { voices.contains($0) }
+    }
+
+    /// What pressing a voice's key does to the voices left out: `solo` to hear it alone, or, if it
+    /// is so already, all of them again; otherwise to leave it out, or bring it back.
+    static func pressed(_ voice: Int, solo: Bool, in marks: [Bool]) -> [Bool] {
+        guard marks.indices.contains(voice) else { return marks }
+        var marks = marks
+        if solo {
+            let alone = marks.indices.allSatisfy { marks[$0] == ($0 != voice) }
+            marks = marks.indices.map { !alone && $0 != voice }
+        } else {
+            marks[voice].toggle()
+        }
+        return marks
+    }
 }
 
 struct NowPlaying {
@@ -20,6 +51,10 @@ struct NowPlaying {
     /// Lines to print above the status line (skipped files and the like).
     var messages: [String] = []
     var finished = false
+    /// How loud each voice of the tune has been since this was last read, from 0 to 1, and which of
+    /// them are left out.
+    var levels: [Float] = []
+    var muted: [Bool] = []
 }
 
 /// Owns the current tune on its own thread and keeps the audio ring full.
@@ -31,14 +66,17 @@ final class Engine: @unchecked Sendable {
     private let commands = Mutex<[Command]>([])
     /// The television the sound is played through, if any.
     private let television: TelevisionSet?
+    /// The voices left out of every tune from its start.
+    private let leftOut: LeftOut
     let nowPlaying = Mutex(NowPlaying())
 
-    init(ring: SampleRing, playlist: [URL], files: TuneFiles, policy: PlaybackPolicy, television: TelevisionSet?) {
+    init(ring: SampleRing, playlist: [URL], files: TuneFiles, policy: PlaybackPolicy, television: TelevisionSet?, leftOut: LeftOut = LeftOut()) {
         self.ring = ring
         self.playlist = playlist
         self.files = files
         self.policy = policy
         self.television = television
+        self.leftOut = leftOut
     }
 
     func send(_ command: Command) {
@@ -91,6 +129,21 @@ final class Engine: @unchecked Sendable {
             $0.shortfalls = renderer.info.shortfalls
             $0.length = session.displayLength
             $0.index = index
+            $0.levels = [Float](repeating: 0, count: renderer.channelCount)
+        }
+    }
+
+    /// The song as it is heard with voices left out: another player of it, loaded from the same file,
+    /// which plays the song from its start, unheard, until it has got to where the song is, and is
+    /// then heard in its place (see `TuneSession.heard`). Until then the song is heard whole, as it
+    /// was. Once there, voices are left out and brought back at once.
+    private final class Twin {
+        let renderer: any Renderer
+        /// Frames of the song this player has been given.
+        var frames = 0
+
+        init(_ renderer: any Renderer) {
+            self.renderer = renderer
         }
     }
 
@@ -123,10 +176,52 @@ final class Engine: @unchecked Sendable {
                 let session = TuneSession(renderer: renderer, policy: policy)
                 flushRing()
                 announce(session, index: index, url: url)
+                // Every song starts with every voice heard, but for those asked to be left out of all.
+                var muted = leftOut.marks(renderer.channelCount)
+                var twin: Twin?
+                /// The listener has changed which voices are left out.
+                func leaveOut(_ marks: [Bool]) {
+                    muted = marks
+                    nowPlaying.withLock { $0.muted = marks }
+                    guard marks.contains(true) else {
+                        twin = nil
+                        session.heard = nil
+                        return
+                    }
+                    if let twin {
+                        twin.renderer.setMuted(marks)
+                        return
+                    }
+                    guard let other = try? files.load(url) else { return }
+                    if other.subsongCount > 1 || subsong != other.currentSubsong { other.select(subsong: subsong) }
+                    other.setMuted(marks)
+                    twin = Twin(other)
+                }
+                if muted.contains(true) { leaveOut(muted) } else { nowPlaying.withLock { $0.muted = muted } }
 
                 while !session.finished {
+                    // A player of the song with voices left out that has not yet got to where the song
+                    // is goes a step nearer; and once there, is what is heard.
+                    if let twin, session.heard == nil {
+                        let behind = session.framesRendered - twin.frames
+                        if behind > 0 {
+                            let step = min(behind, 16384)
+                            var done = 0
+                            while done < step {
+                                let count = min(block, step - done)
+                                twin.renderer.render(into: buffer, frames: count)
+                                done += count
+                            }
+                            twin.frames += step
+                        }
+                        if twin.frames == session.framesRendered { session.heard = twin.renderer }
+                    }
                     for command in commands.withLock({ let c = $0; $0.removeAll(); return c }) {
                         switch command {
+                        case let .mute(voice):
+                            leaveOut(LeftOut.pressed(voice, solo: false, in: muted))
+                        case let .solo(voice):
+                            leaveOut(LeftOut.pressed(voice, solo: true, in: muted))
                         case .quit:
                             flushRing()
                             break outer
@@ -156,6 +251,10 @@ final class Engine: @unchecked Sendable {
                     let produced = session.render(into: buffer, frames: block)
                     television?.process(buffer, frames: produced)
                     if produced > 0 { ring.write(buffer, frames: produced) }
+                    let levels = session.channelLevels
+                    nowPlaying.withLock { state in
+                        for voice in levels.indices where voice < state.levels.count { state.levels[voice] = max(state.levels[voice], levels[voice]) }
+                    }
                 }
                 if session.end == .neverSounded {
                     post("silent: \(url.lastPathComponent)")

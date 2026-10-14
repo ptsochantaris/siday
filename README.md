@@ -121,6 +121,12 @@ is played once through, and a folder of nothing but lists is played too.
 While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+` / `-` (or `↑` / `↓`) subsong ·
 `q` quit.
 
+Each voice of the tune has a light on the status line, a bar as tall as the voice is loud, four to a
+group. `1` to `9`, and `0` for the tenth, mute a voice and bring it back; `[` and `]` choose one,
+shown the other way round, and `m` mutes it, `s` plays it alone (`s` again brings the others back).
+A muted light is faint. Every tune starts with all its voices. See
+[Muting a voice](#muting-a-voice).
+
 A tune that is not played quite as its file asks says what is missing, a line for each thing, under
 its own line as it starts.
 
@@ -143,6 +149,7 @@ its own line as it starts.
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, bright to dark (default 0.5). Real chips varied this much; reSIDfp only |
 | `--songlengths path` | A copy of HVSC's `Songlengths.md5` to ask before the lengths that are built in; remembered for later runs. A file with no lengths in it is ignored |
+| `--mute 2,4` / `--solo n` | Leave these voices out of every tune, or hear only this one, played or rendered to WAV. Voices are numbered from 1, as the lights are |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
 | `--list` | Show what would be played, with format, length and title. A `*` after the length marks a tune that is not played quite as its file asks |
 | `--shortfalls` | With `--list`, say under each marked tune what it is that is left out or made do for |
@@ -1260,7 +1267,8 @@ is found, and all are played but five, which are in a format that is not (FLS).
 
 ### Muting a voice
 
-In the browser a voice can be left out of the sound by pressing its light. Each player does that for
+In the browser a voice can be left out of the sound by pressing its light, and on the command line
+by its key. Each player does that for
 itself, since a voice is a different thing in each: a channel of a chip, a track of a module, a note
 left ringing behind a newer one. The rule is the same for them all. A muted voice is left out where
 it joins the others, and goes on playing: the tune keeps its timing and comes to the same end, and
@@ -1303,6 +1311,13 @@ slow to render. The song without some of its voices is played to exactly the end
 to, fade and all. Left to judge by its own sound, as a song usually is, it might be taken to have
 fallen silent and be cut short. A change between mono and stereo, or of a setting that changes the
 sound, is taken up in the same way.
+
+The command line renders as it plays, and there the song is not rendered again but played a second
+time, alongside: another player of the same file starts from its beginning with the voices left
+out, unheard and as fast as it can go, while the song plays on whole. When it has got to where the
+song is, it is heard in its place; from then on, voices are muted and brought back at once. The
+song is still judged by the first player, whole, so it comes to the same end. Muting a voice for the
+first time costs a moment, as in the browser; the second player is let go when every voice is back.
 
 ## Licence and credits
 

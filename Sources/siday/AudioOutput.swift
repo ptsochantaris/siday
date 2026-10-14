@@ -84,6 +84,11 @@ final class SampleRing: @unchecked Sendable {
 final class AudioOutput {
     private var unit: AudioUnit?
     let ring: SampleRing
+    /// For testing the player where nothing is to be heard: with SIDAY_SOUND_TO set to a file's path,
+    /// no sound is played, and what would have been is written to that file instead, as stereo Float32,
+    /// taken from the ring at the pace a sound card would take it.
+    private var stand: Thread?
+    private let standing = Atomic<Bool>(false)
 
     enum Failure: Error, CustomStringConvertible {
         case coreAudio(String, OSStatus)
@@ -97,6 +102,30 @@ final class AudioOutput {
 
     init(ring: SampleRing) throws {
         self.ring = ring
+        if let path = ProcessInfo.processInfo.environment["SIDAY_SOUND_TO"] {
+            FileManager.default.createFile(atPath: path, contents: nil)
+            guard let file = FileHandle(forWritingAtPath: path) else { throw Failure.coreAudio("opening \(path)", -1) }
+            standing.store(true, ordering: .relaxed)
+            let thread = Thread { [self] in
+                let frames = 512
+                let buffer = UnsafeMutablePointer<Float>.allocate(capacity: frames * 2)
+                defer { buffer.deallocate() }
+                let start = DispatchTime.now().uptimeNanoseconds
+                var taken = 0
+                while standing.load(ordering: .relaxed) {
+                    ring.read(into: buffer, frames: frames)
+                    file.write(Data(bytes: buffer, count: frames * 8))
+                    taken += frames
+                    let due = start + UInt64(taken) * 1_000_000_000 / UInt64(outputSampleRate)
+                    let now = DispatchTime.now().uptimeNanoseconds
+                    if due > now { usleep(useconds_t((due - now) / 1000)) }
+                }
+                try? file.close()
+            }
+            thread.start()
+            stand = thread
+            return
+        }
         var description = AudioComponentDescription(
             componentType: kAudioUnitType_Output,
             componentSubType: kAudioUnitSubType_DefaultOutput,
@@ -146,6 +175,7 @@ final class AudioOutput {
     }
 
     func stop() {
+        standing.store(false, ordering: .relaxed)
         guard let unit else { return }
         AudioOutputUnitStop(unit)
         AudioUnitUninitialize(unit)

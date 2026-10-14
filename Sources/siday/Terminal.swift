@@ -6,6 +6,11 @@ import Foundation
 
 enum Key {
     case pause, next, previous, nextSubsong, previousSubsong, quit
+    /// A voice's own key, 1 to 9 and 0 for the tenth: leave it out, or bring it back.
+    case voice(Int)
+    /// [ and ]: the voice that m and s are for, one to the left or the right.
+    case choose(Int)
+    case muteChosen, soloChosen
 }
 
 // Saved terminal state lives in globals so signal handlers can reach it.
@@ -95,6 +100,12 @@ enum Terminal {
         case UInt8(ascii: "+"), UInt8(ascii: "="): return .nextSubsong
         case UInt8(ascii: "-"), UInt8(ascii: "_"): return .previousSubsong
         case UInt8(ascii: "q"), UInt8(ascii: "Q"), 0x1B: return .quit
+        case UInt8(ascii: "1") ... UInt8(ascii: "9"): return .voice(Int(bytes[0] - UInt8(ascii: "1")))
+        case UInt8(ascii: "0"): return .voice(9)
+        case UInt8(ascii: "["): return .choose(-1)
+        case UInt8(ascii: "]"): return .choose(1)
+        case UInt8(ascii: "m"), UInt8(ascii: "M"): return .muteChosen
+        case UInt8(ascii: "s"), UInt8(ascii: "S"): return .soloChosen
         default: return nil
         }
     }
