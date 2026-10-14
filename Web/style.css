@@ -863,3 +863,45 @@ button.song.on {
   margin-left: auto;
   max-width: 50%;
 }
+
+/* While tunes are being taken in: a small notice at the foot of the window, with a wheel that turns.
+   (The wheel is turned by the browser itself, so it turns while the page is busy.) */
+.adding {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.45);
+  color: var(--ink);
+  font-size: 0.9rem;
+  z-index: 20;
+}
+
+.adding .wheel {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: turning 0.8s linear infinite;
+}
+
+@keyframes turning {
+  to { transform: rotate(1turn); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adding .wheel {
+    animation: waiting 1.2s ease-in-out infinite alternate;
+  }
+}

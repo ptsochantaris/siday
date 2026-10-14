@@ -419,7 +419,7 @@ function reckon(lists, found, before = []) {
 /// found, in the order the lists have them. (The folder's tunes are known from now on, as any are
 /// that the page has been given.)
 async function finish(chosen) {
-  const here = chosen.filter((item) => listeners?.kind(item.name) === 1);
+  const here = chosen.filter((item) => kindOf(item.name) === 1);
   const lists = unfinished.map((item) => item.list);
   const before = unfinished.map((item) => item.had);
   if (lists.length === 0 || here.length === 0) return;
@@ -427,10 +427,93 @@ async function finish(chosen) {
   for (const item of here) given.set(item.name, item.file);
   const accepted = found.lists.flatMap((items, which) => items.filter((item) => !before[which].has(item.entry)));
   if (accepted.length > 0) {
-    tunes.push(...accepted);
+    // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
+    for (const item of accepted) tunes.push(item);
     listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
   }
   reckon(lists, found, before);
+}
+
+// While tunes are being taken in, which for a folder of a whole collection can take some seconds, a
+// small notice at the foot of the window says so, and how far it has got. It comes only if the work
+// is still going after a moment, so that a few tunes come and go with nothing shown; and its wheel
+// turns on the browser's own, so it goes on turning while the page is busy with the list.
+let adding;
+let addingSince;
+let addingWait;
+
+/// Says what is being done, from the moment it has been going on for a third of a second.
+function busy(text) {
+  addingSince ??= performance.now();
+  const show = () => {
+    if (!adding) {
+      adding = document.createElement("div");
+      adding.className = "adding";
+      adding.setAttribute("role", "status");
+      adding.append(Object.assign(document.createElement("span"), { className: "wheel" }), document.createElement("span"));
+      document.body.append(adding);
+    }
+    adding.lastChild.textContent = text;
+  };
+  clearTimeout(addingWait);
+  if (adding || performance.now() - addingSince >= 300) show();
+  else addingWait = setTimeout(show, 300 - (performance.now() - addingSince));
+}
+
+/// The tunes are in: the notice goes.
+function idle() {
+  clearTimeout(addingWait);
+  adding?.remove();
+  adding = undefined;
+  addingSince = undefined;
+}
+
+/// Lets the browser show what has changed before the page goes on with work that holds it up. (A
+/// page that is out of sight is shown nothing, and is not kept waiting for it.)
+function breathe() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+    setTimeout(resolve, 100);
+  });
+}
+
+/// A count as the page writes them: 165,139.
+function counted(count) {
+  return count.toLocaleString("en-US");
+}
+
+/// What kind of file a name is: 1 for a tune, 2 for a playlist, 0 for neither (see `listeners.kind`).
+/// That goes by what follows the name's last full stop, so the page is asked once for each ending
+/// and not once for each file: a whole collection is a great many files and few endings.
+const kinds = new Map();
+function kindOf(name) {
+  const stop = name.lastIndexOf(".");
+  if (stop < 0 || !listeners) return 0;
+  const ending = name.slice(stop + 1);
+  let kind = kinds.get(ending);
+  if (kind === undefined) {
+    kind = listeners.kind(name);
+    kinds.set(ending, kind);
+  }
+  return kind;
+}
+
+/// The order of names: as people count, so that a "2" comes before a "10", and with no difference
+/// made between capitals and small letters. (One of these, made once, is far quicker over a long
+/// list than asking each pair of names to be compared afresh.)
+const names = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/// Takes in what was chosen or dropped, saying so while it does.
+async function take(chosen, how = add) {
+  try {
+    if (chosen.length > 0) {
+      busy(`Adding ${counted(chosen.length)} files…`);
+      await breathe();
+    }
+    await how(chosen);
+  } finally {
+    idle();
+  }
 }
 
 async function add(chosen) {
@@ -442,9 +525,9 @@ async function add(chosen) {
   }
   // Tunes and playlists, in the order of their names.
   const sorted = chosen
-    .map((item) => ({ ...item, kind: listeners?.kind(item.name) ?? 0 }))
+    .map((item) => ({ ...item, kind: kindOf(item.name) }))
     .filter((item) => item.kind > 0)
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+    .sort((a, b) => names.compare(a.name, b.name));
   const tunesHere = sorted.filter((item) => item.kind === 1);
   const lists = sorted.filter((item) => item.kind === 2);
   const own = lists.filter((item) => item.own);
@@ -481,7 +564,8 @@ async function add(chosen) {
   }
   for (const item of tunesHere) given.set(item.name, item.file);
   if (accepted.length > 0) {
-    tunes.push(...accepted);
+    // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
+    for (const item of accepted) tunes.push(item);
     listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
   }
   if (found) reckon(own.length > 0 ? own : lists, found);
@@ -541,23 +625,37 @@ function chooser(folder, then) {
   return input;
 }
 // (The third is for the folder that a playlist's tunes are in, which is looked in and not added.)
-const choosers = { files: chooser(false, add), folder: chooser(true, add), tunes: chooser(true, finish) };
+const choosers = { files: chooser(false, take), folder: chooser(true, take), tunes: chooser(true, (chosen) => take(chosen, finish)) };
 
 /// Everything in what was dropped, folders included. A file that was dropped itself, and did not
 /// come in a folder, is marked as its own.
 async function dropped(items) {
   const found = [];
+  /// The files of an entry, or nothing for one that cannot be read.
+  const fileOf = (entry, own) =>
+    new Promise((resolve, reject) => entry.file(resolve, reject)).then(
+      (file) => ({ name: entry.fullPath.replace(/^\//, ""), file, own }),
+      () => null,
+    );
+  let told = 0;
   async function walk(entry, own) {
     if (entry.isFile) {
-      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
-      found.push({ name: entry.fullPath.replace(/^\//, ""), file, own });
+      const item = await fileOf(entry, own);
+      if (item) found.push(item);
     } else if (entry.isDirectory) {
       const reader = entry.createReader();
-      // A folder is read in batches until a batch comes back empty.
+      // A folder is read in batches until a batch comes back empty: the files of a batch are asked
+      // for all at once, and the folders in it are gone into one after another.
       for (;;) {
         const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
         if (batch.length === 0) break;
-        for (const child of batch) await walk(child, false);
+        const items = await Promise.all(batch.filter((child) => child.isFile).map((child) => fileOf(child, false)));
+        for (const item of items) if (item) found.push(item);
+        if (found.length - told >= 250) {
+          told = found.length;
+          busy(`Looking through folders… ${counted(found.length)} files found`);
+        }
+        for (const child of batch) if (child.isDirectory) await walk(child, false);
       }
     }
   }
@@ -576,7 +674,11 @@ async function dropped(items) {
 document.addEventListener("dragover", (event) => event.preventDefault());
 document.addEventListener("drop", (event) => {
   event.preventDefault();
-  if (event.dataTransfer) void dropped(event.dataTransfer.items).then(add);
+  if (!event.dataTransfer) return;
+  // (Taken before anything is awaited: the list is emptied when the event is over.)
+  const looking = dropped(event.dataTransfer.items);
+  busy("Looking through what was dropped…");
+  void looking.then((chosen) => take(chosen), idle);
 });
 
 // What the README says of a format, shown over the page when the format's name is pressed. The

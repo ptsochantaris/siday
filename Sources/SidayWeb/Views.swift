@@ -456,12 +456,12 @@ struct Playlist {
             } else {
                 div(.class("search")) {
                     // (What is typed is part of a file's name, which nothing is to put right.)
-                    input(.type(.search), .placeholder("Search \(player.files.count) tunes"),
+                    input(.type(.search), .placeholder("Search \(grouped(player.files.count)) tunes"),
                           .custom(name: "autocorrect", value: "off"), .custom(name: "autocapitalize", value: "off"),
                           .custom(name: "autocomplete", value: "off"), .custom(name: "spellcheck", value: "false"))
                         .bindValue(#Binding(player.search))
                     if player.found != nil {
-                        span(.class("hint")) { "\(player.listed) found" }
+                        span(.class("hint")) { "\(grouped(player.listed)) found" }
                     }
                     // All of them, whatever is being searched for.
                     button(.title("Take every tune out of the list")) { "Remove all" }
@@ -537,4 +537,16 @@ private func formatTime(_ seconds: Double) -> String {
 private func percent(_ value: Double, of whole: Double) -> Double {
     guard whole > 0 else { return 0 }
     return Double(Int(max(0, min(1, value / whole)) * 1000)) / 10
+}
+
+/// A count as it is easiest read: in threes, with commas between them (165,139).
+func grouped(_ count: Int) -> String {
+    // (By bytes: a digit is one.)
+    let digits = Array(String(count.magnitude).utf8)
+    var text: [UInt8] = count < 0 ? [UInt8(ascii: "-")] : []
+    for (place, digit) in digits.enumerated() {
+        if place > 0, (digits.count - place) % 3 == 0 { text.append(UInt8(ascii: ",")) }
+        text.append(digit)
+    }
+    return String(decoding: text, as: UTF8.self)
 }

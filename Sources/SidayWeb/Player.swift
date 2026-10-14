@@ -287,8 +287,8 @@ final class Player {
     private static func notice(missing: Int, of named: Int, in list: String) -> String? {
         guard missing > 0 else { return nil }
         let whose = list.isEmpty ? "The playlists name" : "\(list) names"
-        let count = missing < named ? "\(named) tunes, and \(missing) of them \(missing == 1 ? "was" : "were") not found"
-            : named == 1 ? "a tune that was not found" : "\(named) tunes, and none of them were found"
+        let count = missing < named ? "\(grouped(named)) tunes, and \(grouped(missing)) of them \(missing == 1 ? "was" : "were") not found"
+            : named == 1 ? "a tune that was not found" : "\(grouped(named)) tunes, and none of them were found"
         return "\(whose) \(count). A web page can only read the files it is given, so it cannot fetch these tunes itself."
     }
 
