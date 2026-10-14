@@ -28,7 +28,7 @@ siday ~/Music/chiptunes --shuffle
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's on its own mixer) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
-| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -259,8 +259,9 @@ Played, with a difference:
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
   (ADPCM) is silent; and in a file tuned to a temperament each note starts at the pitch that
   gives it, and slides as Impulse Tracker slides.
-- **GDM, PTM, ULT:** a command that Impulse Tracker's replayer has no room or no like for is
-  left out.
+- **GDM, PTM, ULT, MDL:** a command that Impulse Tracker's replayer has no room or no like for is
+  left out. An MDL file's command that chooses another of the tune's envelopes turns on the
+  instrument's own.
 - **STM:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
 - **ROL:** an instrument that no bank has is silent.
 
@@ -967,6 +968,98 @@ the first minute of each: the spectrum and the loudness over time agree to 0.999
 file, and to 0.945 and 0.859 for the file a tenth of the way up from the worst. The files are made
 as loud as XM files are, by measure.
 
+### MDL — Digitrakker
+
+An MDL file is from Digitrakker, which Prodatron (Jörn Mika) wrote for DOS in the middle of the
+nineties; its files came in three kinds, from its version 2 to its version 3. A tune has up to 32
+channels, each at any of 128 places between the speakers, and instruments as FastTracker 2's are:
+a sample for each range of notes, with envelopes for the volume, the place and the pitch, a fade,
+and a vibrato of the sample's own. The envelopes are not the instrument's but the tune's, 64 of
+each kind, which the instruments name and a command can change between. The samples can be kept
+packed, each byte as its difference from the one before in as few bits as it needs. And a note has
+two commands, in two columns: the first for its pitch (slides, vibrato, arpeggio) and the second
+for its volume (slides, tremolo, tremor, striking the note again), and the rest in either.
+
+Digitrakker's replayer was never published. OpenMPT plays these files on its own replayer, as it
+plays an IT file, and has been taught what Digitrakker does otherwise; libxmp plays them as it
+plays an XM file, and has been taught less. So there were two ways to play one here: a small player
+written for it, which would have had nothing of Digitrakker's to be made after, or Impulse Tracker's
+replayer, as for the ULT and GDM files above, with what OpenMPT does otherwise given to it. Every
+command of Digitrakker's has its like among Impulse Tracker's, and its instruments are Impulse
+Tracker's with less in them, so it is the second, and the file is read as OpenMPT reads it. The
+replayer is told, for these files alone:
+
+- that a note's pitch is a period, as on the Amiga, but one that a sample's rate does not change: a
+  slide moves every sample's notes by as much. The periods are Scream Tracker's, cut to whole
+  numbers, and a slide, a vibrato, an arpeggio and an envelope of pitch each move or multiply the
+  whole number, as OpenMPT does;
+- that vibrato and tremolo go as ProTracker's do, on a wave of 64 steps that does not move on on a
+  row's first tick;
+- that a note cut short (ECx) is turned down to nothing and plays on, so that a volume brings it
+  back, which one tune uses as a gate; that EC0 cuts at once, and ED0 holds nothing up;
+- that a note whose key is let go fades, whatever its volume envelope does, and that the end of
+  that envelope neither fades the note nor ends it; and that fades are finer than Impulse Tracker's;
+- that an envelope of pitch goes six semitones either way at the most, where Impulse Tracker's goes
+  sixteen;
+- that the vibrato a sample has of its own comes in over so many ticks, as OpenMPT has it;
+- that EFx, which starts a note further into its sample, counts in bytes, which in a sample of
+  sixteen bits are half as many samples, and moves a note that is already playing;
+- that an instrument named with no note keeps the volume of the sample that was playing, and one
+  named beside a key let go gives the volume of its sample for the channel's last note; and that a
+  sample may have no volume of its own, and leave the channel's as it was;
+- and that a slide to a note with no note beside it goes on with the last slide only until it gets
+  there.
+
+What does not go over as it stands is the two commands. Impulse Tracker has room for one, and its
+volume column: the second goes there when it is one the column can do and the note has no volume,
+and otherwise OpenMPT keeps the one that matters more and leaves the other out. Here less is left
+out. A place between the speakers, or a fine move of it, that has no room is kept beside the cell,
+and the replayer puts the channel there when it reads the row; a command for the whole tune moves to
+a channel of the row that has room, as for ULT files. OpenMPT puts the part of EFx beyond what
+Impulse Tracker's Oxx reaches in the volume column, where the note's volume would be, so that a note
+started far into its sample is played at the loudest whatever it asks: here that part is kept beside
+the cell too, and the note has its volume. And a slide to a note or a vibrato that only goes on,
+beside a slide of volume, is Impulse Tracker's Lxy or Kxy. What is left with nowhere to go is left
+out, and the file says so: that is 291 notes, in five of the files to hand, nearly all of them in
+one, which strikes a note again while its volume slides on.
+
+The slides of volume are Digitrakker's own: by 256ths of the whole a tick, four times as fine as
+Impulse Tracker's, and as fast as 223 of them. OpenMPT takes a quarter of each, to the nearest of
+Impulse Tracker's below and no more than fifteen, so that its slides of less than a quarter become
+slides that go on with whatever slide the channel had before; and one composer swells notes in from
+nothing that way, which OpenMPT then leaves silent or swells four times too fast. libxmp's reading
+of the same commands is Digitrakker's, by 255ths. Here a slide that Impulse Tracker's can do is
+that, and the replayer does the others as Digitrakker does them, keeping the part of the volume
+finer than Impulse Tracker's 64ths for as long as nothing else sets it. A tempo below 32, slower
+than Impulse Tracker goes, is a tune's way of stopping: a tick of a tempo of 1 is two and a half
+seconds, and with the speed of 255 that goes beside it a row is ten minutes. All seven files to
+hand that set one set it on the last place of their list, so the song ends there, after the row,
+where OpenMPT reads it as a slide of tempo and plays on very slowly. Two commands are not played,
+and a file that asks for either says so: E8x, which changes how a sample loops, and E5x, which tunes
+a sample afresh; and 9xx, which changes a note's envelope to another of the tune's, turns on the
+instrument's own, as OpenMPT has it, and the file says that too.
+
+Where nothing says what Digitrakker did, the choice is OpenMPT's, but in one thing. A note that
+names an instrument the file does not have plays nothing, and leaves the note before it as it was;
+OpenMPT plays it on the sample that was playing, at the new note's pitch. Eleven files have such
+notes. (libxmp's notes on how trackers differ have a column for Digitrakker 3.2, found by trying it,
+but for MOD files and not its own: there a note on an instrument that is not there cuts the note,
+and a note with no instrument has its instrument's volume again. The second is not how these tunes
+are written. One sets a quiet volume on a note's first row and repeats the note bare on the rows
+after, which as it would have it would be loud from the second.)
+
+All 148 files to hand are played. Every sample is as libopenmpt reads it, packed or not, to the last
+byte of its sound and its loop. Every channel's pitch and volume was set beside libopenmpt's on every
+tick of each, to its end or for fifteen minutes. Read as OpenMPT reads them, before the choices above
+that are not OpenMPT's were made, they were alike on 1,917,068 ticks of 1,919,629: 98 files on every
+tick, and all but three of the rest on all but one in fifty. What was left is where a sample ends a
+tick sooner in one than in the other, at a note so short that it ends on the very tick the next row
+starts, and the eleven files with notes on instruments they have not got. As they are played here,
+82 files are alike on every tick, and the rest differ where the choices above make them. What is heard was set beside libopenmpt too, for the first
+minute of each: the spectrum agrees to 0.992 for the middle file and the loudness over time to
+0.974, and to 0.907 and 0.737 for the file a tenth of the way up from the worst. The files are made
+as loud as XM files are, by measure.
+
 ### MPTM — OpenMPT
 
 An MPTM file is another matter, because the tracker that writes it is alive and plays its own files.
@@ -1396,6 +1489,10 @@ What it is made from:
   has two commands, after neither; libopenmpt is the player those files were checked against. The
   format is as FreeJack of The Elven Nation describes it, and UltraTracker is by Marc André
   Schallehn.
+- And again: how an MDL file is read, and what Digitrakker does otherwise than Impulse Tracker,
+  made after OpenMPT's; and how its samples are unpacked, as the description that came with the
+  program has it, which libxmp quotes. libopenmpt is the player those files were checked against.
+  Digitrakker is by Prodatron (Jörn Mika).
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.

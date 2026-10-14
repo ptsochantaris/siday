@@ -433,7 +433,8 @@ in that folder are not from it2play: they are what gives that replayer three oth
 play, and are below.
 Nor are `MPTMFile.swift`, `IT2OpenMPT.swift` and `IT2AdLib.swift`, which give it OpenMPT's own kind
 of file, and what that kind of file asks of it that an IT file does not; they are below too, and the
-few lines in the replayer and its mixer that are there for them say so where they stand.)
+few lines in the replayer and its mixer that are there for them say so where they stand. Nor are
+`MDLFile.swift` and `IT2Digitrakker.swift`, for Digitrakker's files, below as well.)
 
 ```
 BSD 3-Clause License
@@ -504,6 +505,19 @@ Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 (`soundlib/Load_c67.cpp`): the layout of the file, the checks it is held to, and what its notes and
 volumes are taken to mean. It is used under OpenMPT's licence, the BSD 3-Clause, set out below under
 "OpenMPT — FM Tracker files".
+
+## libxmp and OpenMPT — MDL files
+
+`Sources/SidayKit/ImpulseTracker/MDLFile.swift`, which reads a Digitrakker module into the shape
+Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
+(`soundlib/Load_mdl.cpp`: the layout of the file, what its commands are taken to mean, how two of
+them share a note, and how a packed sample is unpacked, in `soundlib/SampleIO.cpp`) and libxmp's
+(`src/loaders/mdl_load.c`, with the description of the packing that came with Digitrakker, which it
+quotes). `IT2Digitrakker.swift`, and the lines in the replayer that are there for these files and
+say so, are made after what OpenMPT's `soundlib/Snd_fx.cpp` and `soundlib/Sndmix.cpp` do for a
+module of that kind, with the table of 64 steps of a wave and the one at random from its
+`soundlib/Tables.cpp`. Both are used under the licences set out above, under "libxmp and OpenMPT —
+reading MTM, DTM and AMF files", and below, under "OpenMPT — FM Tracker files".
 
 ## OpenMPT — MPTM files
 
