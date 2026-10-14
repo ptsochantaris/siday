@@ -74,21 +74,36 @@ private func crossings(_ samples: ArraySlice<Float>) -> Int {
     zip(samples, samples.dropFirst()).count { $0 < 0 && $1 >= 0 }
 }
 
-@Test func s3mSampleInStereoIsPlayedWithItsSidesTogether() throws {
+@Test func s3mSampleInStereoIsPlayedWithItsSidesApartOrTogether() throws {
     // The square wave said to be in stereo, with a right side after it in the file that is low
     // where the left is high and high where it is low. Played as the trackers that make such
-    // samples play them, the two together are silence; played as Scream Tracker would, which
-    // knows only of the left, it is the square wave still.
+    // samples play them, in a file in mono the two together are silence, and in a file in stereo
+    // on a Gravis Ultrasound the left side is on the left and the right on the right; played as
+    // Scream Tracker would, which knows only of the left, it is the square wave still.
     for sixteen in [false, true] {
-        var file = s3m(sixteen: sixteen)
-        file[0x70 + 31] |= 2
-        let side = sixteen ? 64 : 32
-        for k in 0 ..< side { file[0x200 + side + k] = file[0x200 + k] ^ 0xFF }
-        let renderer = try #require(try TuneLoader.load(file, format: .s3m) as? S3MRenderer)
+        func withStereoSample(_ file: [UInt8]) -> [UInt8] {
+            var file = file
+            file[0x70 + 31] |= 2
+            let side = sixteen ? 64 : 32
+            for k in 0 ..< side { file[0x200 + side + k] = file[0x200 + k] ^ 0xFF }
+            return file
+        }
+        let renderer = try #require(try TuneLoader.load(withStereoSample(s3m(sixteen: sixteen)), format: .s3m) as? S3MRenderer)
         #expect(stereoSound(renderer, seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
         #expect(renderer.renderRaw(frames: 24000).map { abs(Int($0)) }.max()! > 500)
         // And afterwards it is played as before.
         #expect(stereoSound(renderer, seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
+
+        var options = LoadOptions()
+        options.stereo = .abc
+        let apart = try TuneLoader.load(withStereoSample(s3m(stereo: true, sixteen: sixteen)), format: .s3m, options: options)
+        #expect(apart.info.shortfalls.isEmpty)
+        let sound = stereoSound(apart, seconds: 0.5)
+        #expect(sound.left[4800...].map(abs).max()! > 0.02 && sound.right[4800...].map(abs).max()! > 0.02)
+        // (The two sides each other turned over: where one is up the other is down. The channel is
+        // to one side, so the two are not as loud as each other.)
+        let opposite = (4800 ..< 24000).filter { sound.left[$0] * sound.right[$0] < 0 }.count
+        #expect(opposite > 18000)
     }
     // A file that ends before the right side does has only the left, and that is played.
     var short = s3m()

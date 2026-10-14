@@ -120,6 +120,10 @@ final class IT2Instrument {
     /// For a file of ModPlug Tracker's or OpenMPT's: the plug-in its notes are sent through, counted
     /// from 1; nought for none, which is all any other file's instrument has.
     var MixPlug: UInt8 = 0
+    /// For an MPTM file: the tempo its notes are tuned to, in ten-thousandths of a beat a minute,
+    /// at which they play at their own pitch; at another tempo, higher or lower in proportion
+    /// (OpenMPT's "pitch/tempo lock"). Nought for none.
+    var TempoLock: UInt32 = 0
 }
 
 /// A sample. Its sound is held with room either side for the mixer to read past its ends, which is

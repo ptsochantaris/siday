@@ -929,6 +929,21 @@ private let held = Pattern([(0, 0, .note(60)), (0, 1, .note(67)), (8, 0, .note(6
     #expect(byMacro.info.shortfalls.isEmpty)
     let sound = stereo(byMacro, seconds: 1).left
     #expect(apart(dry, sound, later: 48, to: row - 48) < 1e-5 && apart(dry, sound, from: row + 96) < 1e-5)
+    // And by the same macro sent a little at a time over the row: the echo is on its way there for
+    // the row's six ticks, and there from the next row on.
+    let smooth = try player(mptm([Pattern(held.cells + [(4, 0, .command("\\", 0))])], plugInPieces: [delay()], channelPlugIns: [1, 1], macros: [9: "F0F080z"]))
+    #expect(smooth.info.shortfalls.isEmpty)
+    let slid = stereo(smooth, seconds: 1).left
+    #expect(apart(dry, slid, later: 48, to: row - 48) < 1e-5)
+    #expect(apart(sound, slid, from: row + 960, to: row + 5 * 960) > 0.001)
+    #expect(apart(dry, slid, from: row + 6 * 960 + 96) < 1e-5)
+    // The same macro again on a later row, from the other channel that goes through the echo, is
+    // sent again: the echo is back to giving what it has kept.
+    let twice = try player(mptm([Pattern(held.cells + [(4, 0, .command("Z", 0)), (8, 1, .command("Z", 0x7F))])],
+                                plugInPieces: [delay()], channelPlugIns: [1, 1], macros: [9: "F0F080z"]))
+    let back = stereo(twice, seconds: 1.5).left, longer = stereo(try player(mptm([held])), seconds: 1.5).left
+    #expect(apart(longer, back, from: row + 96, to: 2 * row - 48) < 1e-5)
+    #expect(apart(longer, back, later: 48, from: 2 * row + 96) < 1e-5)
 }
 
 @Test func itFileOfOpenMPTsIsHeardThroughItsPlugIns() throws {
@@ -1103,4 +1118,20 @@ private func silent(_ samples: [Float]) -> Bool { samples.allSatisfy { $0 == 0 }
         let nothing = played(without)
         #expect(silent(nothing.left) && silent(nothing.right))
     }
+}
+
+@Test func mptmInstrumentTiedToTheTempoIsAsMuchHigherAsTheSongIsFaster() throws {
+    // An instrument tied to 125 beats a minute and a quarter (its whole part, and its ten-thousandths
+    // under a name written the other way round), in a song at 150: a fifth again as fast as it would be.
+    let note = Pattern([(0, 0, .note(60))])
+    var song = Song()
+    song.tempo = 150
+    let plain = try player(mptm([note], song: song, instruments: [(1, [], 0)]))
+    let tied = try player(mptm([note], song: song, instruments: [(1, [], 0)],
+                               instrumentExtras: [("PTTL", 2, [word(125)]), ("FTTP", 2, [word(2500)])]))
+    #expect(plain.info.shortfalls.isEmpty && tied.info.shortfalls.isEmpty)
+    let low = crossings(stereo(plain, seconds: 1).left[4800 ..< 43200])
+    let high = crossings(stereo(tied, seconds: 1).left[4800 ..< 43200])
+    #expect(low > 100)
+    #expect(abs(Double(high) / Double(low) - 150.0 / 125.25) < 0.01)
 }

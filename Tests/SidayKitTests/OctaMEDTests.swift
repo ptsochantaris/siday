@@ -539,8 +539,8 @@ private func synthetic(volumes: [UInt8], waves: [UInt8], hybrid: Bool = false) -
     #expect(reason(module([Tune(entries: [c()], type: -3)])).contains("does not know"))
     // A sound of a kind that is not played does no harm if no note asks for it.
     #expect(reason(module([Tune(entries: [], type: 0x10)])) == "played")
-    // And the songs MED saved before it had modules are not modules.
-    #expect(reason([0x4D, 0x45, 0x44, 0x04] + [UInt8](repeating: 0, count: 2000)).contains("MED's first formats"))
+    // And the songs MED saved before MED4 are not played.
+    #expect(reason([0x4D, 0x45, 0x44, 0x03] + [UInt8](repeating: 0, count: 2000)).contains("MED's first formats"))
 }
 
 @Test func medFileCutShortIsRefusedOrPlayedAndNeverTraps() throws {
