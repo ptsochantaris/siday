@@ -88,10 +88,17 @@ extension String {
             default: false
             }
         }
-        var view = unicodeScalars[...]
-        while let first = view.first, strip(first) { view = view.dropFirst() }
-        while let last = view.last, strip(last) { view = view.dropLast() }
-        return String(String.UnicodeScalarView(view))
+        // (By index: dropping the last of a view of scalars counts the whole view each time, which for
+        // a long run of spaces, such as a damaged file can have, is a wait of minutes.)
+        let view = unicodeScalars
+        var start = view.startIndex, end = view.endIndex
+        while start < end, strip(view[start]) { start = view.index(after: start) }
+        while start < end {
+            let before = view.index(before: end)
+            guard strip(view[before]) else { break }
+            end = before
+        }
+        return String(String.UnicodeScalarView(view[start ..< end]))
     }
 }
 
