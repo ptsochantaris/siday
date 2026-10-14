@@ -17,7 +17,7 @@ extension ST3Card: ExpressibleByArgument {}
 struct Siday: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "siday",
-        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, XM, S3M, IT, MPTM, MTM, DTM, AMF, GDM, PTM, ULT, 669, STM, FAR and C67 modules and CMF, ROL and FMT tunes for the AdLib from files, folders and playlists.",
+        abstract: "Plays AY/YM, Atari ST and SID chiptunes, MOD, MED, SFX, OKT, AHX, HVL, DBM, XM, S3M, IT, MPTM, MTM, DTM, AMF, GDM, PTM, ULT, 669, STM, FAR and C67 modules and CMF, ROL and FMT tunes for the AdLib from files, folders and playlists.",
         discussion: """
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · q quit.
         Each voice of a tune has a light on the status line. 1 to 9, and 0 for the tenth, leave a voice out or bring it back; [ and ] choose one, m leaves it out or brings it back, and s plays it alone (s again brings the others back). A voice left out goes on playing, unheard, and the tune is as long as it is whole. Every tune starts with all its voices.
@@ -450,6 +450,14 @@ struct Siday: ParsableCommand {
                     text += "\n"
                 }
                 FileHandle.standardOutput.write(Data(text.utf8))
+                return
+            }
+            // (And for a DBM file, what DigiBooster 3's replayer does with it, a line a tick: see
+            // `DBMRenderer.trace`.)
+            if ProcessInfo.processInfo.environment["SIDAY_MODULE_TICKS"] != nil, let module = renderer as? DBMRenderer {
+                if let subsong { renderer.select(subsong: subsong - 1) }
+                let lines = module.trace(seconds: maxTime.flatMap(parseTime) ?? 20)
+                FileHandle.standardOutput.write(Data((lines.joined(separator: "\n") + "\n").utf8))
                 return
             }
             // (And so for a SoundFX or an Oktalyzer module: see `amigaRoutineTrace`.)

@@ -26,7 +26,7 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum, Amstrad CPC | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs; VTX and YM register recordings; AY program rips, beeper music included | each tracker's own player, or the tune's own program on a Z80, on the AY chip |
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
-| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's on its own mixer) |
+| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67; MPTM | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
@@ -240,8 +240,8 @@ uses is said, and only what might be heard.
 Not played:
 
 - **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-- **Amiga:** a MOD packed with XPK; a song that MED saved before it had modules (MED2, MED3,
-  MED4); a module of the later SoundFX, of 31 samples.
+- **Amiga:** a MOD or a DBM packed with XPK; a song that MED saved before it had modules (MED2,
+  MED3, MED4); a module of the later SoundFX, of 31 samples.
 - **PC:** an IT file packed with MMCMP; a DTM file from Digital Home Studio; the other kind of
   file called AMF, ASYLUM's; an STM song saved without its samples, and an STX file.
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
@@ -254,6 +254,9 @@ Played, with a difference:
 - **SNDH:** a tune that sends its notes out of the MIDI port is silent, and of some 5,900 files
   tried a handful do not start; the reference player does not start them either.
 - **MED:** notes for a MIDI synthesiser are not heard.
+- **DBM:** played as DigiBooster 3 plays it, which leaves out three of DigiBooster Pro's commands:
+  setting how far into an envelope a note is, sliding where a sample starts, and setting the tempo
+  in beats a minute.
 - **XM** from a later tracker: played as FastTracker 2 would play it, and without its plug-ins.
 - **IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
@@ -602,6 +605,81 @@ little different.) What the replayer leaves to chance is settled here: a jump pa
 list of positions goes to its top, a track or a row the file does not have is empty, a note above
 the five octaves there are has no pitch to slide from, and a wave other than the four there are is
 silence.
+
+### DBM — DigiBooster Pro and DigiBooster 3
+
+DigiBooster Pro is by Tomasz and Waldemar Piasta, from Poland, and was the tracker of the Amiga
+that left the Amiga's sound chip behind. It played through AHI, the Amiga's way of driving sound
+cards, and so it could have as many tracks as a tune wanted, samples of sixteen bits, and two
+commands beside every note; and it gave an instrument envelopes of volume and of panning, each with
+two places to hold at, and gave every track an echo of its own. Its DBM file is made of chunks, as
+an Amiga's IFF files are, and can hold more than one song, each a list of patterns of its own. The
+files to hand were saved by its versions 2.12 to 2.21, from the second half of the 1990s.
+DigiBooster 3 came after it, by Grzegorz Kraszewski with APC&TCP, and in 2014 its makers published
+their replayer, libdigibooster3, under the BSD licence, and said that it plays DigiBooster Pro's
+modules too, being mostly the same in what it does. That replayer is what is here, ported whole
+and in its own whole numbers: there is nothing else to play these files by that DigiBooster's
+makers wrote, and nothing written down of what DigiBooster Pro itself did beyond the names of its
+commands.
+
+It plays like no other tracker, which is why it has a player of its own and is not read into
+another's. Everything that slides is kept in units of the speed, so that a slide can move by less
+than a step a tick: a volume is so many sixty-fourths times the ticks to a row, a pitch so many
+eighths of a semitone times the same, and a "fine" slide adds its one step a row a little at every
+tick, where other trackers add it at once. The slides move on every tick of a row, the first among
+them, and once more on the next row's first. A pitch goes by a table of the eighths of a semitone
+and, between those, a table for each speed of the parts of one; a slide of pitch is so many eighths
+of a semitone, at any pitch, and not so much of an Amiga period. A track is put between the
+speakers both by how loud it is on each side and by being heard a little later on one than on the
+other, up to a third of a millisecond. Its echo comes after its instrument and before its volume,
+so it follows the volume down and goes on when the note is done. Each sample is brought to the
+output's rate between each two of its samples, from a buffer that is filled a thousand samples
+ahead; a sample that does not go round is let go when that buffer reaches its end, which is a
+little before the sample's own end.
+
+Set beside libdigibooster3 itself, built from its sources, `siday --raw file.raw tune.dbm` writes
+what the replayer writes to a file through the example program that comes with it, sixteen bits a
+side, and the two are the same to the sample: on every one of the 187 songs found in the 175 files
+to hand that it plays, to their ends or for ten minutes. That includes the example program's own
+oddities: it asks for 100,000 frames at a time, and whether a track whose sample has ended goes on is
+settled once for each part that is asked for; and a song that stops itself on a tick that fills one
+of those to its end is not stopped, and plays one row more. What is heard is the replayer's but for
+four things, which `--raw` leaves out:
+
+- An echo starts as the file sets it. The replayer reads the file's settings for it and keeps them,
+  but starts every echo as DigiBooster 3 does by default and goes by the file's settings only once a
+  command changes one. With the file's settings, 59 of the 87 files with an echo come nearer to
+  libopenmpt, which sets its echo as the file does, and 3 go further.
+- DigiBooster Pro's command to let the key go so many ticks into a row, which the replayer passes
+  over, lets it go, as letting go of the key on a row does at once.
+- The replayer divides the sum of the tracks by how many there are, so that it can never be too
+  loud, and a file of 24 tracks is then a sixth as loud as a file of four. DigiBooster Pro made up for
+  the number of tracks itself, and OpenMPT and libxmp play these files about as loud whatever the
+  number. So every file is divided by eight, however many tracks it has, and the rest is set by
+  measure, so that the files are as loud as XM files are.
+- A song that comes to the end of its list goes round to its top, as DigiBooster does, where the
+  replayer's example program stops; a song found part of the way down a list stops there.
+
+Three of DigiBooster Pro's commands are not in the replayer: setting how far into an envelope a
+note is, sliding where a sample starts, and setting the tempo in beats a minute. What each did is not
+written down closely enough to do it, so they are left out here too, and a file that has them says
+so: 20 of the 180, most of them by one composer. Two commands for the Amiga's own filter are passed over, as the replayer passes
+them over. The replayer turns away five files of the 180 that are played here: two with a sample
+whose loop runs one sample past its end, which is brought back to it, as OpenMPT does; one with
+something else put after the module; and one cut short, which says so. The fifth is packed with XPK,
+and is not played.
+
+Beside libopenmpt and libxmp, on every tick of the first five minutes of every file, the three are at
+the same row of the song, on every tick, for all but four files and the very end of a song. Three of
+those four set the start of a loop beside a change of speed on one note, and OpenMPT, which has room
+for one command and a volume beside a note, loses the start of the loop; libxmp keeps it. In the
+fourth a note sets the speed twice, and the replayer takes the second, as OpenMPT does, and libxmp
+the first. What is heard is another matter. The other two play DigiBooster's slides
+and vibratos as ProTracker's, on the ticks after a row's first and in periods, with one echo for the
+whole tune or none, and so they are nearer each other than either is to DigiBooster's replayer: over
+the first minute of each file the spectrum agrees with libopenmpt to 0.955 for the middle file and
+with libxmp to 0.967, where the two agree with each other to 0.968, and the loudness over time to
+0.939 and 0.935, where they agree to 0.971.
 
 ### XM — FastTracker 2
 
@@ -1300,7 +1378,8 @@ can be heard:
 - **FM chips.** A voice is left out at the chip's own output. In rhythm mode the drums share
   channels, so the bass drum mutes alone, the snare with the hi-hat, and the tom-tom with the cymbal.
 - **Amiga.** Where Oktalyzer or MED split one of the Amiga's voices into two tracks, either can be
-  muted, but the pair has one volume between them. In OctaMED's mixing mode a muted track feeds
+  muted, but the pair has one volume between them. DigiBooster's echo belongs to its track and is
+  muted with it. In OctaMED's mixing mode a muted track feeds
   neither the sound nor the echo.
 - **PC trackers.** In Impulse Tracker's replayer a muted channel takes with it the notes it has left
   ringing, and feeds none of OpenMPT's effects; an echo or a reverb that already holds some of its
@@ -1367,6 +1446,9 @@ What it is made from:
 - [HivelyTracker](https://github.com/pete-gordon/hivelytracker) by Pete Gordon (Xeron of IRIS): its
   replayer and mixer, and the HVL format. The replayer began as his port of AHX's, and others have
   mended it since, kode54 and passing_by among them.
+- libdigibooster3 by Grzegorz Kraszewski, which APC&TCP published: DigiBooster 3's replayer and
+  its reading of DBM files, which play DigiBooster Pro's modules too. DigiBooster Pro is by Tomasz
+  and Waldemar Piasta, and DigiBooster 3 by Grzegorz Kraszewski with APC&TCP.
 - [ft2play](https://github.com/8bitbubsy/ft2play), also by Olav Sørensen: FastTracker 2's replayer
   and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
   Huss and Magnus Högdahl, of Triton.

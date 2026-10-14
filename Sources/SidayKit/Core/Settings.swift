@@ -240,7 +240,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .gdm, .ptm, .ult, .c67: false
             case .mptm: false
             case .sfx, .okt: false
-            case .composer669, .stm, .far: false
+            case .composer669, .stm, .far, .dbm: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid

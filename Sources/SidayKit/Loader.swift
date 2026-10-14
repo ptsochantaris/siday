@@ -11,6 +11,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case composer669 = "669"
     case stm
     case far
+    case dbm
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -96,6 +97,8 @@ public enum TuneLoader {
             return try STMRenderer(data, options: options)
         case .far:
             return try FarandoleRenderer(data, options: options)
+        case .dbm:
+            return try DBMRenderer(data, options: options)
         case .ahx, .hvl:
             // HivelyTracker reads both its own files and AHX's, so a file of either may be found
             // under the other's name. Each says which it is in its first three letters.
