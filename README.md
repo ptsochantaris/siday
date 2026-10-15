@@ -247,7 +247,8 @@ Not played:
   31 samples.
 - **PC:** a DTM file from Digital Home Studio; the other kind of
   file called AMF, ASYLUM's; the other kind called DSM, Dynamic Studio's; an STM song saved without
-  its samples.
+  its samples; NTK and DSS files, which neither OpenMPT nor libxmp reads, so that there is no player
+  to set one beside.
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
   or for samples kept in other files.
 - **MT2:** a file whose notes are, half of them or more, for VST instruments or MIDI devices, or for
