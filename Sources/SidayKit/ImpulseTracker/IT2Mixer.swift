@@ -53,9 +53,13 @@ final class IT2Mixer {
 
     /// The windowed sinc: for each of 4096 places between two samples, the weights of the eight
     /// samples around it. It is the same for every mixer, so it is made once.
-    private static let sincKernel: [Float] = {
+    private static let sincKernel = kernel(kaiserBeta: 9.6377, cutoff: 1)
+    /// How many places between two samples a table has, and how many weights in all.
+    static let phases = SINC_PHASES, kernelLength = SINC_PHASES * SINC_WIDTH
+
+    /// The same, with its cutoff a fraction of the highest a sample can hold.
+    static func kernel(kaiserBeta: Double, cutoff: Double) -> [Float] {
         var lut = [Float](repeating: 0, count: IT2Mixer.SINC_PHASES * IT2Mixer.SINC_WIDTH)
-        let kaiserBeta = 9.6377
         let besselI0BetaMul = 1.0 / IT2Mixer.besselI0(kaiserBeta)
         for i in 0 ..< IT2Mixer.SINC_PHASES * IT2Mixer.SINC_WIDTH {
             let tap = Double((i & (IT2Mixer.SINC_WIDTH - 1)) - ((IT2Mixer.SINC_WIDTH / 2) - 1))
@@ -65,10 +69,10 @@ final class IT2Mixer {
             let n = x * (1.0 / Double(IT2Mixer.SINC_WIDTH / 2))
             let window = IT2Mixer.besselI0(kaiserBeta * (1.0 - n * n).squareRoot()) * besselI0BetaMul
 
-            lut[i] = Float(IT2Mixer.sinc(x) * window)
+            lut[i] = Float(IT2Mixer.sinc(x * cutoff) * window * cutoff)
         }
         return lut
-    }()
+    }
 
     /// The zeroth-order modified Bessel function of the first kind, summed as a series.
     private static func besselI0(_ z: Double) -> Double {
@@ -168,6 +172,9 @@ final class IT2Mixer {
     private let ownFilterStep: Float, ownFilterRate: Float
 
     private let fSincLUT: UnsafeMutablePointer<Float>
+    /// For a file of ModPlug Tracker's or OpenMPT's: how its voices are read, as OpenMPT reads them.
+    /// Nil for every other, whose voices are all read through the sinc.
+    private let resampling: IT2Resampling?
     /// What the voice last mixed last added to each side.
     private var fLastLeftValue: Float = 0, fLastRightValue: Float = 0
     /// How much of what a sample that has ended last put out is lost on each frame after: a 4096th
@@ -221,8 +228,10 @@ final class IT2Mixer {
     ///   louder there than one in the middle. Nil for what the module's own song says, if it has one.
     /// - Parameter reverb: for a file whose channels can be put in ModPlug's reverb, what its sound
     ///   would be, for the level the reverb works at (see `IT2Module.reverb`).
+    /// - Parameter resampling: true to read voices as OpenMPT does (see `IT2Resampling`).
     init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>, sound: ModPlugSound? = nil,
-         reverb: ModPlugSound? = nil, filter: IT2Module.Filter = .impulseTrackers, softPanning: Bool? = nil, quickEnds: Bool? = nil) {
+         reverb: ModPlugSound? = nil, filter: IT2Module.Filter = .impulseTrackers, softPanning: Bool? = nil, quickEnds: Bool? = nil,
+         resampling: Bool = false) {
         self.filter = filter
         globalVolumeAtMaster = sound?.globalVolumeAtMaster ?? false
         sChn = voices
@@ -254,7 +263,9 @@ final class IT2Mixer {
             SamplesPerTickFrac[i] = UInt32(truncatingIfNeeded: samplesPerTickFp) & Self.BPM_FRAC_MASK
         }
 
-        let kernel = Self.sincKernel
+        // (And for a file of ModPlug Tracker's or OpenMPT's, OpenMPT's ways after it.)
+        self.resampling = resampling ? IT2Resampling(module) : nil
+        let kernel = self.resampling == nil ? Self.sincKernel : Self.sincKernel + Self.openMPTKernels
         fSincLUT = .allocate(capacity: kernel.count)
         for i in 0 ..< kernel.count { fSincLUT[i] = kernel[i] }
 
@@ -1421,7 +1432,7 @@ final class IT2Mixer {
     ) {
         let base = UnsafePointer<T>(v.Data.assumingMemoryBound(to: T.self))
         let baseR = UnsafePointer<T>((v.DataR ?? v.Data).assumingMemoryBound(to: T.self))
-        let fSincLUT = UnsafePointer(fSincLUT)
+        let fSincLUT = UnsafePointer(fSincLUT) + (resampling.map { $0.table(sc, speed: Delta64.magnitude) * Self.kernelLength } ?? 0)
         let scale: Float = T.bitWidth == 8 ? 1.0 / 128.0 : 1.0 / 32768.0
         let lowest = v.lowest, highest = v.highest
 

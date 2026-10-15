@@ -865,6 +865,26 @@ counted out of 64 and not out of 100, before 1.20. Of 300 such IT files set besi
 were nearer to it in where their sound sits between the speakers and 6 further, which with
 anything random is as near as two playings of one file come.
 
+And a voice of such a file is read between its sample's points as OpenMPT reads it. A sample is
+only so many points, and a voice that plays it at another rate than its own has to be given a
+level between them. Each of Impulse Tracker's drivers has its own way of doing that, and it2play's,
+which is heard here, reads eight points through a windowed sinc. OpenMPT lets the composer choose,
+for each instrument, from five ways: no smoothing at all, each point heard as it is until the next,
+which keeps the grit of a sample played below its own rate; a straight line from one point to the
+next; a curve through four; and two sincs of eight. The choice is kept in the file, and 111 of the
+IT files to hand make it, most of them for no smoothing (406 of the 619 instruments that say). Such
+an instrument is heard as its composer chose. An instrument that does not say is read as OpenMPT
+reads one by itself, through its own sinc, which is a shade duller than it2play's and is made duller
+still for a voice that goes through its sample nearly a fifth faster than the sound is made, or more, so
+that what is too high to be made at that rate is not folded back down into what is heard. Set beside
+libopenmpt, the top of the sound (above 12 kilohertz, against what is between half a kilohertz and
+six) now agrees within a decibel in 80 of 100 such files, where it did in 38; and of 400 files, 5 are
+audibly nearer and none further. (What such a file says of its instruments, OpenMPT reads from just
+after whatever of the rest of the file ends last, and so is it read here now. It was looked for
+before by the four letters that begin it, which can turn up earlier, in a sample's sound; and in
+eleven files to hand they did, so that those files' instruments were given the wrong plug-ins,
+filters or ways of being read.)
+
 How loud such a file is follows OpenMPT only as far as that keeps it about as loud as every other
 tune here, which comes first: a loud tune is to be loud whatever kind of file it is, and a quiet one
 quiet. A file's own pre-amp, the composer's, is followed. OpenMPT has also had several ways of
@@ -1345,6 +1365,15 @@ those instruments are within a cent of it on 99.95% of their ticks or more, and 
 tick, where a song comes round to its start. Of 700 files, 699 are played; one is refused for
 keeping its samples in other files. And a file that is played with something left out says what,
 a sentence for each kind of thing.
+
+How a voice is read between its sample's points is OpenMPT's too, as for an IT file of its own (see
+above): an instrument's own choice of the five ways, or failing that the song's, for an MPTM file can
+choose one for the whole song, or else OpenMPT's sinc. Of the 700 files, 201 choose for the song, 108
+of them no smoothing at all, which the sinc had turned into something much duller than its composer
+heard: a tune of samples made at eleven kilohertz kept forty decibels less of its top. Set beside
+libopenmpt, the top of the sound (as above) agrees within a decibel in 78 of 100 files, where it did
+in 45, and within three in 93, where it did in 70; of the 700, 27 are audibly nearer and 2 further,
+by a little.
 
 There is a difference of another kind, which no list of features covers. OpenMPT plays these files
 in its own way and not in Impulse Tracker's wherever the two differ, and the file says which of

@@ -117,6 +117,8 @@ private struct Song {
     var linear = true
     /// Whether it has "compatible Gxx".
     var compatibleSlides = false
+    /// How its voices are read between a sample's points, by OpenMPT's number, if it says.
+    var resampling: Int?
 }
 
 /// An MPTM file: an IT file's header, instruments, samples and patterns, and after them the song's
@@ -238,6 +240,7 @@ private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? =
     field("LSWV", long(song.version))
     if let restart = song.restart { field("RP..", word(restart)) }
     if !song.swing.isEmpty { field("SWNG", word(song.swing.count) + song.swing.flatMap(long), reversed: false) }
+    if let resampling = song.resampling { field("RSMP", long(resampling), reversed: false) }
     for (sample, places) in cues.sorted(by: { $0.key < $1.key }) { field("CUES", word(sample) + padded(places.flatMap(long), to: 36), reversed: false) }
     var bits = [UInt8](repeating: 0, count: 18)
     for behaviour in song.behaviours { bits[behaviour >> 3] |= 1 << UInt8(behaviour & 7) }
@@ -339,6 +342,29 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
     let sound = stereo(renderer, seconds: 1).left
     #expect(abs(crossings(sound[4800...]) * 10 / 9 - 261) <= 2)
     #expect(sound[4800...].map(abs).max()! > 0.02)
+}
+
+@Test func mptmVoicesAreReadBetweenTheirPointsAsTheFileAsks() throws {
+    /// How many levels the sound takes once the note has begun, and the highest.
+    func levels(_ file: [UInt8]) throws -> Int { Set(stereo(try player(file), seconds: 0.2).left[4800...]).count }
+    func highest(_ file: [UInt8]) throws -> Float { stereo(try player(file), seconds: 0.2).left[4800...].map(abs).max()! }
+    // The square wave played at its own rate goes through each of its points over five or six frames
+    // of sound. Read with no smoothing at all, as a song can ask, each point is heard as it is, and
+    // the sound is two levels and nothing between; through OpenMPT's sinc, which a song that does not
+    // say has, its edges ring and are rounded, and go past where the wave is.
+    let note = [Pattern([(0, 0, .note())])]
+    #expect(try levels(mptm(note, song: Song(resampling: 0))) == 2)
+    #expect(try levels(mptm(note)) > 20)
+    let top = try highest(mptm(note, song: Song(resampling: 0)))
+    #expect(try highest(mptm(note)) > top * 1.05)
+    // A straight line from point to point goes between them, and never past.
+    #expect(try levels(mptm(note, song: Song(resampling: 1))) > 2)
+    #expect(try highest(mptm(note, song: Song(resampling: 1))) <= top)
+    // An instrument's own way goes before the song's, and an instrument that does not say has the song's.
+    let instruments: [(sample: UInt8, volumeEnvelope: [(tick: Int, level: Int)], fade: Int)] = [(1, [], 0)]
+    #expect(try levels(mptm(note, instruments: instruments, instrumentExtras: [("R...", 1, [[0]])])) == 2)
+    #expect(try levels(mptm(note, song: Song(resampling: 0), instruments: instruments, instrumentExtras: [("R...", 1, [[3]])])) > 20)
+    #expect(try levels(mptm(note, song: Song(resampling: 0), instruments: instruments, instrumentExtras: [("R...", 1, [[5]])])) == 2)
 }
 
 @Test func itFileUnderAnMPTMNameIsAnITFile() throws {

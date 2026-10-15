@@ -690,6 +690,7 @@ final class IT2Module {
                 instruments[i].MixPlug = UInt8(max(0, min(255, plugInOf[i])))
                 if i < extras.cutoffSwings.count { instruments[i].CutSwing = extras.cutoffSwings[i] }
                 if i < extras.filterModes.count, extras.filterModes[i] <= 1 { instruments[i].FilterMode = extras.filterModes[i] }
+                if i < extras.resamplings.count, extras.resamplings[i] < IT2Resampling.own { instruments[i].Resampling = extras.resamplings[i] }
                 if i < extras.resonanceSwings.count { instruments[i].ResSwing = extras.resonanceSwings[i] }
             }
             sound.level = Float(preAmp) / Float(min(preAmp, 128)) * (mixLevels == 3 ? 2 : 1)

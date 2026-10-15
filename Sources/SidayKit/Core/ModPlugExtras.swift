@@ -40,6 +40,9 @@ struct ModPlugExtras {
     /// Which way up each instrument's filter is, where the file says: 1 for one that lets the high
     /// through and not the low, 0 for the low, and anything else to leave it as it was.
     private(set) var filterModes: [UInt8] = []
+    /// How each instrument's notes are read between a sample's points, by OpenMPT's numbers (see
+    /// `IT2Resampling`), where the file says.
+    private(set) var resamplings: [UInt8] = []
 
     private static func name(_ text: StaticString) -> Int {
         text.withUTF8Buffer { Int($0[0]) | Int($0[1]) << 8 | Int($0[2]) << 16 | Int($0[3]) << 24 }
@@ -200,6 +203,8 @@ struct ModPlugExtras {
                 }
             } else if code == Self.name("..MF"), size >= 1 {
                 filterModes = (0 ..< instruments).map { at + $0 * size < data.count ? data[at + $0 * size] : 255 }
+            } else if code == Self.name("...R"), size >= 1 {
+                resamplings = (0 ..< instruments).map { at + $0 * size < data.count ? data[at + $0 * size] : 255 }
             } else if code == Self.name("..SC") || code == Self.name("..SR"), size >= 1 {
                 let swings = (0 ..< instruments).map { at + $0 * size < data.count ? min(data[at + $0 * size], 64) : 0 }
                 if swings.contains(where: { $0 != 0 }) {

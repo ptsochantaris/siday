@@ -702,7 +702,12 @@ known for one, and the ways of playing it asks for, in `modPlugWays` and `ModPlu
 `IT2Module.swift`, after `soundlib/Load_it.cpp` and `UpgradeModule.cpp`), with its filter moved at
 random from note to note (`ApplyRandomValues` in `IT2Player.swift`, after `NoteChange` in
 `Snd_fx.cpp`) and its envelopes carried on and started again by ModPlug Tracker's rules
-(`InstrumentChange` there); in an S3M file, a channel's volume, a slide of it and
+(`InstrumentChange` there), with its voices read between a sample's points in OpenMPT's ways, by
+the instrument's choice or the song's or else OpenMPT's own (`Sources/SidayKit/ImpulseTracker/IT2Resampling.swift`
+and the tables it gives `IT2Mixer.swift`, after `soundlib/IntMixer.h` and `Sndmix.cpp`, with the
+curve of `soundlib/Tables.cpp` and the windowed sinc of `WindowedFIR.cpp`; the same for an MPTM
+file), and what it says of its instruments found where OpenMPT finds it (`extrasPlace` in
+`IT2Module.swift`, after `soundlib/Load_it.cpp`); in an S3M file, a channel's volume, a slide of it and
 a slide of the whole tune's (`laterCommand` in `Sources/SidayKit/ScreamTracker/ST3Effects.swift`);
 in an XM file, a sweep from side to side (`sweepFromSideToSide` in
 `Sources/SidayKit/FastTracker/FT2Replayer.swift`, with its two tables of 64 numbers in

@@ -246,6 +246,7 @@ enum MPTMFile {
         var plugin = 0
         /// 1 for a filter that lets the high notes through and not the low.
         var filterMode = 0xFF
+        var resampling = Int(IT2Resampling.own)
         var cutoffSwing = 0, resonanceSwing = 0
         /// The tempo it is to keep time with, its whole part and its ten-thousandths; nought for none.
         var pitchTempoLock = 0, pitchTempoLockFraction = 0
@@ -287,6 +288,7 @@ enum MPTMFile {
                 switch name {
                 case "MiP.": extras[index].plugin = number()
                 case "FM..": extras[index].filterMode = number() & 0xFF
+                case "R...": extras[index].resampling = number()
                 case "CS..": extras[index].cutoffSwing = number()
                 case "RS..": extras[index].resonanceSwing = number()
                 case "PTTL": extras[index].pitchTempoLock = number()
@@ -319,6 +321,9 @@ enum MPTMFile {
         /// The version of OpenMPT that last saved the file, a byte for each of its four parts.
         var savedWith = 0
         var swing: [UInt32] = []
+        /// How the song's voices are read (see `IT2Resampling`); OpenMPT's own number for "as the
+        /// mixer has it" if it does not say.
+        var resampling = Int(IT2Resampling.own)
         /// OpenMPT's ways of playing that the file asks for, by their numbers; nil if it does not say.
         var behaviours: [Bool]?
         /// Each sample's nine cue points, by the sample's number from 1.
@@ -438,6 +443,7 @@ enum MPTMFile {
             case "..PR": extras.restart = number()
             case "VWSL": extras.savedWith = number()
             case "SWNG": if size > 2 { extras.swing = swing(&field) }
+            case "RSMP": extras.resampling = number()
             case ".FSM":
                 var flags: [Bool] = []
                 for _ in 0 ..< size {
@@ -737,6 +743,7 @@ enum MPTMFile {
             for note in 0 ..< 120 where ins.SmpNoteTable[note] & 0xFF >= 120 { ins.SmpNoteTable[note] = ins.SmpNoteTable[note] & 0xFF00 | UInt16(note) }
             let extras = instrumentExtras[index]
             if extras.filterMode <= 1 { ins.FilterMode = UInt8(extras.filterMode) }
+            if extras.resampling < IT2Resampling.own { ins.Resampling = UInt8(extras.resampling) }
             ins.CutSwing = UInt8(min(64, extras.cutoffSwing & 0xFF))
             ins.ResSwing = UInt8(min(64, extras.resonanceSwing & 0xFF))
             for which in 0 ..< 3 where extras.points[which] >= 0 || !extras.ticks[which].isEmpty || !extras.levels[which].isEmpty {
@@ -865,6 +872,7 @@ enum MPTMFile {
         tempo = max(OpenMPTSong.leastTempo * OpenMPTSong.tempoUnit, min(OpenMPTSong.mostTempo * OpenMPTSong.tempoUnit, tempo))
 
         var openMPT = OpenMPTSong()
+        if song.resampling < IT2Resampling.own { openMPT.resampling = UInt8(song.resampling) }
         var orders: [UInt8] = []
         var tooMany = false
         for (index, list) in lists.enumerated() {

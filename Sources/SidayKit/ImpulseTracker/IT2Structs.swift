@@ -103,6 +103,9 @@ final class IT2Instrument {
     /// For an instrument of ModPlug Tracker's or OpenMPT's only: how far its filter's cutoff and
     /// resonance are moved at random from one note to the next, of 64 (see `ApplyRandomValues`).
     var CutSwing: UInt8 = 0, ResSwing: UInt8 = 0
+    /// For an instrument of OpenMPT's only: how its notes are read between a sample's points, by
+    /// OpenMPT's number for the way (see `IT2Resampling`), or the mixer's own.
+    var Resampling = IT2Resampling.own
     /// For an instrument of an IT file that ModPlug Tracker or an OpenMPT before 1.20 made: its
     /// envelope for pitch or the filter as that tracker played it, which was as FastTracker plays
     /// one (see `MPTMFile.asFastTrackerLooped`). Nil for any other.

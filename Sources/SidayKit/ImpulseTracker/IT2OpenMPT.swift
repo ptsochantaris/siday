@@ -50,6 +50,9 @@ struct OpenMPTSong {
     var patternSwing: [[UInt32]] = []
     /// The highest tempo a command can set or slide to.
     var tempoCeiling = 255
+    /// How the song's voices are read between a sample's points, unless an instrument says, by
+    /// OpenMPT's number for the way (see `IT2Resampling`).
+    var resampling = IT2Resampling.own
     var sequences: [Sequence] = []
     /// The values that are too long for a command's one byte and go on into the rows below it
     /// (OpenMPT's #xx), each under where its command is (see `place`): the value in the low 24

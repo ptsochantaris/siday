@@ -1583,7 +1583,8 @@ final class IT2Player {
         mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound, reverb: reverbs ? module.reverb : nil,
                          filter: asImpulseTracker ? .impulseTrackers : module.filter,
                          softPanning: module.modPlugLevels.map { $0.mixLevels == 3 && !asImpulseTracker },
-                         quickEnds: module.madTracker || module.openMPT != nil || module.madeByModPlug && !asImpulseTracker)
+                         quickEnds: module.madTracker || module.openMPT != nil || module.madeByModPlug && !asImpulseTracker,
+                         resampling: module.madeByModPlug && !asImpulseTracker)
         mixer.adLib = adLib
         if forSound { mixer.playsPlugIns() }
 
