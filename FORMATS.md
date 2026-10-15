@@ -535,7 +535,12 @@ the plug-ins are given it at the level OpenMPT plays an XM file. Set beside libo
 files to hand that send something through a plug-in agree in spectrum to 0.993 for the middle
 one, where without the plug-ins it was 0.982. X99 puts a channel in ModPlug's own reverb, and X98
 takes it out, as in an IT file of theirs (see MPTM, below); of the 16 such files to hand, how alike
-their two sides are to libopenmpt's went from 0.31 to 0.97 for the middle one. That is for a file
+their two sides are to libopenmpt's went from 0.31 to 0.97 for the middle one. And a sample that
+runs out while it is loud stops dead in FastTracker's mixer, which is heard as a click; in ModPlug
+Tracker's and OpenMPT's, what it last put out dies away instead, by a 256th of itself a frame, and
+so it does here in a file of theirs. It is a small thing, a few thousandths of a second at each such
+end: of 400 such files, 284 change, and where they change 55 come nearer to libopenmpt sample by
+sample and 4 go further. That is for a file
 that gives itself away as another tracker's: by saying so, or,
 where it says FastTracker as ModPlug Tracker's files do, by a name padded with nothing instead of
 spaces or by what ModPlug Tracker writes after all that FastTracker reads. FastTracker lets any

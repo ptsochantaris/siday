@@ -334,6 +334,26 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try shortfalls(Array(xm().dropLast(1))).isEmpty)
 }
 
+@Test func xmOfOpenMPTsLetsASampleThatEndsLoudDieAway() throws {
+    // The square wave played once, and not round its loop, ends at its lowest. FastTracker's mixer
+    // stops it dead there; OpenMPT's lets what it last put out die away, by a 256th a frame.
+    func played(madeWith tracker: String) throws -> [Float] {
+        var file = xm()
+        file.replaceSubrange(38 ..< 58, with: padded(tracker, 20))
+        file[file.count - 32 - 40 + 14] = 0 // the sample's loop: none
+        return stereo(try TuneLoader.load(file, format: .xm), seconds: 0.1).left
+    }
+    let stopped = try played(madeWith: "siday"), dying = try played(madeWith: "OpenMPT 1.30.00.00")
+    let end = try #require(stopped.lastIndex { $0 != 0 }) + 1
+    #expect(end > 100 && end < 1000)
+    #expect(stopped[end...].allSatisfy { $0 == 0 })
+    let last = stopped[end - 1]
+    #expect(last < 0 && dying[end - 1] == last)
+    #expect(abs(dying[end] - last * 255 / 256) < abs(last) * 0.01)
+    #expect(abs(dying[end + 255] - last * 0.368) < abs(last) * 0.02)
+    #expect(abs(dying[end + 2000]) < abs(last) * 0.001)
+}
+
 @Test func xmInstrumentIsHeardThroughItsPlugIn() throws {
     // OpenMPT's echo, set to give back what it is given a thousandth of a second later (48 frames)
     // and nothing else, in the first place, and the instrument sent through it.

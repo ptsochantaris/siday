@@ -34,6 +34,9 @@ struct FT2Voice {
     /// The place of the plug-in the voice is sent to, for a song that has OpenMPT's (see
     /// `FT2Player.playsPlugIns`); less than nought if it goes straight to the listener.
     var place = -1
+    /// For a file of ModPlug Tracker's or OpenMPT's: what the voice last put out on each side
+    /// when its sample ran out, dying away (see `FT2Player.endsDieAway`).
+    var tailL: Int32 = 0, tailR: Int32 = 0
 }
 
 /// FastTracker 2's replayer and mixer, playing a module: the replayer is in `FT2Replayer.swift`, and
@@ -58,6 +61,10 @@ final class FT2Player {
     let vibratoShift: Int
     /// True if a loop inside a pattern is not to leave the next pattern starting on its row.
     let loopsLeaveNothingBehind: Bool
+    /// True for a file of ModPlug Tracker's or OpenMPT's. A sample that runs out while it is loud
+    /// stops dead in FastTracker's mixer, with a click; in theirs, what it last put out dies away,
+    /// by a 256th of itself a frame, as it does here for such a file.
+    let endsDieAway: Bool
     /// True for a module of DIGI Booster's: see `FT2DigiBooster.swift`.
     let playsAsDigiBooster: Bool
 
@@ -137,6 +144,7 @@ final class FT2Player {
     init(_ module: FT2Module, position: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0,
          asFastTracker: Bool = false) {
         playsLaterCommands = !module.madeByFastTracker && !asFastTracker
+        endsDieAway = module.openMPTMix != nil && !asFastTracker
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
         self.module = module
@@ -552,6 +560,7 @@ final class FT2Player {
     }
 
     private func mix(_ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32) {
+        if v.pointee.tailL | v.pointee.tailR != 0 { dieAway(v, into: target(of: v), frames: numSamples, from: (v.pointee.tailL, v.pointee.tailR), carried: true) }
         if v.pointee.SType & SType_Off != 0 { return }
         guard let base = v.pointee.SBase else { return }
 
@@ -577,6 +586,30 @@ final class FT2Player {
             mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0, right: nil, rightReverse: nil)
         } else {
             mix(v, numSamples, base.assumingMemoryBound(to: Int8.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int8.self), shift: 8, right: nil, rightReverse: nil)
+        }
+    }
+
+    /// What a voice last put out on each side, dying away over so many frames of `to` (as OpenMPT has
+    /// it, by a 256th of itself a frame, and by one at least), and kept for the ticks after.
+    /// - Parameter carried: true for what was kept from the ticks before, false for what it last
+    ///   put out, which is added to that.
+    private func dieAway(_ v: UnsafeMutablePointer<FT2Voice>, into to: UnsafeMutablePointer<Int32>, frames: Int32, from: (Int32, Int32), carried: Bool) {
+        @inline(__always) func step(_ x: Int32) -> Int32 { (x &+ (x > 0 ? 0xFF : 0)) >> 8 }
+        var (l, r) = from
+        var at = to
+        for _ in 0 ..< max(0, frames) {
+            l &-= step(l)
+            r &-= step(r)
+            at[0] &+= l
+            at[1] &+= r
+            at += 2
+        }
+        if carried {
+            v.pointee.tailL = l
+            v.pointee.tailR = r
+        } else {
+            v.pointee.tailL &+= l
+            v.pointee.tailR &+= r
         }
     }
 
@@ -621,6 +654,8 @@ final class FT2Player {
         }
 
         var bytesLeft = numSamples
+        // (What was last added to each side, for a sample that runs out: see `endsDieAway`.)
+        var lastL: Int32 = 0, lastR: Int32 = 0
         while bytesLeft > 0 {
             var frq = Int32(bitPattern: v.pointee.SFrq)
             var i = (v.pointee.SLen &- 1) &- realPos
@@ -706,8 +741,10 @@ final class FT2Player {
                     if next > high { high = next }
                     sampleR = next << (28 - 16)
                 }
-                audioMix[0] &+= Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(lVol)) >> 32)
-                audioMix[1] &+= Int32(truncatingIfNeeded: (Int64(sampleR) &* Int64(rVol)) >> 32)
+                lastL = Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(lVol)) >> 32)
+                lastR = Int32(truncatingIfNeeded: (Int64(sampleR) &* Int64(rVol)) >> 32)
+                audioMix[0] &+= lastL
+                audioMix[1] &+= lastR
                 audioMix += 2
                 smpPtr += ipValH
                 if ipValL > ~pos { smpPtr += 1 }
@@ -730,7 +767,10 @@ final class FT2Player {
             }
             mixBuffPos = UInt16(truncatingIfNeeded: pos)
             pos &= 0xFFFF_0000
-            if realPos >= v.pointee.SLen, !wrap(v, &realPos) { return }
+            if realPos >= v.pointee.SLen, !wrap(v, &realPos) {
+                if endsDieAway { dieAway(v, into: audioMix, frames: bytesLeft, from: (lastL, lastR), carried: false) }
+                return
+            }
             v.pointee.SLVol2 = lVol
             v.pointee.SRVol2 = rVol
         }
