@@ -20,6 +20,8 @@ struct ForeignModule {
         /// The part that repeats, in bytes. None, if it has no length.
         var repeatStart = 0
         var repeatLength = 0
+        /// True for a repeat that goes back and forth.
+        var backAndForth = false
         var volume: UInt8 = 64
         /// In 128ths of a semitone.
         var fineTune: Int8 = 0
@@ -56,6 +58,9 @@ struct ForeignModule {
     /// True for a module whose vibrato is a quarter as deep as the same number makes ProTracker's:
     /// Digital Tracker's, as OpenMPT plays it. See `DTMFile`.
     var vibratoIsAQuarterAsDeep = false
+    /// True for a module of DIGI Booster's, which is played as OpenMPT plays one where it and
+    /// FastTracker differ: see `FT2DigiBooster.swift`.
+    var playsAsDigiBooster = false
     /// How loud the kind of file is played, beside an XM file at 1. It is set by measure: so that
     /// of the files of the kind to hand, the middle one is as loud as the middle one of XM files.
     var loudness: Float = 1

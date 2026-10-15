@@ -653,6 +653,16 @@ are taken to mean. The lines in `ST3Player.swift` that are there for these files
 what OpenMPT's `soundlib/Snd_fx.cpp` does for a module of that kind and not for an S3M file. They are
 used under OpenMPT's licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
 
+## OpenMPT — DIGI files
+
+`Sources/SidayKit/FastTracker/DIGIFile.swift`, which reads a DIGI Booster module into what
+FastTracker 2's replayer plays, is made after OpenMPT's loader of that format (`soundlib/Load_digi.cpp`):
+the layout of the file, how its patterns are packed or not, and what its commands are taken to mean.
+`FT2DigiBooster.swift`, and the lines in `FT2Replayer.swift` and `FT2Player.swift` that are there
+for these files and say so, follow what OpenMPT's `soundlib/Snd_fx.cpp` and `soundlib/Sndmix.cpp` do
+for a module of that kind, with its wave for vibrato and tremolo. They are used under OpenMPT's
+licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
+
 ## OpenMPT — MPTM files
 
 `Sources/SidayKit/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,

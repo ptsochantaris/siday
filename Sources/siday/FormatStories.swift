@@ -374,6 +374,68 @@ list of positions goes to its top, a track or a row the file does not have is em
 the five octaves there are has no pitch to slide from, and a wave other than the four there are is
 silence.
 
+## DIGI — DIGI Booster
+
+Before DigiBooster Pro, below, there was DIGI Booster, Tomasz Piasta's tracker for the Amiga; the
+files to hand were saved by its versions 1.5 and 1.7. It was ProTracker widened to eight channels,
+which it mixed itself, two to each of the Amiga's four voices, and its file says what it is in its
+first letters, "DIGI Booster module", and then is a MOD file in all but its layout. The same 31
+samples, each with a volume and a fine tuning but as long as it likes; the same patterns of 64 rows
+of periods and ProTracker's commands, packed a row at a time with a byte that says which channels
+have anything, or not packed, when the channels come one after another and not the rows; and a few
+commands of its own: playing a sample backwards, stopping a note, starting further into a sample
+than 64 KB, and a "robot" voice.
+
+Its replayer was never published, and DigiBooster Pro's, which is here, is another program's, for
+another kind of file. OpenMPT plays these files as a MOD file of a kind of its own: by ProTracker's
+commands, with the memory of their values that it gives every kind of module but ProTracker's, and
+with a few ways that are DIGI Booster's, which are the ways it gives DigiBooster Pro's files too.
+So the file is read into what FastTracker 2's replayer plays, as a MOD file of more than four
+channels is here and as MTM files are: that is ProTracker's commands on more channels, with the
+same memory of their values (a slide by nothing is the last slide again), on the Amiga's periods
+and fine tunings. ProTracker's own replayer, which plays the four-channel MOD files, is not the
+one, for all that DIGI Booster was the Amiga's: it is the Amiga's four voices, played as its sound
+chip plays them, where DIGI Booster had eight channels that it mixed for itself; and ProTracker's
+commands remember nothing. The replayer is told, for these files alone and as OpenMPT plays them:
+
+- that a period is of the clock of a PAL Amiga, 3,546,895 Hz, and not of the one FastTracker reckons
+  a MOD file's periods by, so that every note is some sixteen cents lower;
+- that an arpeggio is a step behind ProTracker's (its second note on the row's first tick, the note
+  itself on the next, then its first), counts from the channel's note, and leaves the pitch at the
+  last note it played;
+- that vibrato and tremolo go by DIGI Booster's own wave, of 32 steps and not quite even; that the
+  vibrato's wave goes on along it from note to note, and is not heard on a row's first tick, which
+  is at the note itself; and that the tremolo is heard on that tick too;
+- that a slide up and a slide down remember one value between them;
+- that a loop within a pattern is not begun while another channel's is going, so that of several
+  on one row each goes round in turn;
+- and that E40 stops the note, so that what is named beside it starts nothing, and nor does an
+  instrument named after it with no note.
+
+A sample played backwards (E3x) is a sample of its own, its sound turned round, after the file's
+31: E30 plays it from its end to its start, and E31 and the rest back and forth over the whole of
+it after that, which is what OpenMPT does. DIGI Booster turned such a note round again when a note
+started on the other channel of its voice. On the same row that is seen to: a note that is to go
+back to its start, with another starting beside it, is at once going forwards from its end, and
+is not heard. On a later row it is not done, and a file in which the note might still be sounding
+then says so. Two commands are left out, and a file that uses them says so: the robot voice, which
+OpenMPT leaves out as well, and a start further than 64 KB into a sample (E8x). A file that says its
+patterns are not packed has them a channel at a time, as OpenMPT reads them. libxmp reads them a row
+at a time, and the one such file to hand then has its speed set on eight rows running and every
+channel playing seven or eight samples, where read OpenMPT's way the speed is set on every eighth
+row and the channels play two to four. The channels are in the middle, as OpenMPT has them, which is
+how FastTracker plays a MOD file's.
+
+All three files to hand are played. Every sample is as libopenmpt reads it, to the last byte of its
+sound and its loop. Every channel's pitch and volume was set beside libopenmpt's on every tick of
+each, to its end: of 47,892 ticks they are alike on 47,813, one file on every tick; the rest are
+where a sample ends within a tick, which the two are looked at differently for. A file made for the
+purpose, with every one of the ways above in it, is alike on 861 of 864 ticks: the other three are
+the tick of the note that is turned round at once, and two of a voice at no volume. What is heard
+was set beside libopenmpt too, for two minutes of each: the spectrum agrees to between 0.989 and
+0.999, and the loudness over time to between 0.987 and 1.000. The files are made about as loud as
+other modules are, by measure.
+
 ## DBM — DigiBooster Pro and DigiBooster 3
 
 DigiBooster Pro is by Tomasz and Waldemar Piasta, from Poland, and was the tracker of the Amiga

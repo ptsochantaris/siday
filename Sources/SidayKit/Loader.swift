@@ -20,6 +20,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case ams
     case plm
     case dsm
+    case digi
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -148,6 +149,9 @@ public enum TuneLoader {
             return XMRenderer(try FT2Module(DTMFile.read(data)), options: options)
         case .amf:
             return XMRenderer(try FT2Module(AMFFile.read(data)), options: options)
+        case .digi:
+            // DIGI Booster's, which FastTracker 2's replayer plays as OpenMPT plays them.
+            return XMRenderer(try FT2Module(DIGIFile.read(data)), options: options)
         case .s3m:
             return try S3MRenderer(data, options: options)
         case .dsm:

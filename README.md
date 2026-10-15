@@ -26,7 +26,7 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum, Amstrad CPC | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs; VTX and YM register recordings; AY program rips, beeper music included | each tracker's own player, or the tune's own program on a Z80, on the AY chip |
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
-| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
+| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
@@ -264,6 +264,9 @@ Played, with a difference:
 - **DBM:** played as DigiBooster 3 plays it, which leaves out three of DigiBooster Pro's commands:
   setting how far into an envelope a note is, sliding where a sample starts, and setting the tempo
   in beats a minute.
+- **DIGI:** played by FastTracker 2's replayer as OpenMPT plays it; a start more than 64 KB into a
+  sample and the robot voice are left out, and a note played backwards is not turned round by a
+  note that starts on a later row beside it.
 - **XM** from a later tracker: played as FastTracker 2 would play it.
 - **XM, IT and MPTM** from ModPlug Tracker or OpenMPT: plug-ins that are not OpenMPT's own are left
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
@@ -472,6 +475,9 @@ What it is made from:
 - And again: how a DSM file of the Digital Sound Interface Kit is read, and what OpenMPT does for
   one otherwise than for an S3M file; libopenmpt is the player those files were checked against.
   The Digital Sound Interface Kit is by Carlos Hasan.
+- And again: how a DIGI Booster module is read, and what DIGI Booster does otherwise than
+  FastTracker 2, made after OpenMPT's; libopenmpt is the player those files were checked against.
+  DIGI Booster is by Tomasz Piasta.
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.

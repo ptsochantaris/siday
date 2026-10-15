@@ -58,6 +58,8 @@ final class FT2Player {
     let vibratoShift: Int
     /// True if a loop inside a pattern is not to leave the next pattern starting on its row.
     let loopsLeaveNothingBehind: Bool
+    /// True for a module of DIGI Booster's: see `FT2DigiBooster.swift`.
+    let playsAsDigiBooster: Bool
 
     static let rate: Int32 = Int32(outputSampleRate)
     /// FastTracker's "amplification", as it comes.
@@ -151,6 +153,7 @@ final class FT2Player {
         speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
         vibratoShift = module.vibratoIsAQuarterAsDeep ? 7 : 5
         loopsLeaveNothingBehind = module.foreign != nil
+        playsAsDigiBooster = module.playsAsDigiBooster
         let placeholder = module.instr[0]!
         let channels = max(1, Int(module.song.antChn))
         stm = (0 ..< channels).map { FT2Channel(nr: $0, instrument: placeholder) }
@@ -159,7 +162,9 @@ final class FT2Player {
         notes = TickNotes(voices: channels)
 
         let rate = Double(Self.rate)
-        frequenceDivFactor = UInt32((65536.0 * 1712.0 / rate * 8363.0).rounded())
+        // (A period is of the clock FastTracker reckons one by; but DIGI Booster's are of the Amiga's
+        // own, as OpenMPT plays them, the clock of a PAL machine, 3,546,895 Hz.)
+        frequenceDivFactor = UInt32((65536.0 * (module.playsAsDigiBooster ? 3_546_895.0 * 4 : 1712.0 * 8363.0) / rate).rounded())
         frequenceMulFactor = UInt32((256.0 * 65536.0 / rate * 8363.0).rounded())
         CDA_Amp = 8 * Self.amp
         quickVolSizeVal = Self.rate / 200
@@ -288,6 +293,11 @@ final class FT2Player {
         let v = CI + chnReloc[nr]
         v.pointee.SType = SType_Off
         return v
+    }
+
+    /// Stops a channel's note: it fades out, as one does that the next cuts short, and nothing follows it.
+    func P_StopTone(_ nr: Int) {
+        _ = stopTone(nr)
     }
 
     func P_StartTone(_ s: FT2Sample, _ smpStartPos: Int32, _ nr: Int) {

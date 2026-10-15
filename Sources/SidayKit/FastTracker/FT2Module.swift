@@ -29,6 +29,8 @@ final class FT2Module {
     private(set) var speedAndTempoUndoEachOther = false
     /// True for a module whose vibrato is a quarter as deep as FastTracker's: see `ForeignModule`.
     private(set) var vibratoIsAQuarterAsDeep = false
+    /// True for a module of DIGI Booster's: see `ForeignModule.playsAsDigiBooster`.
+    private(set) var playsAsDigiBooster = false
     /// True unless the file is an XM file that gives itself away as some other tracker's than
     /// FastTracker 2: by what it says made it, or, where it says FastTracker, as ModPlug Tracker's
     /// files do, by a song name padded out with nothing in place of spaces or by what ModPlug
@@ -341,6 +343,7 @@ final class FT2Module {
         channelPanning = (0 ..< module.channels).map { $0 < module.panning.count ? module.panning[$0] : 128 }
         speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
         vibratoIsAQuarterAsDeep = module.vibratoIsAQuarterAsDeep
+        playsAsDigiBooster = module.playsAsDigiBooster
         song.antChn = UInt8(module.channels)
         song.len = UInt16(min(256, module.orders.count))
         song.repS = UInt16(max(0, min(255, module.restart)))
@@ -368,7 +371,7 @@ final class FT2Module {
             ins.samp[0].len = Int32(length)
             ins.samp[0].repS = Int32(repeatStart)
             ins.samp[0].repL = Int32(repeatLength)
-            ins.samp[0].typ = (repeatLength > 0 ? 1 : 0) | (sample.sixteenBit ? 16 : 0)
+            ins.samp[0].typ = (repeatLength > 0 ? sample.backAndForth ? 2 : 1 : 0) | (sample.sixteenBit ? 16 : 0)
             ins.samp[0].vol = min(64, sample.volume)
             ins.samp[0].fine = sample.fineTune
             ins.samp[0].relTon = sample.relativeNote

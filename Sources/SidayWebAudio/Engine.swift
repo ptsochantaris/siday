@@ -109,6 +109,7 @@ final class WebPlayer {
                 || format == .imf || format == .ams
                 || format == .plm
                 || format == .dsm
+                || format == .digi
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

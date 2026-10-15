@@ -146,7 +146,8 @@ extension FT2Player {
     }
 
     func retrigEnvelopeVibrato(_ ch: FT2Channel) {
-        if ch.waveCtrl & 0x04 == 0 { ch.vibPos = 0 }
+        // (DIGI Booster's vibrato goes on along its wave.)
+        if ch.waveCtrl & 0x04 == 0, !playsAsDigiBooster { ch.vibPos = 0 }
         // FastTracker itself hangs here if the tremolo is set not to restart; the port resets it safely.
         if ch.waveCtrl & 0x40 == 0 { ch.tremPos = 0 }
         ch.retrigCnt = 0
@@ -287,6 +288,8 @@ extension FT2Player {
         if param == 0 {
             ch.pattPos = UInt8(truncatingIfNeeded: song.pattPos)
         } else if ch.loopCnt == 0 {
+            // (In DIGI Booster's, as OpenMPT plays it, a loop is not begun while another channel's is going.)
+            if playsAsDigiBooster, stm.contains(where: { $0 !== ch && $0.loopCnt > 0 }) { return }
             ch.loopCnt = param
             song.pBreakPos = ch.pattPos
             song.pBreakFlag = true
@@ -335,6 +338,8 @@ extension FT2Player {
         case 0x1: finePortaUp(ch, param)
         case 0x2: finePortaDown(ch, param)
         case 0x3: ch.glissFunk = param
+        // (E40 in a module of DIGI Booster's stops the note.)
+        case 0x4 where playsAsDigiBooster && param == 0: digiBoosterStop(ch)
         case 0x4: ch.waveCtrl = (ch.waveCtrl & 0xF0) | param
         case 0x6: jumpLoop(ch, param)
         case 0x7: ch.waveCtrl = (param << 4) | (ch.waveCtrl & 0x0F)
@@ -654,6 +659,13 @@ extension FT2Player {
         if playsLaterCommands, ch.effTyp == 36 { sendFilterMacro(ch, param, comingTo: true) }
         if (ch.effTyp == 0 && param == 0) || ch.effTyp > 35 { return }
         switch ch.effTyp {
+        // (DIGI Booster's arpeggio and tremolo are heard on the row's first tick too.)
+        case 0: if playsAsDigiBooster { digiBoosterArpeggio(ch, param) }
+        case 7:
+            if playsAsDigiBooster {
+                setTremolo(ch, param)
+                digiBoosterTremolo(ch, movesOn: false)
+            }
         case 35: if playsLaterCommands { sendFilterMacro(ch, param, comingTo: false) }
         case 27: multiRetrig(ch, param, newVolKol)
         case 8: setPan(ch, param)
@@ -753,8 +765,9 @@ extension FT2Player {
                 ch.outPeriod = ch.realPeriod
                 ch.status |= IS_Period
             }
-        } else if (ch.effTyp == 4 || ch.effTyp == 6) && (p.effTyp != 4 && p.effTyp != 6) {
-            // And so for a vibrato that ends with the row before.
+        } else if (ch.effTyp == 4 || ch.effTyp == 6) && (p.effTyp != 4 && p.effTyp != 6 || playsAsDigiBooster) {
+            // And so for a vibrato that ends with the row before. (DIGI Booster's is at the note
+            // itself on every row's first tick.)
             ch.outPeriod = ch.realPeriod
             ch.status |= IS_Period
         }
@@ -992,6 +1005,7 @@ extension FT2Player {
     }
 
     func vibrato2(_ ch: FT2Channel) {
+        if playsAsDigiBooster { return digiBoosterVibrato(ch) }
         var tmpVib = (ch.vibPos >> 2) & 0x1F
         switch ch.waveCtrl & 3 {
         case 0: tmpVib = ft2VibTab[Int(tmpVib)]
@@ -1025,6 +1039,8 @@ extension FT2Player {
         var param = value
         if param == 0 { param = ch.portaUpSpeed }
         ch.portaUpSpeed = param
+        // (DIGI Booster's slides up and down remember one value between them.)
+        if playsAsDigiBooster { ch.portaDownSpeed = param }
         ch.realPeriod &-= UInt16(param) << 2
         if Int16(bitPattern: ch.realPeriod) < 1 { ch.realPeriod = 1 }
         ch.outPeriod = ch.realPeriod
@@ -1035,6 +1051,7 @@ extension FT2Player {
         var param = value
         if param == 0 { param = ch.portaDownSpeed }
         ch.portaDownSpeed = param
+        if playsAsDigiBooster { ch.portaUpSpeed = param }
         ch.realPeriod &+= UInt16(param) << 2
         if Int16(bitPattern: ch.realPeriod) > Int16(MAX_FRQ - 1) { ch.realPeriod = UInt16(MAX_FRQ - 1) }
         ch.outPeriod = ch.realPeriod
@@ -1070,13 +1087,18 @@ extension FT2Player {
         vibrato2(ch)
     }
 
-    func tremolo(_ ch: FT2Channel, _ param: UInt8) {
+    func setTremolo(_ ch: FT2Channel, _ param: UInt8) {
         if param > 0 {
             var tmp8 = param & 0x0F
             if tmp8 > 0 { ch.tremDepth = tmp8 }
             tmp8 = (param & 0xF0) >> 2
             if tmp8 > 0 { ch.tremSpeed = tmp8 }
         }
+    }
+
+    func tremolo(_ ch: FT2Channel, _ param: UInt8) {
+        setTremolo(ch, param)
+        if playsAsDigiBooster { return digiBoosterTremolo(ch, movesOn: true) }
         var tmpTrem = (ch.tremPos >> 2) & 0x1F
         switch (ch.waveCtrl >> 4) & 3 {
         case 0: tmpTrem = ft2VibTab[Int(tmpTrem)]
@@ -1211,7 +1233,7 @@ extension FT2Player {
         if (ch.eff == 0 && ch.effTyp == 0) || ch.effTyp > 35 { return }
         let param = ch.eff
         switch ch.effTyp {
-        case 0: arp(ch, param)
+        case 0: if playsAsDigiBooster { digiBoosterArpeggio(ch, param) } else { arp(ch, param) }
         case 1: portaUp(ch, param)
         case 2: portaDown(ch, param)
         case 3: tonePorta(ch)
