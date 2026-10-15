@@ -390,6 +390,16 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     for length in 0 ..< file.count { _ = IT2Module.extrasPlace(ByteReader(Array(file[..<length])), 194, 0, 1, 1) }
 }
 
+@Test func modPlugsOldWayOfNamingAnInstrumentsPlugInIsRead() {
+    // An instrument (its 554 bytes) and after it ModPlug Tracker's piece that names its plug-in.
+    let instrument = Array("IMPI".utf8) + [UInt8](repeating: 0, count: 550)
+    let piece = Array("MSNI".utf8) + long(5) + Array("GULP".utf8) + [3]
+    #expect(IT2Module.oldPlugIn(ByteReader([9, 9] + instrument + piece), after: 2) == 3)
+    #expect(IT2Module.oldPlugIn(ByteReader(instrument + Array("MSNI".utf8) + long(5) + Array("GULP".utf8) + [0]), after: 0) == nil)
+    #expect(IT2Module.oldPlugIn(ByteReader(instrument), after: 0) == nil)
+    for length in 0 ..< piece.count { _ = IT2Module.oldPlugIn(ByteReader(instrument + piece.prefix(length)), after: 0) }
+}
+
 @Test func itFromALaterTrackerSaysWhatImpulseTrackerDoesNotPlay() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .it).info.shortfalls }
     #expect(try shortfalls(it()).isEmpty)

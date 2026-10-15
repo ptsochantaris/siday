@@ -32,8 +32,10 @@ struct ModPlugExtras {
     private(set) var byBeRoTracker = false
     /// The plug-in each channel is sent through, counted from 1; nought for none.
     private(set) var channelPlugIns: [Int] = []
-    /// And the one each instrument plays through, the first instrument first.
+    /// And the one each instrument plays through, the first instrument first; and whether the
+    /// instruments' extras said so, which goes before what an instrument says for itself.
     private(set) var instrumentPlugIns: [Int] = []
+    private(set) var namesPlugIns = false
     /// How far each instrument's cutoff and resonance are moved at random from note to note, of 64:
     /// the first instrument first, and nothing for a file that has no such instruments.
     private(set) var cutoffSwings: [UInt8] = [], resonanceSwings: [UInt8] = []
@@ -198,6 +200,7 @@ struct ModPlugExtras {
             let size = file.u16le(at + 4)
             at += 6
             if code == Self.name(".PiM"), size >= 1 {
+                namesPlugIns = true
                 for instrument in 0 ..< instruments where at + instrument * size < data.count {
                     set(plugIn: Int(data[at + instrument * size]), ofInstrument: instrument)
                 }

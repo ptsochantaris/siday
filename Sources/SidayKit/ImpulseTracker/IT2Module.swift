@@ -454,6 +454,16 @@ final class IT2Module {
         for i in 0 ..< InsNum where instruments[i].MIDIChn > 128 && !extras.playsThroughPlugIn(instrument: i) {
             extras.set(plugIn: Int(instruments[i].MIDIChn) - 128, ofInstrument: i)
         }
+        // (And the versions before OpenMPT 1.17 put it just after the instrument, in a piece of its
+        // own, "MSNI", which begins "GULP" and the plug-in's number. What the instruments' extras say
+        // goes before it, as in OpenMPT, where it is read first and they after.)
+        if byModPlug, Cmwt >= 0x200 {
+            let reader = ByteReader(data)
+            for i in 0 ..< InsNum where i >= extras.instrumentPlugIns.count || extras.instrumentPlugIns[i] == 0 && !extras.namesPlugIns {
+                let at = reader.u32le(PtrListOffset + i * 4)
+                if at > 0, let plugIn = Self.oldPlugIn(reader, after: at) { extras.set(plugIn: plugIn, ofInstrument: i) }
+            }
+        }
         self.extras = extras
 
         // MARK: Samples
@@ -945,6 +955,18 @@ final class IT2Module {
         let memory = UnsafeMutableRawPointer.allocate(byteCount: length + SAMPLE_PAD_LENGTH, alignment: 16)
         memory.initializeMemory(as: UInt8.self, repeating: 0, count: length + SAMPLE_PAD_LENGTH)
         return memory
+    }
+
+    /// The plug-in an instrument of an IT file is sent through, as ModPlug Tracker and the versions of
+    /// OpenMPT before 1.17 said it: in "MSNI" just after the instrument, which begins "GULP" and the
+    /// plug-in's number. Nil if it is not there.
+    /// - Parameter at: where the instrument is.
+    static func oldPlugIn(_ file: ByteReader, after at: Int) -> Int? {
+        let data = file.data, piece = at + 554
+        guard piece + 13 <= data.count, Array(data[piece ..< piece + 4]) == Array("MSNI".utf8), file.u32le(piece + 4) >= 5,
+              Array(data[piece + 8 ..< piece + 12]) == Array("GULP".utf8) else { return nil }
+        let plugIn = Int(data[piece + 12])
+        return plugIn > 0 && plugIn <= 250 ? plugIn : nil
     }
 
     /// Where ModPlug Tracker and OpenMPT put what they say of the instruments in an IT file: just

@@ -826,7 +826,10 @@ composer heard them. And such a file is heard through its plug-ins, where they a
 ModPlug Tracker could send a channel or an instrument through the effects that came with Windows,
 which OpenMPT has since built into itself, and some eight hundred IT files to hand do. They are
 the same effects, wired the same way, as for an MPTM file (see below), and a plug-in that is
-anybody else's is left out and said to be. Set beside libopenmpt, three hundred of those files
+anybody else's is left out and said to be. (ModPlug Tracker, and OpenMPT before its version 1.17,
+named an instrument's plug-in in a piece of the file of its own, just after the instrument, and
+that is read too; most of those files say it again where OpenMPT came to say it, but two to hand
+do not.) Set beside libopenmpt, three hundred of those files
 agree in spectrum to 0.983 for the middle one, where without the plug-ins it was 0.960. (An XM file
 of those trackers can have plug-ins too, and is heard through them in the same way: see XM.)
 
