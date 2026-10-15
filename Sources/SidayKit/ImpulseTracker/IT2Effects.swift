@@ -348,7 +348,8 @@ extension IT2Player {
 
         hc.pointee.Flags = (hc.pointee.Flags & 0xFF00) | UInt16(hcFlags)
 
-        if ApplyRandomVolume { ApplyRandomValues(hc) }
+        // (A note struck again in OpenMPT's own way, after its sample has ended, has no new swing.)
+        if ApplyRandomVolume { if restriking { hc.pointee.Flags &= ~HF_APPLY_RANDOM_VOL } else { ApplyRandomValues(hc) } }
 
         InitVolumeEffect(hc)
     }
@@ -829,6 +830,11 @@ extension IT2Player {
         let CmdVal = hc.pointee.CmdVal
         if CmdVal > 0 { hc.pointee.EfxMem_I = CmdVal }
 
+        if module.openMPT?.ownTremor == true {
+            guard hc.pointee.Flags & HF_CHAN_ON != 0 else { return }
+            hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
+            return openMPTTremor(hc)
+        }
         if hc.pointee.Flags & HF_CHAN_ON != 0 {
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
 
@@ -1003,6 +1009,7 @@ extension IT2Player {
         InitNoCommand(hc)
 
         if hc.pointee.CmdVal > 0 { hc.pointee.EfxMem_Q = hc.pointee.CmdVal }
+        if module.openMPT?.ownRetrigger == true { return openMPTInitRetrigger(hc) }
 
         if hc.pointee.Flags & HF_CHAN_ON == 0 { return }
 
@@ -1466,6 +1473,7 @@ extension IT2Player {
     }
 
     func CommandI(_ hc: IT2HostPointer) {
+        if module.openMPT?.ownTremor == true { return openMPTTremor(hc) }
         guard let sc = hc.pointee.SlaveChnPtr else { return }
         sc.pointee.Flags |= SF_RECALC_VOL
 
@@ -1554,11 +1562,16 @@ extension IT2Player {
     }
 
     func CommandQ(_ hc: IT2HostPointer) {
+        if module.openMPT?.ownRetrigger == true { return openMPTRetrigger(hc) }
         hc.pointee.RetrigCount &-= 1
         if Int8(bitPattern: hc.pointee.RetrigCount) > 0 { return }
 
         hc.pointee.RetrigCount = hc.pointee.EfxMem_Q & 0x0F
+        retrigger(hc)
+    }
 
+    /// Qxy's note struck again, and its volume moved as y says.
+    func retrigger(_ hc: IT2HostPointer) {
         // Time to strike it again. The driver ramps volumes, so the note as it is goes to another
         // voice to be ramped down while this one starts over.
         guard var sc = hc.pointee.SlaveChnPtr else { return }
@@ -1588,6 +1601,16 @@ extension IT2Player {
         sc.pointee.SamplingPosition = 0
 
         sc.pointee.Flags |= SF_UPDATE_MIXERVOL | SF_NEW_NOTE | SF_LOOP_CHANGED
+        if module.openMPT?.ownRetrigger == true {
+            // (OpenMPT's own strikes the note anew, and with instruments at its own pitch, not where
+            // a slide has taken it.)
+            if module.Flags & ITF_INSTR_MODE != 0, hc.pointee.TranslatedNote < 120, sc.pointee.InsPtr?.Tuning == nil {
+                sc.pointee.FrequencySet = noteFrequency(sc, hc.pointee.TranslatedNote)
+                sc.pointee.Frequency = sc.pointee.FrequencySet
+                sc.pointee.Flags |= SF_FREQ_CHANGE
+            }
+            return openMPTRetriggerVolume(hc, sc)
+        }
 
         var vol = sc.pointee.VolSet
         switch hc.pointee.EfxMem_Q >> 4 {

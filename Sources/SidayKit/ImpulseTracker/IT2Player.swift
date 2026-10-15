@@ -120,6 +120,8 @@ final class IT2Player {
     private var lastWasLetGo = false
     /// True while a Digitrakker instrument named alone is being seen to: see `digitrakkerInstrumentAlone`.
     var digitrakkerAlone = false
+    /// True while an MPTM file's note is struck again after its sample has ended: see `openMPTRestrike`.
+    var restriking = false
     /// For a module of Digitrakker's (and made for no other): the sample each channel last started
     /// a note of, and the note.
     lazy var digitrakkerSamples = [IT2Sample?](repeating: nil, count: MAX_HOST_CHANNELS)

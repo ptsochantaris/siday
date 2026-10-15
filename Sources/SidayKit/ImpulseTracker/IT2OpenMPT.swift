@@ -83,6 +83,11 @@ struct OpenMPTSong {
     /// True if SCx (and :xy) turns a note down to nothing and leaves it playing, as OpenMPT has it
     /// for a file that does not ask for Impulse Tracker's way (switch 30), which stops it.
     var cutsOnlySilence = false
+    /// True if Qxy and Ixy are OpenMPT's own (see `openMPTRetrigger` and `openMPTTremor`), for a
+    /// file that does not ask for Impulse Tracker's (switches 23 and 22); and if a note is struck
+    /// again even once its sample has ended, as Impulse Tracker's is not (switch 38). And true if
+    /// their counts start again with every note, as they do when the file asks for neither.
+    var ownRetrigger = false, ownTremor = false, retriggersEndedNotes = false, countsStartWithNotes = false
     /// True if a voice to one side of the middle is no louder on its nearer side than one in the
     /// middle is on both, and only quieter on its further one: OpenMPT's way since its version 1.17
     /// ("soft panning"). Impulse Tracker's, which OpenMPT also has, makes the nearer side louder.
@@ -225,6 +230,93 @@ extension IT2Player {
     /// instrument named takes the bend away, unless the note slides from the last on the same
     /// instrument; and a note that is struck starts its channel's vibrato from the top of its wave,
     /// which in Impulse Tracker only a vibrato on the note's own row does.
+    /// Qxy begun in OpenMPT's own way, where the file asks for it: on every tick of the row, this
+    /// one too, as on the rest (see `openMPTRetrigger`). If a note is to be struck again after its
+    /// sample has ended, it is counted for while the channel is silent too.
+    func openMPTInitRetrigger(_ hc: IT2HostPointer) {
+        let endedToo = module.openMPT?.retriggersEndedNotes == true
+        guard hc.pointee.Flags & HF_CHAN_ON != 0 || endedToo else { return }
+        hc.pointee.Flags |= endedToo ? HF_ALWAYS_UPDATE_EFX : HF_UPDATE_EFX_IF_CHAN_ON
+        openMPTRetrigger(hc)
+    }
+
+    /// A tick of Qxy in OpenMPT's own way: the channel counts its ticks, from nought at the last
+    /// note it was given (or wherever it had got to), and the note is struck again on a tick whose
+    /// count is a whole number of y's, but nought (y of nought is one).
+    func openMPTRetrigger(_ hc: IT2HostPointer) {
+        let speed = max(1, Int(hc.pointee.EfxMem_Q & 0x0F)), count = hc.pointee.RetrigCount
+        let playing = hc.pointee.Flags & HF_CHAN_ON != 0
+        guard playing || module.openMPT?.retriggersEndedNotes == true else { return }
+        if count != 0, Int(count) % speed == 0 {
+            if playing { retrigger(hc) } else { openMPTRestrike(hc) }
+        }
+        hc.pointee.RetrigCount = count &+ 1
+    }
+
+    /// The channel's last note struck again after its sample has ended, as a new one with no
+    /// instrument would be, at the volume the channel has, and with no new swing of its volume or
+    /// place; without instruments at the pitch it had got to; and with its envelopes going on from
+    /// where they were, unless it had faded away or come to nothing at its envelope's end.
+    private func openMPTRestrike(_ hc: IT2HostPointer) {
+        guard hc.pointee.TranslatedNote < 120, hc.pointee.Smp != 0 else { return }
+        let old = hc.pointee.SlaveChnPtr?.pointee
+        let pitch = old?.FrequencySet ?? 0
+        let mask = hc.pointee.NotePackMask
+        hc.pointee.NotePackMask = 0x01
+        restriking = true
+        InitNoCommand(hc)
+        restriking = false
+        hc.pointee.NotePackMask = mask
+        guard hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr else { return }
+        if let old, module.Flags & ITF_INSTR_MODE != 0, old.HostChnNum == hc.pointee.HostChnNum, old.InsPtr === sc.pointee.InsPtr, old.FadeOut != 0 {
+            // (Where the envelopes are, and not whether they are on, which the voice's ending forgot.)
+            let endedAtNothing = (old.InsPtr?.VolEnv.Flags ?? 0) & ENVF_ENABLED != 0 && old.VolEnvState.Value & 0x00FF_0000 == 0
+            if !endedAtNothing {
+                sc.pointee.VolEnvState = old.VolEnvState
+                sc.pointee.PanEnvState = old.PanEnvState
+                sc.pointee.PitchEnvState = old.PitchEnvState
+            }
+        }
+        if module.Flags & ITF_INSTR_MODE == 0, pitch > 0 {
+            sc.pointee.FrequencySet = pitch
+            sc.pointee.Frequency = pitch
+        }
+        openMPTRetriggerVolume(hc, sc)
+    }
+
+    /// OpenMPT's steps of volume for Qxy's x: of 256, times so many sixteenths or so much added.
+    private static let retriggerTimes: [Int] = [0, 0, 0, 0, 0, 0, 10, 8, 0, 0, 0, 0, 0, 0, 24, 32]
+    private static let retriggerAdded: [Int] = [0, -1, -2, -4, -8, -16, 0, 0, 0, 1, 2, 4, 8, 16, 0, 0]
+
+    /// The volume of a note struck again, moved as Qxy's x says in OpenMPT's own way.
+    func openMPTRetriggerVolume(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) {
+        let step = Int(hc.pointee.EfxMem_Q >> 4)
+        guard step != 0 else { return }
+        var vol = Int(sc.pointee.VolSet) * 4
+        vol = Self.retriggerTimes[step] != 0 ? vol * Self.retriggerTimes[step] / 16 : vol + Self.retriggerAdded[step] * 4
+        let set = UInt8(max(0, min(256, vol)) / 4)
+        hc.pointee.VolSet = set
+        sc.pointee.Vol = set
+        sc.pointee.VolSet = set
+        sc.pointee.Flags |= SF_RECALC_VOL
+    }
+
+    /// A tick of Ixy in OpenMPT's own way, where the file asks for it: the channel counts its ticks
+    /// round a cycle of x and y (each one more with "old effects"), and is silent for the y.
+    func openMPTTremor(_ hc: IT2HostPointer) {
+        guard let sc = hc.pointee.SlaveChnPtr else { return }
+        sc.pointee.Flags |= SF_RECALC_VOL
+        var on = Int(hc.pointee.EfxMem_I >> 4), cycle = on + Int(hc.pointee.EfxMem_I & 0x0F)
+        if module.Flags & ITF_OLD_EFFECTS != 0 {
+            on += 1
+            cycle += 2
+        }
+        var count = Int(hc.pointee.TremorCount)
+        if count >= cycle { count = 0 }
+        if count >= on { sc.pointee.Vol = 0 }
+        hc.pointee.TremorCount = UInt8(truncatingIfNeeded: count + 1)
+    }
+
     /// A row that names an instrument (or a sample) and no note, in such a file: nothing is
     /// started, and a note that is playing another goes over to it and its sample for the note,
     /// on from where it was and at its pitch, with the new sample's length, loop, volume and place
@@ -291,6 +383,10 @@ extension IT2Player {
         let sliding = slides && hc.pointee.Flags & HF_CHAN_ON != 0
         if mask & 0x22 != 0, hc.pointee.Bend != 0, !sliding || hc.pointee.SlaveChnPtr?.pointee.Ins != hc.pointee.Ins { hc.pointee.Bend = 0 }
         if mask & 0x11 != 0, hc.pointee.RawNote < 120, !sliding {
+            if module.openMPT?.countsStartWithNotes == true {
+                hc.pointee.RetrigCount = 0
+                hc.pointee.TremorCount = 0
+            }
             // (In OpenMPT's own way of vibrato, a quarter of the way along, but for a file with "old effects".)
             if module.openMPT?.itVibrato == true {
                 hc.pointee.VibratoPos = 0

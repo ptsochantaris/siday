@@ -332,6 +332,7 @@ enum MPTMFile {
         static let jumpsEndLoops = 103, jumpsEndLoopsOld = 49, unmappedNotesDoNothing = 123
         static let fmFlexibleNoteOff = 99, fmKeepsVoiceWhenLetGo = 105, surroundIsNotMoved = 37
         static let itVibrato = 21, periodsAreHertz = 7, instrumentWithoutNote = 11, cutStopsSample = 30
+        static let retriggerAsImpulseTracker = 23, shortSampleNotRetriggered = 38
 
         /// The ways of playing that "compatible play" stood for until OpenMPT 1.26, each with the
         /// version that brought it in, as OpenMPT gives them to a file saved before then.
@@ -914,6 +915,10 @@ enum MPTMFile {
         openMPT.pitchesArePeriods = !asks(Behaviour.periodsAreHertz)
         openMPT.instrumentAloneSwapsSample = !asks(Behaviour.instrumentWithoutNote)
         openMPT.cutsOnlySilence = !asks(Behaviour.cutStopsSample)
+        openMPT.ownRetrigger = !asks(Behaviour.retriggerAsImpulseTracker)
+        openMPT.ownTremor = !asks(Behaviour.tremorAsImpulseTracker)
+        openMPT.retriggersEndedNotes = !asks(Behaviour.shortSampleNotRetriggered)
+        openMPT.countsStartWithNotes = !asks(Behaviour.tremorAsImpulseTracker) && !asks(Behaviour.retriggerAsImpulseTracker)
 
         // Each pattern's own rows to a beat and swing, where it has them.
         openMPT.patternRowsPerBeat = [UInt16](repeating: 0, count: file.patternLimit)

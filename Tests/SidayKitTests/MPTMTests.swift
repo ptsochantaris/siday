@@ -747,6 +747,32 @@ private func ways(without left: Int...) -> Song {
     #expect(own[0] && !own[3] && own[13])
 }
 
+@Test func mptmRetriggerStrikesAgainANoteWhoseSampleHasEnded() throws {
+    // In OpenMPT's own way (switches 23 and 38 not asked for), Q03 strikes the note again on every
+    // third tick from the note even after its sample has ended; Impulse Tracker's strikes only a
+    // note that is still playing. (The sample lasts a little over one tick.)
+    let short = (0 ..< 200).map { square[$0 % 32] }
+    func heard(impulseTrackers: Bool) throws -> [Bool] {
+        var song = Song()
+        if !impulseTrackers { song.behaviours.removeAll { $0 == 23 || $0 == 38 || $0 == 22 } }
+        let file = mptm([Pattern([(0, 0, .note(60, "Q", 0x03)), (1, 0, .command("Q", 0x03))])], song: song, samples: [.sound(short, loops: false)])
+        return try player(file).ticks(seconds: 0.25).map { $0.rates.contains { $0 > 0 } }
+    }
+    let impulse = try heard(impulseTrackers: true), own = try heard(impulseTrackers: false)
+    #expect(impulse[0] && !impulse[2] && !impulse[3] && !impulse[6])
+    #expect(own[0] && !own[2] && own[3] && !own[5] && own[6] && own[9])
+}
+
+@Test func mptmTremorCountsFromTheNoteInOpenMPTsOwnWay() throws {
+    // OpenMPT's own tremor (switch 22 not asked for) counts the channel's ticks round a cycle of
+    // x on and y off from the note: I21 is heard, heard, silent, heard, heard, silent, across rows.
+    var song = Song()
+    song.behaviours.removeAll { $0 == 22 || $0 == 23 }
+    let file = mptm([Pattern([(0, 0, .note(60, "I", 0x21)), (1, 0, .command("I", 0x21))])], song: song)
+    let heard = try player(file).ticks(seconds: 0.25).map { $0.rates.contains { $0 > 0 } && $0.volumes.contains { $0 > 0 } }
+    #expect(Array(heard[0 ..< 12]) == [true, true, false, true, true, false, true, true, false, true, true, false])
+}
+
 @Test func mptmVibratoIsDividedTowardsNought() throws {
     // OpenMPT divides a step of a vibrato's wave times its depth towards nought, where Impulse
     // Tracker rounds it: H44 on its third tick is at a point of the wave where the two differ.
