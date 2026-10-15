@@ -1045,7 +1045,8 @@ for OpenMPT's way, and in ten of them it is heard. And so is the one for SCx, th
 OpenMPT's own way (a file in four) turns the note down to nothing and leaves it playing, so that a
 volume on a later row brings it back. And so are those for a retrigger and a tremor, which in
 OpenMPT's own way (four files in five) count the channel's ticks from its last note, across rows,
-and a retrigger strikes a note again even once its sample has ended. For the rest this is Impulse Tracker's replayer, and the file gets
+and a retrigger strikes a note again even once its sample has ended. And with "compatible Gxx",
+a slide to a note of another instrument's sample takes that sample, and starts the note. For the rest this is Impulse Tracker's replayer, and the file gets
 Impulse Tracker's answer. What that comes to was measured against
 libopenmpt, OpenMPT's own player as a library. What is read from each of 625 files is the same
 as what libopenmpt reads, but for a fade and a place between the speakers that the extras give

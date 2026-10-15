@@ -88,6 +88,11 @@ struct OpenMPTSong {
     /// again even once its sample has ended, as Impulse Tracker's is not (switch 38). And true if
     /// their counts start again with every note, as they do when the file asks for neither.
     var ownRetrigger = false, ownTremor = false, retriggersEndedNotes = false, countsStartWithNotes = false
+    /// True if a slide to a note with "compatible Gxx" takes the sample the row's instrument has for
+    /// the note, where Impulse Tracker keeps the one playing, as OpenMPT has it for a file that does
+    /// not ask for Impulse Tracker's way (switch 32); and true if then the note is not slid to but
+    /// started, unless the file asks for the new sample to be played from its start (switch 42).
+    var slideTakesSample = false, sampleTakenStartsNote = false
     /// True if a voice to one side of the middle is no louder on its nearer side than one in the
     /// middle is on both, and only quieter on its further one: OpenMPT's way since its version 1.17
     /// ("soft panning"). Impulse Tracker's, which OpenMPT also has, makes the nearer side louder.
@@ -230,6 +235,23 @@ extension IT2Player {
     /// instrument named takes the bend away, unless the note slides from the last on the same
     /// instrument; and a note that is struck starts its channel's vibrato from the top of its wave,
     /// which in Impulse Tracker only a vibrato on the note's own row does.
+    /// True if a slide to a note on this row takes another sample in OpenMPT's own way (see
+    /// `OpenMPTSong.slideTakesSample`): the row names an instrument, and a note whose sample is not
+    /// the one playing.
+    func openMPTSlideTakesSample(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) -> Bool {
+        guard module.openMPT?.slideTakesSample == true, module.Flags & ITF_COMPAT_GXX != 0 else { return false }
+        let mask = hc.pointee.NotePackMask
+        return mask & 0x22 != 0 && mask & 0x11 != 0 && hc.pointee.TranslatedNote < 120 && hc.pointee.Smp > 0 && hc.pointee.Smp != midiSample
+            && hc.pointee.Smp - 1 != sc.pointee.Smp
+    }
+
+    /// True if a slide to a note on this row is no slide, but the note started, as OpenMPT has it
+    /// where the slide would take another sample and the file asks for neither switch.
+    func openMPTSlideStartsNote(_ hc: IT2HostPointer) -> Bool {
+        guard module.openMPT?.sampleTakenStartsNote == true, let sc = hc.pointee.SlaveChnPtr else { return false }
+        return openMPTSlideTakesSample(hc, sc)
+    }
+
     /// Qxy begun in OpenMPT's own way, where the file asks for it: on every tick of the row, this
     /// one too, as on the rest (see `openMPTRetrigger`). If a note is to be struck again after its
     /// sample has ended, it is counted for while the channel is silent too.
@@ -380,7 +402,7 @@ extension IT2Player {
         let mask = hc.pointee.NotePackMask
         guard mask & 0x33 != 0 else { return }
         let slides = mask & 0x88 != 0 && (hc.pointee.Cmd == 7 || hc.pointee.Cmd == 12) || mask & 0x44 != 0 && hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
-        let sliding = slides && hc.pointee.Flags & HF_CHAN_ON != 0
+        let sliding = slides && hc.pointee.Flags & HF_CHAN_ON != 0 && !openMPTSlideStartsNote(hc)
         if mask & 0x22 != 0, hc.pointee.Bend != 0, !sliding || hc.pointee.SlaveChnPtr?.pointee.Ins != hc.pointee.Ins { hc.pointee.Bend = 0 }
         if mask & 0x11 != 0, hc.pointee.RawNote < 120, !sliding {
             if module.openMPT?.countsStartWithNotes == true {

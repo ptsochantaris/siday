@@ -115,6 +115,8 @@ private struct Song {
     var version = 0x0130_0000
     /// Whether its slides of pitch are linear, and not the Amiga's.
     var linear = true
+    /// Whether it has "compatible Gxx".
+    var compatibleSlides = false
 }
 
 /// An MPTM file: an IT file's header, instruments, samples and patterns, and after them the song's
@@ -144,7 +146,7 @@ private func mptm(_ patterns: [Pattern], song: Song = Song(), orders: [UInt8]? =
     let orders = orders ?? patterns.indices.map { UInt8($0) }
     var file = text("IMPM") + padded(text("a square wave"), to: 26) + [UInt8(song.rowsPerBeat), 16]
     file += word(orders.count) + word(instruments.count) + word(samples.count) + word(patterns.count) + word(0x0891) + word(0x0888)
-    file += word((song.linear ? 0x0009 : 0x0001) | (instruments.isEmpty ? 0 : 4)) + word(macros.isEmpty ? 4 : 12)
+    file += word((song.linear ? 0x0009 : 0x0001) | (instruments.isEmpty ? 0 : 4) | (song.compatibleSlides ? 0x20 : 0)) + word(macros.isEmpty ? 4 : 12)
     file += [128, 48, UInt8(song.speed), UInt8(min(song.tempo, 255)), 128, 0] + word(0) + long(0) + text("OMPT")
     file += [UInt8](repeating: 32, count: 64) + [UInt8](repeating: 64, count: 64)
     #expect(file.count == 192)
@@ -781,6 +783,22 @@ private func ways(without left: Int...) -> Song {
     let sound = stereo(try player(mptm([Pattern([(0, 0, .note())])], samples: [.sound(held, loops: false)])), seconds: 0.1).left
     let peak = sound[0 ..< 480].map(abs).max()!
     #expect(peak > 0.05 && abs(sound[1920]) < peak * 0.02)
+}
+
+@Test func mptmSlideToANoteOfAnotherSampleStartsItInOpenMPTsOwnWay() throws {
+    // With "compatible Gxx", a slide to a note of another instrument keeps the sample playing and
+    // slides it, in Impulse Tracker. OpenMPT's own (switches 32 and 42 not asked for) takes the new
+    // sample and starts the note, so that it is at once an octave up and not slid there.
+    func rates(impulseTrackers: Bool) throws -> [Int] {
+        var song = Song()
+        song.compatibleSlides = true
+        if !impulseTrackers { song.behaviours.removeAll { $0 == 32 || $0 == 42 } }
+        let file = mptm([Pattern([(0, 0, .note(60, instrument: 1)), (1, 0, .note(72, instrument: 2, "G", 0x01))])], song: song,
+                        samples: [.sound(square, loops: true), .sound(square, loops: true)], instruments: [(1, [], 0), (2, [], 0)])
+        return try player(file).ticks(seconds: 0.3).map { $0.rates.max() ?? 0 }
+    }
+    let impulse = try rates(impulseTrackers: true), own = try rates(impulseTrackers: false)
+    #expect(impulse[7] < 9000 && abs(own[7] - 16726) < 20)
 }
 
 @Test func mptmVibratoIsDividedTowardsNought() throws {

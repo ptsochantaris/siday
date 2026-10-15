@@ -665,7 +665,12 @@ extension IT2Player {
             // Does the row name another sample or instrument than is playing?
             var ChangeInstrument = false
 
-            if module.Flags & ITF_COMPAT_GXX != 0 {
+            if module.Flags & ITF_COMPAT_GXX != 0, openMPTSlideTakesSample(hc, sc) {
+                // (OpenMPT's own, where the file asks for it: the slide goes on with the new sample
+                // from its start. See `openMPTSlideTakesSample`.)
+                if !Gxx_ChangeSample(hc, sc, hc.pointee.Smp - 1) { return }
+                ChangeInstrument = true
+            } else if module.Flags & ITF_COMPAT_GXX != 0 {
                 // "Compatible Gxx": the sample stays, and the instrument's envelopes start again.
                 hc.pointee.Smp = sc.pointee.Smp &+ 1
                 sc.pointee.SmpVol = (module.sample(Int(sc.pointee.Smp))?.GlobVol ?? 0) &* 2
@@ -786,7 +791,7 @@ extension IT2Player {
             }
         }
 
-        if hc.pointee.Flags & HF_CHAN_ON == 0 {
+        if hc.pointee.Flags & HF_CHAN_ON == 0 || openMPTSlideStartsNote(hc) {
             InitNoCommand(hc)
             return
         }
@@ -894,7 +899,7 @@ extension IT2Player {
         if CmdVal > 0 { hc.pointee.EfxMem_DKL = CmdVal }
 
         if hc.pointee.Flags & HF_CHAN_ON != 0 {
-            InitCommandG11(hc)
+            if openMPTSlideStartsNote(hc) { InitNoCommand(hc) } else { InitCommandG11(hc) }
             if let sc = hc.pointee.SlaveChnPtr { InitCommandD7(hc, sc) }
         }
     }
