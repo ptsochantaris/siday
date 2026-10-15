@@ -773,6 +773,16 @@ private func ways(without left: Int...) -> Song {
     #expect(Array(heard[0 ..< 12]) == [true, true, false, true, true, false, true, true, false, true, true, false])
 }
 
+@Test func mptmVoiceThatEndsDiesAwayAsQuicklyAsInOpenMPT() throws {
+    // A sample that stops at a high level would click; the mixer lets that level die away instead,
+    // by a 256th a frame as OpenMPT does (Impulse Tracker's "WAV writer" takes sixteen times longer).
+    // This one, held high, ends after twelve milliseconds; by forty it is all but gone.
+    let held = [UInt8](repeating: 0x60, count: 100)
+    let sound = stereo(try player(mptm([Pattern([(0, 0, .note())])], samples: [.sound(held, loops: false)])), seconds: 0.1).left
+    let peak = sound[0 ..< 480].map(abs).max()!
+    #expect(peak > 0.05 && abs(sound[1920]) < peak * 0.02)
+}
+
 @Test func mptmVibratoIsDividedTowardsNought() throws {
     // OpenMPT divides a step of a vibrato's wave times its depth towards nought, where Impulse
     // Tracker rounds it: H44 on its third tick is at a point of the wave where the two differ.
@@ -1227,7 +1237,8 @@ private func silent(_ samples: [Float]) -> Bool { samples.allSatisfy { $0 == 0 }
                                   plugInPieces: wired ? [delay()] : [], channelPlugIns: wired ? [1, 0] : [])), options: inStereo)
         }
         let whole = played(try renderer(), seconds: 0.2)
-        #expect(abs(whole.left[2000]) > 0.001 && abs(whole.left[2001]) < abs(whole.left[2000]))
+        // (The square ends some 180 frames in, and its last level is still dying away at 400.)
+        #expect(abs(whole.left[400]) > 0.001 && abs(whole.left[401]) < abs(whole.left[400]))
         let without = try renderer()
         without.setMuted([true, false])
         let rest = played(without, seconds: 0.2)

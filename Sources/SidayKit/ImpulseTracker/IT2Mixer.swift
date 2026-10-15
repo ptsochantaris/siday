@@ -171,8 +171,8 @@ final class IT2Mixer {
     /// What the voice last mixed last added to each side.
     private var fLastLeftValue: Float = 0, fLastRightValue: Float = 0
     /// How much of what a sample that has ended last put out is lost on each frame after: a 4096th
-    /// as the "WAV writer" driver has it, and for an MT2 file, which is played as OpenMPT plays it,
-    /// a 256th as OpenMPT has it.
+    /// as the "WAV writer" driver has it, and for an MT2 or an MPTM file, which are played as OpenMPT
+    /// plays them, a 256th as OpenMPT has it.
     private let endDecay: Float
 
     /// Sets a voice's filter as OpenMPT sets its own (`SetupChannelFilter`, where a file does not
@@ -250,7 +250,7 @@ final class IT2Mixer {
         FreqMultiplier = Float((1.0 / (2.0 * Double.pi * 110.0 * exp2Quarter)) * Double(mixingFrequency))
         ownFilterStep = Float(filterStep)
         ownFilterRate = Float(mixingFrequency)
-        endDecay = module.madTracker ? 1.0 / 256.0 : 1.0 / 4096.0
+        endDecay = module.madTracker || module.openMPT != nil ? 1.0 / 256.0 : 1.0 / 4096.0
 
         // and the gain.
         MixGain = Self.mixGain(of: module)
