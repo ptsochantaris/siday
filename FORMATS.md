@@ -1010,6 +1010,79 @@ the spectrum agrees to 1.000 for the middle file and 0.999 for the worst, and so
 over time. The files are made as loud as other modules are, by measure (the middle one at −24.7 dB),
 which is 1.5 dB quieter than libopenmpt plays them.
 
+## DMF — X-Tracker
+
+A DMF file ("Delusion Digital Music File") is from X-Tracker, a tracker for DOS by D-Lusion; the
+first description of the format its makers gave out, partly in German, is dated Christmas 1993. The
+format went through seven versions while the tracker was in its beta, and the eighth is the finished
+tracker's (a later XTracker 32 wrote a tenth). Of the 32 files to hand, six are of the fifth
+version, one of the sixth and the rest of the eighth, and their headers date them from 1994 to 1996;
+some are by D-Lusion's own members, and two say they were made from other trackers' files. A tune
+has up to 32 channels and above them a track of its own for the tempo; samples of eight bits or
+sixteen, kept packed if their maker wished (451 of the 601 here are), with a loop that holds only
+while a note's key is down; and three commands to a note, in three columns: one for its sample
+(stopping it, letting its loop go, starting it again, putting it off, starting it further in,
+playing it backwards), one for its pitch (slides, vibrato, arpeggio, tuning, a cut) and one for its
+volume (slides, tremolo, tremor, the place between the speakers). X-Tracker's timings are its own: a
+delay or a cut is in 256ths of a row, a vibrato's speed in rows to the wave, slides in 256ths, and
+the tempo in quarters of a row a second, or in beats a minute by the rows to a beat that each
+pattern says it has. Patterns can be longer than Impulse Tracker's: up to 512 rows, its makers
+wrote.
+
+X-Tracker's replayer was never published. OpenMPT reads these files into the shape of an IT file and
+plays them on its replayer as it plays one, and libxmp's reader of them is no longer built; so here,
+as for the MDL files above, Impulse Tracker's replayer plays them, read as OpenMPT reads them, with
+what OpenMPT plays otherwise for them told to the replayer. OpenMPT's reading has to settle a good
+deal, and how it does is followed to the letter. X-Tracker's timings depend on how fast the tune is
+going, so each place in the list of patterns is given a pattern of its own, made at the speed the
+tune has reached there. The tempo is made into the speed and tempo of Impulse Tracker's that come
+nearest, with as many ticks to a row as can be, so that arpeggios and tremors keep their shape; the
+tempo's track goes to a channel of its own, the first. Slides, delays, cuts and vibratos become
+Impulse Tracker's, worked out at that speed (and cut short as OpenMPT cuts them); a slide to a note
+that the command names (X-Tracker's "scratch") gets there at once; a note without an instrument is
+slid to at once and not struck again; and of the three commands, the sample's is kept first, and of
+the others what the volume column can take goes there and the one that matters more has the command.
+What is left with nowhere to go is left out, and the file says so: 358 notes, in twelve of the
+files. The replayer is told, for these files alone:
+
+- of two commands Impulse Tracker has not, which OpenMPT keeps: a note's volume given by the
+  command, where the volume column has something else (504 notes in seven files), and a note tuned
+  by up to a semitone either way, which a note struck on an instrument takes away again (one file
+  tunes 720);
+- that the volume column's slides of pitch go up to 63 where Impulse Tracker's stop at nine, and
+  that it can play a sample backwards and forwards, as S9F and S9E do;
+- that a vibrato plays where its wave is on a row's first tick and moves on only after, and that
+  every note struck starts its wave again;
+- that a tremolo only ever turns a note down, by a share of its volume, and moves on along its wave
+  after each tick but the first, so that the first two are alike;
+- that a note cut short is turned down to nothing as well, so that the next note on a sample with no
+  volume of its own (and many have none) is silent until it is given one;
+- and that a tick lasts a whole number of frames, what is over cut off, as in OpenMPT's way of
+  keeping time.
+
+Two things are done otherwise than OpenMPT does them. OpenMPT's notes go an octave and two thirds
+higher than Impulse Tracker's, and one file plays 74 of them: each is played an octave down on a
+copy of its sample that plays an octave up, which is the same sound. And a slide to a note on a row
+that names the note's instrument, which X-Tracker's scratch makes of every note it is on, keeps the
+sample's loop. OpenMPT lets the loop go there, so that the sample plays to its end and stops, and
+the note comes back a row or two later; but it does so only because the files are not IT files to it
+at that point of its replayer, and the same rows in an IT file, which is what its reading makes of
+them, keep the loop. One file's scratched bass line goes silent for a row at a time in OpenMPT, and
+plays on here; one other file has a note like it.
+
+All 32 files are played. Every sample is as libopenmpt reads it, packed or not, to the last byte of
+its sound and its loop, and every pattern for every place in the list is the same, command for
+command, as OpenMPT's reading of it. Every channel's pitch, volume and place was set beside
+libopenmpt's on every tick of each file, to its end or for fifteen minutes: they are alike on
+927,707 ticks of 938,569, and 22 files on every one. Of the rest, 5,728 are in the two files of the
+loop kept above; most of the others are long slides of pitch, which here move a whole number of
+samples a second each tick, as Impulse Tracker's do, where OpenMPT's keep finer steps, so that after
+a long slide to a low note the two are a few cents apart; and a few dozen are a sample that ends a
+tick sooner in one than the other. What is heard was set beside libopenmpt too, over the whole of
+each file: the loudness over time agrees to 0.999 for the middle file and 0.992 for the worst, the
+spectrum to 0.999 and 0.994, and left and right to 0.999. The files are made as loud as IT files
+are, by measure.
+
 ## MPTM — OpenMPT
 
 An MPTM file is another matter, because the tracker that writes it is alive and plays its own files.

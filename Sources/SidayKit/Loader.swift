@@ -15,6 +15,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case dbm
     case mdl
     case j2b
+    case dmf
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -115,6 +116,9 @@ public enum TuneLoader {
         case .j2b:
             // Jazz Jackrabbit 2's, packed with zlib, which OpenMPT reads into the shape of an IT file.
             return try J2BFile.renderer(data, options: options)
+        case .dmf:
+            // X-Tracker's, which Impulse Tracker's replayer plays as OpenMPT plays them.
+            return try DMFFile.renderer(data, options: options)
         case .ahx, .hvl:
             // HivelyTracker reads both its own files and AHX's, so a file of either may be found
             // under the other's name. Each says which it is in its first three letters.

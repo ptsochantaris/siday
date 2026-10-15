@@ -481,7 +481,8 @@ play, and are below.
 Nor are `MPTMFile.swift`, `IT2OpenMPT.swift` and `IT2AdLib.swift`, which give it OpenMPT's own kind
 of file, and what that kind of file asks of it that an IT file does not; they are below too, and the
 few lines in the replayer and its mixer that are there for them say so where they stand. Nor are
-`MDLFile.swift` and `IT2Digitrakker.swift`, for Digitrakker's files, below as well.)
+`MDLFile.swift` and `IT2Digitrakker.swift`, for Digitrakker's files, below as well, nor
+`DMFFile.swift` and `IT2XTracker.swift`, for X-Tracker's.)
 
 ```
 BSD 3-Clause License
@@ -590,6 +591,21 @@ file inside, and what their commands, instruments, envelopes and samples are tak
 in `IT2OpenMPT.swift` that are there for these files follow what OpenMPT's `soundlib/Snd_fx.cpp` does
 with a vibrato after a note. They are used under OpenMPT's licence, the BSD 3-Clause, set out below
 under "OpenMPT — FM Tracker files".
+
+## OpenMPT — DMF files
+
+`Sources/SidayKit/ImpulseTracker/DMFFile.swift`, which reads an X-Tracker module into the shape
+Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
+(`soundlib/Load_dmf.cpp`: the layout of the file and the lengths its early versions wrote wrongly,
+how its patterns are made for each place in the list, how its tempo, timings and commands are taken
+to mean Impulse Tracker's, and how a packed sample is unpacked), with what that loader calls on to
+put several commands in one cell (`ModCommand::FillInTwoCommands`, `ConvertToVolCommand` and
+`GetEffectWeight` in `soundlib/modcommand.cpp`, and `CPattern::WriteEffect` in
+`soundlib/pattern.cpp`). `IT2XTracker.swift`, and the lines in the replayer that are there for these
+files and say so, are made after what OpenMPT's `soundlib/Snd_fx.cpp`, `soundlib/Sndmix.cpp` and
+`soundlib/Sndfile.cpp` do for a module of that kind: its tremolo, its vibrato's first tick, its cut,
+its two commands that an IT file has not, and how long its ticks are. They are used under OpenMPT's
+licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
 
 ## OpenMPT — MPTM files
 

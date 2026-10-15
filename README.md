@@ -28,7 +28,7 @@ siday ~/Music/chiptunes --shuffle
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
-| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL, DMF; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -268,7 +268,7 @@ Played, with a difference:
   out, and what was sent through one is heard as it is; a sample packed ModPlug Tracker's own way
   (ADPCM) is silent; and in an IT or MPTM file, S9A to S9D, which choose two speakers or four for a
   channel in surround and how a note's filter starts, are left out.
-- **GDM, PTM, ULT, MDL, J2B:** a command that Impulse Tracker's replayer has no room or no like for is
+- **GDM, PTM, ULT, MDL, DMF, J2B:** a command that Impulse Tracker's replayer has no room or no like for is
   left out. An MDL file's command that chooses another of the tune's envelopes turns on the
   instrument's own.
 - **MT2:** the tracks' own effects, the automation and the VST plug-ins are left out, as OpenMPT
@@ -446,6 +446,9 @@ What it is made from:
   made after OpenMPT's; and how its samples are unpacked, as the description that came with the
   program has it, which libxmp quotes. libopenmpt is the player those files were checked against.
   Digitrakker is by Prodatron.
+- And again: how a DMF file is read, its packed samples among it, and the few ways in which OpenMPT
+  plays one otherwise than an IT file; libopenmpt is the player those files were checked against.
+  X-Tracker is by D-Lusion.
 - And again: how a J2B file is read, made after OpenMPT's (itself after kode54's for his DUMB);
   libopenmpt is the player those files were checked against. The Galaxy Sound System is by Carlo
   Vogelsang, and the music is Jazz Jackrabbit 2's. Its zlib packing is unpacked as Teemu Suutari's
