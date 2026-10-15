@@ -291,10 +291,6 @@ final class IT2Module {
     ///   patterns may be longer than Impulse Tracker's and is kept whole elsewhere in the file: as
     ///   much of it as there is room for is read here, and `MPTMFile` puts the whole in its place.
     init(_ data: [UInt8], openMPT: Bool = false) throws {
-        // A file packed with MMCMP says so with "ziRCONia", whatever kind of module is inside.
-        if data.count >= 8, data.starts(with: [0x7A, 0x69, 0x52, 0x43, 0x4F, 0x4E, 0x69, 0x61]) {
-            throw TuneError.unsupported("a module packed with MMCMP")
-        }
         guard data.count >= 4, data.starts(with: [0x49, 0x4D, 0x50, 0x4D]) else { // "IMPM"
             throw TuneError.malformed("not an IT file")
         }

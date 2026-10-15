@@ -290,14 +290,8 @@ final class MEDModule {
         return (0, 0)
     }
 
-    init(_ packed: [UInt8]) throws {
-        var data = packed
-        if PowerPacker.isPacked(packed) {
-            guard let unpacked = PowerPacker.unpack(packed) else { throw TuneError.malformed("a PowerPacker file that does not unpack") }
-            data = unpacked
-        } else if packed.count > 4, packed[0] == 0x58, packed[1] == 0x50, packed[2] == 0x4B, packed[3] == 0x46 {
-            throw TuneError.unsupported("a file packed with XPK")
-        }
+    init(_ file: [UInt8]) throws {
+        var data = file
         if MED4File.isOne(data) {
             let read = try MED4File.mmd0(data)
             data = read.file

@@ -223,6 +223,68 @@ private func powerPacked(_ bytes: [UInt8]) -> [UInt8]? {
     #expect(throws: TuneError.self) { try TuneLoader.load(Array("PP20".utf8) + [UInt8](repeating: 0xFF, count: 60), format: .mod) }
 }
 
+/// An XPK file of chunks, each a packer's kind (0 stored, 1 packed), its bytes and what they unpack to.
+private func xpk(_ packer: String, size: Int, _ chunks: [(kind: UInt8, bytes: [UInt8], size: Int)]) -> [UInt8] {
+    func be(_ value: Int, _ count: Int) -> [UInt8] { (0 ..< count).map { UInt8(truncatingIfNeeded: value >> (8 * (count - 1 - $0))) } }
+    var body: [UInt8] = []
+    for chunk in chunks {
+        body += [chunk.kind, 0] + be(0, 2) + be(chunk.bytes.count, 2) + be(chunk.size, 2) + chunk.bytes
+        body += [UInt8](repeating: 0, count: (4 - chunk.bytes.count % 4) % 4)
+    }
+    body += [15, 0, 0, 0, 0, 0, 0, 0]
+    // The packer, the size unpacked, the first bytes unpacked (not checked here) and the flags.
+    let header = Array(packer.utf8) + be(size, 4) + [UInt8](repeating: 0, count: 16) + [0, 0, 0, 0]
+    return Array("XPKF".utf8) + be(header.count + body.count, 4) + header + body
+}
+
+@Test func xpkPackedModuleIsUnpacked() throws {
+    // Stored in two chunks, as XPK stores what does not pack.
+    let plain = module(notes: [(0, 0, note(period: 428))])
+    let half = plain.count / 2
+    let packed = xpk("NUKE", size: plain.count, [(0, Array(plain[..<half]), half), (0, Array(plain[half...]), plain.count - half)])
+    #expect(try Packed.unpacked(packed) == plain)
+    let renderer = try TuneLoader.load(packed, format: .mod)
+    #expect(renderer.info.title == "a square wave")
+    // Cut short, or packed by a packer not known, it says so and does not crash.
+    #expect(throws: TuneError.self) { try TuneLoader.load(Array(packed.dropLast(40)), format: .mod) }
+    #expect(throws: TuneError.self) { try TuneLoader.load(xpk("BZIP", size: 4, [(1, [1, 2, 3, 4], 4)]), format: .mod) }
+}
+
+@Test func xpkPackersUnpack() throws {
+    // NUKE: a byte as it is (bits 0 1, the byte read from the end), then a copy of it twice over
+    // (code 0 from the stream of fours, a distance of 1 in four bits), then the end (bit 1).
+    let nuke: [UInt8] = [0x60, 0x00, 0, 0, 0, 0, 0x10, 0x00, 0x41]
+    #expect(try XPK.unpack(xpk("NUKE", size: 3, [(1, nuke, 3)])) == [0x41, 0x41, 0x41])
+    // DUKE is the same, its bytes the differences between them.
+    #expect(try XPK.unpack(xpk("DUKE", size: 3, [(1, nuke, 3)])) == [0x41, 0x82, 0xC3])
+    // SQSH: its length, the first byte, then a difference of -1 in eight bits (bit 0, 0xFF), then a
+    // copy (bit 1) of three (0, 1) from two back (00, eight bits of 1).
+    let sqsh: [UInt8] = [0x00, 0x05, 0x10, 0x7F, 0xD0, 0x04]
+    #expect(try XPK.unpack(xpk("SQSH", size: 5, [(1, sqsh, 5)])) == [0x10, 0x11, 0x10, 0x11, 0x10])
+    // One that reaches back before its start does not unpack.
+    #expect(throws: TuneError.self) { try XPK.unpack(xpk("SQSH", size: 5, [(1, [0x00, 0x05, 0x10, 0xD0, 0x04, 0x00], 5)])) }
+}
+
+/// An MMCMP file of one block, put at the start of the module.
+private func mmcmp(size: Int, flags: Int, width: Int, table: [UInt8], data: [UInt8]) -> [UInt8] {
+    func le(_ value: Int, _ count: Int) -> [UInt8] { (0 ..< count).map { UInt8(truncatingIfNeeded: value >> (8 * $0)) } }
+    let header = Array("ziRCONia".utf8) + le(14, 2) + le(0x1310, 2) + le(1, 2) + le(size, 4) + le(24, 4) + [0, 0] + le(28, 4)
+    let block = le(size, 4) + le(table.count + data.count, 4) + le(0, 4) + le(1, 2) + le(flags, 2) + le(table.count, 2) + le(width - 1, 2)
+    return header + block + le(0, 4) + le(size, 4) + table + data
+}
+
+@Test func mmcmpPackedModuleIsUnpacked() throws {
+    let plain = module(notes: [(0, 0, note(period: 428))])
+    let packed = mmcmp(size: plain.count, flags: 0, width: 1, table: [], data: plain)
+    #expect(try TuneLoader.load(packed, format: .mod).info.title == "a square wave")
+    // Bytes packed as entries in a table, eight bits each.
+    #expect(try MMCMP.unpack(mmcmp(size: 4, flags: 1, width: 8, table: [0x41, 0x42], data: [0, 1, 1, 0])) == Array("ABBA".utf8))
+    // The same, as differences from the byte before.
+    #expect(try MMCMP.unpack(mmcmp(size: 4, flags: 3, width: 8, table: [0x01, 0x02], data: [0, 1, 1, 0])) == [1, 3, 5, 6])
+    // An entry beyond the table does not unpack.
+    #expect(throws: TuneError.self) { try MMCMP.unpack(mmcmp(size: 4, flags: 1, width: 8, table: [0x41, 0x42], data: [0, 1, 7, 0])) }
+}
+
 @Test func moduleWithMoreThanOneSongHasThemAll() throws {
     // A pattern that stops the song halfway down, twice in the list: the second time is never
     // reached from the first, and is a song of its own.

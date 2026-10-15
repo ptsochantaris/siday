@@ -123,8 +123,8 @@ which is a C port of ProTracker's own (`ProTrackerReplayer.swift`), its reading 
 15-sample modules (`ProTrackerModule.swift`), and its emulation of Paula with the Amiga's filters and
 its way of halving the sample rate (`Paula.swift`). The band-limited steps in Paula's output
 (`PaulaStep.swift`) are credited in its source to aciddose, who wrote them for that project.
-`PowerPacker.swift` follows the depacker in the same source, which says it is taken from Heikki
-Orsila's amigadepack.
+`Sources/SidayKit/Packers/PowerPacker.swift` follows the depacker in the same source, which says it is
+taken from Heikki Orsila's amigadepack.
 
 The player of MED modules (`Sources/SidayKit/OctaMED`) is not a port of anything: it was written for
 this project, to do what OctaMED's own players do, and none of their code is in it; nor is its
@@ -475,7 +475,7 @@ the replayer (`IT2Player.swift`, `IT2Effects.swift`, `IT2Tables.swift`), the rea
 the unpacking of their compressed samples (`IT2Module.swift`), and the sound driver it2play adds to
 Impulse Tracker's own, which mixes in floating point through a windowed sinc and has the resonant
 filter (`IT2Mixer.swift`). Impulse Tracker's own drivers, and it2play's reading of S3M and MMCMP
-files, are not ported. (`IT2ForeignModule.swift`, `GDMFile.swift`, `PTMFile.swift` and `ULTFile.swift`
+files, are not ported (MMCMP is unpacked as below). (`IT2ForeignModule.swift`, `GDMFile.swift`, `PTMFile.swift` and `ULTFile.swift`
 in that folder are not from it2play: they are what gives that replayer three other kinds of file to
 play, and are below.
 Nor are `MPTMFile.swift`, `IT2OpenMPT.swift` and `IT2AdLib.swift`, which give it OpenMPT's own kind
@@ -1029,6 +1029,40 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## ancient — unpacking XPK and MMCMP files
+
+`Sources/SidayKit/Packers/XPK.swift` (XPK files, and their SQSH, NUKE and DUKE packers) and
+`Sources/SidayKit/Packers/MMCMP.swift` follow the decompressors in ancient
+(https://github.com/temisu/ancient) by Teemu Suutari:
+
+```
+BSD 2-Clause License
+
+Copyright (c) 2017-2026, Teemu Suutari
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## ar002 — LH5 unpacking

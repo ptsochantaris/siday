@@ -98,12 +98,7 @@ final class OktalyzerModule {
         return value
     }
 
-    init(_ packed: [UInt8]) throws {
-        var data = packed
-        if PowerPacker.isPacked(packed) {
-            guard let unpacked = PowerPacker.unpack(packed) else { throw TuneError.malformed("a PowerPacker file that does not unpack") }
-            data = unpacked
-        }
+    init(_ data: [UInt8]) throws {
         guard Self.isModule(data) else { throw TuneError.malformed("not an Oktalyzer module") }
         let reader = ByteReader(data)
 

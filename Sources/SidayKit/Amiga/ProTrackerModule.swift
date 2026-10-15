@@ -101,16 +101,7 @@ final class ProTrackerModule {
     /// - Parameter asProTracker: true to cut a sample that is longer than ProTracker has room for
     ///   off at 64 KB, as ProTracker does. Such a file is some other tracker's, made to be played
     ///   by the Amiga's routines, which play the whole of it, or by a player on another machine.
-    init(_ packed: [UInt8], asProTracker: Bool = false) throws {
-        var data = packed
-        if PowerPacker.isPacked(packed) {
-            guard let unpacked = PowerPacker.unpack(packed) else { throw TuneError.malformed("a PowerPacker file that does not unpack") }
-            data = unpacked
-        } else if packed.count > 4, packed[0] == 0x50, packed[1] == 0x58, packed[2] == 0x32, packed[3] == 0x30 {
-            throw TuneError.unsupported("a PowerPacker file locked with a password")
-        } else if packed.count > 4, packed[0] == 0x58, packed[1] == 0x50, packed[2] == 0x4B, packed[3] == 0x46 {
-            throw TuneError.unsupported("a file packed with XPK")
-        }
+    init(_ data: [UInt8], asProTracker: Bool = false) throws {
         let file = ByteReader(data)
         self.file = file
         let size = data.count

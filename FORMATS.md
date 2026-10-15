@@ -154,6 +154,18 @@ where it would play a row it has played before. `siday --raw file.raw tune.mod` 
 pt2-clone writes one to a file, sixteen bits with its dither and a long sample cut off where ProTracker
 cuts it, and the two agree to the sample.
 
+Amiga users packed what they kept, to get more of it onto a disk, and modules with the rest, whole,
+by packers of files that knew nothing of what they packed. Two of those are met with among modules,
+and a file packed by either is unpacked before it is read, whatever kind of module is inside it.
+Nico François's PowerPacker was the one most used. The other is XPK, a set of packers that any
+program could call on, by Urban Dominik Müller and others, each packer a library of its own with four
+letters for a name; modules are found packed by three of them: SQSH, which was made for sampled
+sound, NUKE, and DUKE, which is NUKE with each byte first turned into its difference from the one
+before. The unpacking follows Teemu Suutari's ancient, a library that unpacks most of the packers the
+Amiga had, and agrees with it to the byte on every packed module to hand: 28 packed by PowerPacker
+and 8 by XPK. One of the eight unpacks to a module packed again by The Player 4.1, a packer made for
+modules that reshapes them as it packs, and that one is not played.
+
 ## MED — MED and OctaMED
 
 MED was Teijo Kinnunen's tracker for the Amiga, from 1989, and a rival to the Soundtracker family
@@ -415,7 +427,7 @@ so: 20 of the 180, most of them by one composer. Two commands for the Amiga's ow
 them over. The replayer turns away five files of the 180 that are played here: two with a sample
 whose loop runs one sample past its end, which is brought back to it, as OpenMPT does; one with
 something else put after the module; and one cut short, which says so. The fifth is packed with XPK,
-and is not played.
+and is unpacked first, as a MOD file is (see MOD).
 
 Beside libopenmpt and libxmp, on every tick of the first five minutes of every file, the three are at
 the same row of the song, on every tick, for all but four files and the very end of a song. Three of
@@ -759,6 +771,12 @@ A file Impulse Tracker
 made is played as Impulse Tracker played it, and `--raw`
 writes every file so, to set beside it2play. The filter is the one place where the web
 player and the Mac's do not agree to the last bit: each asks its own maths library for a power of two.
+
+Some IT files, and some S3M files, were packed whole by MMCMP, Emmanuel Giasson's Music Module
+Compressor for DOS, which knew a module's samples from the rest of it and packed each as the sound it
+is. Such a file is unpacked before it is read, as Teemu Suutari's ancient unpacks it, and agrees with
+it to the byte: the four IT files to hand then play as it2play plays them, and the four S3M files as
+st3play does, to the sample.
 
 ## GDM and PTM — BWSB and PolyTracker
 

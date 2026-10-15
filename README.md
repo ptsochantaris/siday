@@ -26,7 +26,7 @@ siday ~/Music/chiptunes --shuffle
 | ZX Spectrum, Amstrad CPC | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs; VTX and YM register recordings; AY program rips, beeper music included | each tracker's own player, or the tune's own program on a Z80, on the AY chip |
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
-| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
+| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL; MPTM; MT2 | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
@@ -242,10 +242,10 @@ uses is said, and only what might be heard.
 Not played:
 
 - **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-- **Amiga:** a MOD or a DBM packed with XPK; a song that MED saved before MED4 (MED2, MED3), and
+- **Amiga:** a MOD packed again by The Player; a song that MED saved before MED4 (MED2, MED3), and
   a MED4 song whose instruments are kept in files of their own; a module of the later SoundFX, of
   31 samples.
-- **PC:** an IT file packed with MMCMP; a DTM file from Digital Home Studio; the other kind of
+- **PC:** a DTM file from Digital Home Studio; the other kind of
   file called AMF, ASYLUM's; an STM song saved without its samples.
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
   or for samples kept in other files.

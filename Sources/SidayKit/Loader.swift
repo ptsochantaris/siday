@@ -50,6 +50,9 @@ public enum TuneLoader {
     ///   database by content is looked up by its place in the HVSC collection instead.
     public static func load(_ data: [UInt8], format: TuneFormat, path: String? = nil, options: LoadOptions = LoadOptions()) throws -> any Renderer {
         guard !data.isEmpty else { throw TuneError.malformed("empty file") }
+        // A module packed whole, by any of the packers modules were found packed with, is unpacked
+        // first, and is then the module it was.
+        let data = try Packed.unpacked(data)
         switch format {
         case .vtx:
             return try AYFramePlayer(source: RegisterDumpSource.vtx(data), options: options)

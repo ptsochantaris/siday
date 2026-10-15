@@ -62,12 +62,7 @@ final class SoundFXModule {
         data.count > patterns && data[60] == 0x53 && data[61] == 0x4F && data[62] == 0x4E && data[63] == 0x47
     }
 
-    init(_ packed: [UInt8]) throws {
-        var data = packed
-        if PowerPacker.isPacked(packed) {
-            guard let unpacked = PowerPacker.unpack(packed) else { throw TuneError.malformed("a PowerPacker file that does not unpack") }
-            data = unpacked
-        }
+    init(_ data: [UInt8]) throws {
         let reader = ByteReader(data)
         guard Self.isModule(data) else {
             // The later SoundFX, with 31 instruments, is another format and another routine.
