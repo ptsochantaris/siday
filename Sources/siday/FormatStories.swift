@@ -639,10 +639,23 @@ are three more, on the Gravis Ultrasound, whose voices each have a place: X, whi
 somewhere between the speakers, P, which slides it, and Y, which sweeps it from side to side. The
 card has sixteen places, and the channel is put at the nearest of them; the card's sides are less
 far apart than OpenMPT's, and of 159 such files to hand set beside libopenmpt, how alike the two
-sides are rose in 70 and fell in 14 (from 0.54 to 0.71 for the middle one). Two
-more of theirs are not played on Scream Tracker's cards, and such a file says so: Z, which sets a
-filter that neither card has, and S99, which puts a channel in ModPlug's own reverb (played in an
-IT, MPTM or XM file of those trackers; ten S3M files to hand ask for it).
+sides are rose in 70 and fell in 14 (from 0.54 to 0.71 for the middle one). Z, which in ModPlug
+Tracker and the trackers after it sets a channel's filter, is played as OpenMPT plays it in an S3M
+file, which has no macros of its own: by those ModPlug Tracker began with, the cutoff below 80 hex
+and the resonance from there to 8F, through OpenMPT's filter of two poles, on either card. OpenMPT
+keeps the command only for a file of a tracker that had it, by the mark each leaves in what it
+saves: not Scream Tracker, nor Impulse Tracker before 2.14, nor those others that say they are
+Scream Tracker 3.20 and had no filter (Sound Club, PlayerPRO, Velvet Studio); in their files Z is
+nothing, as it was to them, and so it is here. On a channel of the AdLib card's the cutoff is, in
+OpenMPT, how strongly the first operator bends the second, and so it is here. Of the S3M files to
+hand, 65 have Z and only four of them are of a tracker that had it; set beside libopenmpt, the spectrum of each is
+as near or nearer, most of all an FM tune's, which came from 0.90 to 0.95. And one old file,
+Crawling Despair, uses Z for something else again: its text says it is for PixPlay, a player that
+took Z00 to Z0F for places between the speakers, and OpenMPT, finding a file from before Scream
+Tracker 3.20 whose Z is only ever that, plays it so; so does siday. One more of the later trackers'
+commands is not played on Scream Tracker's cards, and such a file says so: S99, which puts a channel
+in ModPlug's own reverb (played in an IT, MPTM or XM file of those trackers; ten S3M files to hand
+ask for it).
 `siday --raw file.raw tune.s3m` writes what st3play writes to a file, a stereo sample's left side only. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.

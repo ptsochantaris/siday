@@ -147,6 +147,21 @@ final class ST3AdLib {
                 if ins.adlib[10] & 1 != 0 { outaw(0x40 + Int(Self.adlibiadd[i]), level(ins.adlib[2])) }
                 outaw(0x43 + Int(Self.adlibiadd[i]), level(ins.adlib[3]))
             }
+            if ch.filterChanged, ch.lastadlins > 0, let ins = instrument(Int(ch.lastadlins), zchn) {
+                // In a file whose Z sets a filter (see `ST3Player.playsFilter`), OpenMPT has the
+                // cutoff of a channel of the AdLib card's be how strongly its first operator bends
+                // the second: when Z is given, and when a note is struck, half the cutoff is the
+                // operator's level, of 63, worked into its own. Where the two are added, the
+                // channel's volume is given to both on every tick, and that is all that is heard.
+                ch.filterChanged = false
+                let own = ins.adlib[2]
+                var level = own
+                if ins.adlib[10] & 1 == 0, ch.cutoff < 126 {
+                    let part = Int(ch.cutoff / 2) + (ch.cutoff / 2 > 0 ? 1 : 0)
+                    level = (own & 0xC0) | UInt8(63 - ((63 - Int(own & 63)) * part) / 64)
+                }
+                if ins.adlib[10] & 1 == 0 { outaw(0x40 + Int(Self.adlibiadd[i]), level) }
+            }
             ch.addherzretrig = 0
         }
     }

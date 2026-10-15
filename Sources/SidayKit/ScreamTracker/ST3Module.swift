@@ -49,6 +49,12 @@ final class ST3Module {
     /// True if the file is taken to be one that Scream Tracker 3 itself saved: it says so, and
     /// has what Scream Tracker leaves in a file and other trackers that say the same do not.
     let madeByScreamTracker: Bool
+    /// True if Z in the file sets a channel's filter, as it does in OpenMPT: in a file of a later
+    /// tracker that had the command, by the mark each leaves in what it saves. That is any but Scream
+    /// Tracker, and Impulse Tracker before 2.14, which had no filter; and of those that say they are
+    /// Scream Tracker 3.20, ModPlug Tracker's and Schism Tracker's, by what they leave as nothing.
+    /// (Sound Club, PlayerPRO and Velvet Studio, which also say so, had no such command.)
+    let keepsFilterMacros: Bool
     /// True for a DSM file's module, which is played as OpenMPT plays one where it and Scream Tracker
     /// differ (see `DSMFile`): a slide to a note that names another sample than the one sounding
     /// goes on with that one, at its rate, where Scream Tracker takes up the other's rate; a slide on
@@ -210,7 +216,18 @@ final class ST3Module {
         if songMadeWithST3, sampleCount >= 2, gusPositions <= 1 { soundBlaster = true }
         savedWithSoundBlaster = soundBlaster
         madeByScreamTracker = songMadeWithST3
+        switch cwtv & 0xF000 {
+        case 0x1000:
+            let special = f.u16le(0x3E), rawFlags = f.u16le(0x26)
+            let canonical = !patoff.isEmpty && !insoff.isEmpty && patoff[0] > insoff[0]
+            keepsFilterMacros = cwtv == 0x1320 && special == 0 && ordnum & 1 == 0 && f[0x34] == 0 && rawFlags & ~0x50 == 0
+                && f[0x35] == 252 && canonical && (0 ..< 8).map({ f[0x36 + $0] }) != Array("SCLUB2.0".utf8)
+        case 0x3000: keepsFilterMacros = cwtv >= 0x3214
+        case 0: keepsFilterMacros = false
+        default: keepsFilterMacros = true
+        }
 
+        if cwtv < 0x1320 { readPixPlayPanning() }
         noteWhatIsNotPlayed(f, insoff)
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         for i in 0 ..< Self.mostInstruments { checkins(i) }
@@ -255,13 +272,47 @@ final class ST3Module {
         return (0 ..< length).map { k in Int16(Int8(bitPattern: unsigned ? f[from + k] ^ 0x80 : f[from + k])) << 8 }
     }
 
-    /// The command of later trackers that is found in S3M files and is not played, by its number
-    /// (a command's letter, counted from A as 1) and by what it does: Z, which sets a filter that
-    /// Scream Tracker's sound cards have not got. (And S99, which puts a channel in ModPlug's own
-    /// reverb: that is played in an IT, MPTM or XM file of ModPlug Tracker's or OpenMPT's, but not
-    /// on Scream Tracker's cards, and is said to be left out.)
+    /// Turns Z into S8, a place between the speakers, in a file whose Z is taken to be PixPlay's, as
+    /// OpenMPT does: one from before Scream Tracker 3.20 whose every Z is under 10 hex, with at
+    /// least as many as it has channels and not wholly to the right. (OpenMPT knows of one,
+    /// Crawling Despair, whose text says it is for PixPlay.)
+    private func readPixPlayPanning() {
+        let channels = ((0 ..< 32).last(where: { channel[$0] != 0xFF }) ?? 3) + 1
+        var left = 0, right = 0
+        var places: [(pattern: Int, at: Int)] = []
+        for (number, pattern) in patp.enumerated() {
+            guard let pattern else { continue }
+            var at = 0
+            while at < pattern.count {
+                let what = pattern[at]
+                at += 1
+                if what & 0x20 != 0 { at += 2 }
+                if what & 0x40 != 0 { at += 1 }
+                if what & 0x80 != 0 {
+                    if at + 1 < pattern.count, pattern[at] == 26 {
+                        let value = pattern[at + 1]
+                        if value > 0x0F { return }
+                        if value < 8 { left += 1 } else if value > 8 { right += 1 }
+                        places.append((number, at))
+                    }
+                    at += 2
+                }
+            }
+        }
+        guard left + right >= channels, right - left < channels else { return }
+        for place in places {
+            patp[place.pattern]![place.at] = 19
+            patp[place.pattern]![place.at + 1] |= 0x80
+        }
+    }
+
+    /// The command of later trackers that is found in S3M files and is not played: S99, which puts
+    /// a channel in ModPlug's own reverb. That is played in an IT, MPTM or XM file of ModPlug
+    /// Tracker's or OpenMPT's, but not on Scream Tracker's cards, and is said to be left out.
     ///
-    /// Others are not counted. M, N and W, a channel's volume and the slides of it and of the
+    /// Others are not counted. Z sets a channel's filter where the tracker that made the file had
+    /// one, and is nothing where it had not (see `ST3Module.keepsFilterMacros`), or is PixPlay's
+    /// placing of a channel (see `readPixPlayPanning`). M, N and W, a channel's volume and the slides of it and of the
     /// whole tune's, are played in a file that a later tracker made (see
     /// `ST3Player.playsLaterCommands`). In a file that Scream Tracker itself saved, all of these
     /// are nothing, as they were to Scream Tracker and to whoever heard the tune there. So are the
@@ -269,8 +320,7 @@ final class ST3Module {
     /// from side to side (Y), on a card whose voices have places (see `ST3Player.laterPanning`);
     /// on the Sound Blaster, whose channels are each to a side, they are nothing, and that is not
     /// said: a file of a later tracker's is played on the Gravis Ultrasound unless it is asked for.
-    private static let commandsOfLaterTrackers: [UInt8] = [26]
-    private static let whatTheyDo = ["the setting of a filter", "ModPlug's reverb"]
+    private static let whatTheyDo = ["ModPlug's reverb"]
 
     /// Looks over the file for what its patterns use that is not played as the file asks, and
     /// says so in `shortfalls`. Nothing that is played is changed by it.
@@ -288,8 +338,7 @@ final class ST3Module {
                 }
                 if what & 0x40 != 0 { at += 1 }
                 if what & 0x80 != 0 {
-                    if at < pattern.count, !madeByScreamTracker, let kind = Self.commandsOfLaterTrackers.firstIndex(of: pattern[at]) { commands.note(kind) }
-                    if at + 1 < pattern.count, !madeByScreamTracker, pattern[at] == 19, pattern[at + 1] == 0x99 { commands.note(1) }
+                    if at + 1 < pattern.count, !madeByScreamTracker, pattern[at] == 19, pattern[at + 1] == 0x99 { commands.note(0) }
                     at += 2
                 }
             }

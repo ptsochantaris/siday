@@ -15,6 +15,14 @@
 /// Either way the card makes sound at a rate of its own, which is brought to the player's rate
 /// through a windowed sinc.
 final class ST3Cards {
+    /// A voice's filter, in a file whose Z sets one (see `ST3Player.playsFilter`): OpenMPT's, as
+    /// `FT2Player.setFilter` has it, at the card's own rate. Its last two samples on each side too.
+    struct Filter {
+        var on = false
+        var a0: Float = 0, b0: Float = 0, b1: Float = 0
+        var y1: Float = 0, y2: Float = 0, y1R: Float = 0, y2R: Float = 0
+    }
+
     private struct GUSVoice {
         // Where in the samples it is, where its loop starts and where it ends; -1 for nowhere.
         var SA = -1, SAS = -1, SAE = -1
@@ -32,6 +40,7 @@ final class ST3Cards {
         var low: Int32 = .max, high: Int32 = .min
         /// True for a voice playing a sample in stereo, whose right side is in `samplesRight`.
         var stereo = false
+        var filter = Filter()
     }
 
     /// What of a channel the Sound Blaster's mixer needs, kept apart from the channel while it mixes.
@@ -79,6 +88,8 @@ final class ST3Cards {
     private let bufferL: UnsafeMutablePointer<Float>, bufferR: UnsafeMutablePointer<Float>
     private var resamplingFrac: UInt64 = 0
     private let resamplingDelta: UInt64
+    /// How many samples a second the card makes.
+    private let cardRate: Float
 
     // The GUS.
     private let voices: UnsafeMutablePointer<GUSVoice>
@@ -91,6 +102,8 @@ final class ST3Cards {
 
     // The Sound Blaster Pro.
     private let sbVoices: UnsafeMutablePointer<SBVoice>
+    /// Each channel's filter, which outlasts the voices that are made afresh for every mixing.
+    private let sbFilters: UnsafeMutablePointer<Filter>
     private let postTable: UnsafeMutablePointer<Int8>
 
     /// The channels left out of the sound, a bit for each of the sixteen.
@@ -115,6 +128,8 @@ final class ST3Cards {
         voices.initialize(repeating: GUSVoice(), count: 32)
         sbVoices = .allocate(capacity: 16)
         sbVoices.initialize(repeating: SBVoice(), count: 16)
+        sbFilters = .allocate(capacity: 16)
+        sbFilters.initialize(repeating: Filter(), count: 16)
         postTable = .allocate(capacity: 2048)
         postTable.initialize(repeating: 0, count: 2048)
 
@@ -129,6 +144,7 @@ final class ST3Cards {
             cardRate = 1_000_000.0 / Double(256 - (stereo ? 210 : 233))
         }
         resamplingDelta = UInt64((4_294_967_296.0 * (cardRate / output)).rounded())
+        self.cardRate = Float(cardRate)
 
         switch card {
         case .gus:
@@ -176,7 +192,37 @@ final class ST3Cards {
         bufferR.deallocate()
         voices.deallocate()
         sbVoices.deallocate()
+        sbFilters.deallocate()
         postTable.deallocate()
+    }
+
+    /// Gives a voice its channel's filter (see `ST3Player.playsFilter`): two poles, closing at 110 Hz
+    /// times two to the power of a quarter and a twenty-fourth of the cutoff, ringing by 24 dB at
+    /// the most, as OpenMPT has it in an S3M file. A voice given a note afresh, or one whose filter
+    /// is only now on, starts it from nothing.
+    private func tell(_ ch: ST3Channel, _ filter: inout Filter, afresh: Bool) {
+        ch.filterChanged = false
+        if afresh || ch.filtered && !filter.on {
+            filter.y1 = 0
+            filter.y2 = 0
+            filter.y1R = 0
+            filter.y2R = 0
+        }
+        filter.on = ch.filtered
+        guard ch.filtered else { return }
+        let damping = powf(10, -Float(ch.resonance) * ((24.0 / 128.0) / 20.0))
+        let frequency = min(cardRate * 0.5, max(120, min(20000, 110 * powf(2, 0.25 + Float(ch.cutoff) / 24))))
+        let r = frequency * (2 * Float.pi) / cardRate
+        let d = (2 * damping - min(2, (1 - 2 * damping) * r)) / r
+        let e = 1 / (r * r)
+        filter.a0 = 1 / (1 + d + e)
+        filter.b0 = (d + e + e) / (1 + d + e)
+        filter.b1 = -e / (1 + d + e)
+    }
+
+    /// What a filter makes of the next sample, without moving it on.
+    @inline(__always) private static func through(_ filter: Filter, _ x: Float) -> Float {
+        max(-131_072, min(131_072, x * filter.a0 + filter.y1 * filter.b0 + filter.y2 * filter.b1))
     }
 
     /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. A bit for
@@ -347,6 +393,7 @@ final class ST3Cards {
                 }
                 voices[gv].SFCI = frequency >> 1
                 setVolumeSlide(ch, ch.m_oldvol, ch.m_vol)
+                if ch.filterChanged { tell(ch, &voices[gv].filter, afresh: false) }
                 return
             }
             // A new note: the old one slides away to nothing on its voice, and the channel takes another.
@@ -379,6 +426,8 @@ final class ST3Cards {
         voices[gv].owner = Int(ch.channelnum)
         voices[gv].heard = isMuted(Int(ch.channelnum)) ? 0 : -1
         voices[gv].stereo = samplesRight != nil && stereoBases.contains(ch.m_base)
+        ch.filterBegun = false
+        tell(ch, &voices[gv].filter, afresh: true)
         if ch.m_end == 0 {
             voiceused[Int(ch.aguschannel)] = -1
             ch.aguschannel = -1
@@ -435,11 +484,9 @@ final class ST3Cards {
                     let at = v.pointee.SA
                     let first = at >= 0 && at < samplesCount ? Int32(samples[at]) : 0
                     let second = at + 1 >= 0 && at + 1 < samplesCount ? Int32(samples[at + 1]) : 0
-                    let smp = Int32(Int16(truncatingIfNeeded: first &+ (((second &- first) &* Int32(Int16(bitPattern: v.pointee.SA_frac))) >> 9)))
+                    var smp = Int32(Int16(truncatingIfNeeded: first &+ (((second &- first) &* Int32(Int16(bitPattern: v.pointee.SA_frac))) >> 9)))
                     // The card's volumes are logarithms: a part that doubles, and a part that scales.
                     let vol = Int32(v.pointee.SVLI >> 3)
-                    if smp < v.pointee.low { v.pointee.low = smp }
-                    if smp > v.pointee.high { v.pointee.high = smp }
                     let volL = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.LOff))))
                     let volR = max(0, Int32(Int16(truncatingIfNeeded: vol - Int32(v.pointee.ROff))))
                     // (A sample in stereo: its right side, read as its left is, is what goes to the right.)
@@ -449,6 +496,27 @@ final class ST3Cards {
                         let secondR = at + 1 >= 0 && at + 1 < samplesCount ? Int32(samplesRight[at + 1]) : 0
                         smpR = Int32(Int16(truncatingIfNeeded: firstR &+ (((secondR &- firstR) &* Int32(Int16(bitPattern: v.pointee.SA_frac))) >> 9)))
                     }
+                    if v.pointee.filter.on {
+                        // (A later tracker's file: the sample goes through the channel's filter.)
+                        let out = Self.through(v.pointee.filter, Float(smp))
+                        v.pointee.filter.y2 = v.pointee.filter.y1
+                        v.pointee.filter.y1 = out
+                        if v.pointee.stereo {
+                            var right = v.pointee.filter
+                            right.y1 = right.y1R
+                            right.y2 = right.y2R
+                            let outR = Self.through(right, Float(smpR))
+                            v.pointee.filter.y2R = v.pointee.filter.y1R
+                            v.pointee.filter.y1R = outR
+                            smpR = Int32(outR)
+                            smp = Int32(out)
+                        } else {
+                            smp = Int32(out)
+                            smpR = smp
+                        }
+                    }
+                    if smp < v.pointee.low { v.pointee.low = smp }
+                    if smp > v.pointee.high { v.pointee.high = smp }
                     // (A voice of a channel that is left out of the sound adds nothing to it.)
                     left &+= ((smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))) & v.pointee.heard
                     right &+= ((smpR &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard
@@ -489,7 +557,9 @@ final class ST3Cards {
             let ch = sbVoices + i
             if ch.pointee.speed == 0 || ch.pointee.pos == 0xFFFF_FFFF || ch.pointee.base < 0 || ch.pointee.pos >= ch.pointee.end { continue }
             let at = ch.pointee.base &+ Int(truncatingIfNeeded: ch.pointee.pos)
-            let byte = at >= 0 && at < samplesCount ? Int(samples[at] >> 8) : 0
+            let value = at >= 0 && at < samplesCount ? samples[at] : 0
+            // (Through the channel's filter, as `sbSample` will have it, if it has one.)
+            let byte = sbFilters[i].on ? Int(Int16(max(-32768, min(32767, Self.through(sbFilters[i], Float(value)))))) >> 8 : Int(value >> 8)
             let smp = UInt16(truncatingIfNeeded: (byte * Int(Self.xvol[min(64, Int(ch.pointee.vol))])) >> 8)
             if stereo {
                 let mixtype = ch.pointee.mixtype
@@ -523,7 +593,15 @@ final class ST3Cards {
             let ch = sbVoices + i
             if ch.pointee.speed == 0 || ch.pointee.pos == 0xFFFF_FFFF || ch.pointee.base < 0 || ch.pointee.pos >= ch.pointee.end { continue }
             let at = ch.pointee.base &+ Int(truncatingIfNeeded: ch.pointee.pos)
-            let byte = at >= 0 && at < samplesCount ? Int(samples[at] >> 8) : 0
+            let value = at >= 0 && at < samplesCount ? samples[at] : 0
+            var byte = Int(value >> 8)
+            if sbFilters[i].on {
+                // (A later tracker's file: the sample goes through the channel's filter.)
+                let out = Self.through(sbFilters[i], Float(value))
+                sbFilters[i].y2 = sbFilters[i].y1
+                sbFilters[i].y1 = out
+                byte = Int(Int16(max(-32768, min(32767, out)))) >> 8
+            }
             let level = (byte * Int(Self.xvol[min(64, Int(ch.pointee.vol))])) >> 8
             let smp = UInt16(truncatingIfNeeded: level)
             if level < Int(ch.pointee.low) { ch.pointee.low = Int32(level) }
@@ -595,6 +673,10 @@ final class ST3Cards {
                 let ch = channels[i]
                 sbVoices[i] = SBVoice(base: ch.m_base, pos: ch.m_pos, poslow: ch.m_poslow, end: ch.m_end, loop: ch.m_loop, speed: ch.m_speed,
                                       vol: ch.m_vol, mixtype: ch.amixtype)
+                if ch.filterChanged || ch.filterBegun {
+                    tell(ch, &sbFilters[i], afresh: ch.filterBegun)
+                    ch.filterBegun = false
+                }
             }
         }
         var frac = resamplingFrac

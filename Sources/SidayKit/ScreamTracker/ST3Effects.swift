@@ -96,8 +96,23 @@ extension ST3Player {
         case 20: if musiccount == 0 { settempo(ch.info) } // T
         case 13, 14, 23: if playsLaterCommands { laterCommand(ch, firstTick: true) } // M, N, W
         case 16, 24, 25: if playsLaterCommands { laterPanning(ch, firstTick: true) } // P, X, Y
+        case 26: if playsFilter { setFilter(ch) } // Z
         default: break
         }
+    }
+
+    /// Z in a file whose Z sets a filter, as OpenMPT plays it in an S3M file, which has no macros of
+    /// its own: by those ModPlug Tracker began with, under 80 hex the cutoff and from there to 8F
+    /// the resonance, eight for each step. Anything higher is nothing. The channel's notes go
+    /// through the filter from then on.
+    private func setFilter(_ ch: ST3Channel) {
+        switch ch.info {
+        case 0 ..< 0x80: ch.cutoff = ch.info
+        case 0x80 ..< 0x90: ch.resonance = (ch.info & 0x0F) * 8
+        default: return
+        }
+        ch.filtered = true
+        ch.filterChanged = true
     }
 
     private func other(_ ch: ST3Channel) {

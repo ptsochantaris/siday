@@ -34,6 +34,11 @@ final class ST3Channel {
     var laterPan = -1, lastPanSlide: UInt8 = 0
     var panbrelloPos: UInt8 = 0, panbrelloSpeed: UInt8 = 0, panbrelloDepth: UInt8 = 0
     var swung = false
+    /// For a file whose Z sets a filter (see `ST3Player.playsFilter`): the channel's filter as
+    /// OpenMPT has it, its cutoff and its resonance of 127; whether its notes go through it; and
+    /// whether that has changed since the card was last told, and whether a note has begun since.
+    var cutoff: UInt8 = 127, resonance: UInt8 = 0
+    var filtered = false, filterChanged = false, filterBegun = false
     var m_pos: UInt32 = 0, m_poslow: UInt32 = 0, m_oldpos: UInt32 = 0, m_end: UInt32 = 0, m_loop: UInt32 = 0, m_speed: UInt32 = 0
     // For the AdLib card: the instrument its voice was last given, whether its note is to be struck
     // again and its level set again, and its pitch in hertz.
@@ -72,6 +77,9 @@ public final class ST3Player {
     /// tune's volume. For a file that Scream Tracker did not save, in which they are what the
     /// tracker that made it played. See `laterCommand`.
     let playsLaterCommands: Bool
+    /// True if Z sets a channel's filter, as OpenMPT plays it: in a file that a later tracker made
+    /// and that is one OpenMPT keeps the command for (see `ST3Module.keepsFilterMacros`).
+    let playsFilter: Bool
     /// Sixteen channels of samples; the rest were the AdLib card's.
     static let ACHANNELS = 48
 
@@ -133,6 +141,7 @@ public final class ST3Player {
     init(_ module: ST3Module, card: ST3Card, order: Int = 0, adlib: Bool = false, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil,
          songNumber: UInt8 = 0, asScreamTracker: Bool = false) {
         playsLaterCommands = !module.madeByScreamTracker && !asScreamTracker
+        playsFilter = playsLaterCommands && module.keepsFilterMacros
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
         self.module = module
@@ -582,6 +591,8 @@ public final class ST3Player {
             if ch.cmd != 7, ch.note != 254 { // struck again, unless it is sliding
                 ch.addherzretrig = 1
                 ch.struck = true
+                // (Its first operator is set again from its cutoff: see `ST3AdLib.updateadlib`.)
+                if playsFilter { ch.filterChanged = true }
             }
             ch.lastnote = ch.note
             // Sliding to a note went wrong on this card in every Scream Tracker after 3.01, and
@@ -680,6 +691,12 @@ public final class ST3Player {
                 // again, and slides on from where the pitch was.)
                 if !sliding || module.playsAsDSIK && !cards.isSounding(ch) {
                     ch.struck = true
+                    if playsFilter {
+                        // (A note begins with its channel's filter on if that is closed at all.)
+                        ch.filtered = ch.cutoff < 127
+                        ch.filterChanged = true
+                        ch.filterBegun = true
+                    }
                     ch.m_pos = UInt32(ch.astartoffset)
                     ch.m_poslow = 0
                     ch.m_oldpos = 0x1234_5678 // which makes a GUS start the note afresh

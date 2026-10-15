@@ -302,6 +302,53 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try raw([0xA0, 0x40, 1, 13, 0x08]) == raw(nil))
 }
 
+@Test func s3mFromALaterTrackerHasItsFilterPlayed() throws {
+    /// How much of the note is in how it changes from one sample to the next: less for a duller sound.
+    func brightness(_ file: [UInt8], _ options: LoadOptions = LoadOptions()) throws -> Float {
+        let left = stereoSound(try TuneLoader.load(file, format: .s3m, options: options), seconds: 0.6).left[9600...]
+        return zip(left, left.dropFirst()).map { ($1 - $0) * ($1 - $0) }.reduce(0, +) / left.map { $0 * $0 }.reduce(0, +)
+    }
+    let plain = try brightness(byImpulseTracker(s3m()))
+    // Z sets the channel's cutoff: at 20 hex, 330 Hz, which takes the edges off the square wave.
+    let closed = try brightness(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x20])))
+    #expect(closed < plain * 0.5)
+    // Opened all the way, it is a filter still, and takes off a little.
+    let open = try brightness(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x7F])))
+    #expect(open < plain && open > closed)
+    // From 80 to 8F hex it sets the resonance, and puts the filter on as the cutoff does: at its
+    // most, with the cutoff open, it rings at 5 kHz and brightens the note.
+    #expect(try brightness(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x8F]))) > plain)
+    // On a Sound Blaster too.
+    var options = LoadOptions()
+    options.s3mCard = .sb
+    func soundBlaster(_ row: [UInt8]?) throws -> Float { try brightness(byImpulseTracker(s3m(row: row)), options) }
+    #expect(try soundBlaster([0xA0, 0x40, 1, 26, 0x20]) < soundBlaster(nil) * 0.5)
+    // It is nothing in a file that Scream Tracker saved, or Impulse Tracker before 2.14, as it was to them.
+    #expect(try brightness(s3m(row: [0xA0, 0x40, 1, 26, 0x20])) == brightness(s3m()))
+    var old = byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x20]))
+    old[0x28] = 0x05
+    #expect(try brightness(old) == plain)
+}
+
+@Test func s3mWithPixPlaysPanningHasItsChannelsPlaced() throws {
+    /// How much louder the right side is than the left, for the first channel's note.
+    func rightOverLeft(_ file: [UInt8]) throws -> Float {
+        var options = LoadOptions()
+        options.stereo = .abc
+        let sound = stereoSound(try TuneLoader.load(file, format: .s3m, options: options), seconds: 0.4)
+        return sound.right.map(abs).reduce(0, +) / sound.left.map(abs).reduce(0, +)
+    }
+    // Z0F on the first channel, which is on the left, and Z00 on the second.
+    let row: [UInt8] = [0xA0, 0x40, 1, 26, 0x0F, 0x81, 26, 0x00]
+    var file = s3m(row: row, stereo: true)
+    file[0x28] = 0x01
+    file[0x29] = 0x13
+    // In a file from before Scream Tracker 3.20, that is PixPlay's placing of the channel, to the right.
+    #expect(try rightOverLeft(file) > 2)
+    // And not in a later one.
+    #expect(try rightOverLeft(s3m(row: row, stereo: true)) < 0.5)
+}
+
 // MARK: What is not played as the file asks
 
 @Test func s3mFromALaterTrackerSaysWhatScreamTrackerDoesNotPlay() throws {
@@ -313,9 +360,8 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     // it saved, and is nothing in one that Scream Tracker saved, as it was to Scream Tracker.
     #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 23, 0x02]))).isEmpty)
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 23, 0x02])).isEmpty)
-    // Its setting of a filter (Z) is not played, since Scream Tracker's cards have no filter.
-    #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x40])))
-        == ["One of its commands is left out, which Scream Tracker did not have: the setting of a filter."])
+    // Its setting of a filter (Z) is played (see `s3mFromALaterTrackerHasItsFilterPlayed`).
+    #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x40]))).isEmpty)
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 26, 0x40])).isEmpty)
     // Nor is ModPlug's reverb (S99), which only a later tracker's file can ask for.
     #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])))
