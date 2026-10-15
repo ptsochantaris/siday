@@ -716,7 +716,8 @@ in an XM file, a sweep from side to side (`sweepFromSideToSide` in
 `soundlib/Tables.cpp`) and a channel's filter, set by macros (`sendFilterMacro` there, and
 `setFilter` and the filter's line in the mixer in `FT2Player.swift`, after `soundlib/Snd_flt.cpp`
 and the mixer's own filter, and `dieAway` there, after `EndChannelOfs` and `StereoFill` in
-`soundlib/MixerLoops.cpp`). The first of the signs by which an XM file is taken not to be FastTracker's
+`soundlib/MixerLoops.cpp`, with its voices read between a sample's points through OpenMPT's ways,
+as for an IT file of theirs (`FT2Edges` there, after `PrecomputeLoops` in `soundlib/ModSample.cpp`)). The first of the signs by which an XM file is taken not to be FastTracker's
 own are those of `soundlib/Load_xm.cpp`. Changed from the original: carried over from C++ to Swift,
 and each set into another tracker's replayer, which plays the rest as that tracker would. Used
 under the BSD 3-Clause licence set out below, under "OpenMPT — FM Tracker files": Copyright (c)

@@ -37,6 +37,12 @@ struct FT2Voice {
     /// For a file of ModPlug Tracker's or OpenMPT's: what the voice last put out on each side
     /// when its sample ran out, dying away (see `FT2Player.endsDieAway`).
     var tailL: Int32 = 0, tailR: Int32 = 0
+    /// For a file of ModPlug Tracker's or OpenMPT's: how the voice's sample is read between its
+    /// points, by OpenMPT's number for the way (see `FT2Player.readsAsOpenMPT`); `fastTrackers` for
+    /// FastTracker's line from one to the next. And whether it has been round its loop.
+    var way = FT2Voice.fastTrackers
+    var looped = false
+    static let fastTrackers: UInt8 = 255
 }
 
 /// FastTracker 2's replayer and mixer, playing a module: the replayer is in `FT2Replayer.swift`, and
@@ -65,6 +71,12 @@ final class FT2Player {
     /// stops dead in FastTracker's mixer, with a click; in theirs, what it last put out dies away,
     /// by a 256th of itself a frame, as it does here for such a file.
     let endsDieAway: Bool
+    /// And true for such a file to have its voices read between their samples' points as OpenMPT
+    /// reads them, through eight points and not two: by the way an instrument asks for, or else
+    /// OpenMPT's own, a sinc that is made duller for a voice going faster through its sample than
+    /// the sound is made (see `IT2Resampling`). The voice moves through its sample as it does in
+    /// FastTracker's mixer; only what is heard of the sample between its points is OpenMPT's.
+    let readsAsOpenMPT: Bool
     /// True for a module of DIGI Booster's: see `FT2DigiBooster.swift`.
     let playsAsDigiBooster: Bool
 
@@ -145,6 +157,7 @@ final class FT2Player {
          asFastTracker: Bool = false) {
         playsLaterCommands = !module.madeByFastTracker && !asFastTracker
         endsDieAway = module.openMPTMix != nil && !asFastTracker
+        readsAsOpenMPT = endsDieAway
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
         self.module = module
@@ -350,6 +363,11 @@ final class FT2Player {
         if let plugIns { v.pointee.place = plugIns.place(instrumentPlugIn: module.instrumentPlugIns[Int(stm[nr].instrNr)], channel: nr) }
         v.pointee.sixteen = sample16Bit
         v.pointee.SType = type
+        v.pointee.looped = false
+        if readsAsOpenMPT {
+            let asked = module.instrumentResamplings[Int(stm[nr].instrNr)]
+            v.pointee.way = asked < IT2Resampling.own ? asked : IT2Resampling.sincLowPass
+        }
         notes.struck[nr] = true
     }
 
@@ -625,6 +643,7 @@ final class FT2Player {
             SType ^= SType_RevDir
         } while realPos >= v.pointee.SLen
         v.pointee.SType = SType
+        v.pointee.looped = true
         return true
     }
 
@@ -656,6 +675,12 @@ final class FT2Player {
         var bytesLeft = numSamples
         // (What was last added to each side, for a sample that runs out: see `endsDieAway`.)
         var lastL: Int32 = 0, lastR: Int32 = 0
+        // (OpenMPT's way of reading the sample, for a file of its own: see `readsAsOpenMPT`.)
+        let way = v.pointee.way
+        let table: UnsafePointer<Float>? = way == FT2Voice.fastTrackers ? nil
+            : IT2Mixer.openMPTTables + (IT2Resampling.table(way: way, speed: UInt64(v.pointee.SFrq) << 16) - 1) * IT2Mixer.kernelLength
+        let edges = FT2Edges(v.pointee)
+        let toNext = Float(1 << shift)
         while bytesLeft > 0 {
             var frq = Int32(bitPattern: v.pointee.SFrq)
             var i = (v.pointee.SLen &- 1) &- realPos
@@ -704,14 +729,21 @@ final class FT2Player {
             let volumeBefore = Float(lVol) * Float(lVol) + Float(rVol) * Float(rVol)
             var n = samplesToMix
             while n > 0 {
-                let sample = Int32(smpPtr[0]) << shift
-                var sample2 = Int32(smpPtr[1]) << shift
-                sample2 &-= sample
-                pos >>= 1
-                sample2 = Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(Int32(bitPattern: pos))) >> 32)
-                pos &+= pos
-                sample2 &+= sample2
-                sample2 &+= sample
+                var sample2: Int32
+                if let table {
+                    let t = table + Int(pos >> 20) * 8
+                    sample2 = Int32((edges.read(linear, at: smpPtr - linear, t) * toNext).rounded())
+                    pos &= ~1
+                } else {
+                    let sample = Int32(smpPtr[0]) << shift
+                    sample2 = Int32(smpPtr[1]) << shift
+                    sample2 &-= sample
+                    pos >>= 1
+                    sample2 = Int32(truncatingIfNeeded: (Int64(sample2) &* Int64(Int32(bitPattern: pos))) >> 32)
+                    pos &+= pos
+                    sample2 &+= sample2
+                    sample2 &+= sample
+                }
                 if filtered {
                     // (A later tracker's file: the sample goes through the channel's filter.)
                     let out = Float(sample2) * a0 + y1 * b0 + y2 * b1
@@ -723,14 +755,20 @@ final class FT2Player {
                 if sample2 > high { high = sample2 }
                 sample2 <<= 28 - 16
                 var sampleR = sample2
-                if right != nil {
+                if let right {
                     let p = smpPtr + offsetR
-                    let first = Int32(p[0]) << shift
-                    var next = (Int32(p[1]) << shift) &- first
-                    // (The same fraction of the way to the next as the left side: `pos` is back to twice it.)
-                    next = Int32(truncatingIfNeeded: (Int64(next) &* Int64(Int32(bitPattern: pos >> 1))) >> 32)
-                    next &+= next
-                    next &+= first
+                    var next: Int32
+                    if let table {
+                        // (OpenMPT's way, at the same place as the left side.)
+                        next = Int32((edges.read(right, at: smpPtr - linear, table + Int(pos >> 20) * 8) * toNext).rounded())
+                    } else {
+                        let first = Int32(p[0]) << shift
+                        next = (Int32(p[1]) << shift) &- first
+                        // (The same fraction of the way to the next as the left side: `pos` is back to twice it.)
+                        next = Int32(truncatingIfNeeded: (Int64(next) &* Int64(Int32(bitPattern: pos >> 1))) >> 32)
+                        next &+= next
+                        next &+= first
+                    }
                     if filtered {
                         let out = Float(next) * a0 + y1R * b0 + y2R * b1
                         y2R = y1R
@@ -776,5 +814,60 @@ final class FT2Player {
         }
         v.pointee.SPosDec = pos & 0xFFFF_0000
         v.pointee.SPos = realPos
+    }
+}
+
+/// Where a voice's sample ends and loops, for reading it through eight points (see
+/// `FT2Player.readsAsOpenMPT`). Past the end of a loop comes its start again, or for a ping-pong
+/// loop its end backwards; and the same before its start, once the voice has been round. Past the
+/// end of a sample that does not loop is its last value held, and before its start its first.
+struct FT2Edges {
+    let length: Int, loopStart: Int, loopLength: Int
+    /// 0 for no loop, 1 for one forwards, 2 for one that goes back and forth.
+    let kind: Int
+    let looped: Bool
+
+    init(_ v: FT2Voice) {
+        length = Int(max(0, v.SLen))
+        loopStart = Int(max(0, v.SRepS))
+        loopLength = Int(max(0, v.SRepL))
+        kind = v.SType & SType_Rev != 0 && loopLength > 0 ? 2 : v.SType & SType_Fwd != 0 && loopLength > 0 ? 1 : 0
+        looped = v.looped
+    }
+
+    /// The place in the sample that is read for `index`.
+    @inline(__always) func place(_ index: Int) -> Int {
+        if kind != 0 {
+            let loopEnd = loopStart + loopLength
+            if index >= loopEnd {
+                let d = (index - loopEnd) % (kind == 2 ? 2 * loopLength : loopLength)
+                return kind == 1 ? loopStart + d : d < loopLength ? loopEnd - 1 - d : loopStart + d - loopLength
+            }
+            if index < loopStart, looped {
+                let d = (loopStart - 1 - index) % (kind == 2 ? 2 * loopLength : loopLength)
+                return kind == 1 ? loopEnd - 1 - d : d < loopLength ? loopStart + d : loopEnd - 1 - (d - loopLength)
+            }
+        }
+        return index < 0 ? 0 : index >= length ? length - 1 : index
+    }
+
+    /// The eight samples about `index` of `base`, each by its weight in `t`.
+    @inline(__always) func read<T: FixedWidthInteger & SignedInteger>(_ base: UnsafePointer<T>, at index: Int, _ t: UnsafePointer<Float>) -> Float {
+        let low = kind != 0 && looped ? loopStart : 0
+        var out: Float = 0
+        if index - 3 >= low, index + 4 < length {
+            let s = base + index
+            out = Float(Int32(s[-3])) * t[0]
+            out += Float(Int32(s[-2])) * t[1]
+            out += Float(Int32(s[-1])) * t[2]
+            out += Float(Int32(s[0])) * t[3]
+            out += Float(Int32(s[1])) * t[4]
+            out += Float(Int32(s[2])) * t[5]
+            out += Float(Int32(s[3])) * t[6]
+            out += Float(Int32(s[4])) * t[7]
+        } else if length > 0 {
+            for tap in 0 ..< 8 { out += Float(Int32(base[place(index + tap - 3)])) * t[tap] }
+        }
+        return out
     }
 }

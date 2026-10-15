@@ -347,11 +347,30 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     let end = try #require(stopped.lastIndex { $0 != 0 }) + 1
     #expect(end > 100 && end < 1000)
     #expect(stopped[end...].allSatisfy { $0 == 0 })
-    let last = stopped[end - 1]
-    #expect(last < 0 && dying[end - 1] == last)
+    // (The two are read between the sample's points each in its own tracker's way, and end at
+    // the same frame, at levels a little apart.)
+    let last = dying[end - 1]
+    #expect(stopped[end - 1] < 0 && last < stopped[end - 1] * 0.9)
     #expect(abs(dying[end] - last * 255 / 256) < abs(last) * 0.01)
     #expect(abs(dying[end + 255] - last * 0.368) < abs(last) * 0.02)
     #expect(abs(dying[end + 2000]) < abs(last) * 0.001)
+}
+
+@Test func xmOfOpenMPTsIsReadBetweenItsSamplesPointsAsOpenMPTReadsIt() throws {
+    func played(madeWith tracker: String, way: UInt8? = nil) throws -> ArraySlice<Float> {
+        var file = xm()
+        file.replaceSubrange(38 ..< 58, with: padded(tracker, 20))
+        if let way { file += Array("XTPM".utf8) + Array("...R".utf8) + word(1) + [way] }
+        return stereo(try TuneLoader.load(file, format: .xm), seconds: 0.2).left[4800...]
+    }
+    // FastTracker's line from one point to the next never goes past the square wave's top; OpenMPT's
+    // sinc, which its file has unless an instrument asks for another way, rings past it at the
+    // edges; and an instrument that asks for no smoothing at all is heard at two levels, the wave's own.
+    let line = try played(madeWith: "siday"), sinc = try played(madeWith: "OpenMPT 1.30.00.00")
+    let top = line.map(abs).max()!
+    #expect(sinc.map(abs).max()! > top * 1.05)
+    #expect(Set(try played(madeWith: "OpenMPT 1.30.00.00", way: 0)).count == 2)
+    #expect(try played(madeWith: "OpenMPT 1.30.00.00", way: 1).map(abs).max()! <= top * 1.001)
 }
 
 @Test func xmInstrumentIsHeardThroughItsPlugIn() throws {
@@ -452,14 +471,17 @@ private func levels(_ renderer: any Renderer) -> [Float] {
         let left = stereo(try TuneLoader.load(file, format: .xm), seconds: 0.5).left[4800...]
         return (left.reduce(0) { $0 + $1 * $1 } / Float(left.count)).squareRoot()
     }
-    let own = try loud(xm())
+    // (Such a file is read between its samples' points as OpenMPT reads it, and FastTracker's own
+    // through its line from one to the next, which the square wave is a little louder through.)
+    let own = try loud(xm()), usual = try loud(xm() + extras(mixLevels: 5, preAmp: nil))
     #expect(own > 0.01)
+    #expect(abs(usual / own - 1) < 0.05, "\(usual / own)")
     for mode in [0, 4, 5] {
-        #expect(abs(try loud(xm() + extras(mixLevels: mode, preAmp: nil)) / own - 1) < 0.01)
-        #expect(abs(try loud(xm() + extras(mixLevels: mode, preAmp: 96)) / own - 2) < 0.02)
+        #expect(abs(try loud(xm() + extras(mixLevels: mode, preAmp: nil)) / usual - 1) < 0.01)
+        #expect(abs(try loud(xm() + extras(mixLevels: mode, preAmp: 96)) / usual - 2) < 0.02)
     }
     // In OpenMPT 1.17's ways the usual pre-amp is 128.
-    #expect(abs(try loud(xm() + extras(mixLevels: 3, preAmp: 128)) / own - 1) < 0.01)
+    #expect(abs(try loud(xm() + extras(mixLevels: 3, preAmp: 128)) / usual - 1) < 0.01)
 }
 
 @Test func xmChannelPutInTheReverbIsHeardInItInALaterTrackersFile() throws {

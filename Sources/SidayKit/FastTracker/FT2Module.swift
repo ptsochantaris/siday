@@ -64,6 +64,9 @@ final class FT2Module {
     /// And the plug-in each instrument plays through, counted from 1, by the instrument's number;
     /// nought for none.
     private(set) var instrumentPlugIns = [Int](repeating: 0, count: 256)
+    /// And how each instrument's notes are read between a sample's points, by OpenMPT's number for
+    /// the way, where the file says (see `IT2Resampling`).
+    private(set) var instrumentResamplings = [UInt8](repeating: IT2Resampling.own, count: 256)
     /// For an XM file that ModPlug Tracker or OpenMPT made: how OpenMPT adds its channels up (its
     /// "mix levels", by their numbers), the song's pre-amp, and how many channels OpenMPT takes it
     /// to have. Nil for any other file, which is played as loud as FastTracker plays it.
@@ -313,6 +316,7 @@ final class FT2Module {
         sound.plugIns = extras.plugIns
         sound.channelPlugIns = Array(extras.channelPlugIns.prefix(Int(song.antChn)))
         for i in 1 ... 128 where i - 1 < extras.instrumentPlugIns.count { instrumentPlugIns[i] = extras.instrumentPlugIns[i - 1] }
+        for i in 1 ... 128 where i - 1 < extras.resamplings.count && extras.resamplings[i - 1] < IT2Resampling.own { instrumentResamplings[i] = extras.resamplings[i - 1] }
         if !madeByFastTracker, sound.sendsToPlugIns(instruments: instrumentPlugIns) { self.sound = sound }
         // What is not heard: an instrument that is a plug-in that is not played, and nothing else
         // (one with a sample is heard, through its plug-in or without it), and the plug-ins that

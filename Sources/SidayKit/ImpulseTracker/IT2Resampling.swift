@@ -40,6 +40,12 @@ struct IT2Resampling {
     func table(_ sc: UnsafeMutablePointer<IT2SlaveChannel>, speed: UInt64) -> Int {
         var way = song
         if instruments, let ins = sc.pointee.InsPtr, ins.Resampling < Self.own { way = ins.Resampling }
+        return Self.table(way: way, speed: speed)
+    }
+
+    /// The same for a way, by OpenMPT's number for it.
+    @inline(__always)
+    static func table(way: UInt8, speed: UInt64) -> Int {
         switch way {
         case Self.nearest: return 1
         case Self.linear: return 2
@@ -59,6 +65,13 @@ extension IT2Mixer {
     /// sinc at its usual 0.97 of the highest a sample can hold, and at 0.5 and 0.425 of it for the
     /// faster voices; and its other sinc, at 0.97, which has another window and is made to add up to
     /// one.
+    /// The same, in memory of their own that lasts, for a mixer that reads them a voice at a time.
+    nonisolated(unsafe) static let openMPTTables: UnsafePointer<Float> = {
+        let tables = UnsafeMutablePointer<Float>.allocate(capacity: openMPTKernels.count)
+        for i in openMPTKernels.indices { tables[i] = openMPTKernels[i] }
+        return UnsafePointer(tables)
+    }()
+
     static let openMPTKernels: [Float] = {
         var tables = [Float](repeating: 0, count: kernelLength * 3)
         for phase in 0 ..< phases {

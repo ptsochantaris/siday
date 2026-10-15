@@ -548,7 +548,16 @@ runs out while it is loud stops dead in FastTracker's mixer, which is heard as a
 Tracker's and OpenMPT's, what it last put out dies away instead, by a 256th of itself a frame, and
 so it does here in a file of theirs. It is a small thing, a few thousandths of a second at each such
 end: of 400 such files, 284 change, and where they change 55 come nearer to libopenmpt sample by
-sample and 4 go further. That is for a file
+sample and 4 go further. And such a file's voices are read between their samples' points as
+OpenMPT reads them, where FastTracker draws a straight line from one point to the next: by the way
+an instrument asks for, as in an IT file of theirs (see IT, below; 50 XM files to hand ask), or else
+through OpenMPT's own sinc of eight points. The line lets through images of the sound above it,
+which a sample played below its own rate makes a lot of, and so these files were brighter than their
+composers heard them: set beside libopenmpt, the top of the sound (above 12 kilohertz, against what
+is between half a kilohertz and six) was on average 6.4 dB too loud in 100 such files, and now
+agrees within a decibel in 73 of them, where it did in 22. Of 400, 8 are audibly nearer libopenmpt
+by the other measures and none further. A voice goes through its sample at exactly FastTracker's
+rate still; only what is heard between the points is OpenMPT's. That is for a file
 that gives itself away as another tracker's: by saying so, or,
 where it says FastTracker as ModPlug Tracker's files do, by a name padded with nothing instead of
 spaces or by what ModPlug Tracker writes after all that FastTracker reads. FastTracker lets any
