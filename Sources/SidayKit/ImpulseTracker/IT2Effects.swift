@@ -50,6 +50,7 @@ extension IT2Player {
         case 25: InitCommandY(hc)
         case 26: InitCommandZ(hc)
         case IT2Player.xTrackerVolume where module.playsAsXTracker: InitCommandXTrackerVolume(hc) // X-Tracker's volume
+        case 27 where module.velvetStudio: InitCommandVelvetKeyOff(hc) // Velvet Studio's key let go
         case 28 where smoothMacros: InitCommandSmoothMacro(hc) // ModPlug Tracker's \xx
         case 29 where module.openMPT != nil: InitCommandDelayCut(hc) // an MPTM file's :xy
         case 30 where module.openMPT != nil: InitCommandBend(hc, smooth: false) // and its finetune, + and *
@@ -153,7 +154,7 @@ extension IT2Player {
     /// The first tick of a vibrato. With "old effects" it does not move on, but plays where it was.
     private func InitVibrato(_ hc: IT2HostPointer) {
         if module.madTracker { return madTrackerVibrato(hc, moving: false) }
-        if module.imagoOrpheus { return imagoVibrato(hc, movesOn: false) }
+        if module.openMPTForeign { return foreignVibrato(hc, movesOn: false) }
         if module.playsAsDigitrakker {
             digitrakkerVibrato(hc, movesOn: false)
         } else if module.playsAsXTracker {
@@ -204,9 +205,9 @@ extension IT2Player {
             hc.pointee.VolSet = vol
             sc.pointee.VolSet = vol
             sc.pointee.Vol = vol
-        } else if module.imagoOrpheus {
+        } else if module.openMPTForeign {
             // (Impulse Tracker does nothing with both halves; OpenMPT, for a module of Imago
-            // Orpheus's, slides down by the second.)
+            // Orpheus's or Velvet Studio's, slides down by the second.)
             hc.pointee.VolSlideDelta = -Int8(lo)
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
         }
@@ -257,7 +258,11 @@ extension IT2Player {
                 hc.pointee.Flags |= HF_UPDATE_VOLEFX_IF_CHAN_ON
 
                 if cmd > 6 {
-                    if val != 0 { hc.pointee.VibratoDepth = val << 2 }
+                    if val != 0 {
+                        hc.pointee.VibratoDepth = val << 2
+                        // (As deep as the command's, to OpenMPT, in a module it does not take for an IT file.)
+                        if module.openMPTForeign, module.Flags & ITF_OLD_EFFECTS != 0 { hc.pointee.VibratoDepth <<= 1 }
+                    }
                     if hc.pointee.Flags & HF_CHAN_ON != 0 { InitVibrato(hc) }
                 } else if cmd == 6 {
                     InitCommandG11(hc)
@@ -449,7 +454,7 @@ extension IT2Player {
                         return
                     }
                     sc.pointee.Flags |= SF_NOTE_OFF
-                    sc.pointee.ImagoRevived = false
+                    sc.pointee.ForeignRevived = false
                     InitNoCommand11(hc, sc, hcFlags)
                     return
                 } else if hc.pointee.TranslatedNote == 254 {
@@ -525,9 +530,10 @@ extension IT2Player {
         hcFlags |= UInt8(HF_CHAN_ON)
         hcFlags &= ~UInt8(HF_PITCH_SLIDE_ONGOING)
         // (OpenMPT starts a vibrato's wave again with every note, in these files.)
-        if module.madTracker || module.imagoOrpheus { hc.pointee.VibratoPos = 0 }
+        if module.madTracker || module.openMPTForeign { hc.pointee.VibratoPos = 0 }
 
         InitNoCommand11(hc, sc, hcFlags)
+        if module.velvetStudio, s?.reversed == true { velvetBackwards(sc) }
         if module.openMPT != nil { OpenMPTVolumeColumnOffset(hc, sc) }
     }
 
@@ -738,7 +744,7 @@ extension IT2Player {
             // Where the slide is to end.
             if hc.pointee.TranslatedNote < 120 {
                 if hc.pointee.Smp != midiSample { sc.pointee.Note = hc.pointee.TranslatedNote }
-                if module.imagoOrpheus { imagoSlideRevives(hc, sc) }
+                if module.openMPTForeign { foreignSlideRevives(hc, sc) }
 
                 hc.pointee.PortaFreq = noteFrequency(sc, hc.pointee.TranslatedNote)
                 hc.pointee.Flags |= HF_PITCH_SLIDE_ONGOING
@@ -746,7 +752,7 @@ extension IT2Player {
                 if hc.pointee.TranslatedNote == 255 {
                     if !module.madTracker || madTrackerLetGo(hc, sc) {
                         sc.pointee.Flags |= SF_NOTE_OFF
-                        sc.pointee.ImagoRevived = false
+                        sc.pointee.ForeignRevived = false
                         GetLoopInformation(sc)
                     }
                 } else if hc.pointee.TranslatedNote == 254 {
@@ -1023,7 +1029,7 @@ extension IT2Player {
             pan &+= lo
             if pan > 64 { pan = 64 }
             InitCommandX2(hc, pan)
-        } else if module.imagoOrpheus {
+        } else if module.openMPTForeign {
             // (As a slide of volume with both halves: by the second, to the right.)
             hc.pointee.MiscEfxData[0] = lo
             hc.pointee.Flags |= HF_ALWAYS_UPDATE_EFX
@@ -1050,7 +1056,7 @@ extension IT2Player {
 
     /// The first tick of a tremolo, which with "old effects" does not move on, as vibrato's.
     private func InitTremolo(_ hc: IT2HostPointer) {
-        if module.imagoOrpheus { return imagoTremolo(hc, movesOn: false) }
+        if module.openMPTForeign { return foreignTremolo(hc, movesOn: false) }
         if module.playsAsDigitrakker {
             digitrakkerTremolo(hc, movesOn: false)
         } else if module.playsAsXTracker {
@@ -1083,8 +1089,8 @@ extension IT2Player {
     /// Sxy: sixteen lesser effects.
     func InitCommandS(_ hc: IT2HostPointer) {
         var CmdVal = hc.pointee.CmdVal
-        // (S00 is the last S again, but in a module of Imago Orpheus's, to OpenMPT.)
-        if CmdVal == 0, !module.imagoOrpheus { CmdVal = hc.pointee.EfxMem_S }
+        // (S00 is the last S again, but in a module of Imago Orpheus's or Velvet Studio's, to OpenMPT.)
+        if CmdVal == 0, !module.openMPTForeign { CmdVal = hc.pointee.EfxMem_S }
         hc.pointee.EfxMem_S = CmdVal
 
         let cmd = CmdVal & 0xF0
@@ -1224,11 +1230,11 @@ extension IT2Player {
         case 0xC0: // the note is cut after some ticks
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
             InitNoCommand(hc)
-            // (Digitrakker's SC0 cuts it now; and so does Imago Orpheus's, to OpenMPT.)
+            // (Digitrakker's SC0 cuts it now; and so do Imago Orpheus's and Velvet Studio's, to OpenMPT.)
             if module.playsAsDigitrakker, val == 0 {
                 hc.pointee.Flags &= ~HF_UPDATE_EFX_IF_CHAN_ON
                 silenceCut(hc)
-            } else if module.imagoOrpheus, val == 0 {
+            } else if module.openMPTForeign, val == 0 {
                 hc.pointee.Flags &= ~HF_UPDATE_EFX_IF_CHAN_ON
                 if hc.pointee.Flags & HF_CHAN_ON != 0 {
                     hc.pointee.Flags &= ~HF_CHAN_ON
@@ -1237,8 +1243,8 @@ extension IT2Player {
             }
 
         case 0xD0: // the note is started after some ticks, and not now
-            // (Digitrakker's SD0 starts it now, and Imago Orpheus's, to OpenMPT.)
-            if module.playsAsDigitrakker || module.imagoOrpheus, val == 0 {
+            // (Digitrakker's SD0 starts it now, and Imago Orpheus's and Velvet Studio's, to OpenMPT.)
+            if module.playsAsDigitrakker || module.openMPTForeign, val == 0 {
                 InitNoCommand(hc)
             } else {
                 hc.pointee.Flags |= HF_ALWAYS_UPDATE_EFX
@@ -1274,9 +1280,9 @@ extension IT2Player {
     /// Txx: the tempo, or below T20 a slide of it.
     func InitCommandT(_ hc: IT2HostPointer) {
         var CmdVal = hc.pointee.CmdVal
-        // (T00 is the last T again, but in a module of Imago Orpheus's, to OpenMPT, for which it
+        // (T00 is the last T again, but in a module of Imago Orpheus's or Velvet Studio's, to OpenMPT, for which it
         // does nothing.)
-        if CmdVal == 0, module.imagoOrpheus { return InitNoCommand(hc) }
+        if CmdVal == 0, module.openMPTForeign { return InitNoCommand(hc) }
         if CmdVal == 0 { CmdVal = hc.pointee.EfxMem_T }
         hc.pointee.EfxMem_T = CmdVal
 
@@ -1323,8 +1329,8 @@ extension IT2Player {
 
     /// Vxx: the volume of the whole song.
     func InitCommandV(_ hc: IT2HostPointer) {
-        // (Above the top it does nothing; but in a module of Imago Orpheus's, to OpenMPT, it is the top.)
-        if hc.pointee.CmdVal <= 0x80 || module.imagoOrpheus {
+        // (Above the top it does nothing; but in a module of Imago Orpheus's or Velvet Studio's, to OpenMPT, it is the top.)
+        if hc.pointee.CmdVal <= 0x80 || module.openMPTForeign {
             GlobalVolume = UInt16(min(hc.pointee.CmdVal, 0x80))
             RecalculateAllVolumes()
         }
@@ -1444,6 +1450,8 @@ extension IT2Player {
 
         let SlideValue = Int16(bitPattern: MiscEfxWord(hc, 0))
         guard let sc = hc.pointee.SlaveChnPtr else { return }
+        let bent = module.openMPTForeign && hc.pointee.VolCmd & 7 == 7 && hc.pointee.Flags & HF_UPDATE_VOLEFX_IF_CHAN_ON != 0
+        if bent { sc.pointee.Frequency = sc.pointee.FrequencySet }
 
         if hc.pointee.MiscEfxData[2] == 1 {
             // Up, while the note has not been stopped (by sliding past what can be reached) and
@@ -1472,6 +1480,13 @@ extension IT2Player {
                 hc.pointee.Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX | HF_PITCH_SLIDE_ONGOING)
             }
         }
+        // (The volume column's vibrato, which has bent the pitch this tick before the slide, bends
+        // it from where the slide has got to, and not where the slide is to go on from: so OpenMPT
+        // has it, in a module it does not take for an IT file.)
+        if bent {
+            sc.pointee.Frequency = sc.pointee.FrequencySet
+            CommandH5(hc, sc, hc.pointee.LastVibratoData)
+        }
     }
 
     /// Bends the pitch by a step of the vibrato's wave times its depth. The result is cut to eight
@@ -1492,7 +1507,7 @@ extension IT2Player {
 
     func CommandH(_ hc: IT2HostPointer) {
         if module.madTracker { return madTrackerVibrato(hc, moving: true) }
-        if module.imagoOrpheus { return imagoVibrato(hc, movesOn: true) }
+        if module.openMPTForeign { return foreignVibrato(hc, movesOn: true) }
         if module.playsAsDigitrakker {
             digitrakkerVibrato(hc, movesOn: true)
             return
@@ -1702,7 +1717,7 @@ extension IT2Player {
     }
 
     func CommandR(_ hc: IT2HostPointer) {
-        if module.imagoOrpheus { return imagoTremolo(hc, movesOn: true) }
+        if module.openMPTForeign { return foreignTremolo(hc, movesOn: true) }
         if module.playsAsDigitrakker {
             digitrakkerTremolo(hc, movesOn: true)
             return

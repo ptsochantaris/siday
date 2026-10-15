@@ -132,9 +132,9 @@ final class IT2Player {
     lazy var nextKnownPeriod = [UInt8](repeating: 0, count: MAX_SLAVE_CHANNELS)
     /// And each channel's slide of volume, if it is one of Digitrakker's own (see `IT2DigitrakkerSlide`).
     lazy var digitrakkerSlides = [IT2DigitrakkerSliding](repeating: IT2DigitrakkerSliding(), count: MAX_HOST_CHANNELS)
-    /// For a module of Imago Orpheus's (and made for no other): each channel's last note that its
-    /// instrument had a sample for, or that let its key go; 255 for none yet. See `imagoRow`.
-    lazy var imagoNotes = [UInt8](repeating: 255, count: MAX_HOST_CHANNELS)
+    /// For a module of Imago Orpheus's or Velvet Studio's (and made for no other): each channel's last note that its
+    /// instrument had a sample for, or that let its key go; 255 for none yet. See `foreignRow`.
+    lazy var foreignNotes = [UInt8](repeating: 255, count: MAX_HOST_CHANNELS)
 
     func RecalculateAllVolumes() {
         for i in 0 ..< NumChannels { sChn[i].Flags |= SF_RECALC_PAN | SF_RECALC_VOL }
@@ -402,7 +402,7 @@ final class IT2Player {
         sc.pointee.FilterSet = false
         sc.pointee.FilterEnvelope = false
         sc.pointee.FilterFromStart = FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
-        sc.pointee.ImagoRevived = false
+        sc.pointee.ForeignRevived = false
     }
 
     /// Starts a voice's envelopes again from their beginnings, those its instrument has.
@@ -448,7 +448,7 @@ final class IT2Player {
         sc.pointee.FilterSet = false
         sc.pointee.FilterEnvelope = false
         sc.pointee.FilterFromStart = FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
-        sc.pointee.ImagoRevived = false
+        sc.pointee.ForeignRevived = false
         sc.pointee.Note = hc.pointee.RawNote
         sc.pointee.Ins = hc.pointee.Ins
         sc.pointee.Flags = SF_CHAN_ON + SF_RECALC_PAN + SF_RECALC_VOL + SF_FREQ_CHANGE + SF_NEW_NOTE
@@ -913,7 +913,7 @@ final class IT2Player {
     }
 
     private func PreInitCommand(_ hc: IT2HostPointer) {
-        if module.imagoOrpheus { imagoInstrumentAlone(hc) }
+        if module.openMPTForeign { foreignInstrumentAlone(hc) }
         if hc.pointee.NotePackMask & 0x33 != 0 {
             if module.Flags & ITF_INSTR_MODE == 0 || hc.pointee.RawNote >= 120 || hc.pointee.Ins == 0 {
                 hc.pointee.TranslatedNote = hc.pointee.RawNote
@@ -943,9 +943,9 @@ final class IT2Player {
                 if hc.pointee.Smp == 0 {
                     // A note its instrument has no sample for: Impulse Tracker does nothing with the
                     // row at all. OpenMPT, until its version 1.32, left the note out and did the rest.
-                    // (And in a module of Imago Orpheus's, it is not the note an instrument named
-                    // alone plays: see `imagoRow`.)
-                    if module.imagoOrpheus { hc.pointee.RawNote = imagoNotes[Int(hc.pointee.HostChnNum) & 63] }
+                    // (And in a module of Imago Orpheus's or Velvet Studio's, it is not the note an instrument named
+                    // alone plays: see `foreignRow`.)
+                    if module.openMPTForeign { hc.pointee.RawNote = foreignNotes[Int(hc.pointee.HostChnNum) & 63] }
                     if module.openMPT?.unmappedNotesKeepCommands == true {
                         let mask = hc.pointee.NotePackMask
                         hc.pointee.NotePackMask &= 0xCC
@@ -961,7 +961,7 @@ final class IT2Player {
         // (For an instrument with a tuning of its own, the note is seen to as OpenMPT sees to it, now,
         // or when a note that is put off comes.)
         if tunings, !delaysNote(hc) { openMPTTunedRow(hc) }
-        if module.imagoOrpheus { imagoRow(hc) }
+        if module.openMPTForeign { foreignRow(hc) }
         if module.openMPT != nil, !delaysNote(hc) { openMPTRow(hc) }
         if module.playsAsXTracker, !delaysNote(hc) { xTrackerRow(hc) }
         InitCommand(hc)
@@ -979,8 +979,8 @@ final class IT2Player {
     private func delaysNote(_ hc: IT2HostPointer) -> Bool {
         guard hc.pointee.NotePackMask & 0x88 != 0 else { return false }
         if hc.pointee.Cmd == 19 {
-            let value = hc.pointee.CmdVal != 0 || module.imagoOrpheus ? hc.pointee.CmdVal : hc.pointee.EfxMem_S
-            return value & 0xF0 == 0xD0 && !((module.playsAsDigitrakker || module.imagoOrpheus) && value == 0xD0)
+            let value = hc.pointee.CmdVal != 0 || module.openMPTForeign ? hc.pointee.CmdVal : hc.pointee.EfxMem_S
+            return value & 0xF0 == 0xD0 && !((module.playsAsDigitrakker || module.openMPTForeign) && value == 0xD0)
         }
         return hc.pointee.Cmd == 29 && module.openMPT != nil && hc.pointee.CmdVal >> 4 != 0
     }
@@ -1285,6 +1285,9 @@ final class IT2Player {
                     if ins.PitchEnv.Flags & ENVF_ENABLED != 0 { openMPTTunedPitchEnvelope(sc) }
                 } else if module.openMPT?.pitchesArePeriods == true, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     openMPTPeriodPitchEnvelope(sc)
+                } else if module.velvetStudio, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
+                    // (Velvet Studio's goes a sixteenth of a semitone at a time, two semitones at the most.)
+                    velvetPitchEnvelope(sc)
                 } else if ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     let EnvVal = Int16(truncatingIfNeeded: UInt32(bitPattern: sc.pointee.PitchEnvState.Value) >> 8) >> 3
                     if EnvVal != 0, let hc = sc.pointee.HostChnPtr {
@@ -1336,8 +1339,8 @@ final class IT2Player {
                         }
                     } else if sc.pointee.Flags & SF_FADEOUT == 0 {
                         // A key let go while the envelope loops: the note fades. (In Digitrakker,
-                        // whatever the envelope does; and not a note of Imago Orpheus's brought back.)
-                        if SustainReleased, ins.VolEnv.Flags & ENVF_LOOP != 0 || module.playsAsDigitrakker, !sc.pointee.ImagoRevived {
+                        // whatever the envelope does; and not a note of Imago Orpheus's or Velvet Studio's brought back.)
+                        if SustainReleased, ins.VolEnv.Flags & ENVF_LOOP != 0 || module.playsAsDigitrakker, !sc.pointee.ForeignRevived {
                             sc.pointee.Flags |= SF_FADEOUT
                             HandleNoteFade = true
                         }
@@ -1346,14 +1349,14 @@ final class IT2Player {
                     }
                 } else if sc.pointee.Flags & SF_FADEOUT != 0 {
                     HandleNoteFade = true
-                } else if sc.pointee.Flags & SF_NOTE_OFF != 0, !sc.pointee.ImagoRevived {
+                } else if sc.pointee.Flags & SF_NOTE_OFF != 0, !sc.pointee.ForeignRevived {
                     sc.pointee.Flags |= SF_FADEOUT
                     HandleNoteFade = true
                 }
 
                 if HandleNoteFade {
-                    // (An Imago Orpheus instrument's fade is kept as OpenMPT keeps it, as MadTracker's is.)
-                    if module.madTracker || module.imagoOrpheus {
+                    // (An Imago Orpheus or Velvet Studio instrument's fade is kept as OpenMPT keeps it, as MadTracker's is.)
+                    if module.madTracker || module.openMPTForeign {
                         if !madTrackerFadeStep(sc, ins) { TurnOffCh = true }
                     } else if module.playsAsDigitrakker {
                         // (A Digitrakker instrument's fade is of 65,536 a tick: see `digitrakkerFade`.)

@@ -150,6 +150,9 @@ final class IT2Sample {
     /// False for a sample of Digitrakker's that has no volume of its own: an instrument named beside
     /// a note leaves the channel's volume as it was.
     var hasVolume = true
+    /// For a module of Velvet Studio's only: true for a sample that a note plays backwards from the
+    /// end of its loop (see `velvetBackwards`).
+    var reversed = false
     /// For a file of OpenMPT's: the eleven numbers of a patch for the AdLib's FM chip, and one to
     /// spare, if that is what the sample is in place of a sound (see `OpenMPTAdLib`). Nil for a sample.
     var AdLib: [UInt8]?
@@ -292,9 +295,9 @@ struct IT2SlaveChannel {
     var FadeOut: UInt16 = 0
     /// For an MT2 or IMF file only: the part of the fade below `FadeOut`'s steps, in 64ths of one. See `madTrackerFadeStep`.
     var FadeFraction: UInt8 = 0
-    /// For a module of Imago Orpheus's only: true once a slide to a note has brought back a note
-    /// whose key had been let go, which then does not fade until its envelope ends (see `imagoSlideRevives`).
-    var ImagoRevived = false
+    /// For a module of Imago Orpheus's or Velvet Studio's only: true once a slide to a note has brought back a note
+    /// whose key had been let go, which then does not fade until its envelope ends (see `foreignSlideRevives`).
+    var ForeignRevived = false
     /// For a module of Digitrakker's only, whose fades are finer: the part of `FadeOut` below one, of 64.
     var FadeOutFraction: UInt8 = 0
     var DCT: UInt8 = 0, DCA: UInt8 = 0, Pan: UInt8 = 0, PanSet: UInt8 = 0
