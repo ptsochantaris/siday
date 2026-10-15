@@ -39,6 +39,8 @@ final class ST3Channel {
     /// whether that has changed since the card was last told, and whether a note has begun since.
     var cutoff: UInt8 = 127, resonance: UInt8 = 0
     var filtered = false, filterChanged = false, filterBegun = false
+    /// And true while its notes are put in ModPlug's reverb (S99), on a card that has it (see `ST3Cards`).
+    var reverb = false
     var m_pos: UInt32 = 0, m_poslow: UInt32 = 0, m_oldpos: UInt32 = 0, m_end: UInt32 = 0, m_loop: UInt32 = 0, m_speed: UInt32 = 0
     // For the AdLib card: the instrument its voice was last given, whether its note is to be struck
     // again and its level set again, and its pitch in hertz.

@@ -652,10 +652,15 @@ hand, 65 have Z and only four of them are of a tracker that had it; set beside l
 as near or nearer, most of all an FM tune's, which came from 0.90 to 0.95. And one old file,
 Crawling Despair, uses Z for something else again: its text says it is for PixPlay, a player that
 took Z00 to Z0F for places between the speakers, and OpenMPT, finding a file from before Scream
-Tracker 3.20 whose Z is only ever that, plays it so; so does siday. One more of the later trackers'
-commands is not played on Scream Tracker's cards, and such a file says so: S99, which puts a channel
-in ModPlug's own reverb (played in an IT, MPTM or XM file of those trackers; ten S3M files to hand
-ask for it).
+Tracker 3.20 whose Z is only ever that, plays it so; so does siday. And S99, which puts a channel
+in ModPlug's own reverb (see the IT section), is played on the Gravis Ultrasound, whose voices are
+each made alone, so that those of such a channel can be sent to the reverb and not to the card's own
+output, as OpenMPT sends them; the two are then brought to the player's rate together. A Sound
+Blaster adds its channels into eight bits as it goes, and leaves nothing to send, and there a file
+says the reverb is left out. Of the twelve S3M files to hand that ask for it, ten are of a later
+tracker, and set beside libopenmpt the spectrum of nine of those is nearer (from 0.97 to 0.99 for
+one), and of the tenth, whose reverb is on a channel past the sixteen Scream Tracker played, as it
+was; the other two Scream Tracker saved, and in those S99 is nothing, as it was to it.
 `siday --raw file.raw tune.s3m` writes what st3play writes to a file, a stereo sample's left side only. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.
@@ -1375,7 +1380,8 @@ S99 puts a channel's notes in it and S98 takes them out. It is here, carried ove
 and set beside it as the plug-ins were: given the same sound, in every one of its twenty-nine
 rooms and at four rates, it gives what OpenMPT's gives to the last bit. It is played in an MPTM
 file, and in an IT file of ModPlug Tracker's or OpenMPT's (Impulse Tracker has no S99, and in a file
-it saved the command is nothing). Of the 196 such files to hand, the sound of 78 comes nearer to
+it saved the command is nothing), as it is in their XM files and, on the Gravis Ultrasound, their
+S3M files. Of the 196 such files to hand, the sound of 78 comes nearer to
 libopenmpt's by its spectrum and 2 go further, and their two sides come nearer in 109 and go
 further in 9. (OpenMPT can also put every channel in the reverb, by a setting of its player's;
 that is the listener's to choose, not the file's, and is not done here.)

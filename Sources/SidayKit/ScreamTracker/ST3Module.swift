@@ -80,6 +80,11 @@ final class ST3Module {
     var stereoBases: Set<Int> { Set(inStereo.map { ins[$0.instrument].baseptr }) }
     /// What is said of samples in stereo, if there are any the tune plays, for when they are mixed into one.
     private(set) var stereoSentence: String?
+    /// True if the file is one a later tracker made that puts a channel in ModPlug's reverb (S99),
+    /// which is played on a Gravis Ultrasound (see `ST3Cards`); and what is said of it, for a Sound
+    /// Blaster, on which it is not.
+    private(set) var asksForReverb = false
+    private(set) var reverbSentence: String?
 
     deinit {
         samples.deallocate()
@@ -306,9 +311,10 @@ final class ST3Module {
         }
     }
 
-    /// The command of later trackers that is found in S3M files and is not played: S99, which puts
-    /// a channel in ModPlug's own reverb. That is played in an IT, MPTM or XM file of ModPlug
-    /// Tracker's or OpenMPT's, but not on Scream Tracker's cards, and is said to be left out.
+    /// The command of later trackers that is found in S3M files and is not always played: S99,
+    /// which puts a channel in ModPlug's own reverb. That is played on a Gravis Ultrasound, whose
+    /// voices are each heard alone, but not on a Sound Blaster, which mixes them in eight bits as it
+    /// goes, and on that is said to be left out.
     ///
     /// Others are not counted. Z sets a channel's filter where the tracker that made the file had
     /// one, and is nothing where it had not (see `ST3Module.keepsFilterMacros`), or is PixPlay's
@@ -367,7 +373,11 @@ final class ST3Module {
             shortfalls.append(Shortfall.some(drums, one: "instruments is one of the AdLib card's drums, which Scream Tracker never played, and is not heard.",
                                              many: "instruments are the AdLib card's drums, which Scream Tracker never played, and are not heard."))
         }
-        if let sentence = Shortfall.commandsLeftOut(commands.named(Self.whatTheyDo), why: "which Scream Tracker did not have") { shortfalls.append(sentence) }
+        if let sentence = Shortfall.commandsLeftOut(commands.named(Self.whatTheyDo), why: "on the Sound Blaster it is played on") {
+            asksForReverb = true
+            reverbSentence = sentence
+            shortfalls.append(sentence)
+        }
     }
 
     /// Puts a sample in order: a loop is written out again past its end, 512 samples of it, so that

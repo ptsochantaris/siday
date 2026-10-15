@@ -41,6 +41,9 @@ final class ST3Cards {
         /// True for a voice playing a sample in stereo, whose right side is in `samplesRight`.
         var stereo = false
         var filter = Filter()
+        /// All ones for a voice of a channel put in ModPlug's reverb, which goes there and not to
+        /// the card's own output; none for any other.
+        var reverb: Int32 = 0
     }
 
     /// What of a channel the Sound Blaster's mixer needs, kept apart from the channel while it mixes.
@@ -91,6 +94,14 @@ final class ST3Cards {
     /// How many samples a second the card makes.
     private let cardRate: Float
 
+    /// For a file that puts channels in ModPlug's reverb (S99), on a Gravis Ultrasound: the reverb,
+    /// at the player's rate; what the card's voices sent to it in the sample last made, and the last
+    /// sixteen of those, brought to the player's rate as the card's output is; and whether anything
+    /// has been sent since the reverb was last given a block.
+    private var reverb: ModPlugReverb?
+    private var sentL: Int32 = 0, sentR: Int32 = 0
+    private let sendL: UnsafeMutablePointer<Float>, sendR: UnsafeMutablePointer<Float>
+
     // The GUS.
     private let voices: UnsafeMutablePointer<GUSVoice>
     private var gv = 0
@@ -124,6 +135,10 @@ final class ST3Cards {
         bufferR = .allocate(capacity: 16)
         bufferL.initialize(repeating: 0, count: 16)
         bufferR.initialize(repeating: 0, count: 16)
+        sendL = .allocate(capacity: 16)
+        sendR = .allocate(capacity: 16)
+        sendL.initialize(repeating: 0, count: 16)
+        sendR.initialize(repeating: 0, count: 16)
         voices = .allocate(capacity: 32)
         voices.initialize(repeating: GUSVoice(), count: 32)
         sbVoices = .allocate(capacity: 16)
@@ -145,6 +160,7 @@ final class ST3Cards {
         }
         resamplingDelta = UInt64((4_294_967_296.0 * (cardRate / output)).rounded())
         self.cardRate = Float(cardRate)
+        if card == .gus, module.asksForReverb { reverb = ModPlugReverb(sampleRate: outputSampleRate) }
 
         switch card {
         case .gus:
@@ -190,6 +206,8 @@ final class ST3Cards {
         sinc.deallocate()
         bufferL.deallocate()
         bufferR.deallocate()
+        sendL.deallocate()
+        sendR.deallocate()
         voices.deallocate()
         sbVoices.deallocate()
         sbFilters.deallocate()
@@ -394,6 +412,7 @@ final class ST3Cards {
                 voices[gv].SFCI = frequency >> 1
                 setVolumeSlide(ch, ch.m_oldvol, ch.m_vol)
                 if ch.filterChanged { tell(ch, &voices[gv].filter, afresh: false) }
+                voices[gv].reverb = ch.reverb ? -1 : 0
                 return
             }
             // A new note: the old one slides away to nothing on its voice, and the channel takes another.
@@ -428,6 +447,7 @@ final class ST3Cards {
         voices[gv].stereo = samplesRight != nil && stereoBases.contains(ch.m_base)
         ch.filterBegun = false
         tell(ch, &voices[gv].filter, afresh: true)
+        voices[gv].reverb = ch.reverb ? -1 : 0
         if ch.m_end == 0 {
             voiceused[Int(ch.aguschannel)] = -1
             ch.aguschannel = -1
@@ -465,6 +485,7 @@ final class ST3Cards {
     /// One sample of the GUS's own output.
     @inline(__always) private func gusSample() -> (Float, Float) {
         var left: Int32 = 0, right: Int32 = 0
+        var sentLeft: Int32 = 0, sentRight: Int32 = 0
         for i in 0 ..< activeVoices {
             let v = voices + i
             if v.pointee.SACI & 2 != 0 { v.pointee.SACI |= 1 }
@@ -517,9 +538,14 @@ final class ST3Cards {
                     }
                     if smp < v.pointee.low { v.pointee.low = smp }
                     if smp > v.pointee.high { v.pointee.high = smp }
-                    // (A voice of a channel that is left out of the sound adds nothing to it.)
-                    left &+= ((smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))) & v.pointee.heard
-                    right &+= ((smpR &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard
+                    // (A voice of a channel that is left out of the sound adds nothing to it. One in
+                    // ModPlug's reverb is added to what is sent there instead.)
+                    let outL = ((smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))) & v.pointee.heard
+                    let outR = ((smpR &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard
+                    left &+= outL & ~v.pointee.reverb
+                    right &+= outR & ~v.pointee.reverb
+                    sentLeft &+= outL & v.pointee.reverb
+                    sentRight &+= outR & v.pointee.reverb
                     v.pointee.SA_frac &+= v.pointee.SFCI
                     v.pointee.SA += Int(v.pointee.SA_frac >> 9)
                     v.pointee.SA_frac &= (1 << 9) - 1
@@ -543,6 +569,8 @@ final class ST3Cards {
                 }
             }
         }
+        sentL = sentLeft
+        sentR = sentRight
         return (Float(max(-32768, min(32767, left))) * (1.0 / 32768.0), Float(max(-32768, min(32767, right))) * (1.0 / 32768.0))
     }
 
@@ -636,6 +664,79 @@ final class ST3Cards {
         return (Float(postTable[Int(left & 2047)]) * (1.0 / 128.0), Float(postTable[Int(right & 2047)]) * (1.0 / 128.0))
     }
 
+    /// The card's sound as OpenMPT's mix has it, for its reverb: 27 bits for a sample at its loudest,
+    /// which the card's loudest is a little over half of, set by measure beside libopenmpt.
+    private static let reverbScale = 0.57 * Double(1 << 27)
+
+    /// `render` for a Gravis Ultrasound with ModPlug's reverb: what is sent to it is brought to the
+    /// player's rate as the card's output is, and given to it in OpenMPT's whole numbers and blocks,
+    /// and what it makes, which has in it what was sent, is added to the card's output.
+    private func renderWithReverb(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int, _ reverb: ModPlugReverb) {
+        var frac = resamplingFrac
+        let delta = resamplingDelta
+        withUnsafeTemporaryAllocation(of: Float.self, capacity: count * 2) { sent in
+            guard let sent = sent.baseAddress else { return }
+            var sentAny: Int32 = 0
+            for n in 0 ..< count {
+                frac &+= delta
+                while frac >= 1 << 32 {
+                    frac -= 1 << 32
+                    for i in 0 ..< 15 {
+                        bufferL[i] = bufferL[i + 1]
+                        bufferR[i] = bufferR[i + 1]
+                        sendL[i] = sendL[i + 1]
+                        sendR[i] = sendR[i + 1]
+                    }
+                    let (l, r) = gusSample()
+                    bufferL[15] = l
+                    bufferR[15] = r
+                    sendL[15] = Float(sentL) * (1.0 / 32768.0)
+                    sendR[15] = Float(sentR) * (1.0 / 32768.0)
+                    sentAny |= sentL | sentR
+                }
+                let frac32 = UInt32(truncatingIfNeeded: frac)
+                let phase = Int(frac32 >> 24)
+                let between = Float(Int32(frac32 & 0xFF_FFFF)) * (1.0 / 16_777_216.0)
+                let sinc1 = sinc + (phase << 4), sinc2 = sinc + ((phase + 1) << 4)
+                var sumL: Float = 0, sumR: Float = 0, sumSL: Float = 0, sumSR: Float = 0
+                for i in 0 ..< 16 {
+                    let y1 = sinc1[i], y2 = sinc2[i]
+                    let y = y1 + ((y2 - y1) * between)
+                    sumL += bufferL[i] * y
+                    sumR += bufferR[i] * y
+                    sumSL += sendL[i] * y
+                    sumSR += sendR[i] * y
+                }
+                left[n] = sumL
+                right[n] = sumR
+                sent[n * 2] = sumSL
+                sent[n * 2 + 1] = sumSR
+            }
+            let scale = Self.reverbScale, back = Float(1 / scale)
+            withUnsafeTemporaryAllocation(of: Int32.self, capacity: ModPlugReverb.maxFrames * 2) { added in
+                guard let added = added.baseAddress else { return }
+                var done = 0
+                while done < count {
+                    let frames = min(ModPlugReverb.maxFrames, count - done)
+                    let send = reverb.sendBuffer
+                    if sentAny != 0 {
+                        reverb.touch(send: send, frames: frames)
+                        let from = sent + done * 2
+                        for i in 0 ..< frames * 2 { send[i] &+= Int32(max(-2.0e9, min(2.0e9, (Double(from[i]) * scale).rounded()))) }
+                    }
+                    added.update(repeating: 0, count: frames * 2)
+                    reverb.process(main: added, send: send, frames: frames)
+                    for i in 0 ..< frames {
+                        left[done + i] += Float(added[i * 2]) * back
+                        right[done + i] += Float(added[i * 2 + 1]) * back
+                    }
+                    done += frames
+                }
+            }
+        }
+        resamplingFrac = frac
+    }
+
     /// How loud each of the card's sixteen channels was in the samples made since this was last asked.
     func takeLevels(into levels: inout [Float]) {
         for channel in 0 ..< 16 { levels[channel] = 0 }
@@ -679,6 +780,7 @@ final class ST3Cards {
                 }
             }
         }
+        if let reverb { return renderWithReverb(left: left, right: right, count: count, reverb) }
         var frac = resamplingFrac
         let delta = resamplingDelta
         for n in 0 ..< count {

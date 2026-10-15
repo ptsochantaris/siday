@@ -330,6 +330,26 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try brightness(old) == plain)
 }
 
+@Test func s3mFromALaterTrackerHasItsReverbPlayed() throws {
+    /// How far the sound swings after the note is ended, on the row after it. (A Sound Blaster's
+    /// output sits a little off nought.)
+    func after(_ file: [UInt8], _ card: ST3Card = .gus) throws -> Float {
+        var options = LoadOptions()
+        options.s3mCard = card
+        let left = stereoSound(try TuneLoader.load(file, format: .s3m, options: options), seconds: 1).left[24000...]
+        return left.max()! - left.min()!
+    }
+    // S99 puts the channel in ModPlug's reverb, whose sound goes on after the note is ended.
+    let reverb: [UInt8] = [0xA0, 0x40, 1, 19, 0x99, 0, 0x20, 254, 0]
+    #expect(try after(byImpulseTracker(s3m(row: reverb))) > 0.001)
+    // Without it, or with S98, which takes the channel out again, there is nothing after the cut.
+    let none: [UInt8] = [0xA0, 0x40, 1, 19, 0x98, 0, 0x20, 254, 0]
+    #expect(try after(byImpulseTracker(s3m(row: none))) < 0.0001)
+    // Nor in a file that Scream Tracker saved, nor on a Sound Blaster.
+    #expect(try after(s3m(row: reverb)) < 0.0001)
+    #expect(try after(byImpulseTracker(s3m(row: reverb)), .sb) < 0.0001)
+}
+
 @Test func s3mWithPixPlaysPanningHasItsChannelsPlaced() throws {
     /// How much louder the right side is than the left, for the first channel's note.
     func rightOverLeft(_ file: [UInt8]) throws -> Float {
@@ -363,9 +383,13 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     // Its setting of a filter (Z) is played (see `s3mFromALaterTrackerHasItsFilterPlayed`).
     #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x40]))).isEmpty)
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 26, 0x40])).isEmpty)
-    // Nor is ModPlug's reverb (S99), which only a later tracker's file can ask for.
-    #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])))
-        == ["One of its commands is left out, which Scream Tracker did not have: ModPlug's reverb."])
+    // ModPlug's reverb (S99), which only a later tracker's file can ask for, is played on a Gravis
+    // Ultrasound (see `s3mFromALaterTrackerHasItsReverbPlayed`), and not on a Sound Blaster.
+    #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99]))).isEmpty)
+    var onSoundBlaster = LoadOptions()
+    onSoundBlaster.s3mCard = .sb
+    #expect(try TuneLoader.load(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])), format: .s3m, options: onSoundBlaster).info.shortfalls
+        == ["One of its commands is left out, on the Sound Blaster it is played on: ModPlug's reverb."])
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 19, 0x99])).isEmpty)
     // Where a channel is put (X) is not counted: too many files have it, and lose little by it.
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 24, 0x40])).isEmpty)

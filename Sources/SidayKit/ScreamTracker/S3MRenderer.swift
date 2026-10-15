@@ -154,8 +154,8 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         info.title = title ?? module.title
         info.detail = (tracker.map { $0 + ", as Scream Tracker 3 plays it on a " } ?? "Scream Tracker 3, ")
             + (card == .gus ? "Gravis Ultrasound" : "Sound Blaster Pro") + (songList.contains { $0.adLib } ? " and AdLib" : "")
-        let apart = stereoApart, stereoSentence = module.stereoSentence
-        info.shortfalls = shortfalls + module.shortfalls.filter { !apart || $0 != stereoSentence }
+        let apart = stereoApart, stereoSentence = module.stereoSentence, reverbSentence = card == .gus ? module.reverbSentence : nil
+        info.shortfalls = shortfalls + module.shortfalls.filter { (!apart || $0 != stereoSentence) && $0 != reverbSentence }
         self.info = info
         currentSubsong = defaultSubsong
         restart()

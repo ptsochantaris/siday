@@ -467,6 +467,9 @@ extension ST3Player {
         case 0x8:
             ch.apanpos = 0xF0 | value
             ch.m_oldpos = 0xFFFF_FFFF // a GUS starts the note again from where it was, with a click
+        case 0x9:
+            // ModPlug's reverb for the channel's notes, in a file that a later tracker made: S99 on, S98 off.
+            if playsLaterCommands, value == 8 || value == 9 { ch.reverb = value == 9 }
         case 0xA:
             // Which side a channel goes to on a Sound Blaster Pro: as it is, the other, or both.
             if value <= 7 { ch.amixtype = Int8(value) }
