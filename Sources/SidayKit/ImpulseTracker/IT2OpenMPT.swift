@@ -80,6 +80,9 @@ struct OpenMPTSong {
     /// playing goes over to its sample where it is (see `openMPTInstrumentAlone`), as OpenMPT has it
     /// for a file that does not ask for Impulse Tracker's way (switch 11).
     var instrumentAloneSwapsSample = false
+    /// True if SCx (and :xy) turns a note down to nothing and leaves it playing, as OpenMPT has it
+    /// for a file that does not ask for Impulse Tracker's way (switch 30), which stops it.
+    var cutsOnlySilence = false
     /// True if a voice to one side of the middle is no louder on its nearer side than one in the
     /// middle is on both, and only quieter on its further one: OpenMPT's way since its version 1.17
     /// ("soft panning"). Impulse Tracker's, which OpenMPT also has, makes the nearer side louder.

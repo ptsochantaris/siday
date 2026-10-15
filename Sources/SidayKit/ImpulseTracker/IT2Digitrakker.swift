@@ -211,17 +211,6 @@ extension IT2Player {
         sc.pointee.Flags |= SF_RECALC_VOL
     }
 
-    // MARK: Cuts
-
-    /// SCx's cut: the note's volume is nought, and it plays on.
-    func digitrakkerCut(_ hc: IT2HostPointer) {
-        hc.pointee.VolSet = 0
-        guard hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr else { return }
-        sc.pointee.VolSet = 0
-        sc.pointee.Vol = 0
-        sc.pointee.Flags |= SF_RECALC_VOL
-    }
-
     // MARK: Envelopes, fades and the sample's own vibrato
 
     /// A tick of a voice's fade, for an instrument whose fade is a part of 65,536 a tick, as OpenMPT

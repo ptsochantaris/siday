@@ -732,6 +732,21 @@ private func ways(without left: Int...) -> Song {
     #expect(abs(impulse.count { $0 == 2 } - 30) <= 1)
 }
 
+@Test func mptmCutLeavesTheNotePlayingUnlessTheFileAsksForImpulseTrackers() throws {
+    // SCx stops a note in Impulse Tracker; OpenMPT's own (switch 30 not asked for) turns it down to
+    // nothing and leaves it playing, so that a volume on a later row brings it back.
+    func heard(impulseTrackers: Bool) throws -> [Bool] {
+        var song = Song()
+        if !impulseTrackers { song.behaviours.removeAll { $0 == 30 } }
+        let file = mptm([Pattern([(0, 0, .note(60, "S", 0xC2)), (2, 0, Cell(volume: 64))])], song: song)
+        return try player(file).ticks(seconds: 0.5).map { $0.rates.contains { $0 > 0 } }
+    }
+    // (Six ticks to a row: cut on the third tick, and the volume on the thirteenth.)
+    let impulse = try heard(impulseTrackers: true), own = try heard(impulseTrackers: false)
+    #expect(impulse[0] && !impulse[3] && !impulse[13])
+    #expect(own[0] && !own[3] && own[13])
+}
+
 @Test func mptmVibratoIsDividedTowardsNought() throws {
     // OpenMPT divides a step of a vibrato's wave times its depth towards nought, where Impulse
     // Tracker rounds it: H44 on its third tick is at a point of the wave where the two differ.

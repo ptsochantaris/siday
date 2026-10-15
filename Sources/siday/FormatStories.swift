@@ -1045,7 +1045,9 @@ of those 73 files is within a cent of it on 99.7% of their ticks, where it was 4
 the one for an instrument named on a row with no note. Impulse Tracker starts the note again with
 it; OpenMPT, unless the file asks for that, starts nothing, and a note that is playing goes over to
 the new sample from where it was, as a ProTracker tune swaps its samples. Four files in five ask
-for OpenMPT's way, and in ten of them it is heard. For the rest this is Impulse Tracker's replayer, and the file gets
+for OpenMPT's way, and in ten of them it is heard. And so is the one for SCx, the cut, which in
+OpenMPT's own way (a file in four) turns the note down to nothing and leaves it playing, so that a
+volume on a later row brings it back. For the rest this is Impulse Tracker's replayer, and the file gets
 Impulse Tracker's answer. What that comes to was measured against
 libopenmpt, OpenMPT's own player as a library. What is read from each of 625 files is the same
 as what libopenmpt reads, but for a fade and a place between the speakers that the extras give

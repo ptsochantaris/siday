@@ -1190,7 +1190,7 @@ extension IT2Player {
             // (Digitrakker's SC0 cuts it now.)
             if module.playsAsDigitrakker, val == 0 {
                 hc.pointee.Flags &= ~HF_UPDATE_EFX_IF_CHAN_ON
-                digitrakkerCut(hc)
+                silenceCut(hc)
             }
 
         case 0xD0: // the note is started after some ticks, and not now
@@ -1659,6 +1659,16 @@ extension IT2Player {
     }
 
     /// The two of S's effects that wait some ticks: the delayed note and the cut.
+    /// A cut that turns the note's volume to nought, and leaves it playing, so that a volume given
+    /// after brings it back.
+    func silenceCut(_ hc: IT2HostPointer) {
+        hc.pointee.VolSet = 0
+        guard hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr else { return }
+        sc.pointee.VolSet = 0
+        sc.pointee.Vol = 0
+        sc.pointee.Flags |= SF_RECALC_VOL
+    }
+
     func CommandS(_ hc: IT2HostPointer) {
         let SCmd = hc.pointee.MiscEfxData[0]
         if SCmd == 0xD0 {
@@ -1683,10 +1693,11 @@ extension IT2Player {
             hc.pointee.MiscEfxData[1] &-= 1
             if Int8(bitPattern: hc.pointee.MiscEfxData[1]) > 0 { return }
 
-            // (Digitrakker's cut turns the note down, and it plays on.)
-            if module.playsAsDigitrakker {
+            // (Digitrakker's cut turns the note down, and it plays on; and so does OpenMPT's own, in
+            // an MPTM file that does not ask for Impulse Tracker's, switch 30.)
+            if module.playsAsDigitrakker || module.openMPT?.cutsOnlySilence == true {
                 hc.pointee.Flags &= ~HF_UPDATE_EFX_IF_CHAN_ON
-                digitrakkerCut(hc)
+                silenceCut(hc)
                 return
             }
             hc.pointee.Flags &= ~HF_CHAN_ON
