@@ -28,7 +28,7 @@ siday ~/Music/chiptunes --shuffle
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
-| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL, DMF; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -275,6 +275,8 @@ Played, with a difference:
   leaves them out; and a place between the speakers that has no room beside a volume and a command.
 - **IMF:** the chorus, the reverb and slides of the filter are left out, as OpenMPT leaves them out;
   and a command that has no room beside another, or that Impulse Tracker's replayer has no like for.
+- **AMS:** a command that has no room beside a note's others is left out, as OpenMPT leaves it out;
+  a key that a command lets go after some ticks is let go at once, as OpenMPT lets it go.
 - **STM and STX:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
 - **ROL:** an instrument that no bank has is silent.
 
@@ -447,6 +449,9 @@ What it is made from:
 - And again: how an IMF file is read, which OpenMPT took from Storlek's loader for Schism Tracker,
   and the few ways in which OpenMPT plays one otherwise than an IT file; libopenmpt is the player
   those files were checked against. Imago Orpheus is by Lutz Roeder.
+- And again: how an AMS file of either kind is read and its packed samples unpacked, and the few ways in
+  which OpenMPT plays one otherwise than an IT file; libopenmpt is the player those files were checked
+  against. Extreme's Tracker and Velvet Studio are by Extreme, later Velvet Development.
 - And again: how an MDL file is read, and what Digitrakker does otherwise than Impulse Tracker,
   made after OpenMPT's; and how its samples are unpacked, as the description that came with the
   program has it, which libxmp quotes. libopenmpt is the player those files were checked against.

@@ -16,7 +16,7 @@ struct OpenMPTCell {
     enum Effect: Int, Comparable {
         case none = 0, keyOff = 5, tremolo = 6, fineVibrato = 7, vibrato = 8, finetune = 10, s = 13, midi = 16, panSlide = 18, pan = 19
         case noteSlideUp = 21, noteSlideDown = 23, portaUp = 24, portaDown = 28, volumeSlide = 31, vibratoVolume = 33, volume = 34
-        case offset = 39, tremor = 40, retrig = 41, arpeggio = 43, slideToNote = 45, slideToNoteVolume = 46
+        case reverseOffset = 37, offset = 39, tremor = 40, retrig = 41, arpeggio = 43, slideToNote = 45, slideToNoteVolume = 46
         case channelVolume = 51, globalVolumeSlide = 52, globalVolume = 53, tempo = 54, speed = 55, jump = 56, breakRow = 57
 
         static func < (a: Effect, b: Effect) -> Bool { a.rawValue < b.rawValue }
@@ -24,7 +24,7 @@ struct OpenMPTCell {
         /// Impulse Tracker's command for it; nought for one it has none for.
         var letter: UInt8 {
             switch self {
-            case .none, .keyOff, .finetune, .noteSlideUp, .noteSlideDown, .volume: 0
+            case .none, .keyOff, .finetune, .noteSlideUp, .noteSlideDown, .volume, .reverseOffset: 0
             case .tremolo: IT2ForeignModule.Command.R
             case .fineVibrato: 21 // U
             case .vibrato: IT2ForeignModule.Command.H
@@ -55,7 +55,7 @@ struct OpenMPTCell {
         /// True for one that sets something outright, of which a note given two the same keeps one.
         var isOutright: Bool {
             switch self {
-            case .arpeggio, .pan, .offset, .jump, .volume, .breakRow, .speed, .tempo, .channelVolume, .globalVolume, .keyOff, .midi, .finetune: true
+            case .arpeggio, .pan, .offset, .jump, .volume, .breakRow, .speed, .tempo, .channelVolume, .globalVolume, .keyOff, .midi, .finetune, .reverseOffset: true
             default: false
             }
         }

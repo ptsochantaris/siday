@@ -1362,6 +1362,72 @@ highest of one file, by 0.7. Played as loud as OpenMPT plays them, the middle fi
 than modules of other kinds are made, and the files are made louder by that much, keeping each
 file's own mixing volume and master volume.
 
+## AMS — Velvet Studio and Extreme's Tracker
+
+Extreme's Tracker was a tracker for DOS by the group Extreme, which became Velvet Development and made
+Velvet Studio after it, also for DOS. Both kept their modules in files called AMS, of two
+kinds that share only the way their patterns are packed. Extreme's Tracker's (which begin "Extreme")
+have samples and no instruments, up to 32 channels and ProTracker's commands and some more. Velvet
+Studio's (which begin "AMShdr") have 32 channels; instruments that are a sample for each note, with
+envelopes for volume, place and pitch (a vibrato drawn by hand), a fade, and instruments that play
+another's samples with settings of their own ("shadows"); samples of eight bits or sixteen that loop
+forwards, back and forth or backwards, packed if their maker wished; a tempo that is a fraction; and as
+many commands to a note as a cell has room for, ProTracker's and more of its own. Velvet Studio's
+source was made public in 2013. OpenMPT reads both kinds, with a loader of its own, and its reading and
+playing are those followed here. All eight files to hand are Velvet Studio's.
+
+OpenMPT reads both into the shape of an IT file with "old effects" and "compatible Gxx" on, and plays
+them by Impulse Tracker's rules, but where its player asks whether a file is an IT file, which these
+are not; there it does as it does for other kinds of file, as for Imago Orpheus's modules (see IMF,
+whose ways these files share: slides with both halves of their value, S00, T00, SC0 and SD0, fades as
+fine as OpenMPT's, an instrument named alone for the last note it had a sample for, and a slide to a
+note beside an instrument that brings back a note let go). And its player has three ways for these
+files alone, which are followed here too. An envelope for pitch has 255 levels about a middle of 128,
+which OpenMPT takes as up to 32 sixteenths of a semitone either way, two semitones; an instrument's
+"vibrato amplification" scales it. The command that lets a key go after so many ticks lets it go at
+once, on the row's first tick, as OpenMPT has it; the file says it has such commands. And a sample that
+plays backwards starts at the end of its loop and goes round it backwards. As OpenMPT plays them, the
+volume column's vibrato is as deep as the command's with "old effects", where Impulse Tracker's
+replayer has it half as deep, and does not leave its bend in a slide to a note beside it.
+
+The commands become Impulse Tracker's under the letters that do the same, as OpenMPT makes them:
+ProTracker's by their meaning, Velvet Studio's own by what OpenMPT makes of them (extra fine slides of
+pitch, a channel's volume, a pattern break in hexadecimal, fine slides of volume of twice the
+precision, forwards and backwards, the global volume and its slide). A note's commands are put into
+its cell one after another, as OpenMPT puts them: each new one is joined to the one before where
+they can be (a slide of volume beside a vibrato or a slide to a note that goes on as it was), and else
+the one that matters more by OpenMPT's reckoning keeps the command's place, and the other goes to the
+volume column if it is free and can, and is otherwise left out, as OpenMPT leaves it out. Four of the
+eight files have such, 1,727 in all, the most of them in one file whose cells have up to four
+commands; each file says how many. A shadow's sample is its source instrument's sound with the
+shadow's own rate, loop and volume. The samples' volumes, of 127, are Impulse Tracker's of 64, to the
+nearest; a sample's rate is from its rate for C-4, its finetune and its "relative tone", as OpenMPT
+works it out. The channels are placed as the Amiga's are, left, right, right and left, as OpenMPT places
+them. A pattern the list names and the file has not got ends the song.
+
+Not played, as OpenMPT does not play them: an envelope's speed, a command's fraction of a tempo, and
+breaking a sample's loop (E80); nor, as OpenMPT plays them and Impulse Tracker's replayer has not got
+them, a sample played backwards from a place in it (an offset beside "backwards"), a glissando (E3x)
+and Scream Tracker's finetune (E5x), which OpenMPT makes of ProTracker's and which would put a sample
+out of tune; none of these is in a file to hand. An Extreme's Tracker file's highest note, C-10, is
+beyond Impulse Tracker's notes, and is played a semitone lower; the file says so. Those files were
+checked only with files made for the purpose, as none is to hand: set beside libopenmpt they read the
+same samples, packed and not, and play the same notes but for that one. One more way of OpenMPT's is
+not followed: a channel left playing backwards by a command goes on so into its next note, which, of a
+sample that does not loop, ends before it is heard. In one file a few notes are lost so.
+
+All eight files to hand are played. Set beside libopenmpt, every sample is read byte for byte the same,
+shadows and packed samples among them, and the two are at the same place on every tick, with every
+tick as many frames long, for ten minutes or to the song's end, in every one of them. Every channel's
+pitch and volume on every tick, over the same span: of 96,745 ticks they are alike on 96,590, and seven
+files of the eight on all but one in five hundred. What is left is mostly the reference's own way of
+looking, which loses a voice for a tick at the turn of a loop of a short sample; one file has many of
+those. What is heard was set beside it too, for two minutes of each: the spectrum agrees to 1.000 for
+the middle file and 0.999 for the worst, the loudness over time to 1.000 and 0.995, and left and right
+to 1.000 and 0.995; and the octaves from 63 hertz to 16,000 are in the same balance to within half a
+decibel. Played as loud as OpenMPT plays them, the middle file is 3.7 dB quieter than modules of other
+kinds are made, and the files are made louder by that much.
+
 ## 669 — Composer 669 and UNIS 669
 
 A 669 file is a module from Composer 669, which Tran of Renaissance wrote for the PC in 1992, or
