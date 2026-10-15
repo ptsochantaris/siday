@@ -1284,6 +1284,76 @@ of the same short wave a hair apart in pitch: which of their overtones cancel at
 how their phases have drifted, and comes out otherwise. Played as loud as OpenMPT plays them, the
 middle file is 4 dB quieter than the middle XM file, and the files are made as loud as XM files are.
 
+## IMF — Imago Orpheus
+
+Imago Orpheus was a tracker for DOS by Lutz Roeder, of the nineties, much of whose music was made for
+games, and which came with a sample editor of its own, Imago Wave. Its modules have up to 32 channels,
+each anywhere of 256 places between the speakers; instruments that are a sample for each range of
+notes, with a fade and envelopes of up to sixteen points for volume, for place and for a resonant
+filter; samples of eight bits or sixteen that loop forwards or back and forth; and two commands to a
+note, from a list of its own that has most of Scream Tracker's and FastTracker's and some more: slides
+of a note by semitones, a key let go after so many ticks, chorus and reverb, and a filter that sets
+and slides its cutoff and its resonance, as the sound cards of the day that had one did. Its player
+has never been published. OpenMPT reads these files (its loader was Storlek's, for Schism Tracker,
+first), and so do libxmp and MikMod; OpenMPT's is the reading and the playing followed here.
+
+OpenMPT reads one of these files into the shape of an IT file and plays it by Impulse Tracker's rules,
+but where its player asks whether a file is an IT file, which this is not; and there it does what it
+does for other kinds of file. So it is played here: by Impulse Tracker's replayer, keeping time as
+OpenMPT does (as for an MPTM file), and told where OpenMPT's player goes another way for these files.
+A vibrato and a tremolo play their wave where it is on a row's first tick and move on only on the
+ticks after, and a note starts a vibrato's wave again. A slide of volume or of place with both halves
+of its value set goes by the second, down or to the right, where Impulse Tracker's does nothing. S00
+and T00 are nothing, and not the last S or T again; SC0 cuts a note at once, and SD0 does not hold it
+up; a global volume above the top is the top. A fade is as fine as OpenMPT keeps it, so that the
+slowest fades are not cut to a whole step or to nothing. An instrument named without a note plays the
+channel's last note that the channel's instrument had a sample for, which is not always the last note
+the pattern gave; and on a channel that has played nothing, nothing. A slide to a note brings back a
+note whose key has been let go: it stops fading, and beside an instrument its key is held again. And
+the filter's 128 cutoffs are as OpenMPT has them for these files, from 125 hertz up by six octaves
+to 8,000, as Creative's EMU8000 reckons them, and not as Impulse Tracker's are spaced.
+
+The commands become Impulse Tracker's under the letters that do the same, as OpenMPT makes them: a
+fine slide of volume becomes a slide with F for its other half, a fine slide of pitch an Exx or
+Fxx of Ex or Fx, the filter's cutoff Zxx (the other way up), its resonance Z8x, and the commands that
+are X followed by a letter the S commands that do the same. Two commands to a note go where OpenMPT
+puts them: one into the volume column if either can go there, and otherwise the one that matters more
+by OpenMPT's reckoning, the other left out and the file saying so (two of the twelve files to hand have
+65 such, as many as OpenMPT leaves out); an offset beside another command that has the command's place
+becomes the volume column's coarser offset, as OpenMPT has it. A channel that the file switches off is
+silent, and its commands for the whole tune are left out; a channel that is silenced is silent and
+plays on. One file to hand, whose channels but the first are all silenced, is taken by OpenMPT for one
+saved wrongly, as no other is known to be so, and is played with them all. An envelope that neither
+loops nor holds holds at its last point, for Impulse Tracker's envelope ends a note where Imago
+Orpheus's does not; a hold after the loop is left out, as one that comes too late to matter; and a
+loop is a tick shorter, which in Impulse Tracker's takes in the tick of its last point and in Imago
+Orpheus's does not. A pattern that the list names and the file has not got ends the song, as it does
+to OpenMPT.
+
+Not played, as OpenMPT does not play them: the chorus and the reverb (Yxx, Zxx and each channel's own),
+a slide of the filter's cutoff (Nxy's first half), the finer sample offset (Pxx), XFx, which changes how
+a sample loops, and X1x, which sets the filter; nor note slides (Gxy and Hxy), a key let go after so
+many ticks (Qxx) and a finetune (Fxx), which OpenMPT plays and Impulse Tracker's replayer has not got.
+None of these last three is in a file to hand. Glissando (X3x) is left out too: OpenMPT makes it S2x,
+which is Scream Tracker's finetune, and which would put the channel out of tune, and Impulse Tracker
+has no glissando. A file says what of all this it has.
+
+All twelve files to hand are played. Set beside libopenmpt, every sample is read byte for byte the
+same, and the two are at the same place on every tick, with every tick as many frames long, for ten
+minutes or to the song's end, in every one of them. Every channel's pitch and volume on every tick, over
+the same span: of 116,165 ticks they are alike on 115,793, and every file on all but one in fifty.
+What is left is mostly the reference's own way of looking, which loses a voice for a tick at the turn
+of a loop or just before a sample ends; and in one file an instrument named alone on the very tick its
+sample has run out, which OpenMPT, having not yet seen it end, does not start again, as Impulse Tracker
+does. What is heard was set beside it too, for two minutes of each: the spectrum agrees to 1.000 for
+the middle file and 0.999 for the worst, the loudness over time to 1.000 and 0.993 for the file a tenth
+of the way up from the worst (the worst, 0.789, is a short tune of a steady loudness, whose small
+changes are all there is to set beside each other), and left and right to 0.999 and 0.990; and the
+octaves from 63 hertz to 16,000 are in the same balance to within half a decibel, but the
+highest of one file, by 0.7. Played as loud as OpenMPT plays them, the middle file is 1.7 dB quieter
+than modules of other kinds are made, and the files are made louder by that much, keeping each
+file's own mixing volume and master volume.
+
 ## 669 — Composer 669 and UNIS 669
 
 A 669 file is a module from Composer 669, which Tran of Renaissance wrote for the PC in 1992, or

@@ -273,6 +273,8 @@ Played, with a difference:
   instrument's own.
 - **MT2:** the tracks' own effects, the automation and the VST plug-ins are left out, as OpenMPT
   leaves them out; and a place between the speakers that has no room beside a volume and a command.
+- **IMF:** the chorus, the reverb and slides of the filter are left out, as OpenMPT leaves them out;
+  and a command that has no room beside another, or that Impulse Tracker's replayer has no like for.
 - **STM and STX:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
 - **ROL:** an instrument that no bank has is silent.
 
@@ -442,6 +444,9 @@ What it is made from:
 - And again: how an MT2 file is read, and the few ways in which OpenMPT plays one otherwise than an
   IT file; libopenmpt is the player those files were checked against. MadTracker is by Yannick
   Delwiche.
+- And again: how an IMF file is read, which OpenMPT took from Storlek's loader for Schism Tracker,
+  and the few ways in which OpenMPT plays one otherwise than an IT file; libopenmpt is the player
+  those files were checked against. Imago Orpheus is by Lutz Roeder.
 - And again: how an MDL file is read, and what Digitrakker does otherwise than Impulse Tracker,
   made after OpenMPT's; and how its samples are unpacked, as the description that came with the
   program has it, which libxmp quotes. libopenmpt is the player those files were checked against.

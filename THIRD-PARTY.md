@@ -568,6 +568,20 @@ vibrato, a sample's own vibrato, a key let go, a fade, an instrument named witho
 quickly a sample that ends dies away. They are used under OpenMPT's licence, the BSD 3-Clause, set
 out below under "OpenMPT — FM Tracker files".
 
+## OpenMPT — IMF files
+
+`Sources/SidayKit/ImpulseTracker/IMFFile.swift`, which reads an Imago Orpheus module into the shape
+Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
+(`soundlib/Load_imf.cpp`, which Storlek wrote for Schism Tracker and the OpenMPT developers took up):
+the layout of the file, the checks it is held to, and what its commands, instruments, envelopes and
+samples are taken to mean, with how OpenMPT turns an envelope of that kind into Impulse Tracker's
+(`soundlib/ModInstrument.cpp`). `OpenMPTCell.swift` is how OpenMPT's loaders put two commands into
+one cell (`soundlib/modcommand.cpp`). `IT2Imago.swift`, and the lines in `IT2Player.swift`,
+`IT2Effects.swift` and `IT2Mixer.swift` that are marked as Imago Orpheus's, follow what OpenMPT's
+player does for these files and not for an IT file (`soundlib/Snd_fx.cpp`, `soundlib/Sndmix.cpp`
+and the filter's cutoffs in `soundlib/Snd_flt.cpp`). They are used under OpenMPT's licence, the BSD
+3-Clause, set out below under "OpenMPT — FM Tracker files".
+
 ## libxmp and OpenMPT — MDL files
 
 `Sources/SidayKit/ImpulseTracker/MDLFile.swift`, which reads a Digitrakker module into the shape
