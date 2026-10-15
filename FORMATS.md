@@ -1083,6 +1083,58 @@ each file: the loudness over time agrees to 0.999 for the middle file and 0.992 
 spectrum to 0.999 and 0.994, and left and right to 0.999. The files are made as loud as IT files
 are, by measure.
 
+## PLM — Disorder Tracker 2
+
+A PLM file is from Disorder Tracker 2, a tracker for DOS. Its song is not a list of patterns played
+one after another but one long stretch of rows, on which its patterns are laid like cards on a
+table: each at the row and the first channel the list says, as long and as wide as it is, over any
+other it is laid across. Up to 32 channels, each at one of sixteen places between the speakers;
+samples of eight bits or sixteen, each with a rate of its own, a loop, and a place of its own if it
+likes; and commands numbered by the tracker itself, which are Scream Tracker's under other numbers,
+with one of its own, a start into a sample by so many 256ths of its length.
+
+Disorder Tracker's replayer was never published. OpenMPT plays these files by Impulse Tracker's
+rules, with "old effects", and has been taught a few things the tracker does otherwise; so it is
+Impulse Tracker's replayer here, as for the other trackers' files above, and the file is read as
+OpenMPT reads it. The long stretch of rows is cut into patterns of 64 rows, one after another in the
+list; a jump to where an item of the list begins, or to where its own pattern ends, is a jump to
+the pattern that falls in and a break to the row, for which the patterns have a channel more than
+the file, of breaks alone. A start into a sample with no note beside it is a start into the
+channel's last note in the same item of the list, struck again. The replayer is told, for these
+files alone and as OpenMPT plays them:
+
+- that a slide to a note remembers its speed with the slides up and down, as Impulse Tracker's does
+  without "compatible Gxx"; and yet one that names another sample goes on with the sample the
+  channel last played, and plays that one from then on, even where its note has ended;
+- that a slide to a note from F0 up is a fine one, by the rest, made once at the row's start;
+- that a sample's place between the speakers is its notes', and not the channel's from then on;
+- that a start into a sample with no note moves the note that is playing, and that a start by 256ths
+  of the sample is by 256ths of it up to its loop's end;
+- and that after a slide up or down, a slide to a note with none of its own goes on the same way, as
+  far as a slide can.
+
+That last is the one place where OpenMPT is not followed. It means a slide up to leave the next
+slide to a note going up, and one down down, and says so; but it reckons these files' pitches as
+rates, and the ends it sets that slide going to are periods, so that its own goes the other way.
+Here it goes the way OpenMPT means it to; none of the files to hand has such a slide. And an item
+of the list that starts in a pattern no earlier item has reached, while a later one is further on,
+is laid on the song here, where OpenMPT's loader passes over it; no file to hand has one of those
+either. A volume over 64, which some files have, is 64, as OpenMPT has it; the file's greatest
+volume for slides and its amplification are not looked at, by OpenMPT or here. A song longer than
+Impulse Tracker's replayer has room for would lose its end, and say so.
+
+All four files to hand are played. Every sample is as libopenmpt reads it, to the last byte of its
+sound and its loop. Every channel's pitch, volume and place was set beside libopenmpt's on every
+tick of each, to its end: of 34,761 ticks they are alike on 34,745, and three files on every tick.
+The other sixteen are where a sample ends on the very tick a row starts, sooner in one than in the
+other. The places between the speakers are the same on every tick. A file made for the purpose,
+with the slides, the starts and two patterns laid across each other, is alike on every tick. What
+is heard was set beside libopenmpt too, for the first twenty seconds of each: the spectrum agrees
+to between 0.985 and 1.000, and the loudness over time to between 0.959 and 1.000. Over two minutes
+they agree less well, because OpenMPT's ticks are a whole number of samples and Impulse Tracker's
+replayer's are not: at a tempo of 144 a tick is 833 samples to it and 833⅓ here, and the two are 40
+ms apart by then. The files are made about as loud as other modules are, by measure.
+
 ## MPTM — OpenMPT
 
 An MPTM file is another matter, because the tracker that writes it is alive and plays its own files.

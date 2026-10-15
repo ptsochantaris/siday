@@ -246,6 +246,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .j2b: false
             case .dmf: false
             case .imf, .ams: false
+            case .plm: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid

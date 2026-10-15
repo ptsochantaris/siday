@@ -634,6 +634,16 @@ files and say so, are made after what OpenMPT's `soundlib/Snd_fx.cpp`, `soundlib
 its two commands that an IT file has not, and how long its ticks are. They are used under OpenMPT's
 licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
 
+## OpenMPT — PLM files
+
+`Sources/SidayKit/ImpulseTracker/PLMFile.swift`, which reads a Disorder Tracker 2 module into the
+shape Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
+(`soundlib/Load_plm.cpp`): the layout of the file, how its patterns are laid on its song and the
+song cut into patterns, and what its commands are taken to mean. `IT2DisorderTracker.swift`, and the
+lines in `IT2Effects.swift` that are there for these files and say so, follow what OpenMPT's
+`soundlib/Snd_fx.cpp` does for a module of that kind. They are used under OpenMPT's licence, the BSD
+3-Clause, set out below under "OpenMPT — FM Tracker files".
+
 ## OpenMPT — MPTM files
 
 `Sources/SidayKit/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,

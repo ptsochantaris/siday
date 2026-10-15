@@ -28,7 +28,7 @@ siday ~/Music/chiptunes --shuffle
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
-| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -463,6 +463,8 @@ What it is made from:
   libopenmpt is the player those files were checked against. The Galaxy Sound System is by Carlo
   Vogelsang, and the music is Jazz Jackrabbit 2's. Its zlib packing is unpacked as Teemu Suutari's
   [ancient](https://github.com/temisu/ancient) does it, and was checked against the system's zlib.
+- And again: how a PLM file is read, and what Disorder Tracker 2 does otherwise than Impulse
+  Tracker, made after OpenMPT's; libopenmpt is the player those files were checked against.
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.

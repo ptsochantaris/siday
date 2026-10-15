@@ -510,7 +510,8 @@ extension IT2Player {
 
         if module.Flags & ITF_INSTR_MODE == 0, let s, s.DefPan & 0x80 != 0 {
             sc.pointee.Pan = s.DefPan & 127
-            hc.pointee.ChnPan = s.DefPan & 127
+            // (In Disorder Tracker's, as OpenMPT has it, for the note alone.)
+            if !module.playsAsDisorderTracker { hc.pointee.ChnPan = s.DefPan & 127 }
         }
 
         sc.pointee.SamplingPosition = 0
@@ -585,6 +586,7 @@ extension IT2Player {
     /// Exx: a slide of pitch down; EFx and EEx are fine and extra fine ones, done once and now.
     func InitCommandE(_ hc: IT2HostPointer) {
         InitNoCommand(hc)
+        if module.playsAsDisorderTracker { disorderTrackerSlidAway(hc, up: false) }
 
         var CmdVal = hc.pointee.CmdVal
         if CmdVal == 0 { CmdVal = hc.pointee.EfxMem_EFG }
@@ -618,6 +620,7 @@ extension IT2Player {
     /// Fxx: a slide of pitch up, with its fine and extra fine ones as E's.
     func InitCommandF(_ hc: IT2HostPointer) {
         InitNoCommand(hc)
+        if module.playsAsDisorderTracker { disorderTrackerSlidAway(hc, up: true) }
 
         var CmdVal = hc.pointee.CmdVal
         if CmdVal == 0 { CmdVal = hc.pointee.EfxMem_EFG }
@@ -691,8 +694,9 @@ extension IT2Player {
                 // from its start. See `openMPTSlideTakesSample`.)
                 if !Gxx_ChangeSample(hc, sc, hc.pointee.Smp - 1) { return }
                 ChangeInstrument = true
-            } else if module.Flags & ITF_COMPAT_GXX != 0 {
+            } else if module.Flags & ITF_COMPAT_GXX != 0 || module.playsAsDisorderTracker {
                 // "Compatible Gxx": the sample stays, and the instrument's envelopes start again.
+                // (And in Disorder Tracker's, which has no instruments, the sample stays.)
                 hc.pointee.Smp = sc.pointee.Smp &+ 1
                 sc.pointee.SmpVol = (module.sample(Int(sc.pointee.Smp))?.GlobVol ?? 0) &* 2
 
@@ -806,6 +810,7 @@ extension IT2Player {
 
     /// Gxx: a slide to the row's note.
     func InitCommandG(_ hc: IT2HostPointer) {
+        if module.playsAsDisorderTracker { disorderTrackerKeepSample(hc) }
         if hc.pointee.CmdVal != 0 {
             if module.Flags & ITF_COMPAT_GXX != 0 {
                 hc.pointee.EfxMem_G_Compat = hc.pointee.CmdVal
@@ -824,6 +829,7 @@ extension IT2Player {
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
             CommandG(hc)
         }
+        if module.playsAsDisorderTracker { disorderTrackerFineSlide(hc) }
     }
 
     /// Hxy: vibrato.
@@ -918,6 +924,7 @@ extension IT2Player {
     /// Lxy: a slide to the note as it was, with a slide of volume. (On a channel that is not
     /// playing, the row's note is not started.)
     func InitCommandL(_ hc: IT2HostPointer) {
+        if module.playsAsDisorderTracker { disorderTrackerKeepSample(hc) }
         let CmdVal = hc.pointee.CmdVal
         if CmdVal > 0 { hc.pointee.EfxMem_DKL = CmdVal }
 
@@ -982,6 +989,7 @@ extension IT2Player {
             digitrakkerOffset(hc)
             return
         }
+        if module.playsAsDisorderTracker { return disorderTrackerOffset(hc) }
         if hc.pointee.NotePackMask & 0x33 != 0, hc.pointee.TranslatedNote < 120, hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr {
             if module.openMPT != nil { // whose offsets are longer, and are reckoned with the volume column's
                 OpenMPTCommandO(hc, sc)

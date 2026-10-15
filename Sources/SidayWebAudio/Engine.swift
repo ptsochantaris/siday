@@ -107,6 +107,7 @@ final class WebPlayer {
                 || format == .j2b
                 || format == .dmf
                 || format == .imf || format == .ams
+                || format == .plm
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

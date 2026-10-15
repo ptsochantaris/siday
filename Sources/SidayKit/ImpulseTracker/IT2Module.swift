@@ -219,6 +219,12 @@ final class IT2Module {
     /// Tracker's rules, but does not take for an IT file where its player asks whether it is one:
     /// Imago Orpheus's and Velvet Studio's.
     var openMPTForeign: Bool { imagoOrpheus || velvetStudio }
+    /// True for a module of Disorder Tracker 2's, which is played as OpenMPT plays one where Disorder
+    /// Tracker and Impulse Tracker differ: see `IT2DisorderTracker.swift`.
+    var playsAsDisorderTracker = false
+    /// For such a module: where a note starts at so many 256ths of the way into its sample, under its
+    /// pattern, row and channel (see `OpenMPTSong.place`). The cell has O00 in its place.
+    var disorderTrackerOffsets: [Int: UInt8] = [:]
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
