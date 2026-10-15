@@ -391,6 +391,12 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try TuneLoader.load(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])), format: .s3m, options: onSoundBlaster).info.shortfalls
         == ["One of its commands is left out, on the Sound Blaster it is played on: ModPlug's reverb."])
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 19, 0x99])).isEmpty)
+    // A later tracker's seventeenth channel of samples, numbered as the AdLib card's first.
+    var wide = s3m(row: [0x22, 0x40, 1])
+    wide[0x42] = 16
+    #expect(try shortfalls(byImpulseTracker(wide))
+        == ["One of its channels is numbered as Scream Tracker numbers the AdLib card's, and the samples played on it are not heard."])
+    #expect(try shortfalls(wide).isEmpty)
     // Where a channel is put (X) is not counted: too many files have it, and lose little by it.
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 24, 0x40])).isEmpty)
 

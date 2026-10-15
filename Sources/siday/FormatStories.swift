@@ -660,7 +660,10 @@ Blaster adds its channels into eight bits as it goes, and leaves nothing to send
 says the reverb is left out. Of the twelve S3M files to hand that ask for it, ten are of a later
 tracker, and set beside libopenmpt the spectrum of nine of those is nearer (from 0.97 to 0.99 for
 one), and of the tenth, whose reverb is on a channel past the sixteen Scream Tracker played, as it
-was; the other two Scream Tracker saved, and in those S99 is nothing, as it was to it.
+was; the other two Scream Tracker saved, and in those S99 is nothing, as it was to it. That last
+file has 26 channels of samples, and saves those after the sixteenth with the numbers Scream
+Tracker gives the AdLib card's voices; there their samples are not heard, and such a file says so
+(23 to hand). In a file that Scream Tracker saved they were not heard by whoever made it either.
 `siday --raw file.raw tune.s3m` writes what st3play writes to a file, a stereo sample's left side only. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.

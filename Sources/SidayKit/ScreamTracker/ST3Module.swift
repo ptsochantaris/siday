@@ -333,13 +333,23 @@ final class ST3Module {
     private func noteWhatIsNotPlayed(_ f: ByteReader, _ insoff: [Int]) {
         var used = [Bool](repeating: false, count: 256)
         var commands = Shortfall.Kinds()
+        // A later tracker's file can have more than Scream Tracker's sixteen channels of samples,
+        // and number those after them as Scream Tracker numbers the AdLib card's: there they are
+        // not heard. (In a file that Scream Tracker saved they were not heard by its maker either.)
+        var lostChannels: UInt32 = 0
         for case let pattern? in patp {
             var at = 0
             while at < pattern.count {
                 let what = pattern[at]
                 at += 1
                 if what & 0x20 != 0 {
-                    if at + 1 < pattern.count { used[Int(pattern[at + 1])] = true }
+                    if at + 1 < pattern.count {
+                        let instrument = Int(pattern[at + 1])
+                        used[instrument] = true
+                        let card = channel[Int(what & 0x1F)]
+                        if !madeByScreamTracker, card & 128 == 0, card >= 16, pattern[at] < 254, instrument > 0, instrument <= insnum,
+                           ins[instrument - 1].type == 1 { lostChannels |= 1 << UInt32(what & 0x1F) }
+                    }
                     at += 2
                 }
                 if what & 0x40 != 0 { at += 1 }
@@ -372,6 +382,11 @@ final class ST3Module {
         if drums > 0 {
             shortfalls.append(Shortfall.some(drums, one: "instruments is one of the AdLib card's drums, which Scream Tracker never played, and is not heard.",
                                              many: "instruments are the AdLib card's drums, which Scream Tracker never played, and are not heard."))
+        }
+        if lostChannels != 0 {
+            shortfalls.append(Shortfall.some(lostChannels.nonzeroBitCount,
+                one: "channels is numbered as Scream Tracker numbers the AdLib card's, and the samples played on it are not heard.",
+                many: "channels are numbered as Scream Tracker numbers the AdLib card's, and the samples played on them are not heard."))
         }
         if let sentence = Shortfall.commandsLeftOut(commands.named(Self.whatTheyDo), why: "on the Sound Blaster it is played on") {
             asksForReverb = true
