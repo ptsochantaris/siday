@@ -954,6 +954,62 @@ minute of each: the spectrum agrees to 0.992 for the middle file and the loudnes
 0.974, and to 0.907 and 0.737 for the file a tenth of the way up from the worst. The files are made
 as loud as XM files are, by measure.
 
+## J2B — Jazz Jackrabbit 2 and the Galaxy Sound System
+
+A J2B file is a piece of the music of Jazz Jackrabbit 2, Epic MegaGames' platform game of 1998. The
+game played its music with the Galaxy Sound System, Carlo Vogelsang's sound engine, whose modules
+were not written in a tracker of its own: they were written in the trackers of the day and turned
+into Galaxy's format by a converter, mod2j2b. That format is a RIFF file, as a Windows sound file is,
+with the song, each pattern and each instrument (with its samples inside it) in parts of their
+own, much as an IT file has them. It came in two kinds, an older one marked "AMFF" and a newer one
+marked "AM  ". The game keeps each file packed with zlib, Jean-loup Gailly's and Mark Adler's
+library of Phil Katz's DEFLATE, behind a header that begins "MUSE" and gives the file's length, the
+length the music unpacks to, and a checksum of what is packed.
+
+So a J2B file is unpacked first. DEFLATE is here in Swift of its own (`Packers/Inflate.swift`), made
+after the decompressor in Teemu Suutari's ancient and the two RFCs that describe DEFLATE and zlib's
+stream, for siday uses no library of the system it runs on. A file is refused unless its header
+gives its own length rightly, the checksum of what is packed is right, what is packed unpacks to
+exactly the length the header says, and zlib's own checksum of what it unpacked to (Mark Adler's)
+is right. The unpacking was set beside the system's own zlib on all 24 files to hand and on 5,760
+streams made with zlib at every level and in every way it packs (stored, in the codes DEFLATE fixes
+and in a block's own codes, with flushes between blocks, from 0 bytes to a megabyte): every one
+came out byte for byte the same. On some 21,000 damaged copies of those streams, flipped in a few
+bits or cut short, it refused just those that zlib refuses, and where both took one it made the
+same bytes.
+
+Galaxy's replayer has never been published. OpenMPT reads these files into the shape of an IT file
+and plays them as it plays an IT file, with all of Impulse Tracker's ways it knows; and so they are
+played here, by Impulse Tracker's replayer, read as OpenMPT reads them and keeping time as OpenMPT
+does. The commands are ProTracker's and FastTracker's, each of which has its like among Impulse
+Tracker's but two (FastTracker's Kxx, which lets go of a note's key after so many ticks, and Lxx,
+which moves along an envelope): a file with either would say they are left out, and none of the
+game's has. A volume of 127 in the newer kind of file is one of Impulse Tracker's 64, and a place
+between the speakers one of its 64, which in a file that asks for an odd place of 128 is the
+nearest. The instruments are Impulse Tracker's: a sample for each note, envelopes for the volume, the
+pitch and the place, a fade and a vibrato of the sample's own; the game's files have one sample to
+an instrument, and no envelopes, fades or vibratos.
+
+The one thing OpenMPT does otherwise than Impulse Tracker that these files are heard to need is
+the vibrato. Their vibratos are played with Impulse Tracker's "old effects", which on a vibrato's
+first tick bend the note by the wave where it is and only then move along it. A note struck on a
+channel takes the vibrato back to the start of its wave in OpenMPT, and so the next vibrato starts
+unbent; in Impulse Tracker the bend of that first tick is whatever the last vibrato left off at.
+The replayer is told to do as OpenMPT does for these files (`IT2Module.playsAsGalaxy`), and for no
+others.
+
+All 24 files to hand are played, none with anything left out. Every sample is as libopenmpt reads
+it, to the last byte of its sound, its loop, its volume and its rate. Every channel's pitch and
+volume was set beside libopenmpt's on every tick of each, to the end of its song: all 145,348 ticks
+are alike, the rows coming in the same order and lasting as long; on 98.5% of a voice's ticks the
+rate is the same to the hertz (and on 99.97% within one, which is the rounding of the two dumps),
+the volume on 99.99%, and the place between the speakers on 98.2%, the rest being one file's
+voices in surround, which the two players mark differently. The songs last as long as libopenmpt
+says they do, to the second. What is heard was set beside libopenmpt for the first minute of each:
+the spectrum agrees to 1.000 for the middle file and 0.999 for the worst, and so does the loudness
+over time. The files are made as loud as other modules are, by measure (the middle one at −24.7 dB),
+which is 1.5 dB quieter than libopenmpt plays them.
+
 ## MPTM — OpenMPT
 
 An MPTM file is another matter, because the tracker that writes it is alive and plays its own files.

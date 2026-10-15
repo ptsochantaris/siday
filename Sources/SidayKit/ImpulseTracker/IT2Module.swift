@@ -189,6 +189,12 @@ final class IT2Module {
     /// True for a module of Digitrakker's, which is played as OpenMPT plays one where Digitrakker
     /// and Impulse Tracker differ: see `IT2Digitrakker.swift`.
     var playsAsDigitrakker = false
+    /// True for a module of the Galaxy Sound System's (a J2B file), which OpenMPT plays as it plays an
+    /// IT file, and so as Impulse Tracker would, but that a note struck on a channel takes its
+    /// vibrato back to the start of its wave, so that a vibrato with "old effects" begins there on
+    /// its first tick, where Impulse Tracker bends the note by where the last vibrato left off (see
+    /// `openMPTRow`). See `J2BFile`.
+    var playsAsGalaxy = false
     /// For such a module: where a note starts further into its sample than Oxx reaches, the part
     /// beyond, in 65,536 bytes; and a place between the speakers, or a move of it, that had no room
     /// in its cell. Each under its pattern, row and channel (see `OpenMPTSong.place`).

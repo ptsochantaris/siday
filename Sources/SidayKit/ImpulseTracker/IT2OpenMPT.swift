@@ -412,6 +412,9 @@ extension IT2Player {
             // (In OpenMPT's own way of vibrato, a quarter of the way along, but for a file with "old effects".)
             if module.openMPT?.itVibrato == true {
                 hc.pointee.VibratoPos = 0
+                // (And for a J2B file, what its first tick plays with "old effects": see
+                // `IT2Module.playsAsGalaxy`.)
+                if module.playsAsGalaxy { hc.pointee.LastVibratoData = 0 }
             } else {
                 hc.pointee.OpenMPTVibratoPos = module.Flags & ITF_OLD_EFFECTS != 0 ? 0 : 0x10
                 hc.pointee.OpenMPTTremoloPos = 0

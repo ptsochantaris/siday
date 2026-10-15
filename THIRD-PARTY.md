@@ -580,6 +580,17 @@ module of that kind, with the table of 64 steps of a wave and the one at random 
 `soundlib/Tables.cpp`. Both are used under the licences set out above, under "libxmp and OpenMPT —
 reading MTM, DTM and AMF files", and below, under "OpenMPT — FM Tracker files".
 
+## OpenMPT — J2B files
+
+`Sources/SidayKit/ImpulseTracker/J2BFile.swift`, which reads a Jazz Jackrabbit 2 module of the Galaxy
+Sound System into the shape Impulse Tracker's replayer plays, is made after OpenMPT's loader of that
+format (`soundlib/load_j2b.cpp`, by Johannes Schultz, largely after the J2B loader of kode54's DUMB):
+the header around the packed file and the checks it is held to, the layout of the two kinds of RIFF
+file inside, and what their commands, instruments, envelopes and samples are taken to mean. The lines
+in `IT2OpenMPT.swift` that are there for these files follow what OpenMPT's `soundlib/Snd_fx.cpp` does
+with a vibrato after a note. They are used under OpenMPT's licence, the BSD 3-Clause, set out below
+under "OpenMPT — FM Tracker files".
+
 ## OpenMPT — MPTM files
 
 `Sources/SidayKit/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,
@@ -1031,11 +1042,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## ancient — unpacking XPK and MMCMP files
+## ancient — unpacking XPK, MMCMP and zlib's DEFLATE
 
-`Sources/SidayKit/Packers/XPK.swift` (XPK files, and their SQSH, NUKE and DUKE packers) and
-`Sources/SidayKit/Packers/MMCMP.swift` follow the decompressors in ancient
-(https://github.com/temisu/ancient) by Teemu Suutari:
+`Sources/SidayKit/Packers/XPK.swift` (XPK files, and their SQSH, NUKE and DUKE packers),
+`Sources/SidayKit/Packers/MMCMP.swift` and `Sources/SidayKit/Packers/Inflate.swift` (DEFLATE and
+the zlib stream around it, which J2B files are packed with; written also after RFC 1950 and RFC 1951,
+which describe them) follow the decompressors in ancient (https://github.com/temisu/ancient) by
+Teemu Suutari:
 
 ```
 BSD 2-Clause License
