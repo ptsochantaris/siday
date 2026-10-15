@@ -283,3 +283,17 @@ private let row = 6.0 * 477 / 23863
         play(file)
     }
 }
+
+@Test func stmThatComesRoundByAJumpIsFadedAndEnds() throws {
+    // A note that goes on sounding, and at the start of the second pattern a jump back to the first:
+    // the tune comes round by the jump, not by the end of its list. As it is played, that is the
+    // tune coming round, as it is when its length is found, and it fades and ends.
+    let file = stm([[(0, 0, .note())], [(0, 0, .command("B", 0))]], orders: [0, 1])
+    let renderer = try TuneLoader.load(file, format: .stm)
+    let length = try #require(renderer.knownLength)
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    var block = [Float](repeating: 0, count: 1024)
+    while !session.finished, session.elapsed < 120 { _ = block.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 512) } }
+    #expect(session.finished)
+    #expect(session.elapsed < length * 2 + 1)
+}

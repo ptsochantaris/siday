@@ -85,6 +85,8 @@ final class ST2Player {
     /// How many times the tune has come round: to the end of its list, or, where it is asked to
     /// watch for it, to a row it has played before.
     private(set) var loopCount = 0
+    /// As the tune is played, the rows it has played since it last came round (see `processTick`).
+    private var rowsHeard: [Bool]
     private let firstPlayedBy: UnsafeMutablePointer<UInt8>?
     private let songNumber: UInt8
     private(set) var ordersPlayed: [Bool]
@@ -103,6 +105,7 @@ final class ST2Player {
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
         ordersPlayed = [Bool](repeating: false, count: module.orders.count)
+        rowsHeard = [Bool](repeating: false, count: firstPlayedBy == nil ? module.orders.count * ST2Module.rows : 0)
         setTempo(module.tempo)
         currentFrame = framesPerTick
         orderFirst = order
@@ -328,6 +331,7 @@ final class ST2Player {
         if module.order(orderNext) == ST2Module.end || module.order(orderNext) == ST2Module.endToTop {
             orderNext = module.order(orderNext) == ST2Module.end ? orderFirst : 0
             loopCount += 1
+            for i in rowsHeard.indices { rowsHeard[i] = false }
         }
         let pattern = Int(module.order(orderNext))
         orderCurrent = orderNext
@@ -358,6 +362,15 @@ final class ST2Player {
                     if firstPlayedBy[at] != songNumber { ledIntoEarlierSong = true }
                     loopCount += 1
                 }
+            } else if orderCurrent < module.orders.count {
+                // (As the tune is played, a row it has played before is it coming round too: by a
+                // jump, as often as by the end of its list. Each time round is counted once.)
+                let at = orderCurrent * ST2Module.rows + Int(channels[0].row & 63)
+                if rowsHeard[at] {
+                    loopCount += 1
+                    for i in rowsHeard.indices { rowsHeard[i] = false }
+                }
+                rowsHeard[at] = true
             }
             for i in 0 ..< ST2Module.channels { processRow(i) }
             currentTick = ticksPerRow != 0 ? ticksPerRow - 1 : 0
