@@ -201,6 +201,12 @@ final class IT2Module {
     var digitrakkerHighOffsets: [Int: UInt8] = [:], digitrakkerPans: [Int: IT2DigitrakkerPan] = [:]
     /// And the slides of volume that are finer or faster than Impulse Tracker's (see `IT2DigitrakkerSlide`).
     var digitrakkerSlides: [Int: IT2DigitrakkerSlide] = [:]
+    /// True for a module of X-Tracker's, which is played as OpenMPT plays one where it plays it
+    /// otherwise than an IT file: see `IT2XTracker.swift`.
+    var playsAsXTracker = false
+    /// For such a module: the speeds of the volume column's slides of pitch that are faster than
+    /// Impulse Tracker's nine, under their pattern, row and channel (see `IT2Player.xTrackerPlace`).
+    var xTrackerSlides: [Int: UInt8] = [:]
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.

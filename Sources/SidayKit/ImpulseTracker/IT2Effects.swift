@@ -49,10 +49,12 @@ extension IT2Player {
         case 24: InitCommandX(hc)
         case 25: InitCommandY(hc)
         case 26: InitCommandZ(hc)
+        case IT2Player.xTrackerVolume where module.playsAsXTracker: InitCommandXTrackerVolume(hc) // X-Tracker's volume
         case 28 where smoothMacros: InitCommandSmoothMacro(hc) // ModPlug Tracker's \xx
         case 29 where module.openMPT != nil: InitCommandDelayCut(hc) // an MPTM file's :xy
         case 30 where module.openMPT != nil: InitCommandBend(hc, smooth: false) // and its finetune, + and *
         case 31 where module.openMPT != nil: InitCommandBend(hc, smooth: true)
+        case IT2Player.xTrackerFinetune where module.playsAsXTracker: InitCommandXTrackerFinetune(hc) // and its tuning
         default: InitNoCommand(hc)
         }
     }
@@ -153,6 +155,8 @@ extension IT2Player {
         if module.madTracker { return madTrackerVibrato(hc, moving: false) }
         if module.playsAsDigitrakker {
             digitrakkerVibrato(hc, movesOn: false)
+        } else if module.playsAsXTracker {
+            xTrackerVibrato(hc)
         } else if module.Flags & ITF_OLD_EFFECTS != 0 {
             guard let sc = hc.pointee.SlaveChnPtr else { return }
             sc.pointee.Flags |= SF_FREQ_CHANGE
@@ -212,13 +216,17 @@ extension IT2Player {
         if hc.pointee.NotePackMask & 0x44 == 0 { return }
         // (In an MPTM file these are where in its sample a note starts, and nothing more.)
         if module.openMPT != nil, hc.pointee.RawVolColumn >= 213, hc.pointee.RawVolColumn <= 232 { return }
+        // (And in a module of X-Tracker's, beyond them, the way a sample plays, and faster slides of
+        // pitch: see `xTrackerColumn`.)
+        if module.playsAsXTracker, xTrackerPlayDirection(hc) { return }
 
         var volCmd = Int(hc.pointee.RawVolColumn & 0x7F) - 65
         if volCmd < 0 { return }
         if hc.pointee.RawVolColumn & 0x80 != 0 { volCmd += 60 }
 
-        let cmd = UInt8(volCmd / 10)
-        let val = UInt8(volCmd % 10)
+        var cmd = UInt8(volCmd / 10)
+        var val = UInt8(volCmd % 10)
+        if module.playsAsXTracker, let wide = xTrackerColumn(hc) { (cmd, val) = wide }
 
         // Numbers over 7 can be written in a file; they are kept, and it is the low three bits that
         // choose what runs on the later ticks.
@@ -1031,6 +1039,8 @@ extension IT2Player {
     private func InitTremolo(_ hc: IT2HostPointer) {
         if module.playsAsDigitrakker {
             digitrakkerTremolo(hc, movesOn: false)
+        } else if module.playsAsXTracker {
+            xTrackerTremolo(hc, movesOn: false)
         } else if module.Flags & ITF_OLD_EFFECTS != 0 {
             guard let sc = hc.pointee.SlaveChnPtr else { return }
             sc.pointee.Flags |= SF_UPDATE_MIXERVOL
@@ -1441,11 +1451,11 @@ extension IT2Player {
 
     /// Bends the pitch by a step of the vibrato's wave times its depth. The result is cut to eight
     /// bits, as the original's is. (OpenMPT divides it towards nought, where Impulse Tracker rounds.)
-    private func CommandH5(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ VibratoData: Int8) {
+    func CommandH5(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ VibratoData: Int8) {
         if tuning(of: hc) != nil { return openMPTTunedVibrato(hc, VibratoData) }
         if module.openMPT?.itVibrato == false { return openMPTOwnVibrato(hc, sc) }
         let bent = (Int(VibratoData) * Int(Int8(bitPattern: hc.pointee.VibratoDepth))) << 2
-        var VibratoData = Int8(truncatingIfNeeded: module.openMPT != nil ? bent / 256 : (bent + 128) >> 8)
+        var VibratoData = Int8(truncatingIfNeeded: module.openMPT != nil || module.playsAsXTracker ? bent / 256 : (bent + 128) >> 8)
         if module.Flags & ITF_OLD_EFFECTS != 0 { VibratoData = 0 &- VibratoData }
 
         if VibratoData < 0 {
@@ -1670,6 +1680,7 @@ extension IT2Player {
             digitrakkerTremolo(hc, movesOn: true)
             return
         }
+        if module.playsAsXTracker { return xTrackerTremolo(hc, movesOn: true) }
         guard let sc = hc.pointee.SlaveChnPtr else { return }
         sc.pointee.Flags |= SF_RECALC_VOL
 
@@ -1707,6 +1718,7 @@ extension IT2Player {
             hc.pointee.Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX)
             if tunings { openMPTTunedRow(hc) }
             if module.openMPT != nil { openMPTRow(hc) }
+            if module.playsAsXTracker { xTrackerRow(hc) }
             InitNoCommand(hc)
             hc.pointee.Flags |= HF_ROW_UPDATED
 

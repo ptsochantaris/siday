@@ -953,6 +953,7 @@ final class IT2Player {
         // or when a note that is put off comes.)
         if tunings, !delaysNote(hc) { openMPTTunedRow(hc) }
         if module.openMPT != nil, !delaysNote(hc) { openMPTRow(hc) }
+        if module.playsAsXTracker, !delaysNote(hc) { xTrackerRow(hc) }
         InitCommand(hc)
         // (And for a module of Digitrakker's, a place between the speakers that had no room.)
         if module.playsAsDigitrakker { digitrakkerRowPan(hc) }
@@ -1433,6 +1434,7 @@ final class IT2Player {
                 }
             }
             UpdateAutoVibrato(sc)
+            if module.playsAsXTracker { xTrackerBend(sc) }
             if reverbs, sc.pointee.HostChnNum & CHN_DISOWNED == 0, let hc = sc.pointee.HostChnPtr { sc.pointee.Reverb = hc.pointee.Reverb }
         }
     }
@@ -1466,6 +1468,10 @@ final class IT2Player {
         if let song = module.openMPT {
             mixer.setTickFrames(openMPTTickFrames(song))
             mixer.setMusicTempo(UInt64(Tempo) * UInt64(OpenMPTSong.tempoUnit) + UInt64(TempoFraction))
+        } else if module.playsAsXTracker {
+            // (So does a module of X-Tracker's, whose tempo is OpenMPT's making: a whole number of
+            // frames, the fraction cut off, as OpenMPT's "classic" way has it.)
+            mixer.setTickFrames(Int32(UInt64(outputSampleRate) * 5 / (UInt64(max(1, Tempo)) << 1)))
         }
         if module.Flags & ITF_INSTR_MODE != 0 { UpdateInstruments() } else { UpdateSamples() }
         // (And for a file of ModPlug Tracker's or OpenMPT's with FM instruments or plug-ins: see `ModPlugSound`.)
