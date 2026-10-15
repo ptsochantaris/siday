@@ -76,6 +76,10 @@ struct OpenMPTSong {
     /// a song with linear slides and before 1.30 for one without, and keeps it still for a file
     /// made then: see `IT2Periods.swift`. False for one in Hertz, as Impulse Tracker keeps it.
     var pitchesArePeriods = false
+    /// True if an instrument named on a row with no note starts nothing, and a note that is
+    /// playing goes over to its sample where it is (see `openMPTInstrumentAlone`), as OpenMPT has it
+    /// for a file that does not ask for Impulse Tracker's way (switch 11).
+    var instrumentAloneSwapsSample = false
     /// True if a voice to one side of the middle is no louder on its nearer side than one in the
     /// middle is on both, and only quieter on its further one: OpenMPT's way since its version 1.17
     /// ("soft panning"). Impulse Tracker's, which OpenMPT also has, makes the nearer side louder.
@@ -218,6 +222,65 @@ extension IT2Player {
     /// instrument named takes the bend away, unless the note slides from the last on the same
     /// instrument; and a note that is struck starts its channel's vibrato from the top of its wave,
     /// which in Impulse Tracker only a vibrato on the note's own row does.
+    /// A row that names an instrument (or a sample) and no note, in such a file: nothing is
+    /// started, and a note that is playing another goes over to it and its sample for the note,
+    /// on from where it was and at its pitch, with the new sample's length, loop, volume and place
+    /// between the speakers. (Impulse Tracker starts the note again.) With linear slides and
+    /// pitches as periods, the pitch is the period's for the new sample's rate.
+    func openMPTInstrumentAlone(_ hc: IT2HostPointer, _ hcFlags: UInt8) {
+        var hcFlags = hcFlags
+        if hcFlags & UInt8(HF_CHAN_ON) != 0, let sc = hc.pointee.SlaveChnPtr, hc.pointee.Smp != 0, hc.pointee.Smp != midiSample,
+           sc.pointee.Ins != hc.pointee.Ins || sc.pointee.Smp != hc.pointee.Smp - 1 {
+            func setPan(_ pan: UInt8) {
+                hc.pointee.ChnPan = pan
+                sc.pointee.Pan = pan
+                sc.pointee.PanSet = pan
+                sc.pointee.Flags |= SF_RECALC_PAN
+            }
+            let periods = module.openMPT?.pitchesArePeriods == true && module.Flags & ITF_LINEAR_FRQ != 0
+            let period = periods ? rememberedPeriod(sc, base: openMPTBase(sc)) : nil
+            var instrumentVolume: UInt8 = 128
+            if module.Flags & ITF_INSTR_MODE != 0, hc.pointee.Ins != 0, hc.pointee.Ins != 255 {
+                let ins = module.instrument(Int(hc.pointee.Ins) - 1)
+                sc.pointee.InsPtr = ins
+                sc.pointee.Ins = hc.pointee.Ins
+                sc.pointee.NNA = ins.NNA
+                sc.pointee.DCT = ins.DCT
+                sc.pointee.DCA = ins.DCA
+                instrumentVolume = ins.GlobVol
+                if ins.DefPan & 0x80 == 0 { setPan(ins.DefPan & 127) }
+            }
+            if let s = module.sample(Int(hc.pointee.Smp) - 1), s.Length != 0, s.Flags & SMPF_ASSOCIATED_WITH_HEADER != 0 {
+                sc.pointee.Smp = hc.pointee.Smp - 1
+                sc.pointee.SmpPtr = s
+                sc.pointee.SmpIs16Bit = s.Flags & SMPF_16BIT != 0
+                sc.pointee.SmpVol = module.Flags & ITF_INSTR_MODE != 0 ? UInt8(truncatingIfNeeded: (Int(s.GlobVol) * Int(instrumentVolume)) >> 6) : s.GlobVol &* 2
+                if sc.pointee.SamplingPosition >= Int32(truncatingIfNeeded: s.Length) {
+                    sc.pointee.SamplingPosition = 0
+                    sc.pointee.Frac32 = 0
+                    sc.pointee.Frac64 = 0
+                }
+                GetLoopInformation(sc)
+                if module.openMPT?.itVibrato == true {
+                    sc.pointee.AutoVibratoDepth = 0
+                    sc.pointee.AutoVibratoPos = 0
+                }
+                if s.DefPan & 0x80 != 0 { setPan(s.DefPan & 127) }
+                if let period {
+                    sc.pointee.FrequencySet = rememberedFrequency(sc, period: period, base: openMPTBase(sc), lasting: true)
+                    sc.pointee.Frequency = sc.pointee.FrequencySet
+                    sc.pointee.Flags |= SF_FREQ_CHANGE
+                }
+                sc.pointee.Flags |= SF_RECALC_VOL
+            } else {
+                // (No sample: the note ends.)
+                sc.pointee.Flags |= SF_NOTE_STOP
+                hcFlags &= ~UInt8(HF_CHAN_ON)
+            }
+        }
+        NoOldEffect(hc, hcFlags)
+    }
+
     func openMPTRow(_ hc: IT2HostPointer) {
         let mask = hc.pointee.NotePackMask
         guard mask & 0x33 != 0 else { return }

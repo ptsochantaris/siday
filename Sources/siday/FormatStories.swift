@@ -1041,7 +1041,11 @@ and not as a rate in hertz, which is how OpenMPT played a song before its versio
 1.30 for a song without linear slides), and still plays a file made then: one file in ten. A high
 note's period is a small number, so its pitch is a little out, and a slide or a vibrato moves it in
 steps of a whole period, which can be several cents. Set beside libopenmpt tick by tick, the pitch
-of those 73 files is within a cent of it on 99.7% of their ticks, where it was 45%. For the rest this is Impulse Tracker's replayer, and the file gets
+of those 73 files is within a cent of it on 99.7% of their ticks, where it was 45%. And so is
+the one for an instrument named on a row with no note. Impulse Tracker starts the note again with
+it; OpenMPT, unless the file asks for that, starts nothing, and a note that is playing goes over to
+the new sample from where it was, as a ProTracker tune swaps its samples. Four files in five ask
+for OpenMPT's way, and in ten of them it is heard. For the rest this is Impulse Tracker's replayer, and the file gets
 Impulse Tracker's answer. What that comes to was measured against
 libopenmpt, OpenMPT's own player as a library. What is read from each of 625 files is the same
 as what libopenmpt reads, but for a fade and a place between the speakers that the extras give

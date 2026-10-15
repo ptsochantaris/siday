@@ -355,7 +355,7 @@ extension IT2Player {
 
     /// The volume a row gives: the volume column's if it is one, else the sample's own if the row
     /// names an instrument.
-    private func NoOldEffect(_ hc: IT2HostPointer, _ hcFlags: UInt8) {
+    func NoOldEffect(_ hc: IT2HostPointer, _ hcFlags: UInt8) {
         var vol = hc.pointee.RawVolColumn
         if hc.pointee.NotePackMask & 0x44 == 0 || vol > 64 {
             if hc.pointee.NotePackMask & 0x44 != 0, vol & 0x7F < 65 {
@@ -449,6 +449,11 @@ extension IT2Player {
             return
         }
 
+        // (In an MPTM file, an instrument alone may start nothing at all: see `openMPTInstrumentAlone`.)
+        if module.openMPT?.instrumentAloneSwapsSample == true, hc.pointee.NotePackMask & 0x11 == 0 {
+            openMPTInstrumentAlone(hc, hcFlags)
+            return
+        }
         // An instrument alone, the same as is playing and at the same note, starts nothing.
         if hcFlags & UInt8(HF_CHAN_ON) != 0, let sc = hc.pointee.SlaveChnPtr {
             if hc.pointee.NotePackMask & 0x11 == 0, sc.pointee.Note == hc.pointee.RawNote, sc.pointee.Ins == hc.pointee.Ins {

@@ -71,7 +71,7 @@ extension IT2Player {
     /// 1,712, which is middle C's period, and so the period of a note is the same whatever the
     /// sample; without, it is 8,363 times that, and the sample's rate is in the period. (And for
     /// the FM chip, a rate sixteen times finer: see `OpenMPTAdLib.fineShift`.)
-    private func openMPTBase(_ sc: IT2SlavePointer) -> Int64 {
+    func openMPTBase(_ sc: IT2SlavePointer) -> Int64 {
         let base = Int64(module.Flags & ITF_LINEAR_FRQ != 0 ? openMPTRate(sc) * 1712 : 8363 * 1712)
         return fineFMPitch && sc.pointee.SmpPtr?.AdLib != nil ? base << OpenMPTAdLib.fineShift : base
     }

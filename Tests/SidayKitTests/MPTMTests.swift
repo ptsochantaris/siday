@@ -712,6 +712,26 @@ private func ways(without left: Int...) -> Song {
     #expect(abs(Double(own[0]) - 8363 * pow(2.0, -31.0 / 768)) < 25 && abs(Double(impulse[3]) - 8363 * pow(2.0, 32.0 / 768)) < 25)
 }
 
+@Test func mptmSampleNamedAloneTakesThePlaceOfTheOnePlaying() throws {
+    // A row that names a sample and no note: Impulse Tracker starts the note again with it. OpenMPT,
+    // in a file that does not ask for that (switch 11), starts nothing, and the note goes on in the
+    // new sample from where it was. So a short sample named a row after the note ends a row sooner
+    // than one started again; and named on a channel playing nothing, it starts nothing.
+    let long = (0 ..< 8000).map { square[$0 % 32] }, short = (0 ..< 4000).map { square[$0 % 32] }
+    func voices(impulseTrackers: Bool) throws -> [Int] {
+        var song = Song()
+        if !impulseTrackers { song.behaviours.removeAll { $0 == 11 } }
+        let file = mptm([Pattern([(0, 0, .note()), (0, 1, Cell(instrument: 1)), (1, 0, Cell(instrument: 2))])], song: song,
+                        samples: [.sound(long, loops: false), .sound(short, loops: false)])
+        return try player(file).ticks(seconds: 1).map { $0.rates.count { $0 > 0 } }
+    }
+    let impulse = try voices(impulseTrackers: true), own = try voices(impulseTrackers: false)
+    // (A tick is a fiftieth of a second, a row six of them, and the short sample is 0.48 seconds.
+    // Impulse Tracker's way starts the other channel's note as well, which outlasts both.)
+    #expect(own.max() == 1 && abs(own.count { $0 > 0 } - 24) <= 1)
+    #expect(abs(impulse.count { $0 == 2 } - 30) <= 1)
+}
+
 @Test func mptmVibratoIsDividedTowardsNought() throws {
     // OpenMPT divides a step of a vibrato's wave times its depth towards nought, where Impulse
     // Tracker rounds it: H44 on its third tick is at a point of the wave where the two differ.
