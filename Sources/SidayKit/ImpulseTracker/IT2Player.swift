@@ -1562,7 +1562,8 @@ final class IT2Player {
         // (An IT file that asks for OpenMPT's way of 1.17 of adding up has its way of placing channels too.)
         mixer = IT2Mixer(module: module, voices: sChn, filterParameters: FilterParameters, sound: sound, reverb: reverbs ? module.reverb : nil,
                          filter: asImpulseTracker ? .impulseTrackers : module.filter,
-                         softPanning: module.modPlugLevels.map { $0.mixLevels == 3 && !asImpulseTracker })
+                         softPanning: module.modPlugLevels.map { $0.mixLevels == 3 && !asImpulseTracker },
+                         quickEnds: module.madTracker || module.openMPT != nil || module.madeByModPlug && !asImpulseTracker)
         mixer.adLib = adLib
         if forSound { mixer.playsPlugIns() }
 

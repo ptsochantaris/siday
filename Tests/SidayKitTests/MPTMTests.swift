@@ -944,6 +944,22 @@ private func ways(without left: Int...) -> Song {
     #expect(later.renderRaw(frames: 24000).allSatisfy { abs(Int($0)) < 4 })
 }
 
+@Test func itFileOfModPlugsHasItsEndedVoicesDieAwayAsItsMixerDid() throws {
+    // ModPlug Tracker's mixer, which OpenMPT's still is, lets an ended voice's last level die away by
+    // a 256th a frame, and Impulse Tracker's "WAV writer" by a 4096th. A sample held high, which
+    // ends after twelve milliseconds: by forty it is all but gone in a file of OpenMPT's.
+    func last(madeBy tracker: [UInt8]) throws -> (peak: Float, after: Float) {
+        var file = mptm([Pattern([(0, 0, .note())])], samples: [.sound([UInt8](repeating: 0x60, count: 100), loops: false)])
+        file.replaceSubrange(file.count - 4 ..< file.count, with: [0, 0, 0, 0])
+        file.replaceSubrange(0x28 ..< 0x2C, with: tracker)
+        let sound = stereo(try TuneLoader.load(file, format: .it), seconds: 0.1).left
+        return (sound[0 ..< 480].map(abs).max()!, abs(sound[1920]))
+    }
+    let own = try last(madeBy: word(0x0214) + word(0x0200)), later = try last(madeBy: word(0x5130) + word(0x0214))
+    #expect(later.peak > 0.05 && later.after < later.peak * 0.02)
+    #expect(own.after > own.peak * 0.5)
+}
+
 // MARK: Temperaments
 
 @Test func mptmTemperamentIsPlayedAtItsOwnPitches() throws {

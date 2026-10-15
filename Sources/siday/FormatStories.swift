@@ -722,7 +722,11 @@ sooner; an envelope that is to carry on from the note before does not, after a n
 let go, if the row names the instrument; and a slide to a note starts the envelopes again if the
 instrument has none for volume. (OpenMPT stops making the first of those changes at the first
 instrument that has anything random in it, in a file from before its version 1.17.02.50, and
-leaves the instruments after it as they are. So does this.)
+leaves the instruments after it as they are. So does this.) And a sample that ends where it is
+loud would click, and both mixers let its last level die away instead; ModPlug Tracker's mixer,
+which is OpenMPT's still, sixteen times more quickly than Impulse Tracker's, and so it is here for
+these files. It changes most of them a little, and of four hundred it brings fifteen audibly
+nearer libopenmpt, and none further.
 
 And an older OpenMPT meant something else by four of a file's numbers, which it changes when it
 reads such a file, so that the file sounds as it did. A sample's own vibrato that says nought for

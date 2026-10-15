@@ -172,7 +172,7 @@ final class IT2Mixer {
     private var fLastLeftValue: Float = 0, fLastRightValue: Float = 0
     /// How much of what a sample that has ended last put out is lost on each frame after: a 4096th
     /// as the "WAV writer" driver has it, and for an MT2 or an MPTM file, which are played as OpenMPT
-    /// plays them, a 256th as OpenMPT has it.
+    /// plays them, and an IT file of ModPlug Tracker's or OpenMPT's, a 256th as their mixer has it.
     private let endDecay: Float
 
     /// Sets a voice's filter as OpenMPT sets its own (`SetupChannelFilter`, where a file does not
@@ -200,7 +200,7 @@ final class IT2Mixer {
     /// - Parameter reverb: for a file whose channels can be put in ModPlug's reverb, what its sound
     ///   would be, for the level the reverb works at (see `IT2Module.reverb`).
     init(module: IT2Module, voices: UnsafeMutablePointer<IT2SlaveChannel>, filterParameters: UnsafeMutablePointer<UInt8>, sound: ModPlugSound? = nil,
-         reverb: ModPlugSound? = nil, filter: IT2Module.Filter = .impulseTrackers, softPanning: Bool? = nil) {
+         reverb: ModPlugSound? = nil, filter: IT2Module.Filter = .impulseTrackers, softPanning: Bool? = nil, quickEnds: Bool? = nil) {
         self.filter = filter
         globalVolumeAtMaster = sound?.globalVolumeAtMaster ?? false
         sChn = voices
@@ -250,7 +250,7 @@ final class IT2Mixer {
         FreqMultiplier = Float((1.0 / (2.0 * Double.pi * 110.0 * exp2Quarter)) * Double(mixingFrequency))
         ownFilterStep = Float(filterStep)
         ownFilterRate = Float(mixingFrequency)
-        endDecay = module.madTracker || module.openMPT != nil ? 1.0 / 256.0 : 1.0 / 4096.0
+        endDecay = quickEnds ?? (module.madTracker || module.openMPT != nil) ? 1.0 / 256.0 : 1.0 / 4096.0
 
         // and the gain.
         MixGain = Self.mixGain(of: module)
