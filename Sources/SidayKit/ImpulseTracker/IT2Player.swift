@@ -825,6 +825,7 @@ final class IT2Player {
     func PitchSlideUp(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ SlideValue: Int16, lasting: Bool = true) {
         if module.madTracker { return madTrackerSlide(sc, Int(SlideValue)) }
         if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodSlide(sc, Int(SlideValue), lasting: lasting) }
+        if openMPTHertz, module.Flags & ITF_LINEAR_FRQ != 0 { return openMPTFrequencySlide(sc, Int(SlideValue)) }
         if module.Flags & ITF_LINEAR_FRQ != 0 {
             PitchSlideUpLinear(hc, sc, SlideValue)
             return
@@ -1513,6 +1514,9 @@ final class IT2Player {
     let ownEnvelopeCarry: Bool, slideRestartsEnvelopes: Bool
     /// True if nothing is done for a file because another tracker than Impulse Tracker made it.
     let asImpulseTracker: Bool
+    /// True for an MPTM file that keeps its pitches in hertz, as Impulse Tracker does: its slides of
+    /// pitch are OpenMPT's, by its own tables (see `openMPTFrequencySlide`).
+    let openMPTHertz: Bool
     /// True unless what ModPlug Tracker and OpenMPT add to an IT file's instruments is to be
     /// left out: a filter the other way up, and one moved at random.
     let modPlugInstruments: Bool
@@ -1554,6 +1558,7 @@ final class IT2Player {
         ownEnvelopeCarry = module.modPlug.ownEnvelopeCarry && !asImpulseTracker
         slideRestartsEnvelopes = module.modPlug.slideRestartsEnvelopes && !asImpulseTracker
         self.asImpulseTracker = asImpulseTracker
+        openMPTHertz = module.openMPT.map { !$0.pitchesArePeriods } == true && module.madeByModPlug
         modPlugInstruments = !asImpulseTracker || module.openMPT != nil
         sound = asImpulseTracker ? nil : module.sound
         adLib = sound?.adLib.map { OpenMPTAdLib(behaviour: $0) }

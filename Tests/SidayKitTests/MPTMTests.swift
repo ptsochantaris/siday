@@ -367,6 +367,25 @@ private let tune = Pattern((0 ..< 4).map { (row: $0 * 4, channel: 0, cell: Cell.
     #expect(try levels(mptm(note, song: Song(resampling: 0), instruments: instruments, instrumentExtras: [("R...", 1, [[5]])])) == 2)
 }
 
+@Test func mptmSlidesInHertzByOpenMPTsTables() throws {
+    /// The pitch of a steady sound, from the first and the last time it goes up through nought.
+    func hertz(_ samples: ArraySlice<Float>) -> Double {
+        var rises: [Double] = []
+        for i in samples.indices.dropLast() where samples[i] < 0 && samples[i + 1] >= 0 {
+            rises.append(Double(i) + Double(-samples[i] / (samples[i + 1] - samples[i])))
+        }
+        return Double(rises.count - 1) / ((rises.last! - rises.first!) / Double(outputSampleRate))
+    }
+    // C-5 plays the square wave of 32 samples at 8,363 hertz: 261.3 Hz. At speed 2 a slide up of F23
+    // moves the note once, by the slide tables' 35th step: OpenMPT's is 74,363 of 65,536, which takes
+    // the rate to 9,489 and the note to 296.5 Hz. (Impulse Tracker's table has 73,563 there, and
+    // would leave it at 293.3 Hz.) The pattern is long enough that the note is not struck again.
+    let plain = stereo(try player(mptm([Pattern(rows: 64, [(0, 0, .note())])], song: Song(speed: 2))), seconds: 2).left
+    #expect(abs(hertz(plain[4800...]) - 261.34) < 0.05)
+    let slid = stereo(try player(mptm([Pattern(rows: 64, [(0, 0, .note(60, instrument: 1, volume: nil, "F", 0x23))])], song: Song(speed: 2))), seconds: 2).left
+    #expect(abs(hertz(slid[4800...]) - 296.53) < 0.05)
+}
+
 @Test func itFileUnderAnMPTMNameIsAnITFile() throws {
     // Without OpenMPT's own last part it is an IT file whatever it is called, and is played as one.
     var file = mptm([Pattern([(0, 0, .note())])])

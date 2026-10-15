@@ -127,12 +127,43 @@ extension IT2Player {
         sc.pointee.Flags |= SF_FREQ_CHANGE
     }
 
+    /// The same for a rate in hertz, as OpenMPT slides one in an MPTM file that asks for its pitches
+    /// so, with linear slides: by OpenMPT's own tables, which are not quite Impulse Tracker's, each
+    /// step rounded where Impulse Tracker's replayer cuts it short, and moved by one at least.
+    func openMPTFrequencySlide(_ sc: IT2SlavePointer, _ units: Int) {
+        let frequency = Int64(sc.pointee.Frequency)
+        guard units != 0, frequency > 0 else { return }
+        let up = units > 0, amount = abs(units)
+        var moved = frequency
+        if amount < 16 {
+            moved = Self.times(moved, up ? openMPTFineLinearSlideUpTable[amount] : openMPTFineLinearSlideDownTable[amount])
+        } else {
+            var left = amount / 4
+            while left > 0 {
+                let step = min(left, 255)
+                moved = Self.times(moved, up ? openMPTLinearSlideUpTable[step] : openMPTLinearSlideDownTable[step])
+                left -= step
+            }
+        }
+        if moved == frequency { moved += up ? 1 : (moved > 1 ? -1 : 0) }
+        sc.pointee.Frequency = Int32(truncatingIfNeeded: min(Int64(Int32.max), moved))
+        sc.pointee.Flags |= SF_FREQ_CHANGE
+    }
+
     /// A tick of Impulse Tracker's arpeggio: the period divided by so many semitones' worth, rounded.
     func openMPTPeriodArpeggio(_ sc: IT2SlavePointer, semitones: Int) {
         let base = openMPTBase(sc)
         guard semitones > 0, let period = rememberedPeriod(sc, base: base) else { return }
         let ratio = Int64(openMPTLinearSlideUpTable[min(255, semitones * 16)])
         sc.pointee.Frequency = rememberedFrequency(sc, period: max(1, (period * 65536 + ratio / 2) / ratio), base: base, lasting: false)
+        sc.pointee.Flags |= SF_FREQ_CHANGE
+    }
+
+    /// The same for a rate in hertz: multiplied, rounded.
+    func openMPTFrequencyArpeggio(_ sc: IT2SlavePointer, semitones: Int) {
+        guard semitones > 0 else { return }
+        let ratio = openMPTLinearSlideUpTable[min(255, semitones * 16)]
+        sc.pointee.Frequency = Int32(truncatingIfNeeded: min(Int64(Int32.max), Self.times(Int64(sc.pointee.Frequency), ratio)))
         sc.pointee.Flags |= SF_FREQ_CHANGE
     }
 

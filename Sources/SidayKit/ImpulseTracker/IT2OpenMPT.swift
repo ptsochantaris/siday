@@ -856,14 +856,15 @@ extension IT2Player {
         }
         var n = wave * depth / 256
         if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodOwnAutoVibrato(sc, by: n) }
+        // (OpenMPT's own tables, for an MPTM file's; Impulse Tracker's for an IT file's.)
         let first: Int, second: Int
         if n < 0 {
             n = -n
-            first = Int(it2LinearSlideDownTable[min(255, n / 256)])
-            second = Int(it2LinearSlideDownTable[min(255, n / 256 + 1)])
+            first = openMPTHertz ? Int(openMPTLinearSlideDownTable[min(255, n / 256)]) : Int(it2LinearSlideDownTable[min(255, n / 256)])
+            second = openMPTHertz ? Int(openMPTLinearSlideDownTable[min(255, n / 256 + 1)]) : Int(it2LinearSlideDownTable[min(255, n / 256 + 1)])
         } else {
-            first = Int(it2LinearSlideUpTable[min(255, n / 256)])
-            second = Int(it2LinearSlideUpTable[min(255, n / 256 + 1)])
+            first = Int(openMPTHertz ? openMPTLinearSlideUpTable[min(255, n / 256)] : it2LinearSlideUpTable[min(255, n / 256)])
+            second = Int(openMPTHertz ? openMPTLinearSlideUpTable[min(255, n / 256 + 1)] : it2LinearSlideUpTable[min(255, n / 256 + 1)])
         }
         n /= 4
         let factor = first + (second - first) * (n & 0x3F) / 64
@@ -895,13 +896,14 @@ extension IT2Player {
         // (In 256ths of the rate, as OpenMPT reckons it.)
         let steps = abs(wave), rate = Int64(sc.pointee.Frequency) * 256
         func step(_ factor: UInt32) -> Int64 { rate * Int64(factor) / 65536 - rate }
+        // (OpenMPT's own tables, for an MPTM file's; Impulse Tracker's for an IT file's.)
         var moved: Int64
         if wave < 0 {
-            moved = step(UInt32(it2LinearSlideDownTable[min(256, steps / 4)]))
-            if steps & 3 != 0 { moved += step(UInt32(it2FineLinearSlideDownTable[steps & 3])) }
+            moved = step(openMPTHertz ? openMPTLinearSlideDownTable[min(255, steps / 4)] : UInt32(it2LinearSlideDownTable[min(256, steps / 4)]))
+            if steps & 3 != 0 { moved += step(openMPTHertz ? openMPTFineLinearSlideDownTable[steps & 3] : UInt32(it2FineLinearSlideDownTable[steps & 3])) }
         } else {
-            moved = step(it2LinearSlideUpTable[min(256, steps / 4)])
-            if steps & 3 != 0 { moved += step(it2FineLinearSlideUpTable[steps & 3]) }
+            moved = step(openMPTHertz ? openMPTLinearSlideUpTable[min(255, steps / 4)] : it2LinearSlideUpTable[min(256, steps / 4)])
+            if steps & 3 != 0 { moved += step(openMPTHertz ? openMPTFineLinearSlideUpTable[steps & 3] : it2FineLinearSlideUpTable[steps & 3]) }
         }
         sc.pointee.Frequency = Int32(truncatingIfNeeded: min(Int64(Int32.max), (rate + moved) / 256))
         sc.pointee.Flags |= SF_FREQ_CHANGE

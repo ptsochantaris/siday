@@ -1573,6 +1573,7 @@ extension IT2Player {
             return
         }
         if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodArpeggio(sc, semitones: arpNote - 60) }
+        if openMPTHertz { return openMPTFrequencyArpeggio(sc, semitones: arpNote - 60) }
         let multiplier = arpNote < it2PitchTable.count ? it2PitchTable[arpNote] : 0
 
         // (The original widens the rate, a signed number, to sixty-four bits before it multiplies.)

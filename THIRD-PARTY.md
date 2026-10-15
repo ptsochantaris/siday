@@ -680,8 +680,9 @@ envelope goes to when a key is let go, the filter that lets the high through, an
 one side is put (`soundlib/Sndmix.cpp`, `Snd_flt.cpp`). `OpenMPTTuning.swift` is OpenMPT's tunings
 (`soundlib/tuning.cpp`), and the lines of `IT2OpenMPT.swift` for a tuned instrument are how its
 player moves such a note (`soundlib/Snd_fx.cpp`, `Sndmix.cpp`). `IT2Periods.swift` is how its player
-keeps a note's pitch as a period, for a file that asks for that and for a module of Digitrakker's
-(`soundlib/Snd_fx.cpp`, `Sndmix.cpp`, with the tables of `Tables.cpp`). Changed from the original:
+keeps a note's pitch as a period, for a file that asks for that and for a module of Digitrakker's,
+and how it slides one kept in hertz (`soundlib/Snd_fx.cpp`, `Sndmix.cpp`, with the tables of
+`Tables.cpp`). Changed from the original:
 carried over from C++ to Swift; none of OpenMPT's own player is here, only these parts of it set
 into another replayer, which plays the rest as Impulse Tracker would; and of the many ways of
 playing that a file can ask OpenMPT for, one by one, only the few that the source names are
