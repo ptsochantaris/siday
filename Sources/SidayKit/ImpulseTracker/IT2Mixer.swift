@@ -195,6 +195,28 @@ final class IT2Mixer {
         sc.pointee.fFilterc = 1 - a - b
     }
 
+    /// Impulse Tracker's filter for a voice of a module of Imago Orpheus's, whose cutoffs are as
+    /// OpenMPT has them: from 125 hertz up by six octaves, at their highest by the voice's envelope
+    /// for the filter, if it has one (see `IT2Module.Filter.imagoOrpheus`).
+    private func setImagoFilter(_ sc: UnsafeMutablePointer<IT2SlaveChannel>, cutoff: Int32, resonance: UInt8) {
+        var envelope: Int32 = 512
+        if sc.pointee.FilterEnvelope {
+            envelope = max(0, min(512, (sc.pointee.PitchEnvState.Value + (32 << 16) + (1 << 12)) >> 13))
+        } else if sc.pointee.MIDIBank & 0x00FF != 255 {
+            envelope = Int32(sc.pointee.MIDIBank & 0x00FF) * 2
+        }
+        let p = QualityFactorTable[Int(min(resonance, 127))]
+        let frequency = min(ownFilterRate * 0.5, max(120, min(20000, 125 * exp2f(Float(cutoff * envelope) * 6 / (127 * 512)))))
+        let r = ownFilterRate / (frequency * 2 * Float.pi)
+        let d = (p * r) + (p - 1.0)
+        let e = r * r
+        let a: Float = 1.0 / (1.0 + d + e)
+        let b: Float = (d + e + e) * a
+        sc.pointee.fFiltera = a
+        sc.pointee.fFilterb = b
+        sc.pointee.fFilterc = 1.0 - a - b
+    }
+
     /// - Parameter softPanning: OpenMPT's way of 1.17 of placing a channel: one to a side is no
     ///   louder there than one in the middle. Nil for what the module's own song says, if it has one.
     /// - Parameter reverb: for a file whose channels can be put in ModPlug's reverb, what its sound
@@ -690,7 +712,9 @@ final class IT2Mixer {
                 // What the filter's envelope is at (0 to 255) by the cutoff (0 to 127).
                 let cutoff = Int32(UInt16(bitPattern: sc.pointee.VolEnvState.CurNode) >> 8)
                 let FilterFreqValue = UInt16(truncatingIfNeeded: Int32(sc.pointee.MIDIBank & 0x00FF) &* cutoff)
-                if filter != .impulseTrackers {
+                if filter == .imagoOrpheus {
+                    if FilterFreqValue != 127 * 255 || FilterQ != 0 { setImagoFilter(sc, cutoff: cutoff, resonance: FilterQ) }
+                } else if filter != .impulseTrackers {
                     // OpenMPT's own: on by Impulse Tracker's rule, or by its own, which is that a
                     // note starts with it if its cutoff is below the top, that a macro or an
                     // envelope that sets it puts it on, and that once on it stays on.

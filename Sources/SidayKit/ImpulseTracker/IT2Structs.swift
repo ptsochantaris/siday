@@ -290,8 +290,11 @@ struct IT2SlaveChannel {
     var OldLeftVolume: Int32 = 0, OldRightVolume: Int32 = 0
     var FinalVol128: UInt8 = 0, Vol: UInt8 = 0, VolSet: UInt8 = 0, ChnVol: UInt8 = 0, SmpVol: UInt8 = 0, FinalPan: UInt8 = 0
     var FadeOut: UInt16 = 0
-    /// For an MT2 file only: the part of the fade below `FadeOut`'s steps, in 64ths of one. See `madTrackerFadeStep`.
+    /// For an MT2 or IMF file only: the part of the fade below `FadeOut`'s steps, in 64ths of one. See `madTrackerFadeStep`.
     var FadeFraction: UInt8 = 0
+    /// For a module of Imago Orpheus's only: true once a slide to a note has brought back a note
+    /// whose key had been let go, which then does not fade until its envelope ends (see `imagoSlideRevives`).
+    var ImagoRevived = false
     /// For a module of Digitrakker's only, whose fades are finer: the part of `FadeOut` below one, of 64.
     var FadeOutFraction: UInt8 = 0
     var DCT: UInt8 = 0, DCA: UInt8 = 0, Pan: UInt8 = 0, PanSet: UInt8 = 0

@@ -128,6 +128,10 @@ final class IT2Module {
         case openMPTsCurve
         /// ModPlug Tracker's and OpenMPT's own.
         case openMPTs
+        /// Impulse Tracker's, but for how high each of its 128 cutoffs is, which is as OpenMPT has
+        /// it for a module of Imago Orpheus's: as Creative's EMU8000 has them, from 125 hertz up
+        /// to 8,000 (see `IMFFile`).
+        case imagoOrpheus
     }
 
     /// The ways of ModPlug Tracker's and OpenMPT's own that a file of theirs is played in, where
@@ -207,6 +211,9 @@ final class IT2Module {
     /// For such a module: the speeds of the volume column's slides of pitch that are faster than
     /// Impulse Tracker's nine, under their pattern, row and channel (see `IT2Player.xTrackerPlace`).
     var xTrackerSlides: [Int: UInt8] = [:]
+    /// True for a module of Imago Orpheus's, which is played as OpenMPT plays one where it plays it
+    /// otherwise than an IT file: see `IT2Imago.swift`.
+    var imagoOrpheus = false
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
