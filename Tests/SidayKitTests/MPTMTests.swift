@@ -712,6 +712,16 @@ private func ways(without left: Int...) -> Song {
     #expect(abs(Double(own[0]) - 8363 * pow(2.0, -31.0 / 768)) < 25 && abs(Double(impulse[3]) - 8363 * pow(2.0, 32.0 / 768)) < 25)
 }
 
+@Test func mptmVibratoIsDividedTowardsNought() throws {
+    // OpenMPT divides a step of a vibrato's wave times its depth towards nought, where Impulse
+    // Tracker rounds it: H44 on its third tick is at a point of the wave where the two differ.
+    let file = mptm([Pattern([(0, 0, .note(60, "H", 0x44))])], instruments: [(1, [], 0)])
+    let rates = try player(file).ticks(seconds: 0.3).map { $0.rates.max() ?? 0 }
+    let bent = Int(it2FineSineData[48]) * 16 * 4
+    #expect(bent % 256 >= 128 && bent / 256 < 16)
+    #expect(rates[2] == Int((UInt64(8363) * UInt64(it2FineLinearSlideUpTable[bent / 256])) >> 16))
+}
+
 @Test func mptmOfAnOlderOpenMPTKeepsItsPitchesAsPeriods() throws {
     // OpenMPT kept a note's pitch as a period, a whole number, before its version 1.24 for a song
     // with linear slides (and before 1.30 for one without), and still does for a file that does

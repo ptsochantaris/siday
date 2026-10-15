@@ -1423,11 +1423,12 @@ extension IT2Player {
     }
 
     /// Bends the pitch by a step of the vibrato's wave times its depth. The result is cut to eight
-    /// bits, as the original's is.
+    /// bits, as the original's is. (OpenMPT divides it towards nought, where Impulse Tracker rounds.)
     private func CommandH5(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ VibratoData: Int8) {
         if tuning(of: hc) != nil { return openMPTTunedVibrato(hc, VibratoData) }
         if module.openMPT?.itVibrato == false { return openMPTOwnVibrato(hc, sc) }
-        var VibratoData = Int8(truncatingIfNeeded: (((Int(VibratoData) * Int(Int8(bitPattern: hc.pointee.VibratoDepth))) << 2) + 128) >> 8)
+        let bent = (Int(VibratoData) * Int(Int8(bitPattern: hc.pointee.VibratoDepth))) << 2
+        var VibratoData = Int8(truncatingIfNeeded: module.openMPT != nil ? bent / 256 : (bent + 128) >> 8)
         if module.Flags & ITF_OLD_EFFECTS != 0 { VibratoData = 0 &- VibratoData }
 
         if VibratoData < 0 {
