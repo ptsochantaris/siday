@@ -69,11 +69,26 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     /// among, whichever card it is on: what a GUS puts out is half as loud again as a Sound Blaster.
     /// The samples are made quieter by a third to leave room for the AdLib card in sixteen bits;
     /// there is room to spare here, so with that card both are brought back up by as much.
-    private var gain: Float { (card == .gus ? 0.34 : 0.5) * (usesAdLib ? 1.5 : 1) }
+    private var gain: Float { (card == .gus ? 0.34 : 0.5) * (usesAdLib ? 1.5 : 1) * loudness }
+    /// And for a module of another tracker's, beside an S3M file on the same card.
+    private let loudness: Float
 
-    public init(_ data: [UInt8], options: LoadOptions) throws {
+    public convenience init(_ data: [UInt8], options: LoadOptions) throws {
+        try self.init(data, options: options, card: nil)
+    }
+
+    /// - Parameters:
+    ///   - card: the card to play it on; nil for the one the file was saved with, or the one asked for.
+    ///   - format: for a module of another tracker's that has been read into an S3M file (see
+    ///     `DSMFile`): what kind of file it was, and the tracker or player it was made for, its title,
+    ///     what of it is not played, how loud it is beside an S3M file, and whether it is a DSM file's
+    ///     (see `ST3Module.playsAsDSIK`).
+    init(_ data: [UInt8], options: LoadOptions, card chosen: ST3Card?, format: String = "S3M", tracker: String? = nil, title: String? = nil,
+         shortfalls: [String] = [], loudness: Float = 1, asDSIK: Bool = false) throws {
         module = try ST3Module(data)
-        card = options.s3mCard ?? (module.savedWithSoundBlaster ? .sb : .gus)
+        module.playsAsDSIK = asDSIK
+        self.loudness = loudness
+        card = chosen ?? options.s3mCard ?? (module.savedWithSoundBlaster ? .sb : .gus)
         // Samples in stereo are played so on a Gravis Ultrasound, in a file that is in stereo.
         stereoApart = card == .gus && module.mastermul & 128 != 0
         module.playStereoSamples(asScreamTracker: false, apart: stereoApart)
@@ -135,11 +150,12 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         songList = found.map { Song(start: $0.start, number: $0.number, length: $0.length, empty: $0.empty, adLib: adLib[$0.start]) }
         player = ST3Player(module, card: card)
 
-        var info = TuneInfo(format: "S3M")
-        info.title = module.title
-        info.detail = "Scream Tracker 3, " + (card == .gus ? "Gravis Ultrasound" : "Sound Blaster Pro") + (songList.contains { $0.adLib } ? " and AdLib" : "")
+        var info = TuneInfo(format: format)
+        info.title = title ?? module.title
+        info.detail = (tracker.map { $0 + ", as Scream Tracker 3 plays it on a " } ?? "Scream Tracker 3, ")
+            + (card == .gus ? "Gravis Ultrasound" : "Sound Blaster Pro") + (songList.contains { $0.adLib } ? " and AdLib" : "")
         let apart = stereoApart, stereoSentence = module.stereoSentence
-        info.shortfalls = module.shortfalls.filter { !apart || $0 != stereoSentence }
+        info.shortfalls = shortfalls + module.shortfalls.filter { !apart || $0 != stereoSentence }
         self.info = info
         currentSubsong = defaultSubsong
         restart()

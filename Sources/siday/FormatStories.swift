@@ -655,6 +655,59 @@ what an STM has not, more channels, more samples, longer ones and ones of sixtee
 converter made none of those, and a file that has them and uses them says so. A volume over 64,
 which Scream Tracker 2 would play as silence, is taken for 64, as OpenMPT takes it.
 
+## DSM — the Digital Sound Interface Kit
+
+The Digital Sound Interface Kit, DSIK, is Carlos Hasan's library for playing music and sound in
+programs for DOS. It came with a converter, which made the modules of other trackers, S3M files among
+them, into the one kind of file its player played: a DSM file, a RIFF file of the kind "DSMF". It
+is made of chunks: the song (a name, how many of each thing there are, the speed and tempo, up to
+sixteen channels each with a place between the speakers, and the list of patterns), and then each
+pattern and each sample in a chunk of its own. A pattern is 64 rows, packed much as an S3M file
+packs them; a sample is of eight bits or sixteen, with a sign or without one, or kept as the
+differences from each byte to the one before, with a rate of its own and a loop. The commands are
+ProTracker's, under a MOD file's numbers, with 8xx a place between the speakers from 00 to 80 and
+A4 for surround. (Another kind of file called DSM, Dynamic Studio's, which begins "DSm", is not
+read.)
+
+DSIK's player is not to be had. OpenMPT plays these files by the rules it plays an S3M file by:
+slides fine and extra fine within the commands, one value remembered for most of them together, a
+slide to a note that names another sample going on with the one that is sounding, and the rest.
+Those rules are its rendering of Scream Tracker 3, whose own replayer is here; and so it is that
+replayer that plays them, on a Gravis Ultrasound, whose voices each have a place between the
+speakers: the file is read into an S3M file, each command under its S3M letter (and 8xx under the X
+of the trackers that came after Scream Tracker), and that is played. Impulse Tracker's replayer, on
+which the other trackers' files from the PC are played here, would play them as Impulse Tracker
+played an S3M file, with a memory of its own for each command, which is not how OpenMPT plays these.
+Three things that OpenMPT does for an S3M file it does otherwise for these, and the replayer is told
+of them: a slide to a note that names another sample keeps the rate of the one sounding as well as
+its sound, where Scream Tracker takes up the other's rate; a slide on a channel whose sample has
+come to its end starts it again, where Scream Tracker slides it in silence; and a tempo is the
+tempo asked for, where Scream Tracker's timer on the Ultrasound goes by whole ticks a second, so
+that 136, which one of the files asks for, would be played as 135 is.
+
+Some things are Scream Tracker's and not OpenMPT's, and are left so: its loudest volume is 63, where
+OpenMPT's is 64; its Ultrasound has sixteen places between the speakers, and a place is played at
+the nearest; and it plays a sample that has no loop on into a little silence after its end. The song
+goes back to its top when it comes to its end, where a file can ask for another place (none of the
+files to hand does, and a file that did would say so). A channel in surround is played in the
+middle, and the file says so. And the file's master volume, which OpenMPT takes for how loud the
+whole is played, is left out: the files are made as loud as each other, as every kind of file here
+is, where in OpenMPT one of the three to hand, which asks for its loudness to be found from its
+count of channels, is seven to twelve decibels quieter than the other two.
+
+All three files to hand are played. Every sample is as libopenmpt reads it, to the last byte of its
+sound and its loop. Every channel's pitch, volume and place was set beside libopenmpt's on every
+tick of each, to its end: of 25,984 ticks they are alike on 25,747, counting Scream Tracker's 63 as
+OpenMPT's 64. Of the rest, all but eight are where a sample with no loop ends a tick sooner or later
+in one than in the other (most of them later here), and the eight are the first ticks of rows of
+vibrato. The places between the speakers are the same
+on every tick. A file made for the purpose, with every kind of sample and the commands that are not
+in the three, is alike on every tick but those of a note cut short, which here is silent and plays
+on. What is heard was set beside libopenmpt too, for two minutes of each: the spectrum agrees to
+0.991, 0.982 and 0.925, and the loudness over time to 0.994, 0.972 and 0.792; the last is the file
+that moves its channels between the speakers all through, to places the Ultrasound has only near.
+The files are made about as loud as other modules are, by measure.
+
 ## IT — Impulse Tracker, and ModPlug Tracker after it
 
 Impulse Tracker is Jeffrey Lim's, from 1995, and was added to until 1999. It looks like Scream

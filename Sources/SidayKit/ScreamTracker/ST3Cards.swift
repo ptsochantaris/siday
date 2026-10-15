@@ -194,6 +194,18 @@ final class ST3Cards {
         for i in 0 ..< 32 { voices[i].heard = isMuted(voices[i].owner) ? 0 : -1 }
     }
 
+    /// True if a channel of samples is sounding: it has not come to the end of its sample.
+    func isSounding(_ ch: ST3Channel) -> Bool {
+        switch card {
+        case .gus:
+            guard ch.aguschannel >= 0, Int(ch.aguschannel) < activeVoices else { return false }
+            let voice = voices[Int(ch.aguschannel)]
+            return voice.SACI & 3 == 0 && voice.SA >= 0
+        case .sb:
+            return ch.m_speed != 0 && ch.m_base >= 0
+        }
+    }
+
     /// Which of the card's sixteen places a channel of samples is at.
     func balance(of ch: ST3Channel) -> UInt8 {
         ch.apanpos >= 0xF0 ? ch.apanpos & 0x0F : stchannelpan[Int(ch.channelnum) & 15]

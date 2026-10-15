@@ -28,7 +28,7 @@ siday ~/Music/chiptunes --shuffle
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers) |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
-| Other PC trackers | MTM, DTM, AMF; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), or Impulse Tracker's |
+| Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
 | AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -246,7 +246,8 @@ Not played:
   a MED4 song whose instruments are kept in files of their own; a module of the later SoundFX, of
   31 samples.
 - **PC:** a DTM file from Digital Home Studio; the other kind of
-  file called AMF, ASYLUM's; an STM song saved without its samples.
+  file called AMF, ASYLUM's; the other kind called DSM, Dynamic Studio's; an STM song saved without
+  its samples.
 - **MPTM:** a file whose notes are, half of them or more, for plug-ins that are not OpenMPT's own
   or for samples kept in other files.
 - **MT2:** a file whose notes are, half of them or more, for VST instruments or MIDI devices, or for
@@ -278,6 +279,9 @@ Played, with a difference:
 - **AMS:** a command that has no room beside a note's others is left out, as OpenMPT leaves it out;
   a key that a command lets go after some ticks is let go at once, as OpenMPT lets it go.
 - **STM and STX:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
+- **DSM:** played by Scream Tracker 3's replayer on a Gravis Ultrasound, as OpenMPT plays it by
+  Scream Tracker's rules, but at sixteen places between the speakers and with surround in the
+  middle; the file's master volume is left out.
 - **ROL:** an instrument that no bank has is silent.
 
 ## How it is built
@@ -465,6 +469,9 @@ What it is made from:
   [ancient](https://github.com/temisu/ancient) does it, and was checked against the system's zlib.
 - And again: how a PLM file is read, and what Disorder Tracker 2 does otherwise than Impulse
   Tracker, made after OpenMPT's; libopenmpt is the player those files were checked against.
+- And again: how a DSM file of the Digital Sound Interface Kit is read, and what OpenMPT does for
+  one otherwise than for an S3M file; libopenmpt is the player those files were checked against.
+  The Digital Sound Interface Kit is by Carlos Hasan.
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.

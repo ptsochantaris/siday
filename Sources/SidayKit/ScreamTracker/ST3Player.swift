@@ -150,7 +150,9 @@ public final class ST3Player {
         for i in 0 ... 255 {
             let bpm = i == 0 ? 1 : i
             let hz: Double
-            if card == .gus {
+            if module.playsAsDSIK {
+                hz = Double(bpm) * 2 / 5
+            } else if card == .gus {
                 // The timer the tracker used, which cannot go slower than 19 times a second.
                 let wanted = max(19, bpm * 50 / 125)
                 hz = (157_500_000.0 / 132.0) / Double(1_193_180 / wanted)
@@ -525,6 +527,27 @@ public final class ST3Player {
         }
     }
 
+    /// For a DSM file's module (`ST3Module.playsAsDSIK`): true if
+    /// the row's instrument is another sample than the one that is sounding. That sample then goes
+    /// on, at the rate it had, and is the channel's from then on; the row's instrument gives the
+    /// volume alone.
+    private func slideKeepsSample(_ ch: ST3Channel) -> Bool {
+        let ins = module.ins[Int(ch.ins) - 1]
+        guard ins.type == 1, ch.m_base >= 0, ins.baseptr != ch.m_base, cards.isSounding(ch),
+              let sounding = module.ins.firstIndex(where: { $0.type == 1 && $0.baseptr == ch.m_base }) else { return false }
+        ch.lastins = UInt8(sounding + 1)
+        return true
+    }
+
+    private func doamigaSliding(_ ch: ST3Channel) {
+        ch.astartoffset = 0
+        ch.avol = max(0, min(63, Int8(bitPattern: module.ins[Int(ch.ins) - 1].vol)))
+        ch.aorgvol = ch.avol
+        setvol(ch)
+        ch.ins = 0
+        doamiga(ch)
+    }
+
     /// A new note, instrument or volume on a channel of the AdLib card's.
     private func doadlib(_ ch: ST3Channel, _ adLibCh: Int) {
         // (The player this is ported from takes the card to be playing from here on, whatever the
@@ -584,6 +607,7 @@ public final class ST3Player {
 
     /// A new note, instrument or volume on a channel of samples.
     private func doamiga(_ ch: ST3Channel) {
+        if ch.ins > 0, module.playsAsDSIK, ch.cmd == 7 || ch.cmd == 12, ch.ins < ST3Module.mostInstruments, slideKeepsSample(ch) { return doamigaSliding(ch) }
         if ch.ins > 0 {
             ch.astartoffset = 0
             if ch.ins < ST3Module.mostInstruments {
@@ -652,7 +676,9 @@ public final class ST3Player {
                 ch.asldspd = -1 // a slip in the original, kept
             } else {
                 let sliding = ch.cmd == 7 || ch.cmd == 12 // G or L
-                if !sliding {
+                // (In a DSM file's, a slide on a channel whose sample has come to its end starts it
+                // again, and slides on from where the pitch was.)
+                if !sliding || module.playsAsDSIK && !cards.isSounding(ch) {
                     ch.struck = true
                     ch.m_pos = UInt32(ch.astartoffset)
                     ch.m_poslow = 0

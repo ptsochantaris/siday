@@ -49,6 +49,13 @@ final class ST3Module {
     /// True if the file is taken to be one that Scream Tracker 3 itself saved: it says so, and
     /// has what Scream Tracker leaves in a file and other trackers that say the same do not.
     let madeByScreamTracker: Bool
+    /// True for a DSM file's module, which is played as OpenMPT plays one where it and Scream Tracker
+    /// differ (see `DSMFile`): a slide to a note that names another sample than the one sounding
+    /// goes on with that one, at its rate, where Scream Tracker takes up the other's rate; a slide on
+    /// a channel whose sample has ended starts it again, where Scream Tracker slides it in silence;
+    /// and a tempo is the tempo asked for, where Scream Tracker's timer on a Gravis Ultrasound goes
+    /// by whole ticks a second, so that a tempo of 136 is played as 135 is.
+    var playsAsDSIK = false
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An S3M file
     /// from a later tracker may have what Scream Tracker never had.
     private(set) var shortfalls: [String] = []

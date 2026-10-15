@@ -644,6 +644,15 @@ lines in `IT2Effects.swift` that are there for these files and say so, follow wh
 `soundlib/Snd_fx.cpp` does for a module of that kind. They are used under OpenMPT's licence, the BSD
 3-Clause, set out below under "OpenMPT — FM Tracker files".
 
+## OpenMPT — DSM files
+
+`Sources/SidayKit/ScreamTracker/DSMFile.swift`, which reads a DSM file of the Digital Sound Interface
+Kit into an S3M file for Scream Tracker 3's replayer, is made after OpenMPT's loader of that format
+(`soundlib/Load_dsm.cpp`): the layout of the file, how its samples are kept, and what its commands
+are taken to mean. The lines in `ST3Player.swift` that are there for these files and say so follow
+what OpenMPT's `soundlib/Snd_fx.cpp` does for a module of that kind and not for an S3M file. They are
+used under OpenMPT's licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
+
 ## OpenMPT — MPTM files
 
 `Sources/SidayKit/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,

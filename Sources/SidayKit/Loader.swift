@@ -19,6 +19,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case imf
     case ams
     case plm
+    case dsm
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -149,6 +150,10 @@ public enum TuneLoader {
             return XMRenderer(try FT2Module(AMFFile.read(data)), options: options)
         case .s3m:
             return try S3MRenderer(data, options: options)
+        case .dsm:
+            // The Digital Sound Interface Kit's, which Scream Tracker 3's replayer plays as OpenMPT
+            // plays them: read into an S3M file.
+            return try DSMFile.renderer(data, options: options)
         case .it:
             return try ITRenderer(data, options: options)
         case .gdm:
