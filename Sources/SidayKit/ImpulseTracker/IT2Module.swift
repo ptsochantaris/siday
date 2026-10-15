@@ -417,7 +417,7 @@ final class IT2Module {
                 if pointed > 0 { firstPointed = min(firstPointed, pointed) }
             }
             _ = extras.readPieces(reader, at: m.position, before: firstPointed)
-            extras.readInstrumentExtras(reader, from: PtrListOffset, instruments: InsNum)
+            extras.readInstrumentExtras(reader, from: Self.extrasPlace(reader, PtrListOffset, InsNum, SmpNum, PatNum), instruments: InsNum, exactly: true)
             extras.readSongExtras(reader)
         }
 
@@ -944,6 +944,58 @@ final class IT2Module {
         let memory = UnsafeMutableRawPointer.allocate(byteCount: length + SAMPLE_PAD_LENGTH, alignment: 16)
         memory.initializeMemory(as: UInt8.self, repeating: 0, count: length + SAMPLE_PAD_LENGTH)
         return memory
+    }
+
+    /// Where ModPlug Tracker and OpenMPT put what they say of the instruments in an IT file: just
+    /// after whatever else of the file ends last, which is found as OpenMPT finds it, by where the
+    /// last sample's header ends, and where each sample's sound and each pattern does. (The letters
+    /// that begin it can turn up earlier, in a sample's sound.)
+    static func extrasPlace(_ file: ByteReader, _ PtrListOffset: Int, _ InsNum: Int, _ SmpNum: Int, _ PatNum: Int) -> Int {
+        let size = file.data.count
+        var last = 0
+        let SmpPtrOffset = PtrListOffset + InsNum * 4
+        for i in 0 ..< SmpNum {
+            let header = file.u32le(SmpPtrOffset + i * 4)
+            guard header > 0, header + 0x50 <= size else { continue }
+            if i == SmpNum - 1 { last = header + 0x50 }
+            let flags = Int(file[header + 0x12]), cvt = Int(file[header + 0x2E])
+            let length = file.u32le(header + 0x30), at = file.u32le(header + 0x48)
+            guard at <= size else { continue }
+            var end = at
+            if cvt == Int(adLibPatch) {
+                end = at + 12
+            } else if cvt == 0x80 {
+                // (A sample of an MPTM file kept in another file, which an IT file does not have.)
+                end = at
+            } else if length > 0 {
+                let wide = flags & Int(SMPF_16BIT) != 0, channels = flags & Int(SMPF_STEREO) != 0 ? 2 : 1
+                if cvt == 0xFF, !wide, flags & Int(SMPF_COMPRESSED) == 0 {
+                    // ModPlug's own four bits a sample, after a table of sixteen.
+                    end = at + 16 + (length + 1) / 2
+                } else if flags & Int(SMPF_COMPRESSED) != 0 {
+                    // Blocks of so many samples each, every block after its own length.
+                    for _ in 0 ..< channels {
+                        var left = length
+                        while left > 0, end + 2 <= size {
+                            end += 2 + file.u16le(end)
+                            left -= min(left, wide ? 0x4000 : 0x8000)
+                        }
+                    }
+                } else {
+                    end = at + Int(min(Int64(length) * (wide ? 2 : 1) * Int64(channels), Int64(size)))
+                }
+            }
+            last = max(last, min(end, size))
+        }
+        let PatPtrOffset = SmpPtrOffset + SmpNum * 4
+        for i in 0 ..< PatNum {
+            let at = file.u32le(PatPtrOffset + i * 4)
+            guard at > 0, at + 8 <= size else { continue }
+            let rows = file.u16le(at + 2)
+            guard rows >= 1, rows <= 4096 else { continue }
+            last = max(last, min(at + 8 + file.u16le(at), size))
+        }
+        return last
     }
 
     /// How much packed data a block of a compressed sample can have.

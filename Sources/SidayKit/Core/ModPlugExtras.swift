@@ -175,12 +175,18 @@ struct ModPlugExtras {
     /// Reads what is said of each instrument beyond what its own tracker could say, which begins
     /// "XTPM" somewhere at or after `start`: a list of things, each with a name, a size, and a
     /// value of that size for every instrument. Only which plug-in each plays through is kept.
-    mutating func readInstrumentExtras(_ file: ByteReader, from start: Int, instruments: Int) {
+    /// - Parameter exactly: true if it is at `start` or nowhere.
+    mutating func readInstrumentExtras(_ file: ByteReader, from start: Int, instruments: Int, exactly: Bool = false) {
         guard instruments > 0, start >= 0 else { return }
         var at = start
         let data = file.data
         // (The letters are written last first.)
-        while at + 4 <= data.count, !(data[at] == 0x58 && data[at + 1] == 0x54 && data[at + 2] == 0x50 && data[at + 3] == 0x4D) { at += 1 }
+        func found() -> Bool { at + 4 <= data.count && data[at] == 0x58 && data[at + 1] == 0x54 && data[at + 2] == 0x50 && data[at + 3] == 0x4D }
+        if exactly {
+            guard found() else { return }
+        } else {
+            while at + 4 <= data.count, !found() { at += 1 }
+        }
         at += 4
         while at + 6 <= data.count {
             let code = file.u16le(at) | file.u16le(at + 2) << 16

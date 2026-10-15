@@ -372,6 +372,24 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     #expect(extras.resonanceSwings.isEmpty)
 }
 
+@Test func modPlugsExtrasAreFoundWhereTheRestOfTheFileEnds() {
+    // They follow whatever of the file ends last: here, the sample's sound. The letters that begin
+    // them can be in a sound, and are not taken for them there.
+    var file = it()
+    let end = IT2Module.extrasPlace(ByteReader(file), 192 + 2, 0, 1, 1)
+    #expect(end == file.count)
+    let extras = Array("XTPM".utf8) + Array("..MF".utf8) + word(1) + [1]
+    file.replaceSubrange(file.count - 32 ..< file.count - 32 + extras.count, with: extras)
+    var found = ModPlugExtras()
+    found.readInstrumentExtras(ByteReader(file), from: IT2Module.extrasPlace(ByteReader(file), 194, 0, 1, 1), instruments: 1, exactly: true)
+    #expect(found.filterModes.isEmpty)
+    file += Array("XTPM".utf8) + Array("..MF".utf8) + word(1) + [0]
+    found.readInstrumentExtras(ByteReader(file), from: end, instruments: 1, exactly: true)
+    #expect(found.filterModes == [0])
+    // A cut-short file does not trap.
+    for length in 0 ..< file.count { _ = IT2Module.extrasPlace(ByteReader(Array(file[..<length])), 194, 0, 1, 1) }
+}
+
 @Test func itFromALaterTrackerSaysWhatImpulseTrackerDoesNotPlay() throws {
     func shortfalls(_ file: [UInt8]) throws -> [String] { try TuneLoader.load(file, format: .it).info.shortfalls }
     #expect(try shortfalls(it()).isEmpty)
