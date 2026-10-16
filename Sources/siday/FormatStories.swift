@@ -1933,7 +1933,10 @@ What is played here is the PC's FM music, on the OPL3 that plays the other music
 and Sound Blaster cards: the OPL (YM3526), with its one wave; the OPL2 (YM3812), the AdLib's; and the
 OPL3 (YMF262), the Sound Blaster Pro 2's and 16's, with its eighteen channels and its two sides. Two
 of a chip are played too, and two OPL2s that a file marks as a Sound Blaster Pro's, Creative's first
-card in stereo, are put each on its own side, as that card had them. A file asks for its own
+card in stereo, are put each on its own side, as that card had them. That is harsh in headphones,
+and so, from 16 October 2026, they are brought most of the way together, as an Amiga's sides are:
+a fifth of the difference between them is kept, unless the listener asks for more
+(`--sb-pro-separation`, or the setting in the browser; 100 is the card's own). A file asks for its own
 volume, and may ask for one chip to be louder; both are heard.
 
 The AY-3-8910, General Instrument's chip of 1978 and the ZX Spectrum 128's and the Atari ST's (as

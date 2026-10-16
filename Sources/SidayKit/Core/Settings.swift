@@ -13,6 +13,7 @@ public enum Setting: Int, CaseIterable, Sendable {
     case chip, clock, frameRate, stereoOrder
     case sidModel, sidEngine, sidFilter
     case amiga, amigaSeparation, s3mCard
+    case sbProSeparation
 
     /// One of the things a setting can be chosen to be.
     public struct Choice: Sendable {
@@ -39,7 +40,7 @@ public enum Setting: Int, CaseIterable, Sendable {
 
     /// The settings are shown in groups, by what they have to do with.
     public enum Group: Int, CaseIterable, Sendable {
-        case playing, ay, sid, modules
+        case playing, ay, sid, modules, cards
 
         public var title: String {
             switch self {
@@ -47,6 +48,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .ay: "AY and YM chips"
             case .sid: "SID chip"
             case .modules: "Modules"
+            case .cards: "AdLib and Sound Blaster"
             }
         }
 
@@ -59,6 +61,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .chip, .clock, .frameRate, .stereoOrder: .ay
         case .sidModel, .sidEngine, .sidFilter: .sid
         case .amiga, .amigaSeparation, .s3mCard: .modules
+        case .sbProSeparation: .cards
         }
     }
 
@@ -81,6 +84,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .amiga: "amiga"
         case .amigaSeparation: "amiga-separation"
         case .s3mCard: "s3m-card"
+        case .sbProSeparation: "sb-pro-separation"
         case .levelling: "level"
         }
     }
@@ -103,6 +107,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .amiga: "Amiga"
         case .amigaSeparation: "Amiga left and right"
         case .s3mCard: "S3M sound card"
+        case .sbProSeparation: "Sound Blaster Pro left and right"
         case .levelling: "Loudness"
         }
     }
@@ -142,6 +147,8 @@ public enum Setting: Int, CaseIterable, Sendable {
             "How far apart the left and right of a module made for the Amiga are kept: a MOD, MED, AHX, SoundFX or Oktalyzer file. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
         case .s3mCard:
             "The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. A file says which it was saved with; one that does not is given the Ultrasound."
+        case .sbProSeparation:
+            "How far apart the left and right of a recording from the first Sound Blaster Pro are kept: a VGM file of its two FM chips. The card had one chip on each side and nothing of either on the other, which is harsh in headphones. It makes no difference in mono or through a television."
         case .levelling:
             "A tune is heard as loud as its file has it, so one written quiet is heard quiet. Levelled, each song is turned up or down to be as loud as the rest; halfway, it is moved half as far, and a quiet tune is still quieter than a loud one, but not by as much. No song is turned up by more than 6 dB. A song is measured the first time it is played: it waits up to a second to be, starts at about its level by what has been measured of it if that is not enough, and glides to its level once the whole of it has been. Its level is kept in this browser for the next time."
         }
@@ -185,7 +192,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             .scale(low: "bright", high: "dark")
         case .amiga:
             .choice([Choice("a1200", "Amiga 1200"), Choice("a500", "Amiga 500")])
-        case .amigaSeparation:
+        case .amigaSeparation, .sbProSeparation:
             .scale(low: "together", high: "apart")
         case .s3mCard:
             .choice([Choice("auto", "As the file says"), Choice("gus", "Gravis Ultrasound"), Choice("sb", "Sound Blaster Pro")])
@@ -202,7 +209,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .fade: 3
         case .defaultTime: 2
         case .sidFilter: 50
-        case .amigaSeparation: 20
+        case .amigaSeparation, .sbProSeparation: 20
         case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling: 0
         }
     }
@@ -262,6 +269,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .sidModel, .sidEngine, .sidFilter: format == .sid
         case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt)
         case .s3mCard: format == .s3m
+        case .sbProSeparation: format == .vgm
         }
     }
 
@@ -307,5 +315,6 @@ public enum Setting: Int, CaseIterable, Sendable {
         options.amigaModel = ([.a1200, .a500] as [AmigaModel])[place(.amiga)]
         options.amigaSeparation = value(.amigaSeparation) / 100
         options.s3mCard = ([nil, .gus, .sb] as [ST3Card?])[place(.s3mCard)]
+        options.sbProSeparation = value(.sbProSeparation) / 100
     }
 }

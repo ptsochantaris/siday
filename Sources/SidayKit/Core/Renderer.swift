@@ -183,6 +183,8 @@ public struct LoadOptions: Sendable {
     /// How far apart the Amiga's two sides are kept, from 0 (together) to 1 (the Amiga's own, with
     /// nothing in between, which is hard on the ears in headphones).
     public var amigaSeparation = 0.2
+    /// The same for a recording of the first Sound Blaster Pro's two FM chips, one heard on each side.
+    public var sbProSeparation = 0.2
     /// The sound card an S3M file is played on; nil for the one the file was saved with, where it
     /// says, and otherwise the Gravis Ultrasound.
     public var s3mCard: ST3Card?

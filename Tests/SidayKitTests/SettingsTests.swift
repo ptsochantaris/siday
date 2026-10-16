@@ -49,12 +49,17 @@ import Testing
     choose(.sidModel, "8580"); choose(.sidEngine, "resid"); choose(.amiga, "a500"); choose(.s3mCard, "sb")
     values[Setting.sidFilter.rawValue] = 80
     values[Setting.amigaSeparation.rawValue] = 100
+    values[Setting.sbProSeparation.rawValue] = 100
     var options = LoadOptions(), policy = PlaybackPolicy()
     Setting.apply(values, to: &options, &policy)
     #expect(!policy.allSubsongs && policy.shortestSong == 0 && policy.loops == 3 && policy.loopFade == 0 && policy.defaultTime == 300 && policy.maxTime == 600)
     #expect(options.chipType == .ym && options.clockHz == 1_750_000 && options.frameHz == 48.828125)
     #expect(options.sidModel == .mos8580 && options.sidEngine == .resid && options.sidFilterCurve == 0.8)
     #expect(options.amigaModel == .a500 && options.amigaSeparation == 1 && options.s3mCard == .sb)
+    #expect(options.sbProSeparation == 1)
+    // (Brought together as an Amiga's are, until changed; and only a VGM file is played again for it.)
+    #expect(Setting.sbProSeparation.standard == Setting.amigaSeparation.standard && Setting.sbProSeparation.group == .cards)
+    #expect(Setting.sbProSeparation.changes(.vgm) && !Setting.sbProSeparation.changes(.mod) && !Setting.amigaSeparation.changes(.vgm))
     // Nonsense is made sense of, and a short list leaves the rest as they come.
     Setting.apply([99, -4, .nan], to: &options, &policy)
     #expect(!policy.allSubsongs && policy.shortestSong == 0 && policy.loops == 1 && policy.loopFade == 20)

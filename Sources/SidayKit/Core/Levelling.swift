@@ -129,8 +129,9 @@ public extension SongLevel {
     /// sound otherwise than it did, louder or quieter or other in any way, so that what was kept
     /// from before is measured again and not taken as it is. (1: the first, of 16 October 2026; 2:
     /// XM plug-ins given the voices as loud as OpenMPT's way of adding up has them; 3: the second of
-    /// a Sound Blaster Pro's two FM chips kept in time with its writes.)
-    static let soundVersion = 3
+    /// a Sound Blaster Pro's two FM chips kept in time with its writes; 4: its two sides brought most
+    /// of the way together, as an Amiga's are.)
+    static let soundVersion = 4
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
@@ -140,7 +141,7 @@ public extension SongLevel {
             options.stereo.rawValue, options.chipType?.rawValue ?? "-", milli(options.clockHz), milli(options.frameHz),
             options.sidModel.rawValue, options.sidEngine.rawValue, milli(options.sidFilterCurve),
             options.songLengths == nil ? "-" : "own", options.usesBuiltInSongLengths ? "built-in" : "-",
-            options.amigaModel.rawValue, milli(options.amigaSeparation), options.s3mCard?.rawValue ?? "-",
+            options.amigaModel.rawValue, milli(options.amigaSeparation), options.s3mCard?.rawValue ?? "-", milli(options.sbProSeparation),
             String(policy.loops), milli(policy.defaultTime), milli(policy.maxTime), milli(policy.loopFade), milli(policy.endFade),
         ]
         return parts.joined(separator: " ")

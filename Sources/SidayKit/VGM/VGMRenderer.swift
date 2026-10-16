@@ -29,6 +29,8 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// kind; -1 for one there is not.
     private let slots: [Int]
     private let mono: Bool
+    /// How much of the difference between a Sound Blaster Pro's two sides is kept, halved.
+    private let side: Float
     /// Where the next command is; how far into the music the commands have come, in 44,100ths of a
     /// second, to the end of the last wait; how far the chips have been taken, in the same with a
     /// fraction, since a stream writes between them; and how many of each chip's steps have been
@@ -109,6 +111,7 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         made = chips.map { _ in .allocate(capacity: Self.madeCapacity * 2) }
         madeFrames = Array(repeating: 0, count: chips.count)
         mono = options.stereo == .mono
+        side = Float(max(0, min(1, options.sbProSeparation))) * 0.5
         at = file.start
         endsByLooping = file.loopStart != nil
         let seconds = Double(file.ticks) / 44100
@@ -446,10 +449,12 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             let out = buffer + done * 2
             if file.sides {
                 // (A Sound Blaster Pro's two, each on its own side, twice as loud there as it would
-                // be in the middle.)
+                // be in the middle; and then brought nearer together, as far as the listener asks.)
                 for i in 0 ..< count {
-                    out[i * 2] = made[0][i * 2] * 2
-                    out[i * 2 + 1] = made[1][i * 2 + 1] * 2
+                    let l = made[0][i * 2] * 2, r = made[1][i * 2 + 1] * 2
+                    let middle = (l + r) * 0.5, apart = (l - r) * side
+                    out[i * 2] = middle + apart
+                    out[i * 2 + 1] = middle - apart
                 }
             } else {
                 out.update(from: made[0], count: count * 2)
@@ -501,6 +506,12 @@ final class VGMRenderer: Renderer, ReferenceComparable {
 
     func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         eachChip { chip, from in chip.takeSides(into: sides + from) }
+        // (A Sound Blaster Pro's two chips are each on the card's own side, however near they are
+        // brought to one another here.)
+        if file.sides, chips.count >= 2 {
+            for voice in 0 ..< chips[0].voices { sides[voice] = -1 }
+            for voice in 0 ..< chips[1].voices { sides[chips[0].voices + voice] = 1 }
+        }
     }
 
     func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {

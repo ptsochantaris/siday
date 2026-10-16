@@ -80,6 +80,13 @@ private var stereoOptions: LoadOptions {
     return options
 }
 
+/// The same, with a Sound Blaster Pro's sides as far apart as the card had them.
+private var cardOptions: LoadOptions {
+    var options = stereoOptions
+    options.sbProSeparation = 1
+    return options
+}
+
 @Test func vgmNoteSoundsAtItsPitchForItsLength() throws {
     let file = vgm(oneNote, ticks: 44100, tags: tags(["A Tune", "", "A Game", "", "IBM PC", "", "Someone", "", "1991"]))
     let renderer = try TuneLoader.load(file, format: .vgm, options: stereoOptions)
@@ -165,7 +172,7 @@ private var stereoOptions: LoadOptions {
     // Two OPL2s, the first playing and the second not: with the file's word that they are a pair
     // heard apart, the first is on the left alone; without it, each is in the middle, at half.
     let writes = note() + note(0xAA, key: false) + [0x61] + word(44100)
-    let apart = try TuneLoader.load(vgm(writes, ticks: 44100, clock: 3_579_545 | 0xC000_0000), format: .vgm, options: stereoOptions)
+    let apart = try TuneLoader.load(vgm(writes, ticks: 44100, clock: 3_579_545 | 0xC000_0000), format: .vgm, options: cardOptions)
     let together = try TuneLoader.load(vgm(writes, ticks: 44100, clock: 3_579_545 | 0x4000_0000), format: .vgm, options: stereoOptions)
     let one = try TuneLoader.load(vgm(writes, ticks: 44100), format: .vgm, options: stereoOptions)
     #expect(apart.channelCount == 18)
@@ -175,6 +182,17 @@ private var stereoOptions: LoadOptions {
     #expect(loudness(side(a, 1)[4800...]) < 0.0001)
     #expect(abs(loudness(side(a, 0)[4800...]) / loudness(side(o, 0)[4800...]) - 1) < 0.01)
     #expect(abs(loudness(side(t, 0)[4800...]) / loudness(side(o, 0)[4800...]) - 0.5) < 0.01)
+    // Brought most of the way together, as they are unless the listener asks otherwise: a fifth of
+    // the difference between the sides is kept, so the first chip is heard at 0.6 on the left and
+    // 0.4 on the right (and all together would be 0.5 on each, as two chips in the middle are). The
+    // chips are still said to be on the card's sides.
+    let near = try TuneLoader.load(vgm(writes, ticks: 44100, clock: 3_579_545 | 0xC000_0000), format: .vgm, options: stereoOptions)
+    let n = stereo(near, seconds: 0.5)
+    #expect(abs(loudness(side(n, 0)[4800...]) / loudness(side(o, 0)[4800...]) - 0.6) < 0.01)
+    #expect(abs(loudness(side(n, 1)[4800...]) / loudness(side(o, 0)[4800...]) - 0.4) < 0.01)
+    var sides = [Float](repeating: 0, count: 18)
+    near.takeChannelSides(into: &sides)
+    #expect(sides[0] == -1 && sides[9] == 1)
 }
 
 @Test func vgmIsAsLoudAsItsFileAsks() throws {
@@ -258,7 +276,7 @@ private let ayClock = 1_789_773
     }
     let pair = vgm(writes, ticks: 0, clock: 3_579_545 | 0xC000_0000)
     let alone = vgm(writes.enumerated().map { $0.offset % 3 == 0 && $0.element == 0xAA ? 0x5A : $0.element }, ticks: 0)
-    let right = side(stereo(try TuneLoader.load(pair, format: .vgm, options: stereoOptions), seconds: 2), 1)
+    let right = side(stereo(try TuneLoader.load(pair, format: .vgm, options: cardOptions), seconds: 2), 1)
     let one = side(stereo(try TuneLoader.load(alone, format: .vgm, options: stereoOptions), seconds: 2), 1)
     #expect(right == one)
 }
