@@ -23,6 +23,10 @@ struct VGMFile {
         case opl3
         /// General Instrument's AY-3-8910, or one of the chips made like it: Yamaha's YM2149 among them.
         case ay
+        /// The YM2612, the Sega Mega Drive's FM chip, of which only the DAC it has beside its FM voices
+        /// is played: what a file for a PC holds of its Sound Blaster's samples is recorded as
+        /// written to it, the format having no Sound Blaster of its own.
+        case dac
 
         /// Where a file gives its clock.
         var place: Int {
@@ -31,6 +35,7 @@ struct VGMFile {
             case .opl: 0x54
             case .opl3: 0x5C
             case .ay: 0x74
+            case .dac: 0x2C
             }
         }
 
@@ -41,10 +46,11 @@ struct VGMFile {
             case .opl: 0x0A
             case .opl3: 0x0C
             case .ay: 0x12
+            case .dac: 0x02
             }
         }
 
-        var isOPL: Bool { self != .ay }
+        var isOPL: Bool { self == .opl || self == .opl2 || self == .opl3 }
     }
 
     /// One of the chips a file is for, or two of the same: the second written to by commands of its own.
@@ -82,7 +88,7 @@ struct VGMFile {
     /// say which one a file is for when it is not one of those played here.
     private static let others: [(place: Int, name: String)] = [
         (0x0C, "the SN76489 (a Sega Master System's or a BBC Micro's)"), (0x10, "the YM2413 (OPLL)"),
-        (0x2C, "the YM2612 (a Sega Mega Drive's)"), (0x30, "the YM2151 (OPM)"), (0x38, "Sega's PCM chip"),
+        (0x30, "the YM2151 (OPM)"), (0x38, "Sega's PCM chip"),
         (0x40, "the RF5C68"), (0x44, "the YM2203 (OPN)"), (0x48, "the YM2608 (OPNA)"), (0x4C, "the YM2610 (OPNB)"),
         (0x58, "the Y8950 (MSX-AUDIO)"), (0x60, "the YMF278B (OPL4)"), (0x64, "the YMF271 (OPX)"), (0x68, "the YMZ280B"),
         (0x6C, "the RF5C164"), (0x70, "the 32X's PWM"), (0x80, "the Game Boy's"),
@@ -115,7 +121,7 @@ struct VGMFile {
         func byte(_ at: Int) -> UInt8 { at < headerEnd ? data[at] : 0 }
 
         for other in Self.others where clock(other.place) & 0x3FFF_FFFF != 0 {
-            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips and the AY-3-8910 are")
+            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips, the AY-3-8910 and a DAC are")
         }
         ayType = byte(0x78)
         ayFlags = byte(0x79)
@@ -131,7 +137,14 @@ struct VGMFile {
             var hertz = Double(clocked & 0x3FFF_FFFF)
             // (A YM2149 can be wired to halve its clock.)
             if chip == .ay, ayType >= 0x10, ayFlags & 0x10 != 0 { hertz /= 2 }
-            let rate = chip.isOPL ? (hertz / (chip == .opl3 ? 288 : 72)).rounded(.down) : hertz / 8
+            // (How many samples a second the chip makes, which the clock is checked by. The DAC
+            // makes its sound when it is written to, whatever its clock.)
+            let rate: Double = switch chip {
+            case .opl3: (hertz / 288).rounded(.down)
+            case .opl, .opl2: (hertz / 72).rounded(.down)
+            case .ay: hertz / 8
+            case .dac: 100_000.0
+            }
             guard rate >= 10000, rate <= 1_000_000 else { throw .malformed("a VGM file whose chip's clock is \(clocked & 0x3FFF_FFFF) Hz") }
             parts.append(Part(chip: chip, two: two, clock: hertz, volumes: Array(repeating: two ? 0.5 : 1, count: two ? 2 : 1)))
         }
@@ -176,6 +189,62 @@ struct VGMFile {
         self.parts = parts
 
         readTags(at: word(0x14) > 0 ? 0x14 + word(0x14) : 0)
+        try scan()
+    }
+
+    /// The data the file holds for its chips to play, by the number of each bank: everything its
+    /// blocks for a bank hold, one after another; and where each block begins in it, and how long it
+    /// is. A block that is packed in a way that is not read here is there with nothing in it.
+    private(set) var banks = [[UInt8]](repeating: [], count: 64)
+    private(set) var blocks = [[(start: Int, count: Int)]](repeating: [], count: 64)
+
+    /// Goes through the commands once, for the blocks of data they hold and for anything that is
+    /// asked of a chip and not played here.
+    private mutating func scan() throws(TuneError) {
+        var at = start
+        while at < end {
+            let command = data[at]
+            func byte(_ offset: Int) -> UInt8 { at + offset < end ? data[at + offset] : 0 }
+            switch command {
+            case 0x66:
+                return
+            case 0x67:
+                let type = Int(byte(2))
+                let size = Int(byte(3)) | Int(byte(4)) << 8 | Int(byte(5)) << 16 | Int(byte(6) & 0x7F) << 24
+                let from = at + 7, to = min(end, from + size)
+                if type < 0x40 {
+                    blocks[type].append((banks[type].count, to - from))
+                    banks[type] += data[from ..< to]
+                } else if type < 0x7F {
+                    blocks[type & 0x3F].append((banks[type & 0x3F].count, 0))
+                }
+                at = from + size
+                continue
+            case 0x52 where byte(1) == 0x28 && byte(2) & 0xF0 != 0:
+                // (The YM2612's FM voices are started by this; a file that never starts one has
+                // only the DAC to be heard.)
+                throw .unsupported("a VGM file for the YM2612's FM voices (a Sega Mega Drive's), which are not played: only its DAC is")
+            default:
+                break
+            }
+            at += Self.length(of: command)
+        }
+    }
+
+    /// How long a command is, with what goes with it, as the format has it: all but a block of data.
+    static func length(of command: UInt8) -> Int {
+        switch command {
+        case 0x30 ... 0x3F, 0x4F, 0x50: 2
+        case 0x40 ... 0x4E, 0x51 ... 0x5F, 0x61, 0xA0 ... 0xBF: 3
+        case 0xC0 ... 0xDF: 4
+        case 0xE0 ... 0xFF: 5
+        case 0x68: 12
+        case 0x90, 0x91, 0x95: 5
+        case 0x92: 6
+        case 0x93: 11
+        case 0x94: 2
+        default: 1
+        }
     }
 
     /// What the chips are called, for saying what a file is played on.
@@ -186,6 +255,7 @@ struct VGMFile {
             case .opl2: "YM3812 (OPL2)"
             case .opl3: "YMF262 (OPL3)"
             case .ay: ayName
+            case .dac: "DAC (as a YM2612's)"
             }
             return (part.two ? "2 × " : "") + name + (part.chip == .opl2 && sides ? ", left and right" : "")
         }.joined(separator: " and ")

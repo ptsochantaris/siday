@@ -1943,10 +1943,23 @@ Downhill Race, whose bass is at 58 to 87 Hz. There siday's AY chip takes out wha
 1,024 samples, a 47th of a second, as it does for every AY tune, and so that bass is up to 2 dB softer. California Games II's ask to
 be three times as loud as the others, and are.
 
+A Sound Blaster played samples too, through its DAC, eight bits at a time, and the format has no
+Sound Blaster. So a game's samples are recorded as written to the DAC the Sega Mega Drive's YM2612
+has beside its FM voices, in the format's streams: the samples are kept in blocks of data, and a
+command sets one going, so many bytes a second, from a block or for so many bytes, forwards or
+back, once or round again. From 16 October 2026 that is played here as a DAC on its own, each byte
+heard until the next, through the same filter as the FM chip on the card. The 34 files to hand, of
+Jim Power, 4D Boxing and 4D Sports Tennis, never start one of the YM2612's FM voices, and a file
+that does is refused. Beside libvgm, whose YM2612 is Genesis Plus GX's, the DAC alone is as loud as
+it from moment to moment to within 0.2 dB for half the time, in each of four files, and the whole
+files to within 0.08 dB for half the time, the middle of 34. siday has
+the DAC as loud beside the FM chip as libvgm has it. These files ask to be louder than most, by
+5.6 to 8.8 dB, and are.
+
 A file for any other chip is refused,
-with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,559 play
-and 150 are refused, for the Creative Music System's two SAA1099s (98), the Sega Mega Drive's YM2612
-(34), and the SN76489 of the PCjr and the Tandy 1000 (18). One is silent: a third
+with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,593 play
+and 116 are refused, for the Creative Music System's two SAA1099s (98) and the SN76489 of the PCjr
+and the Tandy 1000 (18). One is silent: a third
 of a second that sets the chip up and plays nothing.
 
 A write that comes at a moment is made before the first of the chip's samples at or after it, the

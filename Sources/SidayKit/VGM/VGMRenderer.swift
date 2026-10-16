@@ -29,15 +29,21 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// kind; -1 for one there is not.
     private let slots: [Int]
     private let mono: Bool
-    /// Where the next command is, how far into the music the chips have been taken in 44,100ths of
-    /// a second, how much more of the last wait there is to give them, and how many of each chip's
-    /// steps have been given to it.
+    /// Where the next command is; how far into the music the commands have come, in 44,100ths of a
+    /// second, to the end of the last wait; how far the chips have been taken, in the same with a
+    /// fraction, since a stream writes between them; and how many of each chip's steps have been
+    /// given to it.
     private var at: Int
-    private var tick = 0
-    private var waiting = 0
+    private var waitEnd = 0
+    private var now = 0.0
     private var given: [Int]
     /// Where the music ended, once it has, and its last notes are dying away until a second after.
     private var tailFrom: Int?
+    /// The file's streams of samples, and which of them each of its numbers is; and where in the
+    /// first bank the YM2612's own commands for its DAC read from.
+    private var streams: [VGMStream] = []
+    private var streamIndex = [Int](repeating: -1, count: 256)
+    private var bankAt = 0
     /// What each chip has made that has not been heard yet, and how many frames of it there are.
     private let made: [UnsafeMutablePointer<Float>]
     private var madeFrames: [Int]
@@ -54,6 +60,10 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// one channel playing, which is why this is half again an AY tune's (`ayOutputGain`). Some ask
     /// to be three times as loud and some do not ask at all, so that they are either side of it.
     static let ayGain: Float = 0.37
+    /// The same for a DAC: as loud beside the FM chip as libvgm has it, by measure of each alone in
+    /// both (2026-10-16, four files of three games; their FM at 2.8 dB over libvgm's, as for every
+    /// FM chip, and so their DAC too).
+    static let dacGain: Float = 0.173
 
     /// How long the last notes are given to die away, and how much of that is faded, in seconds.
     private static let tailSeconds = 1.0, fadeSeconds = 0.2
@@ -70,6 +80,9 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 case .ay:
                     chips.append(VGMAY(type: file.ayType, flags: file.ayFlags, clock: part.clock))
                     gains.append(Self.ayGain * file.volume * volume)
+                case .dac:
+                    chips.append(VGMDAC())
+                    gains.append(Self.dacGain * file.volume * volume)
                 default:
                     chips.append(VGMOPL(part.chip, clock: part.clock))
                     gains.append(Self.gain * file.volume * volume)
@@ -103,8 +116,11 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     func select(subsong _: Int) {
         for chip in chips { chip.reset() }
         at = file.start
-        tick = 0
-        waiting = 0
+        waitEnd = 0
+        now = 0
+        streams = []
+        for index in streamIndex.indices { streamIndex[index] = -1 }
+        bankAt = 0
         for index in given.indices {
             given[index] = 0
             madeFrames[index] = 0
@@ -120,26 +136,29 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         if index >= 0 { chips[index].write(register, value) }
     }
 
-    /// How many of a chip's steps there are from the start to `tick`.
-    @inline(__always) private func steps(_ chip: Int, to tick: Int) -> Int {
-        Int((Double(tick) * chips[chip].rate / 44100).rounded(.up))
+    /// How many of a chip's steps there are from the start to `moment`.
+    @inline(__always) private func steps(_ chip: Int, to moment: Double) -> Int {
+        Int((moment * chips[chip].rate / 44100).rounded(.up))
     }
 
-    /// Gives the chips the next of the music, once they have made all they were given: the writes up
-    /// to the next wait, and then that wait, or as much of it as they are given at once.
+    /// Gives the chips the next of the music, once they have made all they were given: the writes
+    /// up to the next wait, and then that wait, or as much of it as they are given at once, or up to
+    /// the next write a stream makes.
     private func advance() {
-        if waiting == 0 {
+        runStreams()
+        if now >= Double(waitEnd) {
             if tailFrom != nil {
                 hasEnded = true
                 return
             }
-            waiting = runCommands()
+            waitEnd += runCommands()
+            runStreams()
         }
-        let slice = min(waiting, Self.sliceTicks)
-        waiting -= slice
-        tick += slice
+        var until = min(Double(waitEnd), now + Double(Self.sliceTicks))
+        for stream in streams where stream.running && stream.next < until { until = stream.next }
+        now = until
         for index in chips.indices {
-            let due = steps(index, to: tick)
+            let due = steps(index, to: now)
             if due > given[index] {
                 chips[index].samplesLeft += due - given[index]
                 given[index] = due
@@ -184,6 +203,25 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 // (The top bit of the register's number chooses the second.)
                 write(.ay, second: byte(1) & 0x80 != 0, Int(byte(1) & 0x7F), byte(2))
                 at += 3
+            case 0x52:
+                write(.dac, second: false, Int(byte(1)), byte(2))
+                at += 3
+            case 0x53:
+                write(.dac, second: false, 0x100 | Int(byte(1)), byte(2))
+                at += 3
+            case 0x80 ... 0x8F:
+                // The next of the first bank's bytes to the YM2612's DAC, and a wait.
+                let bank = file.banks[0]
+                if bankAt < bank.count { write(.dac, second: false, 0x2A, bank[bankAt]) }
+                bankAt += 1
+                waited = Int(command & 15)
+                at += 1
+            case 0xE0:
+                bankAt = Int(byte(1)) | Int(byte(2)) << 8 | Int(byte(3)) << 16 | Int(byte(4) & 0x7F) << 24
+                at += 5
+            case 0x90 ... 0x95:
+                streamCommand(command)
+                at += VGMFile.length(of: command)
             case 0x61:
                 waited = Int(byte(1)) | Int(byte(2)) << 8
                 at += 3
@@ -196,9 +234,6 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             case 0x70 ... 0x7F:
                 waited = Int(command & 15) + 1
                 at += 1
-            case 0x80 ... 0x8F:
-                waited = Int(command & 15)
-                at += 1
             case 0x66:
                 // The end: round again from where the file goes round, if it does.
                 guard let loopStart = file.loopStart else { return finish() }
@@ -207,36 +242,138 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 // (A file that goes round with no time in between would go round for ever.)
                 if loopCount > 10000 { return finish() }
             case 0x67:
-                // A block of data, for the samples of a chip that is not played here.
+                // A block of data, read when the file was.
                 let size = Int(byte(3)) | Int(byte(4)) << 8 | Int(byte(5)) << 16 | Int(byte(6) & 0x7F) << 24
                 at += 7 + size
             default:
-                at += Self.length(of: command)
+                at += VGMFile.length(of: command)
             }
             if waited > 0 { return waited }
         }
     }
 
-    /// How long a command that is not played here is, with what goes with it, as the format has it.
-    private static func length(of command: UInt8) -> Int {
+    /// The music is over: the last notes are left to die away. - Returns: for how long.
+    private func finish() -> Int {
+        tailFrom = waitEnd
+        return Int(Self.tailSeconds * 44100)
+    }
+
+    // MARK: Streams
+
+    /// One of the file's commands for its streams.
+    private func streamCommand(_ command: UInt8) {
+        let data = file.data, end = file.end
+        func byte(_ offset: Int) -> Int { at + offset < end ? Int(data[at + offset]) : 0 }
+        // (In 32 bits, as an Int is in the browser.)
+        func bits(_ offset: Int) -> UInt32 {
+            UInt32(byte(offset)) | UInt32(byte(offset + 1)) << 8 | UInt32(byte(offset + 2)) << 16 | UInt32(byte(offset + 3)) << 24
+        }
+        func long(_ offset: Int) -> Int { Int(bits(offset) & 0x7FFF_FFFF) }
+        let number = byte(1)
+        if command == 0x90 {
+            // Which chip it writes to, and to what.
+            if streamIndex[number] < 0, number != 0xFF {
+                streamIndex[number] = streams.count
+                streams.append(VGMStream())
+            }
+            guard streamIndex[number] >= 0 else { return }
+            let type = byte(2) & 0x7F, second = byte(2) & 0x80 != 0
+            let chip = VGMFile.Chip.allCases.first { $0.number == type }
+            streams[streamIndex[number]].chip = chip.map { slots[$0.rawValue * 2 + (second ? 1 : 0)] } ?? -1
+            streams[streamIndex[number]].kind = chip
+            streams[streamIndex[number]].register = byte(3) << 8 | byte(4)
+            return
+        }
+        if command == 0x94, number == 0xFF {
+            for index in streams.indices { streams[index].running = false }
+            return
+        }
+        guard streamIndex[number] >= 0 else { return }
+        let index = streamIndex[number]
         switch command {
-        case 0x30 ... 0x3F, 0x4F, 0x50: 2
-        case 0x40 ... 0x4E, 0x51 ... 0x5F, 0xA0 ... 0xBF: 3
-        case 0xC0 ... 0xDF: 4
-        case 0xE0 ... 0xFF: 5
-        case 0x68: 12
-        case 0x90, 0x91, 0x95: 5
-        case 0x92: 6
-        case 0x93: 11
-        case 0x94: 2
-        default: 1
+        case 0x91:
+            streams[index].bank = byte(2) & 0x3F
+            streams[index].stepSize = max(1, byte(3))
+            streams[index].stepBase = byte(4)
+        case 0x92:
+            // (From the next write, which is when it would have been.)
+            if streams[index].running {
+                streams[index].began = streams[index].next
+                streams[index].sent = 0
+            }
+            streams[index].frequency = long(2)
+        case 0x93:
+            start(index, at: bits(2) == 0xFFFF_FFFF ? nil : long(2), mode: byte(6), length: long(7))
+        case 0x94:
+            streams[index].running = false
+        case 0x95:
+            let bank = streams[index].bank, block = byte(2) | byte(3) << 8
+            guard bank >= 0, block < file.blocks[bank].count else { return }
+            let flags = byte(4)
+            start(index, at: file.blocks[bank][block].start, mode: 0x0F | flags & 0x10 | (flags & 0x01) << 7, length: file.blocks[bank][block].count)
+        default:
+            break
         }
     }
 
-    /// The music is over: the last notes are left to die away. - Returns: for how long.
-    private func finish() -> Int {
-        tailFrom = tick
-        return Int(Self.tailSeconds * 44100)
+    /// Sets a stream going, from `from` in its bank (or where it was), for `length` in the way
+    /// `mode` says: so many writes (1), so many thousandths of a second (2), to the end of the bank
+    /// (3), or so many bytes (0x0F); backwards with 0x10, and round again with 0x80.
+    private func start(_ index: Int, at from: Int?, mode: Int, length: Int) {
+        var stream = streams[index]
+        guard stream.bank >= 0 else { return }
+        let bank = file.banks[stream.bank].count
+        let base = stream.stepBase
+        if let from { stream.start = min(bank, from + base) }
+        switch mode & 0x0F {
+        case 0: break
+        case 1: stream.count = length
+        case 2: stream.count = stream.frequency > 0 ? length * stream.frequency / 1000 : 0
+        case 3: stream.count = max(0, bank - (stream.start - base)) / stream.stepSize
+        case 0x0F: stream.count = length / stream.stepSize
+        default: stream.count = 0
+        }
+        stream.reverse = mode & 0x10 != 0
+        stream.loops = mode & 0x80 != 0
+        stream.left = stream.count
+        stream.position = stream.reverse ? (stream.count - 1) * stream.stepSize : 0
+        stream.running = stream.count > 0
+        stream.began = now
+        stream.sent = 0
+        streams[index] = stream
+        if stream.running, stream.chip >= 0 { chips[stream.chip].soundStarted() }
+    }
+
+    /// Makes the writes the streams have due by now.
+    private func runStreams() {
+        for index in streams.indices where streams[index].running {
+            while streams[index].running, streams[index].frequency > 0, streams[index].next <= now {
+                var stream = streams[index]
+                let bank = file.banks[stream.bank]
+                let place = stream.start + stream.position
+                if stream.chip >= 0, place >= 0, place < bank.count, let kind = stream.kind {
+                    let value = bank[place]
+                    switch kind {
+                    case .dac, .opl3:
+                        chips[stream.chip].write((stream.register >> 8 != 0 ? 0x100 : 0) | stream.register & 0xFF, value)
+                    case .opl, .opl2, .ay:
+                        chips[stream.chip].write(stream.register & 0xFF, value)
+                    }
+                }
+                stream.position += stream.reverse ? -stream.stepSize : stream.stepSize
+                stream.sent += 1
+                stream.left -= 1
+                if stream.left <= 0 {
+                    if stream.loops {
+                        stream.left = stream.count
+                        stream.position = stream.reverse ? (stream.count - 1) * stream.stepSize : 0
+                    } else {
+                        stream.running = false
+                    }
+                }
+                streams[index] = stream
+            }
+        }
     }
 
     /// Has every chip make all it was given, for hearing.
@@ -245,7 +382,7 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             var fade = 0, after = 0
             if let tailFrom {
                 fade = Int(Self.fadeSeconds * chip.rate)
-                after = steps(index, to: tailFrom + Int(Self.tailSeconds * 44100)) - given[index]
+                after = steps(index, to: Double(tailFrom) + Self.tailSeconds * 44100) - given[index]
             }
             let block = made[index]
             while chip.samplesLeft > 0, madeFrames[index] < Self.madeCapacity {
@@ -329,6 +466,12 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         eachChip { chip, from in chip.takeSides(into: sides + from) }
     }
 
+    func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
+        eachChip { chip, from in
+            for voice in 0 ..< chip.voices { sampled[from + voice] = chip.sampled }
+        }
+    }
+
     func setMuted(_ muted: [Bool]) {
         eachChip { chip, from in
             chip.setMuted(from < muted.count ? Array(muted[from ..< min(muted.count, from + chip.voices)]) : [])
@@ -365,4 +508,28 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         select(subsong: 0)
         return output
     }
+}
+
+/// One of a file's streams: a sample's bytes, from one of the file's banks of them, written to a
+/// chip one at a time, so many a second, as libvgm's "DAC stream control" writes them.
+private struct VGMStream {
+    /// Which of the player's chips it writes to, of what kind, and to what (the register, and for
+    /// a chip with two sets of them, which set, above it).
+    var chip = -1
+    var kind: VGMFile.Chip?
+    var register = 0
+    var bank = -1
+    /// How far apart its bytes are in the bank, and which of those it begins with.
+    var stepSize = 1, stepBase = 0
+    var frequency = 0
+    /// Where its sound begins in the bank, how many writes it makes of it, how many are still to
+    /// make, and how far into it it has come.
+    var start = 0, count = 0, left = 0, position = 0
+    var reverse = false, loops = false, running = false
+    /// When it was set going, or its rate last changed, and how many writes it has made since.
+    var began = 0.0
+    var sent = 0
+
+    /// When its next write is due, in 44,100ths of a second.
+    var next: Double { began + Double(sent) * 44100 / Double(max(1, frequency)) }
 }

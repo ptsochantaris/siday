@@ -22,6 +22,16 @@ protocol VGMSoundChip: AnyObject {
     func setMuted(_ muted: [Bool])
     /// The card, for an FM chip: for comparing what it makes with a reference player.
     var card: OPLCard? { get }
+    /// True if its voices play recordings of sounds, samples, and not sounds of the chip's own.
+    var sampled: Bool { get }
+    /// A sound has been started on it by the file: a note, for what is shown of the voices.
+    func soundStarted()
+}
+
+extension VGMSoundChip {
+    var card: OPLCard? { nil }
+    var sampled: Bool { false }
+    func soundStarted() {}
 }
 
 /// An FM chip, on the card that played it.
@@ -79,7 +89,6 @@ final class VGMAY: VGMSoundChip {
     /// True for one heard as a ZX Spectrum's are; otherwise its three channels are all in the middle,
     /// as they were on the machines whose music a VGM file has.
     private let apart: Bool
-    var card: OPLCard? { nil }
 
     init(type: UInt8, flags: UInt8, clock: Double) {
         apart = flags & 0x80 != 0
@@ -129,4 +138,107 @@ final class VGMAY: VGMSoundChip {
         func left(_ voice: Int) -> Bool { voice < muted.count && muted[voice] }
         chip.pointee.setMuted(left(0), left(1), left(2))
     }
+}
+
+/// A DAC: a sample's eight bits at a time, each heard until the next, as a Sound Blaster played them,
+/// and through the same filter on the card's board as its FM chip (see `OPLCard`), which takes out
+/// what is steady: what the DAC is left at when a sound ends. The file has them written to a
+/// YM2612's, whose DAC is heard in place of its sixth FM voice: its eight bits (register 0x2A), on or
+/// off (0x2B), and its sides (that voice's, 0xB6 of the second set).
+final class VGMDAC: VGMSoundChip {
+    private let output: UnsafeMutablePointer<ChipOversampler>
+    let rate = ChipOversampler.innerRate
+    var samplesLeft = 0
+    var voices: Int { 1 }
+    var sampled: Bool { true }
+    private var value = 0x80
+    private var on = false
+    private var left = true, right = true
+    private var muted = false
+    /// For the lights: how far from the middle it has been since this was last asked, and whether
+    /// a sound has been started.
+    private var reach = 0
+    private var started = false
+    // The filter: 3.18 Hz, at the rate of the player.
+    private static let b1 = exp(-2.0 * Double.pi * 3.18309886184 / Double(outputSampleRate))
+    private var steadyLeft = 0.0, steadyRight = 0.0
+
+    init() {
+        output = .allocate(capacity: 1)
+        output.initialize(to: ChipOversampler(chipRate: ChipOversampler.innerRate, stereo: true))
+    }
+
+    deinit {
+        output.deinitialize(count: 1)
+        output.deallocate()
+    }
+
+    func reset() {
+        output.pointee = ChipOversampler(chipRate: ChipOversampler.innerRate, stereo: true)
+        samplesLeft = 0
+        value = 0x80
+        on = false
+        left = true
+        right = true
+        reach = 0
+        started = false
+        steadyLeft = 0
+        steadyRight = 0
+    }
+
+    /// - Parameter register: the YM2612's, the second set's with 0x100 added.
+    func write(_ register: Int, _ value: UInt8) {
+        switch register {
+        case 0x2A:
+            self.value = Int(value)
+            if on { reach = max(reach, abs(Int(value) - 0x80)) }
+        case 0x2B:
+            on = value & 0x80 != 0
+        case 0x1B6:
+            left = value & 0x80 != 0
+            right = value & 0x40 != 0
+        default:
+            break
+        }
+    }
+
+    func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
+        let level = on && !muted ? Double(value - 0x80) / 128 : 0
+        let both = (left ? level : 0, right ? level : 0)
+        var made = 0
+        while made < frames, samplesLeft > 0 {
+            samplesLeft -= 1
+            guard output.pointee.innerStep({ both }) else { continue }
+            var (l, r) = output.pointee.finishSample()
+            steadyLeft = l * (1 - Self.b1) + steadyLeft * Self.b1
+            steadyRight = r * (1 - Self.b1) + steadyRight * Self.b1
+            l -= steadyLeft
+            r -= steadyRight
+            let remaining = samplesLeft + after
+            let scale = remaining < fade ? gain * Float(remaining) / Float(fade) : gain
+            buffer[made * 2] = Float(l) * scale
+            buffer[made * 2 + 1] = Float(r) * scale
+            made += 1
+        }
+        return made
+    }
+
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) {
+        levels[0] = Float(reach) / 128
+        reach = 0
+    }
+
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        pitches[0] = 0
+        struck[0] = started
+        started = false
+    }
+
+    func takeSides(into sides: UnsafeMutablePointer<Float>) {
+        sides[0] = left == right ? 0 : left ? -1 : 1
+    }
+
+    func setMuted(_ muted: [Bool]) { self.muted = muted.first ?? false }
+
+    func soundStarted() { started = true }
 }

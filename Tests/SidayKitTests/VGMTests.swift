@@ -136,10 +136,17 @@ private var stereoOptions: LoadOptions {
 
 @Test func vgmForAnotherChipIsRefusedByItsName() {
     do {
-        _ = try TuneLoader.load(vgm([0x61] + word(100), ticks: 100, clockAt: 0x2C, clock: 7_670_453), format: .vgm)
-        Issue.record("a file for the YM2612 was played")
+        _ = try TuneLoader.load(vgm([0x61] + word(100), ticks: 100, clockAt: 0x30, clock: 3_579_545), format: .vgm)
+        Issue.record("a file for the YM2151 was played")
     } catch {
-        #expect("\(error)".contains("the YM2612 (a Sega Mega Drive's), which is not played"))
+        #expect("\(error)".contains("the YM2151 (OPM), which is not played"))
+    }
+    // A YM2612's FM voices are refused, once one is started; its DAC is played.
+    do {
+        _ = try TuneLoader.load(vgm([0x52, 0x28, 0xF0, 0x61] + word(100), ticks: 100, clockAt: 0x2C, clock: 7_670_453), format: .vgm)
+        Issue.record("a file for the YM2612's FM was played")
+    } catch {
+        #expect("\(error)".contains("the YM2612's FM voices"))
     }
     #expect(throws: TuneError.self) { try TuneLoader.load(Array(vgm(oneNote, ticks: 44100).prefix(0x30)), format: .vgm) }
 }
@@ -254,4 +261,61 @@ private let ayClock = 1_789_773
     let right = side(stereo(try TuneLoader.load(pair, format: .vgm, options: stereoOptions), seconds: 2), 1)
     let one = side(stereo(try TuneLoader.load(alone, format: .vgm, options: stereoOptions), seconds: 2), 1)
     #expect(right == one)
+}
+
+/// A block of data for the first bank: a square wave, ten bytes high and ten low, `periods` times over.
+private func squareBlock(periods: Int) -> [UInt8] {
+    let wave = (0 ..< periods).flatMap { _ in [UInt8](repeating: 0xC0, count: 10) + [UInt8](repeating: 0x40, count: 10) }
+    return [0x67, 0x66, 0x00] + long(wave.count) + wave
+}
+
+/// The DAC switched on, and stream 0 set to write the first bank's bytes to it, 8,000 a second.
+private let dacStream: [UInt8] = [0x52, 0x2B, 0x80, 0x90, 0, 0x02, 0x00, 0x2A, 0x91, 0, 0x00, 1, 0, 0x92, 0] + long(8000)
+
+@Test func vgmStreamPlaysItsSampleOnTheDACAtItsRate() throws {
+    // Twenty bytes a period at 8,000 a second is 400 Hz; 200 periods is half a second.
+    let writes = squareBlock(periods: 200) + dacStream + [0x95, 0] + word(0) + [0] + [0x61] + word(44100)
+    let renderer = try TuneLoader.load(vgm(writes, ticks: 44100, clockAt: 0x2C, clock: 7_670_453), format: .vgm, options: stereoOptions)
+    #expect(renderer.channelCount == 1)
+    #expect(renderer.info.detail == "DAC (as a YM2612's)")
+    var sampled = [false]
+    renderer.takeChannelsSampled(into: &sampled)
+    #expect(sampled == [true])
+    let sound = stereo(renderer, seconds: 1)
+    let playing = side(sound, 0)[2400 ..< 21600], after = side(sound, 0)[26400...]
+    #expect(abs(crossings(playing) * 10 / 4 - 400) <= 3)
+    #expect(loudness(playing) > 0.01)
+    // And it stops: what the DAC is left at is not heard.
+    #expect(crossings(after) == 0)
+    #expect(abs(after.last!) < 0.001)
+}
+
+@Test func vgmStreamGoesRoundAndBackwardsAsItIsTold() throws {
+    // Round again: still playing after the half second its bytes last.
+    let round = squareBlock(periods: 200) + dacStream + [0x95, 0] + word(0) + [0x01] + [0x61] + word(44100)
+    let sound = stereo(try TuneLoader.load(vgm(round, ticks: 44100, clockAt: 0x2C, clock: 7_670_453), format: .vgm), seconds: 1)
+    #expect(loudness(side(sound, 0)[26400 ..< 45600]) > 0.01)
+    // By count (20 writes of a block that begins with ten high bytes and then ten low): backwards
+    // from the twentieth, it begins low; forwards, high.
+    func first(_ mode: UInt8) throws -> Float {
+        let writes = squareBlock(periods: 2) + dacStream + [0x93, 0] + long(0) + [mode] + long(20) + [0x61] + word(4410)
+        let sound = stereo(try TuneLoader.load(vgm(writes, ticks: 4410, clockAt: 0x2C, clock: 7_670_453), format: .vgm), seconds: 0.1)
+        return side(sound, 0)[48 ..< 48 + 40].reduce(0, +)
+    }
+    #expect(try first(0x01) > 0)
+    #expect(try first(0x11) < 0)
+}
+
+@Test func vgmWritesToTheDACFromItsFirstBankAndWaits() throws {
+    // 0x8n: the next of the first bank's bytes, and a wait of n. Five a period at 44,100 a second
+    // of 0x8n with n = 11 (and so 4,009 a second): 20 bytes a period is 200 Hz.
+    var writes = squareBlock(periods: 100) + [0x52, 0x2B, 0x80, 0xE0] + long(0)
+    writes += [UInt8](repeating: 0x8B, count: 2000)
+    let renderer = try TuneLoader.load(vgm(writes, ticks: 22000, clockAt: 0x2C, clock: 7_670_453), format: .vgm)
+    let sound = side(stereo(renderer, seconds: 0.5), 0)
+    #expect(abs(Double(crossings(sound[2400 ..< 21600])) / 0.4 - 4009.0 / 20) <= 3)
+    // The DAC is silent until it is switched on.
+    let off = squareBlock(periods: 200) + Array(dacStream.dropFirst(3)) + [0x95, 0] + word(0) + [0] + [0x61] + word(44100)
+    let silent = stereo(try TuneLoader.load(vgm(off, ticks: 44100, clockAt: 0x2C, clock: 7_670_453), format: .vgm), seconds: 0.5)
+    #expect(loudness(side(silent, 0)) == 0)
 }
