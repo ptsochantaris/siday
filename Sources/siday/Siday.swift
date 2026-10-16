@@ -84,7 +84,7 @@ struct Siday: ParsableCommand {
     @Option(help: "The sound card an S3M file is played on: gus, or sb for a Sound Blaster Pro's eight bits. Default: the one the file was saved with.")
     var s3mCard: ST3Card?
 
-    @Option(help: "Bring every tune to the same loudness: off, full, or partial (halfway there, so that a quiet tune is still quieter than a loud one, but not by as much). Each song is measured as it plays, by playing it through unheard, and the next while it plays; what is found is kept for later runs. A song is turned up by no more than 6 dB. Default: off, each tune as loud as its file has it.")
+    @Option(help: "Bring every tune to the same loudness: off, full, or partial (halfway there, so that a quiet tune is still quieter than a loud one, but not by as much). Each song is measured as it plays, by playing it through unheard, and the next while it plays; what is found is kept for later runs. A song is turned up by no more than 6 dB. With --list, says how far each tune would be turned up or down. Default: off, each tune as loud as its file has it.")
     var level: Levelling = .off
 
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
@@ -657,6 +657,7 @@ struct Siday: ParsableCommand {
         let loader = tuneFiles
         let policy = policy
         let explains = shortfalls
+        let levels = level == .off ? nil : Levels(files: tuneFiles, policy: policy)
         // Loading can mean running a tune silently to find its length, so files are loaded on every core,
         // a batch at a time, and printed in order.
         let batch = 256
@@ -675,6 +676,10 @@ struct Siday: ParsableCommand {
                         // Asked for every song: how long each is, where that is known.
                         let lengths = renderer.songs.map { $0.length.map { formatTime($0) } ?? "?" }
                         songs = " [\(renderer.subsongCount) songs: \(lengths.joined(separator: " "))]"
+                    }
+                    // Levelled, how far the song would be turned up or down: measured, unless it has been before.
+                    if let levels, let level = levels.measure(url, song: policy.firstSubsong(of: renderer)) {
+                        songs += String(format: "  %+.1f dB", level.change(self.level))
                     }
                     let text = describe(renderer.info)
                     // A tune that is not played quite as its file asks is marked, and with --shortfalls says why.
