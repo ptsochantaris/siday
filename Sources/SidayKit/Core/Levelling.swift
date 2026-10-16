@@ -116,11 +116,17 @@ public extension SongLevel {
     /// What a file is known by in a `key`: worked out once, for a file whose songs are each to be keyed.
     static func digest(of file: [UInt8]) -> String { MD5.hex(file) }
 
+    /// Which sound a level was measured from: raised whenever a change to a player makes any tune
+    /// sound otherwise than it did, louder or quieter or other in any way, so that what was kept
+    /// from before is measured again and not taken as it is. (1: the first, of 16 October 2026; 2:
+    /// XM plug-ins given the voices as loud as OpenMPT's way of adding up has them.)
+    static let soundVersion = 2
+
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
         func milli(_ value: Double?) -> String { value.map { String(Int(($0 * 1000).rounded())) } ?? "-" }
         let parts = [
-            "1", digest, String(song),
+            String(soundVersion), digest, String(song),
             options.stereo.rawValue, options.chipType?.rawValue ?? "-", milli(options.clockHz), milli(options.frameHz),
             options.sidModel.rawValue, options.sidEngine.rawValue, milli(options.sidFilterCurve),
             options.songLengths == nil ? "-" : "own", options.usesBuiltInSongLengths ? "built-in" : "-",

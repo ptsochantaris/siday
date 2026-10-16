@@ -134,3 +134,9 @@ private final class Tone: Renderer {
     #expect(gain.gain == 0.5)
     #expect(LevelGain(2).gain == 2)
 }
+
+@Test func aLevelIsKeptForTheSoundItWasMeasuredFrom() {
+    // A level measured before a player was changed is not the level of what is heard now.
+    let key = SongLevel.key(of: [1, 2, 3], song: 0, options: LoadOptions(), policy: PlaybackPolicy())
+    #expect(key.hasPrefix("\(SongLevel.soundVersion) "))
+}
