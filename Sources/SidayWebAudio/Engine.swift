@@ -76,6 +76,21 @@ final class WebPlayer {
     private var endingOf = 0
     /// True while the session is one that follows `ending`.
     private var following = false
+    /// How far songs are brought to the same loudness (see `Levelling`), and what is known of the
+    /// song's own: what it is kept under, from the file's digest; what it was found to be, once it
+    /// is known; and the meter it is being measured by while the song is rendered whole, which costs
+    /// next to nothing, since the song is rendered whole anyway. A song rendered again as it was, for
+    /// voices left out or brought back, keeps its level.
+    private var levelling = Levelling.off
+    private var digest = ""
+    private(set) var levelKey = ""
+    private(set) var level: SongLevel?
+    private var meter: LoudnessMeter?
+    /// True once the song has been measured here, and not given its level from what was kept.
+    private(set) var levelFound = false
+    /// The gain on what is heard, and how much of the song has been heard since it started.
+    private var gain = LevelGain()
+    private var presented = 0
 
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     func load(_ data: [UInt8], name: String) -> Bool {
@@ -94,6 +109,7 @@ final class WebPlayer {
         do {
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options)
             renderer = loaded
+            digest = SongLevel.digest(of: data)
             self.format = format
             layout = format == .sid || format == .sndh || format == .cmf || format == .rol || format == .fmt || format == .stm || format == .stx ? nil : options.stereo
             ownStereo = format == .mod || format == .med || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
@@ -134,6 +150,15 @@ final class WebPlayer {
             session = TuneSession(renderer: renderer, policy: policy)
             following = false
         }
+        let key = SongLevel.key(digest: digest, song: song, options: options, policy: policy)
+        if key != levelKey {
+            levelKey = key
+            level = nil
+            levelFound = false
+            gain = LevelGain()
+            presented = 0
+        }
+        meter = following || level != nil ? nil : LoudnessMeter()
         lights = [UInt8](repeating: 0, count: renderer.channelCount)
         pitches = lights
         struck = lights
@@ -185,6 +210,11 @@ final class WebPlayer {
         let before = settings
         settings = Setting.allCases.map { $0.settled($0.rawValue < values.count ? values[$0.rawValue] : $0.standard) }
         Setting.apply(settings, to: &options, &policy)
+        let levelling = Setting.levelling(settings)
+        if levelling != self.levelling {
+            self.levelling = levelling
+            if let level { gain.glide(to: level.gain(levelling)) }
+        }
         let placedOtherwise = placeChannels()
         guard let format, let renderer else { return false }
         return placedOtherwise || Setting.allCases.contains { settings[$0.rawValue] != before[$0.rawValue] && $0.changes(format, played: renderer) }
@@ -218,6 +248,8 @@ final class WebPlayer {
     /// Finishes sound that `pull` made, where it lies, as it goes to be heard: through the television,
     /// if one is switched on, and past the spectrum analyser. Interleaved stereo.
     func present(_ samples: UnsafeMutablePointer<Float>, frames: Int) {
+        gain.apply(samples, frames: frames)
+        presented += frames
         television?.process(samples, frames: frames)
         spectrum.add(samples, frames: frames)
     }
@@ -231,6 +263,13 @@ final class WebPlayer {
                 guard let session, !session.finished else { break }
                 blockLength = session.render(into: block, frames: Self.blockFrames)
                 blockCursor = 0
+                if meter != nil {
+                    meter?.take(block, frames: blockLength)
+                    if session.finished, let meter {
+                        setLevel(SongLevel(loudness: meter.loudness, truePeak: meter.truePeak))
+                        levelFound = true
+                    }
+                }
                 for voice in 0 ..< min(lights.count, session.channelLevels.count) {
                     lights[voice] = max(lights[voice], UInt8(ChannelLight.brightness(of: session.channelLevels[voice]) * 255))
                     let pitch = session.channelPitches[voice]
@@ -255,6 +294,23 @@ final class WebPlayer {
             (output + filled * 2).update(repeating: 0, count: (Self.quantumFrames - filled) * 2)
         }
         return filled == Self.quantumFrames || !(session?.finished ?? true)
+    }
+
+    /// Gives the song its level, found by measuring it or from what was kept: at once, if hardly
+    /// any of it has been heard, and otherwise by a glide from where it is.
+    func setLevel(_ level: SongLevel) {
+        self.level = level
+        meter = nil
+        if presented < outputSampleRate / 10 {
+            gain = LevelGain(level.gain(levelling))
+        } else {
+            gain.glide(to: level.gain(levelling))
+        }
+    }
+
+    var levelChange: Double {
+        guard levelling != .off, let level else { return .nan }
+        return level.change(levelling)
     }
 
     /// Brings `bars` up to date with what has been presented.
@@ -312,6 +368,8 @@ final class WebPlayer {
 }
 
 nonisolated(unsafe) private let player = WebPlayer()
+/// What `siday_level_key` and `siday_level` last handed out, kept for the page to read.
+nonisolated(unsafe) private var levelBytes: [UInt8] = []
 
 // MARK: Exports
 
@@ -384,6 +442,53 @@ public func sidaySetMuted(_ marks: UnsafePointer<UInt8>?, _ count: Int32) -> Int
     var muted: [Bool] = []
     if let marks { for index in 0 ..< Int(max(0, count)) { muted.append(marks[index] != 0) } }
     return player.setMuted(muted) ? 1 : 0
+}
+
+/// What the song's level is kept under (see `SongLevel.key`), in UTF-8, `siday_level_key_length`
+/// bytes of it: the same for the same song of the same file played the same way.
+@_expose(wasm, "siday_level_key")
+@_cdecl("siday_level_key")
+public func sidayLevelKey() -> UnsafePointer<UInt8>? {
+    levelBytes = Array(player.levelKey.utf8)
+    return levelBytes.withUnsafeBufferPointer { $0.baseAddress }
+}
+
+@_expose(wasm, "siday_level_key_length")
+@_cdecl("siday_level_key_length")
+public func sidayLevelKeyLength() -> Int32 {
+    Int32(player.levelKey.utf8.count)
+}
+
+/// The song's level as it was found by measuring it here (see `SongLevel.text`), to be kept, in
+/// UTF-8, `siday_level_length` bytes; none until it has been.
+@_expose(wasm, "siday_level")
+@_cdecl("siday_level")
+public func sidayLevel() -> UnsafePointer<UInt8>? {
+    levelBytes = player.levelFound ? Array((player.level?.text ?? "").utf8) : []
+    return levelBytes.withUnsafeBufferPointer { $0.baseAddress }
+}
+
+@_expose(wasm, "siday_level_length")
+@_cdecl("siday_level_length")
+public func sidayLevelLength() -> Int32 {
+    player.levelFound ? Int32((player.level?.text ?? "").utf8.count) : 0
+}
+
+/// Gives the song the level that was kept for it, as `siday_level` gave it. Returns 1 if it was one.
+@_expose(wasm, "siday_set_level")
+@_cdecl("siday_set_level")
+public func sidaySetLevel(_ text: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
+    guard let level = SongLevel(text: String(decoding: UnsafeBufferPointer(start: text, count: Int(length)), as: UTF8.self)) else { return 0 }
+    player.setLevel(level)
+    return 1
+}
+
+/// How far the song is turned up or down to be as loud as the rest, in dB; not a number while that
+/// is not known, or songs are not levelled.
+@_expose(wasm, "siday_level_change")
+@_cdecl("siday_level_change")
+public func sidayLevelChange() -> Double {
+    player.levelChange
 }
 
 @_expose(wasm, "siday_pull")

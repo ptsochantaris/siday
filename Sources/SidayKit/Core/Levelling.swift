@@ -110,9 +110,17 @@ public extension SongLevel {
     /// the song sounds or how long it is played. (What it is heard through is not among them: a song
     /// is measured and levelled before any television it is played through.)
     static func key(of file: [UInt8], song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
+        key(digest: digest(of: file), song: song, options: options, policy: policy)
+    }
+
+    /// What a file is known by in a `key`: worked out once, for a file whose songs are each to be keyed.
+    static func digest(of file: [UInt8]) -> String { MD5.hex(file) }
+
+    /// The same, from the file's `digest`.
+    static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
         func milli(_ value: Double?) -> String { value.map { String(Int(($0 * 1000).rounded())) } ?? "-" }
         let parts = [
-            "1", MD5.hex(file), String(song),
+            "1", digest, String(song),
             options.stereo.rawValue, options.chipType?.rawValue ?? "-", milli(options.clockHz), milli(options.frameHz),
             options.sidModel.rawValue, options.sidEngine.rawValue, milli(options.sidFilterCurve),
             options.songLengths == nil ? "-" : "own", options.usesBuiltInSongLengths ? "built-in" : "-",

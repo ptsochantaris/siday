@@ -98,3 +98,15 @@ import Testing
     #expect(Setting.loops.changes(.sid) && Setting.fade.changes(.mod))
     #expect(!Setting.songs.changes(.sid) && !Setting.shortestSong.changes(.sid))
 }
+
+@Test func levellingIsASettingThatLeavesTheTuneAsItIs() {
+    var values = Setting.standards
+    #expect(Setting.levelling(values) == .off)
+    values[Setting.levelling.rawValue] = 1
+    #expect(Setting.levelling(values) == .full)
+    values[Setting.levelling.rawValue] = 2
+    #expect(Setting.levelling(values) == .partial)
+    #expect(Setting.levelling([]) == .off)
+    #expect(Setting.levelling.group == .playing)
+    #expect(!Setting.levelling.changes(.mod) && !Setting.levelling.changes(.sid))
+}

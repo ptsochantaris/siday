@@ -241,6 +241,28 @@ function keep(name, value) {
   } catch {}
 }
 
+/// The levels of songs measured in this browser (see `SongLevel`), by what each is kept under: read
+/// once, when one is first wanted. Only so many are kept, the oldest let go first.
+let levels;
+const levelsKept = 20000;
+function levelOf(key) {
+  if (!levels) {
+    try {
+      levels = JSON.parse(kept("siday.levels") ?? "{}");
+    } catch {}
+    if (typeof levels !== "object" || levels === null) levels = {};
+  }
+  return levels[key];
+}
+function keepLevel(key, text) {
+  levelOf(key);
+  delete levels[key];
+  levels[key] = text;
+  const keys = Object.keys(levels);
+  for (const old of keys.slice(0, Math.max(0, keys.length - levelsKept))) delete levels[old];
+  keep("siday.levels", JSON.stringify(levels));
+}
+
 /// The volume from the last visit, or full.
 function remembered() {
   const level = Number.parseFloat(kept("siday.volume"));
@@ -302,12 +324,21 @@ function remaking(busy) {
 
 function heard(message) {
   if (message.type === "connected") return direct();
+  // A song's level is kept whichever song is playing now.
+  if (message.type === "level") return keepLevel(message.key, message.text);
   // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
   if ("tune" in message ? message.tune !== asked : message.serial !== serial) return;
   switch (message.type) {
-    case "loaded":
+    case "loaded": {
+      // The song's level, if it was measured before, so that it need not be measured again; or
+      // word that it was not, for the engine waits a moment to hear which before it sends sound.
+      if (message.levelKey) {
+        const text = levelOf(message.levelKey) ?? "";
+        void sound?.then(({ engine }) => engine.postMessage({ type: "level", key: message.levelKey, text }));
+      }
       listeners?.loaded(message.plays, message.text, message.songs, message.song, message.length);
       break;
+    }
     case "rendered":
       listeners?.rendered(message.seconds, message.length);
       break;

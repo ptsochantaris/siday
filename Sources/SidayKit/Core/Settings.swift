@@ -9,7 +9,7 @@
 /// chosen; for one set along a scale it is how far along, from 0 to 100. So a front end can show and
 /// keep them all alike, and hand them over as a list of numbers in the order of the cases here.
 public enum Setting: Int, CaseIterable, Sendable {
-    case songs, shortestSong, loops, fade, defaultTime, maxTime
+    case songs, shortestSong, loops, fade, defaultTime, maxTime, levelling
     case chip, clock, frameRate, stereoOrder
     case sidModel, sidEngine, sidFilter
     case amiga, amigaSeparation, s3mCard
@@ -55,7 +55,7 @@ public enum Setting: Int, CaseIterable, Sendable {
 
     public var group: Group {
         switch self {
-        case .songs, .shortestSong, .loops, .fade, .defaultTime, .maxTime: .playing
+        case .songs, .shortestSong, .loops, .fade, .defaultTime, .maxTime, .levelling: .playing
         case .chip, .clock, .frameRate, .stereoOrder: .ay
         case .sidModel, .sidEngine, .sidFilter: .sid
         case .amiga, .amigaSeparation, .s3mCard: .modules
@@ -81,6 +81,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .amiga: "amiga"
         case .amigaSeparation: "amiga-separation"
         case .s3mCard: "s3m-card"
+        case .levelling: "level"
         }
     }
 
@@ -102,6 +103,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .amiga: "Amiga"
         case .amigaSeparation: "Amiga left and right"
         case .s3mCard: "S3M sound card"
+        case .levelling: "Loudness"
         }
     }
 
@@ -140,6 +142,8 @@ public enum Setting: Int, CaseIterable, Sendable {
             "How far apart the left and right of a module made for the Amiga are kept: a MOD, MED, AHX, SoundFX or Oktalyzer file. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
         case .s3mCard:
             "The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. A file says which it was saved with; one that does not is given the Ultrasound."
+        case .levelling:
+            "A tune is heard as loud as its file has it, so one written quiet is heard quiet. Levelled, each song is turned up or down to be as loud as the rest; halfway, it is moved half as far, and a quiet tune is still quieter than a loud one, but not by as much. No song is turned up by more than 6 dB. A song is measured the first time it is played, and glides to its level once that is known; its level is kept in this browser for the next time."
         }
     }
 
@@ -185,6 +189,8 @@ public enum Setting: Int, CaseIterable, Sendable {
             .scale(low: "together", high: "apart")
         case .s3mCard:
             .choice([Choice("auto", "As the file says"), Choice("gus", "Gravis Ultrasound"), Choice("sb", "Sound Blaster Pro")])
+        case .levelling:
+            .choice([Choice("off", "as each file has it"), Choice("full", "levelled, every song alike"), Choice("partial", "levelled halfway")])
         }
     }
 
@@ -197,7 +203,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .defaultTime: 2
         case .sidFilter: 50
         case .amigaSeparation: 20
-        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard: 0
+        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling: 0
         }
     }
 
@@ -228,7 +234,8 @@ public enum Setting: Int, CaseIterable, Sendable {
     ///   one kind of tune: only the tune can say whether it is played on an Amiga.
     public func changes(_ format: TuneFormat, played renderer: (any Renderer)? = nil) -> Bool {
         switch self {
-        case .songs, .shortestSong: false
+        // (A song is levelled as it is heard, and not made otherwise for it.)
+        case .songs, .shortestSong, .levelling: false
         // (Which way round stereo is matters only to a tune that is being heard in stereo: whoever
         // knows what tunes are heard through says whether it does. See `stereo(for:_:)`.)
         case .stereoOrder: false
@@ -264,6 +271,12 @@ public enum Setting: Int, CaseIterable, Sendable {
     public static func stereo(for style: OutputStyle, _ values: [Double]) -> StereoLayout {
         guard style == .abc, values.indices.contains(stereoOrder.rawValue) else { return style.stereo }
         return stereoOrder.settled(values[stereoOrder.rawValue]) == 1 ? .acb : .abc
+    }
+
+    /// How far songs are brought to the same loudness, with the settings as they are.
+    public static func levelling(_ values: [Double]) -> Levelling {
+        let place = values.indices.contains(levelling.rawValue) ? Int(levelling.settled(values[levelling.rawValue])) : 0
+        return ([.off, .full, .partial] as [Levelling])[place]
     }
 
     /// Puts a whole list of values, one for each setting in the order of the cases, into the two

@@ -86,6 +86,16 @@ let next = 0;
 let sending = false;
 /// Chunks handed to the audio thread that it has not yet played.
 let waiting = 0;
+/// Until when sending waits, after a song is loaded, for the page to say what level was kept for
+/// it: a moment, so that a song measured before starts at its level. Nothing once the page has said.
+let levelWait;
+const levelWaitLongest = 150;
+
+/// What the song's level is kept under, by the page (see `SongLevel.key`): the same for the same song
+/// of the same file, played the same way.
+function levelKey() {
+  return new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_level_key(), core.siday_level_key_length()));
+}
 
 /// Copies bytes into the module's memory, calls `use(pointer, length)` and frees them again.
 function withBytes(buffer, use) {
@@ -153,7 +163,7 @@ function again() {
   const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
   self.postMessage({
     type: "loaded", tune, plays: true, text,
-    songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
+    songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(), levelKey: levelKey(),
   });
   start();
 }
@@ -251,6 +261,12 @@ function finish() {
   found = (core.siday_length_known() === 0 || silence > 0) && length > 0 && length < core.siday_length() ? length : 0;
   kept.done = true;
   kept.found = found;
+  // And how loud it is, if it was measured as it was rendered, for the page to keep.
+  const level = core.siday_level_length();
+  if (level > 0) {
+    const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_level(), level));
+    self.postMessage({ type: "level", tune, key: levelKey(), text });
+  }
   // That was the whole song, and how it ends is now known: if the listener has voices left out, it
   // can be rendered as they want it.
   whole = { chunks: kept.length, found };
@@ -259,6 +275,10 @@ function finish() {
 
 /// Sends chunks until enough are waiting to be played, or there are no more to send yet.
 function send() {
+  if (levelWait !== undefined) {
+    if (performance.now() < levelWait) return;
+    levelWait = undefined;
+  }
   // The song as the listener now wants it is taken up as soon as it has been rendered past the
   // place they are at; and whatever there is of the song is, if what was being heard has run out.
   if (source !== kept && ((kept.mutes === written(mask) && (kept.length > next + ahead || complete)) || (next >= source.length && kept.length > next))) {
@@ -373,10 +393,15 @@ self.onmessage = async (event) => {
       self.postMessage({
         type: "loaded", tune, plays, text,
         songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
+        levelKey: plays ? levelKey() : "",
       });
       next = 0;
       waiting = 0;
       sending = plays;
+      if (plays) {
+        levelWait = performance.now() + levelWaitLongest;
+        setTimeout(send, levelWaitLongest + 10);
+      }
       start();
       break;
     }
@@ -432,6 +457,14 @@ self.onmessage = async (event) => {
       whole = undefined;
       complete = true;
       sending = false;
+      break;
+    case "level":
+      // The level the page kept for the song, from when it was measured before, or none.
+      if (file && message.key === levelKey()) {
+        if (message.text) withBytes(new TextEncoder().encode(message.text).buffer, (text, length) => core.siday_set_level(text, length));
+        levelWait = undefined;
+        send();
+      }
       break;
     case "songlengths":
       withBytes(message.bytes, (data, length) => core.siday_set_songlengths(data, length));
