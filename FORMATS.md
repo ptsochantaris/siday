@@ -18,6 +18,15 @@ tests in the order they were heard in more often (23 of 25 times, where the old 
 CMF, AY and AHX files were turned down by 1.2 to 2 dB for it, C67 up by 1.1, and the ways of
 adding up of ModPlug Tracker and OpenMPT as told in their own parts below.
 
+Within a kind, though, a tune is as loud as its file has it, and among 423 tunes of nearly every kind the
+middle nine tenths were spread over 14 dB. A listener who would rather hear every tune alike can ask
+for it, in the player's settings or with `siday --level` (from October 2026, off unless asked for):
+each song is then measured whole, as it is played, loops and fade and all, and turned up or down to
+the level the kinds themselves are brought to, -22.95 LUFS; or halfway there, if that is what is
+asked. A song is turned up by 6 dB at the most, so that one meant to be quiet is not made loud, and
+never so far that its peaks come within 1 dB of the top. It is measured once: the level found is
+kept, on the computer or in the browser.
+
 ## PT3 and the other AY trackers, VTX and AY files — the ZX Spectrum and the Amstrad CPC
 
 The AY-3-8910 is a sound chip that General Instrument made from 1978: three voices of square wave,
