@@ -60,6 +60,10 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// one channel playing, which is why this is half again an AY tune's (`ayOutputGain`). Some ask
     /// to be three times as loud and some do not ask at all, so that they are either side of it.
     static let ayGain: Float = 0.37
+    /// The same for an SN76489's, by the middle of the 18 there are (2026-10-16): 5.1 dB under libvgm's
+    /// level, which is this chip's at 0.5. (King's Quest II's ask to be 11.5 dB quieter than that, and
+    /// the Tandy 1000's up to 7 dB louder, so that they are either side of it.)
+    static let snGain: Float = 0.28
     /// The same for a DAC: as loud beside the FM chip as libvgm has it, by measure of each alone in
     /// both (2026-10-16, four files of three games; their FM at 2.8 dB over libvgm's, as for every
     /// FM chip, and so their DAC too).
@@ -83,6 +87,9 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 case .dac:
                     chips.append(VGMDAC())
                     gains.append(Self.dacGain * file.volume * volume)
+                case .sn:
+                    chips.append(VGMSN(file.snVariant, clock: part.clock))
+                    gains.append(Self.snGain * file.volume * volume)
                 default:
                     chips.append(VGMOPL(part.chip, clock: part.clock))
                     gains.append(Self.gain * file.volume * volume)
@@ -106,6 +113,7 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         info.author = file.author
         info.comment = [file.game, file.date].filter { !$0.isEmpty }.joined(separator: ", ")
         info.detail = file.chipNames + (file.system.isEmpty ? "" : ", \(file.system)")
+        if file.unread { info.shortfalls.append("Some of its samples are packed in a way that is not read, and are not heard.") }
         self.info = info
     }
 
@@ -145,14 +153,16 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// up to the next wait, and then that wait, or as much of it as they are given at once, or up to
     /// the next write a stream makes.
     private func advance() {
-        runStreams()
-        if now >= Double(waitEnd) {
+        // (The file's commands come before a stream's write at the same moment, as libvgm has them.)
+        let commandsDue = now >= Double(waitEnd)
+        runStreams(includingNow: !commandsDue)
+        if commandsDue {
             if tailFrom != nil {
                 hasEnded = true
                 return
             }
             waitEnd += runCommands()
-            runStreams()
+            runStreams(includingNow: true)
         }
         var until = min(Double(waitEnd), now + Double(Self.sliceTicks))
         for stream in streams where stream.running && stream.next < until { until = stream.next }
@@ -203,6 +213,12 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 // (The top bit of the register's number chooses the second.)
                 write(.ay, second: byte(1) & 0x80 != 0, Int(byte(1) & 0x7F), byte(2))
                 at += 3
+            case 0x50, 0x30:
+                write(.sn, second: command == 0x30, 0, byte(1))
+                at += 2
+            case 0x4F, 0x3F:
+                write(.sn, second: command == 0x3F, 1, byte(1))
+                at += 2
             case 0x52:
                 write(.dac, second: false, Int(byte(1)), byte(2))
                 at += 3
@@ -282,6 +298,8 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             streams[streamIndex[number]].chip = chip.map { slots[$0.rawValue * 2 + (second ? 1 : 0)] } ?? -1
             streams[streamIndex[number]].kind = chip
             streams[streamIndex[number]].register = byte(3) << 8 | byte(4)
+            // (A period for an SN76489 is two bytes of the bank; everything else, one.)
+            streams[streamIndex[number]].size = chip == .sn && byte(4) & 0x10 == 0 ? 2 : 1
             return
         }
         if command == 0x94, number == 0xFF {
@@ -323,20 +341,20 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         var stream = streams[index]
         guard stream.bank >= 0 else { return }
         let bank = file.banks[stream.bank].count
-        let base = stream.stepBase
+        let base = stream.size * stream.stepBase
         if let from { stream.start = min(bank, from + base) }
         switch mode & 0x0F {
         case 0: break
         case 1: stream.count = length
         case 2: stream.count = stream.frequency > 0 ? length * stream.frequency / 1000 : 0
-        case 3: stream.count = max(0, bank - (stream.start - base)) / stream.stepSize
-        case 0x0F: stream.count = length / stream.stepSize
+        case 3: stream.count = max(0, bank - (stream.start - base)) / stream.step
+        case 0x0F: stream.count = length / stream.step
         default: stream.count = 0
         }
         stream.reverse = mode & 0x10 != 0
         stream.loops = mode & 0x80 != 0
         stream.left = stream.count
-        stream.position = stream.reverse ? (stream.count - 1) * stream.stepSize : 0
+        stream.position = stream.reverse ? (stream.count - 1) * stream.step : 0
         stream.running = stream.count > 0
         stream.began = now
         stream.sent = 0
@@ -344,10 +362,11 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         if stream.running, stream.chip >= 0 { chips[stream.chip].soundStarted() }
     }
 
-    /// Makes the writes the streams have due by now.
-    private func runStreams() {
+    /// Makes the writes the streams have due by now, or due before it.
+    private func runStreams(includingNow: Bool) {
         for index in streams.indices where streams[index].running {
-            while streams[index].running, streams[index].frequency > 0, streams[index].next <= now {
+            while streams[index].running, streams[index].frequency > 0,
+                  streams[index].next < now || includingNow && streams[index].next == now {
                 var stream = streams[index]
                 let bank = file.banks[stream.bank]
                 let place = stream.start + stream.position
@@ -358,15 +377,23 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                         chips[stream.chip].write((stream.register >> 8 != 0 ? 0x100 : 0) | stream.register & 0xFF, value)
                     case .opl, .opl2, .ay:
                         chips[stream.chip].write(stream.register & 0xFF, value)
+                    case .sn:
+                        // A volume, of four bits; or a period, of ten in two bytes, in two writes.
+                        let latch = UInt8(stream.register & 0xF0)
+                        chips[stream.chip].write(0, latch | value & 0x0F)
+                        if latch & 0x10 == 0 {
+                            let high = place + 1 < bank.count ? bank[place + 1] : 0
+                            chips[stream.chip].write(0, (high & 0x03) << 4 | value >> 4)
+                        }
                     }
                 }
-                stream.position += stream.reverse ? -stream.stepSize : stream.stepSize
+                stream.position += stream.reverse ? -stream.step : stream.step
                 stream.sent += 1
                 stream.left -= 1
                 if stream.left <= 0 {
                     if stream.loops {
                         stream.left = stream.count
-                        stream.position = stream.reverse ? (stream.count - 1) * stream.stepSize : 0
+                        stream.position = stream.reverse ? (stream.count - 1) * stream.step : 0
                     } else {
                         stream.running = false
                     }
@@ -519,8 +546,12 @@ private struct VGMStream {
     var kind: VGMFile.Chip?
     var register = 0
     var bank = -1
-    /// How far apart its bytes are in the bank, and which of those it begins with.
+    /// How far apart its writes are in the bank, in writes, and which of those it begins with; and
+    /// how many bytes each write takes.
     var stepSize = 1, stepBase = 0
+    var size = 1
+    /// How far apart its writes are in the bank, in bytes.
+    var step: Int { stepSize * size }
     var frequency = 0
     /// Where its sound begins in the bank, how many writes it makes of it, how many are still to
     /// make, and how far into it it has come.

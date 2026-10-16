@@ -242,3 +242,75 @@ final class VGMDAC: VGMSoundChip {
 
     func soundStarted() { started = true }
 }
+
+/// An SN76489, or one of the chips made like it, as the file says. Its writes are timed to the
+/// eighth of a sample, as the AY chip's are, and what it makes is filtered as the DAC's is.
+final class VGMSN: VGMSoundChip {
+    private var chip: SN76489Chip
+    private let output: UnsafeMutablePointer<ChipOversampler>
+    private let chipRate: Double, stereo: Bool, clock: Double
+    let rate = ChipOversampler.innerRate
+    var samplesLeft = 0
+    var voices: Int { 4 }
+    private static let b1 = exp(-2.0 * Double.pi * 3.18309886184 / Double(outputSampleRate))
+    private var steadyLeft = 0.0, steadyRight = 0.0
+
+    init(_ variant: SN76489Variant, clock: Double) {
+        chip = SN76489Chip(variant)
+        self.clock = clock
+        chipRate = clock / Double(2 * variant.divider)
+        stereo = variant.stereo
+        output = .allocate(capacity: 1)
+        output.initialize(to: ChipOversampler(chipRate: chipRate, stereo: stereo))
+    }
+
+    deinit {
+        output.deinitialize(count: 1)
+        output.deallocate()
+    }
+
+    func reset() {
+        chip.reset()
+        output.pointee = ChipOversampler(chipRate: chipRate, stereo: stereo)
+        samplesLeft = 0
+        steadyLeft = 0
+        steadyRight = 0
+    }
+
+    /// - Parameter register: 0 for the chip's one port, 1 for the Game Gear's sides.
+    func write(_ register: Int, _ value: UInt8) {
+        if register == 0 { chip.write(value) } else { chip.writeStereo(value) }
+    }
+
+    func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
+        var made = 0
+        while made < frames, samplesLeft > 0 {
+            samplesLeft -= 1
+            guard output.pointee.innerStep({ chip.step() }) else { continue }
+            var (l, r) = output.pointee.finishSample()
+            // (What is steady is taken out, as on the card's board: what a channel playing samples
+            // on its volume is left at.)
+            steadyLeft = l * (1 - Self.b1) + steadyLeft * Self.b1
+            steadyRight = r * (1 - Self.b1) + steadyRight * Self.b1
+            l -= steadyLeft
+            r -= steadyRight
+            let remaining = samplesLeft + after
+            let scale = remaining < fade ? gain * Float(remaining) / Float(fade) : gain
+            buffer[made * 2] = Float(l) * scale
+            buffer[made * 2 + 1] = Float(r) * scale
+            made += 1
+        }
+        return made
+    }
+
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) { chip.takeLevels(into: levels) }
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        chip.takeNotes(pitches: pitches, struck: struck, clock: clock)
+    }
+
+    func takeSides(into sides: UnsafeMutablePointer<Float>) { chip.sides(into: sides) }
+
+    func setMuted(_ muted: [Bool]) {
+        for channel in 0 ..< 4 { chip.muted[channel] = channel < muted.count && muted[channel] }
+    }
+}

@@ -1964,10 +1964,24 @@ files to within 0.08 dB for half the time, the middle of 34. siday has
 the DAC as loud beside the FM chip as libvgm has it. These files ask to be louder than most, by
 5.6 to 8.8 dB, and are.
 
+The SN76489, Texas Instruments' chip of three square waves and a noise, was the sound of IBM's PCjr
+of 1984 and of the Tandy 1000 that followed it. It is played from 16 October 2026 on a Swift port
+of MAME's emulation of it, which is the one libvgm plays it on, band-limited in the same way as the
+AY chip. The chips made like it differ in their noise, and a file says which it was made for. Two
+of the files to hand play samples on it, holding a channel still and changing its volume thousands
+of times a second, from blocks packed four bits to a sample. Beside libvgm, the 18 files to hand,
+of King's Quest II, Skate or Die!, 688 Attack Sub and Planet X3, have the same notes and noises
+(spectrum 0.999 a window, the middle of 18) and are as loud from moment to moment to within 0.06 dB
+half the time. With the chip at libvgm's level they were within 0.1 dB of it, all but the one with
+an FM chip as well, which libvgm turns down as a whole. In 688 Attack Sub's, which plays samples,
+the samples alone and the music alone are each within 0.04 dB of libvgm half the time, but together
+only within 0.6 dB, for a reason not found. King's Quest II's files ask to be 11.5 dB quieter than
+libvgm plays the chip, and others to be louder, and siday has the chip 5 dB under libvgm's level,
+where the middle of them is as loud as the rest.
+
 A file for any other chip is refused,
-with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,593 play
-and 116 are refused, for the Creative Music System's two SAA1099s (98) and the SN76489 of the PCjr
-and the Tandy 1000 (18). One is silent: a third
+with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,611 play
+and 98 are refused, all for the Creative Music System's two SAA1099s. One is silent: a third
 of a second that sets the chip up and plays nothing.
 
 A write that comes at a moment is made before the first of the chip's samples at or after it, the

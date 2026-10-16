@@ -319,3 +319,61 @@ private let dacStream: [UInt8] = [0x52, 0x2B, 0x80, 0x90, 0, 0x02, 0x00, 0x2A, 0
     let silent = stereo(try TuneLoader.load(vgm(off, ticks: 44100, clockAt: 0x2C, clock: 7_670_453), format: .vgm), seconds: 0.5)
     #expect(loudness(side(silent, 0)) == 0)
 }
+
+/// A VGM file for an SN76489 like the Tandy 1000's (as the files for it have it: its noise's taps
+/// 0x22, sixteen bits long, and not the Sega chip's), or the Game Gear's.
+private func snFile(_ commands: [UInt8], ticks: Int, gameGear: Bool = false) -> [UInt8] {
+    let variant: [(Int, [UInt8])] = gameGear ? [(0x28, word(0x09)), (0x2A, [16, 0x00])] : [(0x28, word(0x22)), (0x2A, [16, 0x05])]
+    return vgm(commands, ticks: ticks, clockAt: 0x0C, clock: 3_579_545, more: variant)
+}
+
+/// The writes that set an SN76489 channel's period and volume (0 the loudest, 15 silence).
+private func snTone(_ channel: UInt8, period: Int, volume: UInt8) -> [UInt8] {
+    [0x50, 0x80 | channel << 5 | UInt8(period & 0x0F), 0x50, UInt8(period >> 4 & 0x3F), 0x50, 0x90 | channel << 5 | volume]
+}
+
+@Test func vgmOfAnSN76489PlaysItsToneAtItsPitchAndItsVolumes() throws {
+    // 3,579,545 Hz over 32 times 254 is 440 Hz.
+    let renderer = try TuneLoader.load(snFile(snTone(0, period: 254, volume: 0) + [0x61] + word(44100), ticks: 44100), format: .vgm, options: stereoOptions)
+    #expect(renderer.channelCount == 4)
+    #expect(renderer.info.detail == "SN76489")
+    let sound = side(stereo(renderer, seconds: 1), 0)
+    #expect(abs(crossings(sound[4800...]) * 10 / 9 - 440) <= 2)
+    // Each of its volumes is 2 dB under the one before.
+    let quieter = side(stereo(try TuneLoader.load(snFile(snTone(0, period: 254, volume: 3) + [0x61] + word(44100), ticks: 44100), format: .vgm), seconds: 1), 0)
+    #expect(abs(20 * log10(Double(loudness(sound[4800...]) / loudness(quieter[4800...]))) - 6) < 0.1)
+    // A period of nought is 1,024 on this chip: 109 Hz.
+    let lowest = side(stereo(try TuneLoader.load(snFile(snTone(0, period: 0, volume: 0) + [0x61] + word(44100), ticks: 44100), format: .vgm), seconds: 1), 0)
+    #expect(abs(crossings(lowest[4800...]) * 10 / 9 - 109) <= 2)
+}
+
+@Test func vgmOfAnSN76489PlaysSamplesOnAChannelsVolumeFromAPackedBlock() throws {
+    // A channel held at a period of one plays what is written to its volume: a stream of them, from
+    // a block of four bits to each, packed two to a byte, the higher first. Volumes 0 and 15, ten
+    // of each, at 8,000 a second, is a 400 Hz square.
+    let packed = [UInt8](repeating: 0x00, count: 5) + [UInt8](repeating: 0xFF, count: 5)
+    let wave = Array((0 ..< 200).map { _ in packed }.joined())
+    let block: [UInt8] = [0x67, 0x66, 0x48] + long(10 + wave.count) + [0x00] + long(wave.count * 2) + [8, 4, 0x00, 0x00, 0x00] + wave
+    let stream: [UInt8] = [0x90, 0, 0x00, 0x00, 0x90, 0x91, 0, 0x08, 1, 0, 0x92, 0] + long(8000) + [0x95, 0] + word(0) + [0]
+    let writes = block + snTone(0, period: 1, volume: 15) + stream + [0x61] + word(44100)
+    let renderer = try TuneLoader.load(snFile(writes, ticks: 44100), format: .vgm, options: stereoOptions)
+    #expect(renderer.info.shortfalls.isEmpty)
+    let sound = side(stereo(renderer, seconds: 0.5), 0)
+    #expect(abs(crossings(sound[2400 ..< 21600]) * 10 / 4 - 400) <= 3)
+    #expect(loudness(sound[2400 ..< 21600]) > 0.01)
+    // A block packed by differences is not read, and the file says so.
+    var other = block
+    other[7] = 0x01
+    #expect(try TuneLoader.load(snFile(other + [0x61] + word(100), ticks: 100), format: .vgm).info.shortfalls.count == 1)
+}
+
+@Test func vgmOfAGameGearPutsItsChannelsWhereItsFileSays() throws {
+    // Its first channel on the left alone, and then on both.
+    let left = snTone(0, period: 254, volume: 0) + [0x4F, 0x10] + [0x61] + word(44100)
+    let sound = stereo(try TuneLoader.load(snFile(left, ticks: 44100, gameGear: true), format: .vgm, options: stereoOptions), seconds: 0.5)
+    #expect(loudness(side(sound, 0)[4800...]) > 0.01)
+    #expect(loudness(side(sound, 1)[4800...]) < 0.0001)
+    let both = snTone(0, period: 254, volume: 0) + [0x4F, 0x11] + [0x61] + word(44100)
+    let sound2 = stereo(try TuneLoader.load(snFile(both, ticks: 44100, gameGear: true), format: .vgm, options: stereoOptions), seconds: 0.5)
+    #expect(abs(loudness(side(sound2, 1)[4800...]) - loudness(side(sound2, 0)[4800...])) < 0.001)
+}

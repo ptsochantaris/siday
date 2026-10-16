@@ -27,6 +27,8 @@ struct VGMFile {
         /// is played: what a file for a PC holds of its Sound Blaster's samples is recorded as
         /// written to it, the format having no Sound Blaster of its own.
         case dac
+        /// Texas Instruments' SN76489, or one made like it: the PCjr's and the Tandy 1000's among them.
+        case sn
 
         /// Where a file gives its clock.
         var place: Int {
@@ -36,6 +38,7 @@ struct VGMFile {
             case .opl3: 0x5C
             case .ay: 0x74
             case .dac: 0x2C
+            case .sn: 0x0C
             }
         }
 
@@ -47,6 +50,7 @@ struct VGMFile {
             case .opl3: 0x0C
             case .ay: 0x12
             case .dac: 0x02
+            case .sn: 0x00
             }
         }
 
@@ -82,12 +86,14 @@ struct VGMFile {
     /// how it is wired: a YM2149 with its clock halved (0x10), or one heard as a ZX Spectrum's are,
     /// its first channel on the left and its last on the right (0x80).
     let ayType: UInt8, ayFlags: UInt8
+    /// Which of the chips like the SN76489 it is.
+    let snVariant: SN76489Variant
     var title = "", game = "", system = "", author = "", date = "", notes = ""
 
     /// The other chips the format has, by where a file gives each one's clock, and their names, to
     /// say which one a file is for when it is not one of those played here.
     private static let others: [(place: Int, name: String)] = [
-        (0x0C, "the SN76489 (a Sega Master System's or a BBC Micro's)"), (0x10, "the YM2413 (OPLL)"),
+        (0x10, "the YM2413 (OPLL)"),
         (0x30, "the YM2151 (OPM)"), (0x38, "Sega's PCM chip"),
         (0x40, "the RF5C68"), (0x44, "the YM2203 (OPN)"), (0x48, "the YM2608 (OPNA)"), (0x4C, "the YM2610 (OPNB)"),
         (0x58, "the Y8950 (MSX-AUDIO)"), (0x60, "the YMF278B (OPL4)"), (0x64, "the YMF271 (OPX)"), (0x68, "the YMZ280B"),
@@ -121,13 +127,29 @@ struct VGMFile {
         func byte(_ at: Int) -> UInt8 { at < headerEnd ? data[at] : 0 }
 
         for other in Self.others where clock(other.place) & 0x3FFF_FFFF != 0 {
-            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips, the AY-3-8910 and a DAC are")
+            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips, the AY-3-8910, the SN76489 and a DAC are")
         }
         ayType = byte(0x78)
         ayFlags = byte(0x79)
+        // (Its noise's taps and length from version 1.10, as libvgm reads them, and the rest from
+        // 1.51; nought for either is the Sega chip's.)
+        var variant = SN76489Variant()
+        let taps = version >= 0x110 ? Int(byte(0x28)) | Int(byte(0x29)) << 8 : 0
+        let width = version >= 0x110 ? Int(byte(0x2A)) : 0
+        let flags = version >= 0x151 ? byte(0x2B) : 0
+        variant.taps = taps != 0 ? taps : 0x0009
+        variant.width = width != 0 ? min(32, width) : 16
+        variant.sega = flags & 0x01 == 0
+        variant.stereo = flags & 0x04 == 0
+        variant.divider = flags & 0x08 != 0 ? 1 : 8
+        variant.ncr = flags & 0x10 != 0
+        snVariant = variant
         let used = Chip.allCases.map { ($0, clock($0.place)) }.filter { $0.1 & 0x3FFF_FFFF != 0 }
         guard !used.isEmpty else { throw .unsupported("a VGM file for no chip that is played") }
         guard used.count(where: { $0.0.isOPL }) <= 1 else { throw .unsupported("a VGM file for two kinds of FM chip at once, which is not played") }
+        if let sn = used.first(where: { $0.0 == .sn }), sn.1 & 0x8000_0000 != 0 {
+            throw .unsupported("a VGM file for the T6W28 (a Neo Geo Pocket's), which is not played: only the SN76489 and the chips made like it are")
+        }
         if used.contains(where: { $0.0 == .ay }), ayType == 0x03 {
             throw .unsupported("a VGM file for the AY8930, which is not played: only the AY-3-8910 and the chips made like it are")
         }
@@ -144,6 +166,7 @@ struct VGMFile {
             case .opl, .opl2: (hertz / 72).rounded(.down)
             case .ay: hertz / 8
             case .dac: 100_000.0
+            case .sn: hertz / 16
             }
             guard rate >= 10000, rate <= 1_000_000 else { throw .malformed("a VGM file whose chip's clock is \(clocked & 0x3FFF_FFFF) Hz") }
             parts.append(Part(chip: chip, two: two, clock: hertz, volumes: Array(repeating: two ? 0.5 : 1, count: two ? 2 : 1)))
@@ -216,7 +239,11 @@ struct VGMFile {
                     blocks[type].append((banks[type].count, to - from))
                     banks[type] += data[from ..< to]
                 } else if type < 0x7F {
-                    blocks[type & 0x3F].append((banks[type & 0x3F].count, 0))
+                    // Packed: what is read of it, or nothing, with a mark that it was not played.
+                    let unpacked = Self.unpack(data[from ..< to])
+                    if unpacked == nil { unread = true }
+                    blocks[type & 0x3F].append((banks[type & 0x3F].count, unpacked?.count ?? 0))
+                    banks[type & 0x3F] += unpacked ?? []
                 }
                 at = from + size
                 continue
@@ -229,6 +256,32 @@ struct VGMFile {
             }
             at += Self.length(of: command)
         }
+    }
+
+    /// True if the file has samples packed in a way that is not read here, and so not played.
+    private(set) var unread = false
+
+    /// A block of samples as the format packs them, unpacked: those of eight bits or fewer, each kept
+    /// in so many bits, highest first, as they are or moved up, with an amount added. A block packed
+    /// any other way (by differences, or by a table of values) gives nil.
+    static func unpack(_ block: ArraySlice<UInt8>) -> [UInt8]? {
+        let bytes = Array(block)
+        guard bytes.count >= 10, bytes[0] == 0x00 else { return nil }
+        let length = Int(bytes[1]) | Int(bytes[2]) << 8 | Int(bytes[3]) << 16 | Int(bytes[4] & 0x7F) << 24
+        let full = Int(bytes[5]), packed = Int(bytes[6]), kind = bytes[7], add = Int(bytes[8])
+        guard full >= 1, full <= 8, packed >= 1, packed <= full, kind <= 1 else { return nil }
+        let count = min(length, (bytes.count - 10) * 8 / packed)
+        var out = [UInt8](repeating: 0, count: count)
+        var bit = 10 * 8
+        for index in 0 ..< count {
+            var value = 0
+            for _ in 0 ..< packed {
+                value = value << 1 | Int(bytes[bit >> 3] >> (7 - UInt8(bit & 7)) & 1)
+                bit += 1
+            }
+            out[index] = UInt8(truncatingIfNeeded: (kind == 1 ? value << (full - packed) : value) + add)
+        }
+        return out
     }
 
     /// How long a command is, with what goes with it, as the format has it: all but a block of data.
@@ -256,6 +309,7 @@ struct VGMFile {
             case .opl3: "YMF262 (OPL3)"
             case .ay: ayName
             case .dac: "DAC (as a YM2612's)"
+            case .sn: "SN76489"
             }
             return (part.two ? "2 × " : "") + name + (part.chip == .opl2 && sides ? ", left and right" : "")
         }.joined(separator: " and ")

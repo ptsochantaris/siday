@@ -52,7 +52,9 @@ machine rules in `Sources/SidayKit/AYFile` are ported from, or follow, the sourc
 
 ## ayumi — the AY/YM chip
 
-`Sources/SidayKit/AYChip` is a Swift port of ayumi (https://github.com/true-grue/ayumi).
+`Sources/SidayKit/AYChip` is a Swift port of ayumi (https://github.com/true-grue/ayumi). Its
+`ChipOversampler.swift` is ayumi's way of bringing the chip's sound to the player's rate, taken out
+of the chip for the other chips that make square waves and steps (the SN76489's, and a DAC's).
 
 ```
 The MIT License
@@ -793,6 +795,50 @@ through until something is written there.
 - GNU Lesser General Public License, version 2.1 or later. As its section 3 allows, the port is
   distributed under the GNU General Public License, version 2 or later, with the rest of this project
 - Source: https://github.com/nukeykt/Nuked-OPL3
+
+## MAME — the SN76489
+
+`Sources/SidayKit/SN76489/SN76489.swift` is a Swift port of MAME's emulation of Texas Instruments'
+SN76489 and the chips made like it (`sn76496.c`), as libvgm has it (https://github.com/ValleyBell/libvgm,
+`emu/cores/sn76496.c`): its registers, its tones, its noise in each chip's kind, and its volumes. The
+way what the chip makes is brought to the player's rate is not MAME's but ayumi's (see above), and
+the Game Gear's sides and a channel's samples are worked out as libvgm's copy does.
+
+- By Nicola Salmoria, with contributions by others: Sebastien Chevalier, Lord Nightmare, Michael
+  Zapf, PlgDavid, Enik, Justin Kerk, Nemesis, Qbix, Valley Bell and NewRisingSun among them
+- Source: https://github.com/mamedev/mame (`src/devices/sound/sn76496.cpp`)
+
+```
+BSD 3-Clause License
+
+Copyright (c) Nicola Salmoria
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
 
 ## fmdrv — Creative's driver for CMF files
 
