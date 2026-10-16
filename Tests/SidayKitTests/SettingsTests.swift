@@ -58,7 +58,7 @@ import Testing
     #expect(options.amigaModel == .a500 && options.amigaSeparation == 1 && options.s3mCard == .sb)
     #expect(options.sbProSeparation == 1)
     // (Brought together as an Amiga's are, until changed; and only a VGM file is played again for it.)
-    #expect(Setting.sbProSeparation.standard == Setting.amigaSeparation.standard && Setting.sbProSeparation.group == .cards)
+    #expect(Setting.sbProSeparation.standard == Setting.amigaSeparation.standard && Setting.sbProSeparation.group == .ay)
     #expect(Setting.sbProSeparation.changes(.vgm) && !Setting.sbProSeparation.changes(.mod) && !Setting.amigaSeparation.changes(.vgm))
     // Nonsense is made sense of, and a short list leaves the rest as they come.
     Setting.apply([99, -4, .nan], to: &options, &policy)

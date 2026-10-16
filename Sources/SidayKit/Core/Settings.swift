@@ -10,10 +10,9 @@
 /// keep them all alike, and hand them over as a list of numbers in the order of the cases here.
 public enum Setting: Int, CaseIterable, Sendable {
     case songs, shortestSong, loops, fade, defaultTime, maxTime, levelling
-    case chip, clock, frameRate, stereoOrder
+    case chip, clock, frameRate, stereoOrder, sbProSeparation
     case sidModel, sidEngine, sidFilter
     case amiga, amigaSeparation, s3mCard
-    case sbProSeparation
 
     /// One of the things a setting can be chosen to be.
     public struct Choice: Sendable {
@@ -40,7 +39,7 @@ public enum Setting: Int, CaseIterable, Sendable {
 
     /// The settings are shown in groups, by what they have to do with.
     public enum Group: Int, CaseIterable, Sendable {
-        case playing, ay, sid, modules, cards
+        case playing, ay, sid, modules
 
         public var title: String {
             switch self {
@@ -48,7 +47,6 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .ay: "AY and YM chips"
             case .sid: "SID chip"
             case .modules: "Modules"
-            case .cards: "AdLib and Sound Blaster"
             }
         }
 
@@ -58,10 +56,9 @@ public enum Setting: Int, CaseIterable, Sendable {
     public var group: Group {
         switch self {
         case .songs, .shortestSong, .loops, .fade, .defaultTime, .maxTime, .levelling: .playing
-        case .chip, .clock, .frameRate, .stereoOrder: .ay
+        case .chip, .clock, .frameRate, .stereoOrder, .sbProSeparation: .ay
         case .sidModel, .sidEngine, .sidFilter: .sid
         case .amiga, .amigaSeparation, .s3mCard: .modules
-        case .sbProSeparation: .cards
         }
     }
 
