@@ -93,7 +93,8 @@ extension ST3Player {
         case 10: s_arp(ch) // J
         case 17: s_retrig(ch) // Q
         case 19: s_scommand1(ch) // S
-        case 20: if musiccount == 0 { settempo(ch.info) } // T
+        case 20: // T
+            if playsLaterCommands { laterTempo(ch, firstTick: true) } else if musiccount == 0 { settempo(ch.info) }
         case 13, 14, 23: if playsLaterCommands { laterCommand(ch, firstTick: true) } // M, N, W
         case 16, 24, 25: if playsLaterCommands { laterPanning(ch, firstTick: true) } // P, X, Y
         case 26: if playsFilter { setFilter(ch) } // Z
@@ -136,9 +137,25 @@ extension ST3Player {
         case 21: s_finevibrato(ch) // U
         case 22: s_setgvol(ch) // V
         case 14, 23: if playsLaterCommands { laterCommand(ch, firstTick: false) } // N, W
+        case 20: if playsLaterCommands { laterTempo(ch, firstTick: false) } // T
         case 16, 25: if playsLaterCommands { laterPanning(ch, firstTick: false) } // P, Y
         default: break
         }
+    }
+
+    /// T in a file that a later tracker made, as Impulse Tracker has it and OpenMPT plays it in an
+    /// S3M file: T00 gives the channel's last tempo again; under 20 hex it slides the tempo, on
+    /// every tick of the row after the first, T0x down by x and T1x up, between 32 and 255.
+    private func laterTempo(_ ch: ST3Channel, firstTick: Bool) {
+        var value = ch.info
+        if value != 0 { ch.lastTempo = value } else { value = ch.lastTempo }
+        if value >= 0x20 {
+            if firstTick, musiccount == 0 { settempo(value) }
+            return
+        }
+        guard !firstTick, value != 0 else { return }
+        let step = Int(value & 0x0F)
+        settempo(UInt8(max(32, min(255, Int(tempo) + (value & 0xF0 == 0x10 ? step : -step)))))
     }
 
     /// X, P and Y in a file that a later tracker made, as OpenMPT plays them in an S3M file, on a

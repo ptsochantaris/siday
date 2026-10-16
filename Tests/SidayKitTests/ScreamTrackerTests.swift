@@ -374,6 +374,24 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(left.max()! - left.min()! < 0.001)
 }
 
+@Test func s3mFromALaterTrackerKeepsItsTempo() throws {
+    func length(_ file: [UInt8], tempo: UInt8 = 128) throws -> Double {
+        var file = file
+        file[0x32] = tempo
+        return try TuneLoader.load(file, format: .s3m).knownLength!
+    }
+    // 64 rows of 6 ticks at 128 beats a minute, two fifths of that a second: 7.5 seconds.
+    #expect(abs(try length(byImpulseTracker(s3m())) - 7.5) < 0.01)
+    // Scream Tracker's own timer on a GUS goes by whole ticks a second, here 51 for 51.2.
+    #expect(abs(try length(s3m()) - 64 * 6 / 51.0) < 0.01)
+    // T under 20 hex slides the tempo on the ticks of its row after the first, as Impulse Tracker
+    // has it: T15 takes it from 128 up by 25, and T00 then gives the channel's T again.
+    let up = try length(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 20, 0x15])))
+    #expect(abs(up - (6 / (128 * 0.4) + 63 * 6 / (153 * 0.4))) < 0.06)
+    let again = try length(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 20, 0x15, 0, 0x80, 20, 0x00])))
+    #expect(again < up - 0.3)
+}
+
 @Test func s3mWithPixPlaysPanningHasItsChannelsPlaced() throws {
     /// How much louder the right side is than the left, for the first channel's note.
     func rightOverLeft(_ file: [UInt8]) throws -> Float {

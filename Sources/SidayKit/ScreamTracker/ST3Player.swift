@@ -41,6 +41,8 @@ final class ST3Channel {
     var filtered = false, filterChanged = false, filterBegun = false
     /// And true while its notes are put in ModPlug's reverb (S99), on a card that has it (see `ST3Cards`).
     var reverb = false
+    /// And the last tempo it was given (T), which T00 gives again, in a later tracker's file.
+    var lastTempo: UInt8 = 0
     var m_pos: UInt32 = 0, m_poslow: UInt32 = 0, m_oldpos: UInt32 = 0, m_end: UInt32 = 0, m_loop: UInt32 = 0, m_speed: UInt32 = 0
     // For the AdLib card: the instrument its voice was last given, whether its note is to be struck
     // again and its level set again, and its pitch in hertz.
@@ -108,6 +110,8 @@ public final class ST3Player {
     var notemixingspeed: UInt16 = 0
     /// How long a tick is at the tempo that is set, in samples and 2^-32s of one.
     private(set) var samplesPerTick: UInt64 = 0
+    /// The tempo the song is at, as T last set it.
+    private(set) var tempo: UInt8 = 125
     private var tickTable = [UInt64](repeating: 0, count: 256)
 
     // Coming round: which rows have been played.
@@ -166,7 +170,9 @@ public final class ST3Player {
         for i in 0 ... 255 {
             let bpm = i == 0 ? 1 : i
             let hz: Double
-            if module.playsAsDSIK {
+            if module.playsAsDSIK || playsLaterCommands {
+                // (A later tracker's file, or a DSM file's, ticks as often as its tempo asks: two
+                // fifths of it a second. Scream Tracker's own timers went by whole steps, below.)
                 hz = Double(bpm) * 2 / 5
             } else if card == .gus {
                 // The timer the tracker used, which cannot go slower than 19 times a second.
@@ -213,6 +219,7 @@ public final class ST3Player {
     func settempo(_ bpm: UInt8) {
         // With a Sound Blaster, Scream Tracker takes no notice of a tempo of 32 or less.
         if card == .sb, bpm <= 0x20 { return }
+        tempo = bpm
         samplesPerTick = tickTable[Int(bpm)]
     }
 
