@@ -1946,6 +1946,12 @@ siday gives it, as the format has it. VGM files are louder than the other music 
 of them because the file asks for more, and are turned down by 6 dB more than that music, by measure,
 to be as loud as it is.
 
+Each chip keeps its own time, in its own samples, and the chips go on together: the next writes are
+made when every chip has made all it was given before them. Until 16 October 2026 the second of two
+chips, a Sound Blaster Pro's most often, now and then lost a sample or two of its own between writes,
+where the first had made more than the player asked of it, and so came to its writes a little early.
+It drifted from them a sample at a time, from the first second of a tune, until it was kept in step.
+
 ## AYL — Ay_Emul's playlists
 
 Ay_Emul, Sergey Bulba's player for Windows, keeps its playlists as text. An AYL file

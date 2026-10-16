@@ -178,3 +178,18 @@ private var stereoOptions: LoadOptions {
     let more = stereo(try TuneLoader.load(vgm(oneNote, ticks: 44100, extra: extra), format: .vgm), seconds: 0.5)
     #expect(abs(loudness(side(more, 0)) / loudness(side(plain, 0)) - 1.5) < 0.01)
 }
+
+@Test func vgmOfASoundBlasterProKeepsItsSecondChipInTimeWithItsWrites() throws {
+    // Notes that change every few ticks for two seconds, on the second chip only: what is heard on
+    // the right is what one chip makes of the same writes, to the sample. (The second chip once
+    // lost a sample of its own now and then, and so came to its writes a little early.)
+    var writes: [UInt8] = []
+    for step in 0 ..< 600 {
+        writes += note(0xAA) + [0xAA, 0xA0, UInt8(0x44 + step % 7 * 9)] + [0x61] + word(97 + step % 13)
+    }
+    let pair = vgm(writes, ticks: 0, clock: 3_579_545 | 0xC000_0000)
+    let alone = vgm(writes.enumerated().map { $0.offset % 3 == 0 && $0.element == 0xAA ? 0x5A : $0.element }, ticks: 0)
+    let right = side(stereo(try TuneLoader.load(pair, format: .vgm, options: stereoOptions), seconds: 2), 1)
+    let one = side(stereo(try TuneLoader.load(alone, format: .vgm, options: stereoOptions), seconds: 2), 1)
+    #expect(right == one)
+}

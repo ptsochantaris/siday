@@ -118,7 +118,9 @@ final class OPLCard {
 
     /// The same, with the chip's two sides each on its own side: for an OPL3, which puts each channel
     /// on the left, the right or both, as it is told. An OPL2 has both sides alike.
-    func renderStereo(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int = 0) -> Int {
+    /// - Parameter after: how many of the chip's samples the fade has still to run after
+    ///   `samplesLeft`, for a fade longer than what the card is given at once.
+    func renderStereo(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int = 0, after: Int = 0) -> Int {
         var made = 0
         var position = position
         while made < frames {
@@ -151,7 +153,8 @@ final class OPLCard {
                 left += window[i] * weight
                 right += windowRight[i] * weight
             }
-            let level = samplesLeft < fade ? gain * Float(samplesLeft) / Float(fade) : gain
+            let remaining = samplesLeft + after
+            let level = remaining < fade ? gain * Float(remaining) / Float(fade) : gain
             buffer[made * 2] = left * level
             buffer[made * 2 + 1] = right * level
             made += 1

@@ -128,8 +128,9 @@ public extension SongLevel {
     /// Which sound a level was measured from: raised whenever a change to a player makes any tune
     /// sound otherwise than it did, louder or quieter or other in any way, so that what was kept
     /// from before is measured again and not taken as it is. (1: the first, of 16 October 2026; 2:
-    /// XM plug-ins given the voices as loud as OpenMPT's way of adding up has them.)
-    static let soundVersion = 2
+    /// XM plug-ins given the voices as loud as OpenMPT's way of adding up has them; 3: the second of
+    /// a Sound Blaster Pro's two FM chips kept in time with its writes.)
+    static let soundVersion = 3
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
