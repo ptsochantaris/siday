@@ -654,8 +654,16 @@ tracker, and set beside libopenmpt the spectrum of nine of those is nearer (from
 one), and of the tenth, whose reverb is on a channel past the sixteen Scream Tracker played, as it
 was; the other two Scream Tracker saved, and in those S99 is nothing, as it was to it. That last
 file has 26 channels of samples, and saves those after the sixteenth with the numbers Scream
-Tracker gives the AdLib card's voices; there their samples are not heard, and such a file says so
-(23 to hand). In a file that Scream Tracker saved they were not heard by whoever made it either.
+Tracker gives the AdLib card's voices, on which Scream Tracker plays no sample. OpenMPT takes such
+a number only for where the channel sits between the speakers, and plays what is on it. So, in a
+file that Scream Tracker did not save, a channel numbered so that plays samples and nothing of the
+AdLib's is a channel of samples here, up to sixteen more, on the Gravis Ultrasound: the card is
+given a voice for each, which no GUS had, and goes on at the rate it has for the voices the file
+asks for. A Sound Blaster mixes sixteen and no more, and there such a file says the rest are not
+heard. Of the 23 such files to hand, set beside libopenmpt, the spectrum of 11 came nearer (one
+from 0.76 to 0.97) and of three went a little further (by 0.011 at the most), and how the sound
+rises and falls came nearer in 15 and went further in one. In a file that Scream Tracker saved
+those channels were not heard by whoever made it either, and are not here.
 `siday --raw file.raw tune.s3m` writes what st3play writes to a file, a stereo sample's left side only. The two agree to the sample when
 the environment variable `SIDAY_REFERENCE_SLIPS` is set, which repeats one slip of st3play's that
 Scream Tracker did not make: it loses the sign of a number on very high notes, and plays them wrong.

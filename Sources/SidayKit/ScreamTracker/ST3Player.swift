@@ -82,6 +82,8 @@ public final class ST3Player {
     /// True if Z sets a channel's filter, as OpenMPT plays it: in a file that a later tracker made
     /// and that is one OpenMPT keeps the command for (see `ST3Module.keepsFilterMacros`).
     let playsFilter: Bool
+    /// Which of the player's channels each of the file's 32 is (see `ST3Module.channelTable`).
+    let channelTable: [UInt8]
     /// Sixteen channels of samples; the rest were the AdLib card's.
     static let ACHANNELS = 48
 
@@ -144,6 +146,9 @@ public final class ST3Player {
          songNumber: UInt8 = 0, asScreamTracker: Bool = false) {
         playsLaterCommands = !module.madeByScreamTracker && !asScreamTracker
         playsFilter = playsLaterCommands && module.keepsFilterMacros
+        let table = module.channelTable(laterTrackers: playsLaterCommands && card == .gus)
+        channelTable = table
+        let extraChannels = (0 ..< 32).count { module.extraChannels[$0] == table[$0] }
         self.firstPlayedBy = firstPlayedBy
         self.songNumber = songNumber
         self.module = module
@@ -172,7 +177,8 @@ public final class ST3Player {
             }
             tickTable[i] = UInt64((rate / hz) * 4_294_967_296.0 + 0.5)
         }
-        cards = ST3Cards(card: card, module: module, stereo: stereomode)
+        cards = ST3Cards(card: card, module: module, stereo: stereomode,
+                         extraChannels: extraChannels)
 
         // The header's settings.
         oldstvib = module.flags & 1 != 0
@@ -188,6 +194,10 @@ public final class ST3Player {
         }
         for i in 0 ..< 32 where module.defaultpan[i] & 32 != 0 {
             zchn[i].apanpos = 0xF0 | (module.defaultpan[i] & 0xF) // the top part says the channel has a place set
+        }
+        // An extra channel of samples is where the file puts it, or in the middle, as OpenMPT has it.
+        for place in 0 ..< 32 where module.extraChannels[place] == channelTable[place] {
+            zchn[Int(channelTable[place])].apanpos = 0xF0 | (module.defaultpan[place] & 32 != 0 ? module.defaultpan[place] & 0xF : 7)
         }
         np_ord = Int16(max(0, min(ST3Module.mostOrders - 1, order)))
         _ = neworder()
@@ -467,7 +477,7 @@ public final class ST3Player {
                 np_patoff = Int16(truncatingIfNeeded: i)
                 return 255
             }
-            let tmpChannel = module.channel[Int(dat & 0x1F)]
+            let tmpChannel = channelTable[Int(dat & 0x1F)]
             if tmpChannel & 128 == 0 {
                 channel = tmpChannel
                 break
@@ -530,8 +540,9 @@ public final class ST3Player {
         if ch.ins > 101 { ch.ins = 0 }
         if ch.vol != 255, ch.vol > 63 { ch.vol = 63 }
         // The nine channels after the sixteenth are the AdLib card's voices. (Those after them were
-        // to be its drums, which Scream Tracker never played.)
-        if ch.channelnum <= 15 {
+        // to be its drums, which Scream Tracker never played; and from the 33rd are a later
+        // tracker's channels of samples past the sixteen: see `ST3Module.extraChannels`.)
+        if ch.channelnum <= 15 || Int(ch.channelnum) >= ST3Module.firstExtraChannel {
             doamiga(ch)
         } else if ch.channelnum <= 16 + 8 {
             doadlib(ch, Int(ch.channelnum) - 16)

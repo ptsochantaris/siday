@@ -35,6 +35,13 @@ final class ST3Module {
     let mastermul: UInt8
     let ultraclick: UInt8
     let channel: [UInt8]
+    /// For a later tracker's file with more channels of samples than Scream Tracker's sixteen: where
+    /// in the player each of those after the sixteenth goes, by its place in the file. Such a file
+    /// numbers them as Scream Tracker numbers the AdLib card's voices; OpenMPT plays them as samples,
+    /// and so, on a Gravis Ultrasound, are they here (see `channelTable`).
+    private(set) var extraChannels: [Int: UInt8] = [:]
+    /// The first of the player's channels that are kept for those.
+    static let firstExtraChannel = 32
     private(set) var order = [UInt8](repeating: 255, count: mostOrders + 1)
     private(set) var defaultpan = [UInt8](repeating: 0, count: 32)
     private(set) var ins = [Instrument](repeating: Instrument(), count: mostInstruments + 1)
@@ -85,6 +92,8 @@ final class ST3Module {
     /// Blaster, on which it is not.
     private(set) var asksForReverb = false
     private(set) var reverbSentence: String?
+    /// What is said of the extra channels of samples (see `extraChannels`), for a Sound Blaster.
+    private(set) var extraChannelsSentence: String?
 
     deinit {
         samples.deallocate()
@@ -233,6 +242,7 @@ final class ST3Module {
         }
 
         if cwtv < 0x1320 { readPixPlayPanning() }
+        findExtraChannels()
         noteWhatIsNotPlayed(f, insoff)
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         for i in 0 ..< Self.mostInstruments { checkins(i) }
@@ -275,6 +285,43 @@ final class ST3Module {
             }
         }
         return (0 ..< length).map { k in Int16(Int8(bitPattern: unsigned ? f[from + k] ^ 0x80 : f[from + k])) << 8 }
+    }
+
+    /// Which channel of the player each of the file's 32 plays: as the file numbers it, or, for a
+    /// later tracker's file played as that tracker had it, one of the extra channels of samples.
+    func channelTable(laterTrackers: Bool) -> [UInt8] {
+        guard laterTrackers, !extraChannels.isEmpty else { return channel }
+        // (A channel the file itself numbers as one of those, which Scream Tracker never played, is
+        // left out, as it was.)
+        return (0 ..< 32).map { extraChannels[$0] ?? (channel[$0] >= UInt8(Self.firstExtraChannel) && channel[$0] < 128 ? 255 : channel[$0]) }
+    }
+
+    /// Finds, in a file that Scream Tracker did not save, the channels numbered as the AdLib card's
+    /// voices that play samples and nothing of the AdLib's, and gives each an extra channel of
+    /// samples, up to sixteen of them.
+    private func findExtraChannels() {
+        guard !madeByScreamTracker else { return }
+        var samples: UInt32 = 0, fm: UInt32 = 0
+        for case let pattern? in patp {
+            var at = 0
+            while at < pattern.count {
+                let what = pattern[at]
+                at += 1
+                if what & 0x20 != 0 {
+                    if at + 1 < pattern.count, pattern[at + 1] > 0, Int(pattern[at + 1]) <= insnum {
+                        let bit: UInt32 = 1 << UInt32(what & 0x1F), type = ins[Int(pattern[at + 1]) - 1].type
+                        if type == 1 { samples |= bit } else if type >= 2 { fm |= bit }
+                    }
+                    at += 2
+                }
+                if what & 0x40 != 0 { at += 1 }
+                if what & 0x80 != 0 { at += 2 }
+            }
+        }
+        for place in 0 ..< 32 where channel[place] & 128 == 0 && channel[place] >= 16 && samples & ~fm & (1 << UInt32(place)) != 0 {
+            guard extraChannels.count < 16 else { break }
+            extraChannels[place] = UInt8(Self.firstExtraChannel + extraChannels.count)
+        }
     }
 
     /// Turns Z into S8, a place between the speakers, in a file whose Z is taken to be PixPlay's, as
@@ -336,7 +383,9 @@ final class ST3Module {
         // A later tracker's file can have more than Scream Tracker's sixteen channels of samples,
         // and number those after them as Scream Tracker numbers the AdLib card's: there they are
         // not heard. (In a file that Scream Tracker saved they were not heard by its maker either.)
-        var lostChannels: UInt32 = 0
+        // Those that play samples alone are played so on a Gravis Ultrasound (see `extraChannels`),
+        // and not on a Sound Blaster, which mixes sixteen.
+        var lostChannels: UInt32 = 0, extraLost: UInt32 = 0
         for case let pattern? in patp {
             var at = 0
             while at < pattern.count {
@@ -348,7 +397,9 @@ final class ST3Module {
                         used[instrument] = true
                         let card = channel[Int(what & 0x1F)]
                         if !madeByScreamTracker, card & 128 == 0, card >= 16, pattern[at] < 254, instrument > 0, instrument <= insnum,
-                           ins[instrument - 1].type == 1 { lostChannels |= 1 << UInt32(what & 0x1F) }
+                           ins[instrument - 1].type == 1 {
+                            if extraChannels[Int(what & 0x1F)] != nil { extraLost |= 1 << UInt32(what & 0x1F) } else { lostChannels |= 1 << UInt32(what & 0x1F) }
+                        }
                     }
                     at += 2
                 }
@@ -387,6 +438,13 @@ final class ST3Module {
             shortfalls.append(Shortfall.some(lostChannels.nonzeroBitCount,
                 one: "channels is numbered as Scream Tracker numbers the AdLib card's, and the samples played on it are not heard.",
                 many: "channels are numbered as Scream Tracker numbers the AdLib card's, and the samples played on them are not heard."))
+        }
+        if extraLost != 0 {
+            let sentence = Shortfall.some(extraLost.nonzeroBitCount,
+                one: "channels is past the sixteen a Sound Blaster mixes, and the samples played on it are not heard there.",
+                many: "channels are past the sixteen a Sound Blaster mixes, and the samples played on them are not heard there.")
+            extraChannelsSentence = sentence
+            shortfalls.append(sentence)
         }
         if let sentence = Shortfall.commandsLeftOut(commands.named(Self.whatTheyDo), why: "on the Sound Blaster it is played on") {
             asksForReverb = true

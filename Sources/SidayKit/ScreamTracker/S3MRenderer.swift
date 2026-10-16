@@ -52,7 +52,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     /// the tick last made, and room for the levels of them all.
     private let lights: [Int]
     private var levels: TickLevels
-    private var channelLevels = [Float](repeating: 0, count: 25)
+    private var channelLevels = [Float](repeating: 0, count: ST3Player.ACHANNELS)
     private var notes: TickNotes
     private var channelPitches = [Float](repeating: 0, count: 25)
     /// The part of a sample that ticks are over by, in 2^-32s, carried from tick to tick.
@@ -113,9 +113,10 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
             }
         }
         var lights: [Int] = []
-        for place in 0 ..< min(32, module.channel.count) where used[place] && module.channel[place] & 128 == 0 {
-            let channel = Int(module.channel[place]) % ST3Player.ACHANNELS
-            if channel <= 24, !lights.contains(channel) { lights.append(channel) }
+        let table = module.channelTable(laterTrackers: !module.madeByScreamTracker && card == .gus)
+        for place in 0 ..< 32 where used[place] && table[place] & 128 == 0 {
+            let channel = Int(table[place]) % ST3Player.ACHANNELS
+            if channel <= 24 || channel >= ST3Module.firstExtraChannel, !lights.contains(channel) { lights.append(channel) }
         }
         self.lights = lights
         levels = TickLevels(voices: lights.count)
@@ -154,8 +155,9 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         info.title = title ?? module.title
         info.detail = (tracker.map { $0 + ", as Scream Tracker 3 plays it on a " } ?? "Scream Tracker 3, ")
             + (card == .gus ? "Gravis Ultrasound" : "Sound Blaster Pro") + (songList.contains { $0.adLib } ? " and AdLib" : "")
-        let apart = stereoApart, stereoSentence = module.stereoSentence, reverbSentence = card == .gus ? module.reverbSentence : nil
-        info.shortfalls = shortfalls + module.shortfalls.filter { (!apart || $0 != stereoSentence) && $0 != reverbSentence }
+        let apart = stereoApart, stereoSentence = module.stereoSentence
+        let played = card == .gus ? [module.reverbSentence, module.extraChannelsSentence] : []
+        info.shortfalls = shortfalls + module.shortfalls.filter { (!apart || $0 != stereoSentence) && !played.contains($0) }
         self.info = info
         currentSubsong = defaultSubsong
         restart()
@@ -184,10 +186,10 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     /// channels the tune uses (see `lights`): the sound card's are told to it, and the AdLib's to
     /// the chip, which leaves a voice out of what it gives out.
     private func tellCardsOfMuted() {
-        var channels: UInt32 = 0
-        for light in lights.indices where light < muted.count && muted[light] { channels |= 1 << UInt32(lights[light]) }
-        player.cards.setMuted(channels & 0xFFFF)
-        player.adlib.setMuted(channels >> 16)
+        var channels: UInt64 = 0
+        for light in lights.indices where light < muted.count && muted[light] { channels |= 1 << UInt64(lights[light]) }
+        player.cards.setMuted(channels & ~0x1FF_0000)
+        player.adlib.setMuted(UInt32((channels >> 16) & 0x1FF))
     }
 
     /// - Parameter asScreamTracker: as the player this is ported from plays the file, for `renderRaw`.
@@ -236,7 +238,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         player.adlib.takePitches(into: &channelPitches)
         for light in lights.indices {
             let ch = player.zchn[lights[light]]
-            if lights[light] < 16 {
+            if Self.isSampled(lights[light]) {
                 notes.pitches[light] = ch.aspd > 0 && ch.m_speed != 0 ? ChannelPitch.note(ofRate: 14_317_056 / Double(ch.aspd)) : 0
             } else {
                 notes.pitches[light] = channelPitches[lights[light]]
@@ -252,10 +254,13 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { lights.count }
 
-    /// The sound card's sixteen channels play samples, and the AdLib's nine are FM.
+    /// The sound card's sixteen channels play samples, and the AdLib's nine are FM. (So do a later
+    /// tracker's past the sixteen: see `ST3Module.extraChannels`.)
     public func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
-        for light in lights.indices { sampled[light] = lights[light] < 16 }
+        for light in lights.indices { sampled[light] = Self.isSampled(lights[light]) }
     }
+
+    private static func isSampled(_ channel: Int) -> Bool { channel < 16 || channel >= ST3Module.firstExtraChannel }
 
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for light in lights.indices { sides[light] = player.cards.side(of: player.zchn[lights[light]]) }

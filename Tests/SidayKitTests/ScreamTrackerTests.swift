@@ -350,6 +350,30 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try after(byImpulseTracker(s3m(row: reverb)), .sb) < 0.0001)
 }
 
+@Test func s3mFromALaterTrackerHasItsChannelsPastSixteenPlayed() throws {
+    /// How far the sound swings, on a card.
+    func swing(_ file: [UInt8], _ card: ST3Card = .gus) throws -> Float {
+        var options = LoadOptions()
+        options.s3mCard = card
+        let left = stereoSound(try TuneLoader.load(file, format: .s3m, options: options), seconds: 0.5).left[4800...]
+        return left.max()! - left.min()!
+    }
+    // The note is on the third channel, which the file numbers as the AdLib card's first voice.
+    var wide = s3m(row: [0x22, 0x40, 1])
+    wide[0x42] = 16
+    // From a later tracker, it is a channel of samples, as it was there, on a Gravis Ultrasound.
+    #expect(try swing(byImpulseTracker(wide)) > 0.05)
+    // Not on a Sound Blaster, which mixes sixteen, nor in a file Scream Tracker saved, as in Scream Tracker.
+    #expect(try swing(byImpulseTracker(wide), .sb) < 0.001)
+    #expect(try swing(wide) < 0.001)
+    // And it can be left out of the sound, as any other.
+    let renderer = try TuneLoader.load(byImpulseTracker(wide), format: .s3m)
+    #expect(renderer.channelCount == 1)
+    renderer.setMuted([true])
+    let left = stereoSound(renderer, seconds: 0.5).left[4800...]
+    #expect(left.max()! - left.min()! < 0.001)
+}
+
 @Test func s3mWithPixPlaysPanningHasItsChannelsPlaced() throws {
     /// How much louder the right side is than the left, for the first channel's note.
     func rightOverLeft(_ file: [UInt8]) throws -> Float {
@@ -391,12 +415,20 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try TuneLoader.load(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])), format: .s3m, options: onSoundBlaster).info.shortfalls
         == ["One of its commands is left out, on the Sound Blaster it is played on: ModPlug's reverb."])
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 19, 0x99])).isEmpty)
-    // A later tracker's seventeenth channel of samples, numbered as the AdLib card's first.
+    // A later tracker's seventeenth channel of samples, numbered as the AdLib card's first, is
+    // played on a Gravis Ultrasound (see `s3mFromALaterTrackerHasItsChannelsPastSixteenPlayed`),
+    // and not on a Sound Blaster.
     var wide = s3m(row: [0x22, 0x40, 1])
     wide[0x42] = 16
-    #expect(try shortfalls(byImpulseTracker(wide))
-        == ["One of its channels is numbered as Scream Tracker numbers the AdLib card's, and the samples played on it are not heard."])
+    #expect(try shortfalls(byImpulseTracker(wide)).isEmpty)
+    #expect(try TuneLoader.load(byImpulseTracker(wide), format: .s3m, options: onSoundBlaster).info.shortfalls
+        == ["One of its channels is past the sixteen a Sound Blaster mixes, and the samples played on it are not heard there."])
     #expect(try shortfalls(wide).isEmpty)
+    // One that plays the AdLib's instruments as well as samples is the AdLib's still.
+    var mixed = s3m(row: [0x22, 0x40, 1, 0, 0x22, 0x40, 2], fm: true)
+    mixed[0x42] = 16
+    #expect(try shortfalls(byImpulseTracker(mixed))
+        == ["One of its channels is numbered as Scream Tracker numbers the AdLib card's, and the samples played on it are not heard."])
     // Where a channel is put (X) is not counted: too many files have it, and lose little by it.
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 24, 0x40])).isEmpty)
 

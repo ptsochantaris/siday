@@ -106,9 +106,14 @@ final class ST3Cards {
     private let voices: UnsafeMutablePointer<GUSVoice>
     private var gv = 0
     private var activeVoices = 14
+    /// How many of its voices the card is given notes on, and how many it mixes: as Scream Tracker
+    /// asks, and one more for each of a later tracker's channels past the sixteen (see
+    /// `ST3Module.extraChannels`), which no GUS had, the card going on at the rate it has for
+    /// the voices asked for.
+    private var voicePool = 16, mixedVoices = 14
     private var stchannelpan = [UInt8](repeating: 0, count: 48)
-    private var voiceused = [Int8](repeating: 0, count: 32)
-    private var channeltrig = [UInt8](repeating: 255, count: 32)
+    private var voiceused = [Int8](repeating: 0, count: 64)
+    private var channeltrig = [UInt8](repeating: 255, count: 64)
     private var somevoice: UInt8 = 0, voicetry: UInt8 = 0, g_maxvoices: UInt8 = 0
 
     // The Sound Blaster Pro.
@@ -117,10 +122,10 @@ final class ST3Cards {
     private let sbFilters: UnsafeMutablePointer<Filter>
     private let postTable: UnsafeMutablePointer<Int8>
 
-    /// The channels left out of the sound, a bit for each of the sixteen.
-    private var muted: UInt32 = 0
+    /// The channels left out of the sound, a bit for each, by its number in the player.
+    private var muted: UInt64 = 0
 
-    init(card: ST3Card, module: ST3Module, stereo: Bool) {
+    init(card: ST3Card, module: ST3Module, stereo: Bool, extraChannels: Int = 0) {
         self.card = card
         self.stereo = stereo
         samples = UnsafePointer(module.samples)
@@ -139,8 +144,8 @@ final class ST3Cards {
         sendR = .allocate(capacity: 16)
         sendL.initialize(repeating: 0, count: 16)
         sendR.initialize(repeating: 0, count: 16)
-        voices = .allocate(capacity: 32)
-        voices.initialize(repeating: GUSVoice(), count: 32)
+        voices = .allocate(capacity: 64)
+        voices.initialize(repeating: GUSVoice(), count: 64)
         sbVoices = .allocate(capacity: 16)
         sbVoices.initialize(repeating: SBVoice(), count: 16)
         sbFilters = .allocate(capacity: 16)
@@ -155,6 +160,8 @@ final class ST3Cards {
             // The more voices a GUS is asked for, the slower it gets round them all.
             activeVoices = max(14, min(32, Int(module.ultraclick)))
             cardRate = Double(14 * 44100) / Double(activeVoices)
+            voicePool = min(64, Int(module.ultraclick) + extraChannels)
+            mixedVoices = max(activeVoices, voicePool)
         case .sb:
             cardRate = 1_000_000.0 / Double(256 - (stereo ? 210 : 233))
         }
@@ -164,13 +171,13 @@ final class ST3Cards {
 
         switch card {
         case .gus:
-            for i in 0 ..< 32 {
+            for i in 0 ..< 64 {
                 voices[i].LOff = Self.panOffsTable[7]
                 voices[i].ROff = Self.panOffsTable[15 - 7]
             }
             g_maxvoices = UInt8(module.ultraclick)
             shutupgus()
-            for i in 0 ..< 32 {
+            for i in 0 ..< mixedVoices {
                 select(i)
                 voices[gv].SACI = 3
                 voices[gv].SVCI = 3
@@ -181,6 +188,7 @@ final class ST3Cards {
                 select(i)
                 setBalance(pan)
             }
+            for i in ST3Module.firstExtraChannel ..< ST3Player.ACHANNELS { stchannelpan[i] = 7 }
         case .sb:
             // The table that squeezes the sum of the channels into eight bits.
             let mastervol = max(16, Int(module.mastermul & 127))
@@ -244,25 +252,26 @@ final class ST3Cards {
     }
 
     /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. A bit for
-    /// each of the card's sixteen channels, set for one not to be heard.
+    /// each of the card's channels by its number in the player (the sixteen, and from the 33rd a
+    /// later tracker's channels past them), set for one not to be heard.
     ///
     /// How it is done is shaped by the compiler. `render`, with the making of either card's sample
     /// inside it, is as much as will be kept in one piece: a test of each voice there ("is this
     /// one left out?") and one of the two is made a call of, for every sample, at a few hundredths
     /// of the player's speed. So a GUS's voice has an `&` on each side and no test, and a Sound
     /// Blaster's channels are added up as ever, with what is not to be heard taken away first.
-    func setMuted(_ channels: UInt32) {
+    func setMuted(_ channels: UInt64) {
         muted = channels
         // A GUS's voices are their channels': the note's, and the one's before it sliding away.
         // (A Sound Blaster's channels are looked up as they are mixed: see `sbMutedPart`.)
-        for i in 0 ..< 32 { voices[i].heard = isMuted(voices[i].owner) ? 0 : -1 }
+        for i in 0 ..< 64 { voices[i].heard = isMuted(voices[i].owner) ? 0 : -1 }
     }
 
     /// True if a channel of samples is sounding: it has not come to the end of its sample.
     func isSounding(_ ch: ST3Channel) -> Bool {
         switch card {
         case .gus:
-            guard ch.aguschannel >= 0, Int(ch.aguschannel) < activeVoices else { return false }
+            guard ch.aguschannel >= 0, Int(ch.aguschannel) < mixedVoices else { return false }
             let voice = voices[Int(ch.aguschannel)]
             return voice.SACI & 3 == 0 && voice.SA >= 0
         case .sb:
@@ -280,20 +289,20 @@ final class ST3Cards {
     /// for a moment, the channel's next notes start there too.
     func place(_ ch: ST3Channel, balance: UInt8, moving: Bool) {
         if !moving { ch.apanpos = 0xF0 | balance }
-        guard stereo, card == .gus, ch.aguschannel >= 0, Int(ch.aguschannel) < activeVoices else { return }
+        guard stereo, card == .gus, ch.aguschannel >= 0, Int(ch.aguschannel) < mixedVoices else { return }
         let voice = Int(ch.aguschannel)
         voices[voice].LOff = Self.panOffsTable[Int(balance & 15)]
         voices[voice].ROff = Self.panOffsTable[15 - Int(balance & 15)]
     }
 
     private func isMuted(_ channel: Int) -> Bool {
-        channel >= 0 && channel < 16 && muted & (1 << UInt32(channel)) != 0
+        channel >= 0 && channel < 64 && muted & (1 << UInt64(channel)) != 0
     }
 
     // MARK: The GUS's registers
 
     private func select(_ voice: Int) {
-        gv = max(0, min(activeVoices - 1, voice))
+        gv = max(0, min(mixedVoices - 1, voice))
     }
 
     private func setBalance(_ balance: UInt8) {
@@ -319,7 +328,7 @@ final class ST3Cards {
     }
 
     private func shutupgus() {
-        for i in 0 ..< Int(g_maxvoices) {
+        for i in 0 ..< voicePool {
             select(i)
             voices[gv].SACI = 0b0000_0011
             voices[gv].SVLI = 0
@@ -333,7 +342,7 @@ final class ST3Cards {
     private func freevoices() {
         // Those that have stopped.
         var voicesfreed = false
-        for i in 0 ..< Int(g_maxvoices) where voiceused[i] <= 0 {
+        for i in 0 ..< voicePool where voiceused[i] <= 0 {
             select(i)
             if voices[gv].SACI & 1 != 0 {
                 voiceused[i] = 0
@@ -344,14 +353,14 @@ final class ST3Cards {
         // Or the one that has been fading out the longest.
         var voice = -1
         var notusedcount: Int8 = -103
-        for i in 0 ..< Int(g_maxvoices) where voiceused[i] <= 0 && voiceused[i] >= notusedcount {
+        for i in 0 ..< voicePool where voiceused[i] <= 0 && voiceused[i] >= notusedcount {
             voice = i
             notusedcount = voiceused[i]
         }
         if voice == -1 {
             // Or any, by turns.
             somevoice &+= 1
-            if somevoice >= g_maxvoices { somevoice = 0 }
+            if somevoice >= voicePool { somevoice = 0 }
             voiceused[Int(somevoice)] = 0
         } else {
             voiceused[voice] = 0
@@ -363,7 +372,7 @@ final class ST3Cards {
 
     /// After a tick: the voices that were given a note are started.
     func gusTrigger() {
-        for i in 0 ..< 32 {
+        for i in 0 ..< 64 {
             if voiceused[i] < 0 { voiceused[i] += 1 }
             if channeltrig[i] != 255 {
                 select(i)
@@ -376,7 +385,7 @@ final class ST3Cards {
     /// Where a channel of samples lies between the two sides, from -1 on the left to 1 on the right.
     func side(of ch: ST3Channel) -> Float {
         let channel = Int(ch.channelnum)
-        guard stereo, channel < 16 else { return 0 }
+        guard stereo, channel < 16 || channel >= ST3Module.firstExtraChannel && card == .gus else { return 0 }
         switch card {
         case .gus:
             let balance = ch.apanpos >= 0xF0 ? ch.apanpos & 0x0F : stchannelpan[channel]
@@ -423,9 +432,9 @@ final class ST3Cards {
         var nochannel = true
         while nochannel {
             ch.m_oldpos = ch.m_pos
-            for _ in 0 ..< Int(g_maxvoices) {
+            for _ in 0 ..< voicePool {
                 voicetry &+= 1
-                if voicetry >= g_maxvoices { voicetry = 0 }
+                if voicetry >= voicePool { voicetry = 0 }
                 if voiceused[Int(voicetry)] == 0 {
                     nochannel = false
                     break
@@ -486,7 +495,7 @@ final class ST3Cards {
     @inline(__always) private func gusSample() -> (Float, Float) {
         var left: Int32 = 0, right: Int32 = 0
         var sentLeft: Int32 = 0, sentRight: Int32 = 0
-        for i in 0 ..< activeVoices {
+        for i in 0 ..< mixedVoices {
             let v = voices + i
             if v.pointee.SACI & 2 != 0 { v.pointee.SACI |= 1 }
             if v.pointee.SVCI & 2 != 0 { v.pointee.SVCI |= 1 }
@@ -581,7 +590,7 @@ final class ST3Cards {
     @inline(never)
     private func sbMutedPart() -> (UInt16, UInt16) {
         var left: UInt16 = 0, right: UInt16 = 0
-        for i in 0 ..< 16 where muted & (1 << UInt32(i)) != 0 {
+        for i in 0 ..< 16 where muted & (1 << UInt64(i)) != 0 {
             let ch = sbVoices + i
             if ch.pointee.speed == 0 || ch.pointee.pos == 0xFFFF_FFFF || ch.pointee.base < 0 || ch.pointee.pos >= ch.pointee.end { continue }
             let at = ch.pointee.base &+ Int(truncatingIfNeeded: ch.pointee.pos)
@@ -612,7 +621,7 @@ final class ST3Cards {
         var left: UInt16 = 1024, right: UInt16 = 1024
         // Every channel is added in below, as ever: what those left out of the sound will add is
         // taken away here first, which comes to the same sum without them.
-        if muted != 0 {
+        if muted & 0xFFFF != 0 {
             let unheard = sbMutedPart()
             left &-= unheard.0
             right &-= unheard.1
@@ -740,6 +749,7 @@ final class ST3Cards {
     /// How loud each of the card's sixteen channels was in the samples made since this was last asked.
     func takeLevels(into levels: inout [Float]) {
         for channel in 0 ..< 16 { levels[channel] = 0 }
+        for channel in ST3Module.firstExtraChannel ..< min(levels.count, ST3Player.ACHANNELS) { levels[channel] = 0 }
         switch card {
         case .gus:
             // The card's volumes are logarithms; this is what one comes to, as a part of the loudest.
@@ -747,9 +757,10 @@ final class ST3Cards {
                 Float(256 + (volume & 0xFF)) * Float(1 << min(15, Int(volume >> 8)))
             }
             let full = gain(Int32(Self.gusVolTable[63] >> 4))
-            for i in 0 ..< activeVoices {
+            for i in 0 ..< mixedVoices {
                 let v = voices + i
-                if v.pointee.high > v.pointee.low, v.pointee.owner >= 0, v.pointee.owner < 16 {
+                if v.pointee.high > v.pointee.low, v.pointee.owner >= 0, v.pointee.owner < 16 || v.pointee.owner >= ST3Module.firstExtraChannel,
+                   v.pointee.owner < levels.count {
                     // (The volume is where it has got to: a voice that is sliding away has all but gone.)
                     let level = min(1, Float(v.pointee.high - v.pointee.low) * (1.0 / 65536.0) * gain(Int32(v.pointee.SVLI >> 3)) / full)
                     // A channel is the loudest of its voices: the note, and the one before it sliding away.
