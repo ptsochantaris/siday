@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 /// Files packed whole by one of the packers that modules were squeezed with, on the Amiga and on the
-/// PC: each says so in its first letters, whatever is inside, and is unpacked before it is read.
+/// PC, or by gzip: each says so in its first letters, whatever is inside, and is unpacked before it
+/// is read.
 enum Packed {
     /// The file as it was before it was packed, or as it is if it was not.
     static func unpacked(_ data: [UInt8]) throws(TuneError) -> [UInt8] {
@@ -18,6 +19,9 @@ enum Packed {
                 data = try XPK.unpack(data)
             } else if MMCMP.isPacked(data) {
                 data = try MMCMP.unpack(data)
+            } else if Inflate.isGzip(data) {
+                // (As a VGM file is when it is called VGZ, and as any file may be.)
+                data = try Inflate.gzip(data)
             } else {
                 break
             }

@@ -30,6 +30,41 @@ enum Inflate {
         return inflater.output
     }
 
+    /// True for a file packed by gzip, which says so in its first three bytes.
+    static func isGzip(_ data: [UInt8]) -> Bool {
+        data.count >= 18 && data[0] == 0x1F && data[1] == 0x8B && data[2] == 8
+    }
+
+    /// What a file packed by gzip unpacks to (RFC 1952): a header, which may name the file and have
+    /// words of its own, then DEFLATE, then the CRC-32 of what it unpacks to and its length. Only the
+    /// first of the pieces such a file can hold is read: gzip itself writes one. A file that is not
+    /// one, is damaged, or would unpack to more than 64 megabytes is refused.
+    static func gzip(_ data: [UInt8]) throws(TuneError) -> [UInt8] {
+        let refused = TuneError.malformed("a gzip file that does not unpack")
+        guard isGzip(data) else { throw refused }
+        let flags = data[3]
+        var at = 10
+        if flags & 0x04 != 0 { // more of its own
+            guard at + 2 <= data.count else { throw refused }
+            at += 2 + (Int(data[at]) | Int(data[at + 1]) << 8)
+        }
+        for flag: UInt8 in [0x08, 0x10] where flags & flag != 0 { // the file's name; a comment
+            while at < data.count, data[at] != 0 { at += 1 }
+            at += 1
+        }
+        if flags & 0x02 != 0 { at += 2 } // a check of the header
+        let end = data.count - 8
+        guard at < end else { throw refused }
+        let size = Int(data[end + 4]) | Int(data[end + 5]) << 8 | Int(data[end + 6]) << 16 | Int(data[end + 7]) << 24
+        guard size >= 0, size <= 64 << 20 else { throw refused }
+        var inflater = Inflater(data, from: at, to: end, size: size)
+        try inflater.run()
+        guard inflater.written == size else { throw refused }
+        let said = UInt32(data[end]) | UInt32(data[end + 1]) << 8 | UInt32(data[end + 2]) << 16 | UInt32(data[end + 3]) << 24
+        guard crc32(inflater.output, from: 0, to: size) == said else { throw refused }
+        return inflater.output
+    }
+
     /// Mark Adler's checksum, which a zlib stream ends with: two sums of the bytes, one of them a sum
     /// of the sums, each kept below the greatest prime under 65,536.
     static func adler32(_ data: [UInt8]) -> UInt32 {
