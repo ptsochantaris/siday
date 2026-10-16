@@ -12,6 +12,7 @@ extension SIDModelChoice: ExpressibleByArgument {}
 extension SIDEngineChoice: ExpressibleByArgument {}
 extension AmigaModel: ExpressibleByArgument {}
 extension ST3Card: ExpressibleByArgument {}
+extension Levelling: ExpressibleByArgument {}
 
 @main
 struct Siday: ParsableCommand {
@@ -82,6 +83,9 @@ struct Siday: ParsableCommand {
 
     @Option(help: "The sound card an S3M file is played on: gus, or sb for a Sound Blaster Pro's eight bits. Default: the one the file was saved with.")
     var s3mCard: ST3Card?
+
+    @Option(help: "Bring every tune to the same loudness: off, full, or partial (halfway there, so that a quiet tune is still quieter than a loud one, but not by as much). Each song is measured as it plays, by playing it through unheard, and the next while it plays; what is found is kept for later runs. A song is turned up by no more than 6 dB. Default: off, each tune as loud as its file has it.")
+    var level: Levelling = .off
 
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
@@ -508,7 +512,10 @@ struct Siday: ParsableCommand {
     private func play(_ files: [URL], notes: [URL: String]) throws {
         let ring = SampleRing(frames: 8192)
         let output = try AudioOutput(ring: ring)
-        let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: self.output.television, leftOut: leftOut)
+        let levels = level == .off ? nil : Levels(files: tuneFiles, policy: policy)
+        levels?.start()
+        let engine = Engine(ring: ring, playlist: files, files: tuneFiles, policy: policy, television: self.output.television, leftOut: leftOut,
+                            levelling: level, levels: levels)
         Terminal.enterKeyMode()
         engine.start()
 
@@ -581,7 +588,8 @@ struct Siday: ParsableCommand {
             if state.finished { break loop }
             if Terminal.interactive, generation > 0 {
                 let played = Double(ring.framesPlayed.load(ordering: .relaxed)) / Double(outputSampleRate)
-                let time = "  \(formatTime(played)) / \(formatTime(length))"
+                var time = "  \(formatTime(played)) / \(formatTime(length))"
+                if level != .off { time += state.levelChange.map { String(format: "  %+.1f dB", $0) } ?? "  … dB" }
                 let lights = Self.lights(state.levels, muted: muted, chosen: chosen, room: Terminal.width - time.count - 12)
                 print("\r\(time)\(lights.isEmpty ? "" : "  " + lights)\(paused ? "  paused" : "")\u{1B}[K", terminator: "")
                 fflush(stdout)
@@ -688,6 +696,8 @@ struct Siday: ParsableCommand {
         let block = 1024
         let buffer = UnsafeMutablePointer<Float>.allocate(capacity: block * 2)
         defer { buffer.deallocate() }
+        // Levelled, each song is measured before it is written, and written at the level it needs.
+        let levels = level == .off ? nil : Levels(files: tuneFiles, policy: policy)
         for url in files {
             do {
                 let renderer = try tuneFiles.load(url)
@@ -706,8 +716,10 @@ struct Siday: ParsableCommand {
                     }
                     var writer = WAVWriter()
                     var television = output.television.map { Television($0) }
+                    var gain = LevelGain(levels?.measure(url, song: subsong)?.gain(level) ?? 1)
                     while !session.finished {
                         let produced = session.render(into: buffer, frames: block)
+                        gain.apply(buffer, frames: produced)
                         television?.process(buffer, frames: produced)
                         writer.append(buffer, frames: produced)
                     }

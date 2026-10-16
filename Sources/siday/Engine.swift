@@ -55,6 +55,9 @@ struct NowPlaying {
     /// them are left out.
     var levels: [Float] = []
     var muted: [Bool] = []
+    /// How far the song is turned up or down to be as loud as the rest, in dB, once that is known,
+    /// when tunes are levelled.
+    var levelChange: Double?
 }
 
 /// Owns the current tune on its own thread and keeps the audio ring full.
@@ -68,15 +71,21 @@ final class Engine: @unchecked Sendable {
     private let television: TelevisionSet?
     /// The voices left out of every tune from its start.
     private let leftOut: LeftOut
+    /// How far songs are brought to the same loudness, and what measures them, if they are.
+    private let levelling: Levelling
+    private let levels: Levels?
     let nowPlaying = Mutex(NowPlaying())
 
-    init(ring: SampleRing, playlist: [URL], files: TuneFiles, policy: PlaybackPolicy, television: TelevisionSet?, leftOut: LeftOut = LeftOut()) {
+    init(ring: SampleRing, playlist: [URL], files: TuneFiles, policy: PlaybackPolicy, television: TelevisionSet?, leftOut: LeftOut = LeftOut(),
+         levelling: Levelling = .off, levels: Levels? = nil) {
         self.ring = ring
         self.playlist = playlist
         self.files = files
         self.policy = policy
         self.television = television
         self.leftOut = leftOut
+        self.levelling = levelling
+        self.levels = levelling == .off ? nil : levels
     }
 
     func send(_ command: Command) {
@@ -130,6 +139,7 @@ final class Engine: @unchecked Sendable {
             $0.length = session.displayLength
             $0.index = index
             $0.levels = [Float](repeating: 0, count: renderer.channelCount)
+            $0.levelChange = nil
         }
     }
 
@@ -199,6 +209,26 @@ final class Engine: @unchecked Sendable {
                 }
                 if muted.contains(true) { leaveOut(muted) } else { nowPlaying.withLock { $0.muted = muted } }
 
+                // The song is measured, if it has not been, and then the one after it, so that it is
+                // ready when that begins. Until this one's level is known it is heard as it is, and
+                // then glides there.
+                var gain = LevelGain()
+                var levelled = levels == nil
+                if let levels {
+                    var wanted = [Levels.Song(url: url, number: subsong)]
+                    if policy.allSubsongs, subsong + 1 < renderer.subsongCount {
+                        wanted.append(Levels.Song(url: url, number: subsong + 1))
+                    } else if index + 1 < playlist.count {
+                        wanted.append(Levels.Song(url: playlist[index + 1], number: nil))
+                    }
+                    levels.want(wanted)
+                    if let level = levels.level(of: url, song: subsong) {
+                        gain = LevelGain(level.gain(levelling))
+                        levelled = true
+                        nowPlaying.withLock { $0.levelChange = level.change(levelling) }
+                    }
+                }
+
                 while !session.finished {
                     // A player of the song with voices left out that has not yet got to where the song
                     // is goes a step nearer; and once there, is what is heard.
@@ -249,6 +279,12 @@ final class Engine: @unchecked Sendable {
                         continue
                     }
                     let produced = session.render(into: buffer, frames: block)
+                    if !levelled, let level = levels?.level(of: url, song: subsong) {
+                        gain.glide(to: level.gain(levelling))
+                        levelled = true
+                        nowPlaying.withLock { $0.levelChange = level.change(levelling) }
+                    }
+                    gain.apply(buffer, frames: produced)
                     television?.process(buffer, frames: produced)
                     if produced > 0 { ring.write(buffer, frames: produced) }
                     let levels = session.channelLevels
