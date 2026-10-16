@@ -99,7 +99,49 @@ final class FT2Module {
     /// out about as loud as FastTracker's own this way, whatever their count of channels.
     var openMPTLevel: Float {
         guard let mix = openMPTMix else { return 1 }
-        return Float(max(1, min(2000, mix.preAmp))) / (mix.mode >= 1 && mix.mode <= 3 ? 128 : 48)
+        return Float(max(1, min(2000, mix.preAmp))) / openMPTUsualPreAmp(mix.mode)
+    }
+
+    private func openMPTUsualPreAmp(_ mode: Int) -> Float { mode >= 1 && mode <= 3 ? 128 : 48 }
+
+    /// How loud OpenMPT has a voice of such a file in its own mix, which is what its plug-ins and
+    /// ModPlug's reverb are given, against how loud the voice is heard here: by its way of adding up,
+    /// which `openMPTLevel` leaves out. The plug-ins have to be given the voices as loud as OpenMPT
+    /// gives them, and what they make put back as much quieter, or a plug-in that does not merely
+    /// make a sound louder or quieter (a distortion, a compressor) makes another sound, and what it
+    /// makes is heard too loud or too quiet beside the voices that go by it.
+    ///
+    /// A voice in the middle in a file of OpenMPT's "compatible" way (4) is 2.35 dB louder there than
+    /// it is heard here (by measure, beside libopenmpt). The others follow from how OpenMPT adds up
+    /// in each way (`SoundFilePlayConfig.cpp` and `Sndmix.cpp`): the ways of ModPlug Tracker and the
+    /// first of OpenMPT's (0 to 2) turn the voices down by a table of the file's count of channels
+    /// and by 16 more, and have a usual pre-amp of 128 rather than 48 in the last two of them; the
+    /// third of OpenMPT 1.17's (3) does not turn them down at all, and so has them twice as loud as
+    /// the compatible way, which turns them down by half; and the compatible way of FastTracker (5)
+    /// has a voice in the middle at seven tenths on each side, not at half. A way OpenMPT does not
+    /// know it adds up as the third.
+    var openMPTMixLevel: Float {
+        guard let mix = openMPTMix else { return 1 }
+        let compatible: Float = 1.311
+        let ofCompatible: Float = switch mix.mode {
+        case 0 ... 2: IT2Mixer.PreAmpTable[max(1, min(31, mix.channels)) / 2]
+        case 4: 1
+        case 5: Float(2).squareRoot()
+        default: 2
+        }
+        return compatible * ofCompatible * openMPTUsualPreAmp(mix.mode) / 48
+    }
+
+    /// What OpenMPT turns its whole numbers into for a plug-in, against what it makes them for the
+    /// sound it gives out (a 2^27th): a 2^28th in ModPlug Tracker's way (0) and a 2^31st in the
+    /// first of OpenMPT 1.17's (1), so that what a plug-in is given there is half or a sixteenth as
+    /// loud; and what it gives back is made as much louder.
+    var openMPTPlugInScale: Float {
+        switch openMPTMix?.mode {
+        case 0?: 0.5
+        case 1?: Float(1 << 27) / Float(Int32.max)
+        default: 1
+        }
     }
     /// What is found on the way through a file that `shortfalls` is made from: samples the file
     /// ends before the end of, samples in stereo, and samples ModPlug Tracker packed its own way.
@@ -368,6 +410,7 @@ final class FT2Module {
         var sound = ModPlugSound()
         sound.plugIns = extras.plugIns
         sound.channelPlugIns = Array(extras.channelPlugIns.prefix(Int(song.antChn)))
+        sound.plugInScale = openMPTPlugInScale
         for i in 1 ... 128 where i - 1 < extras.instrumentPlugIns.count { instrumentPlugIns[i] = extras.instrumentPlugIns[i - 1] }
         for i in 1 ... 128 where i - 1 < extras.resamplings.count && extras.resamplings[i - 1] < IT2Resampling.own { instrumentResamplings[i] = extras.resamplings[i - 1] }
         if !madeByFastTracker, sound.sendsToPlugIns(instruments: instrumentPlugIns) { self.sound = sound }

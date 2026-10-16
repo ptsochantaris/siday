@@ -146,10 +146,10 @@ final class FT2Player {
     private var reverbUsed = false
     /// The tick as the plug-ins have it, left and right in turn.
     private var plugInTick: UnsafeMutablePointer<Float>?
-    /// From the mixer's whole numbers to what OpenMPT gives a plug-in, which is a number from -1 to
-    /// 1 for its loudest sample; and so at the level OpenMPT plays an XM file, which is that much
-    /// louder than FastTracker's own sixteen bits. (Set by measure, beside libopenmpt.)
-    static let plugInLevel: Float = 2.3 / (256 * 32768)
+    /// From the mixer's whole numbers to the level OpenMPT has the voices at in its own mix, as a
+    /// number that is 1 at the top of the sound it gives out: what ModPlug's reverb is given, and,
+    /// in OpenMPT's terms for plug-ins, what they are (see `FT2Module.openMPTMixLevel`).
+    private var openMPTMixLevel: Float { XMRenderer.gain * module.openMPTLevel * module.openMPTMixLevel }
 
     private let visited: UnsafeMutablePointer<Bool>
     /// True when the tick just run began a row that has been played before.
@@ -617,8 +617,9 @@ final class FT2Player {
     /// added to the tick, which master effects then work on as a whole.
     private func sendThroughPlugIns(_ count: Int) {
         guard let plugIns, let tick = plugInTick else { return }
-        // (What a plug-in is given is as loud as OpenMPT makes it, in a file that it plays louder or quieter.)
-        let level = Self.plugInLevel * module.openMPTLevel
+        // (As loud as OpenMPT has the voices in the file's way of adding up; the plug-ins make that
+        // what OpenMPT gives them.)
+        let level = openMPTMixLevel
         for place in placesUsed {
             guard let sent = placeTicks[place] else { continue }
             let input = plugIns.buffer(ofPlace: place)
@@ -640,7 +641,7 @@ final class FT2Player {
     private func addReverb(_ count: Int) {
         guard let reverb, let reverbTick else { return }
         // (FastTracker's numbers as OpenMPT's, whose mix has 27 bits for a sample at its loudest.)
-        let scale = Double(Self.plugInLevel * module.openMPTLevel) * Double(1 << 27), back = 1 / scale
+        let scale = Double(openMPTMixLevel) * Double(1 << 27), back = 1 / scale
         withUnsafeTemporaryAllocation(of: Int32.self, capacity: ModPlugReverb.maxFrames * 2) { added in
             guard let added = added.baseAddress else { return }
             var done = 0

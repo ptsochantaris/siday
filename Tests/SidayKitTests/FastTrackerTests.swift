@@ -576,3 +576,33 @@ private func levels(_ renderer: any Renderer) -> [Float] {
     let wet = try tail(file([33, 0x99])), dry = try tail(file([])), off = try tail(file([33, 0x98])), own = try tail(byFastTracker(file([33, 0x99])))
     #expect(wet > 0.001 && dry < 0.0001 && off < 0.0001 && own < 0.0001)
 }
+
+@Test func xmPlugInHearsTheVoicesAsLoudAsOpenMPTsWayOfAddingUpHasThem() throws {
+    // OpenMPT's distortion, at its most, on the square wave's instrument, in files of OpenMPT's
+    // that add up in one or another of its ways. How much louder the distorted wave is than the
+    // wave without it is what libopenmpt makes it (measured beside it): the voices go to the
+    // plug-in as loud as each way has them, and what it makes comes back as much quieter.
+    var piece = long(0x4458_4D4F) + long(0xEF11_4C90) + [0, 0, 0, 0] + long(0) + [UInt8](repeating: 0, count: 16)
+    piece += [UInt8](repeating: 0, count: 32) + Array("Distortion".utf8) + [UInt8](repeating: 0, count: 54)
+    let settings = long(0) + [Float(1), 1, 1, 0.284, 0.663].flatMap { long(Int($0.bitPattern)) }
+    piece += long(settings.count) + settings + long(0)
+    func file(way: UInt8, distorted: Bool) -> [UInt8] {
+        var file = xm(channels: 8, notes: [0x87, 49, 1, 0x50] + [UInt8](repeating: 0x80, count: 7))
+        file.replaceSubrange(38 ..< 58, with: padded("OpenMPT 1.30.00.00", 20))
+        if distorted { file += Array("FX00".utf8) + long(piece.count) + piece + Array("XTPM".utf8) + Array(".PiM".utf8) + word(1) + [1] }
+        file += Array("STPM".utf8) + Array(".MMP".utf8) + word(1) + [way] + Array(".APS".utf8) + word(4) + long(48)
+        return file + Array("...C".utf8) + word(4) + long(8)
+    }
+    func louder(way: UInt8) throws -> Float {
+        func loudness(_ distorted: Bool) throws -> Float {
+            let left = stereo(try TuneLoader.load(file(way: way, distorted: distorted), format: .xm), seconds: 0.8).left[9600...]
+            return (left.reduce(0) { $0 + $1 * $1 } / Float(left.count)).squareRoot()
+        }
+        return 20 * log10(try loudness(true) / loudness(false))
+    }
+    // The third way of OpenMPT 1.17 has the voices twice as loud as the compatible way, and ModPlug
+    // Tracker's own way and the first of 1.17 give a plug-in a half and a sixteenth of them.
+    #expect(abs(try louder(way: 4) - louder(way: 3) - 5.74) < 0.1)
+    #expect(abs(try louder(way: 1) - louder(way: 0) - 1.82) < 0.1)
+    #expect(abs(try louder(way: 5) - louder(way: 4) + 2.86) < 0.1)
+}

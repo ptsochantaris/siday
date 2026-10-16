@@ -551,9 +551,15 @@ filter is OpenMPT's, of two poles, put into FastTracker's mixer between a sample
 and a macro that is for anything but the filter is left out and said to be. And such a file is
 heard through its plug-ins, where they are OpenMPT's own, as an IT file of the same trackers is: a
 voice goes to its instrument's plug-in, or else its channel's, in FastTracker's whole numbers, and
-the plug-ins are given it at the level OpenMPT plays an XM file. Set beside libopenmpt, the 107
-files to hand that send something through a plug-in agree in spectrum to 0.993 for the middle
-one, where without the plug-ins it was 0.982. X99 puts a channel in ModPlug's own reverb, and X98
+the plug-ins are given it as loud as OpenMPT has it. Set beside libopenmpt, the 107 files to hand
+that send something through a plug-in agree in spectrum to 0.993 for the middle one, where without
+the plug-ins it was 0.982. How loud that is depends on which of OpenMPT's ways of adding up the
+file asks for, and until October 2026 every way was given the same: a plug-in that squashes or
+bends its sound, and so makes something else of it when it is louder, then made what it does too
+loud or too quiet beside the rest. One file opens with a bass through OpenMPT's distortion that was
+heard 14 dB too loud beside the music after it. Now each way gives a plug-in the voices as loud as
+OpenMPT does, and what comes back is held where OpenMPT's whole numbers end; through the distortion,
+in each of the six ways, the bass comes out as loud beside the plain sound as libopenmpt has it. X99 puts a channel in ModPlug's own reverb, and X98
 takes it out, as in an IT file of theirs (see MPTM, below); of the 16 such files to hand, how alike
 their two sides are to libopenmpt's went from 0.31 to 0.97 for the middle one. And a sample that
 runs out while it is loud stops dead in FastTracker's mixer, which is heard as a click; in ModPlug

@@ -38,7 +38,7 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     private static let mostTicks = 50 * 60 * 120
     /// From the mixer's whole numbers to the player's range, at a level set by ear and by measure so
     /// that a module is about as loud as the chip tunes it is played among.
-    private static let gain: Float = 1.0 / (256.0 * 32768.0) * 1.6
+    static let gain: Float = 1.0 / (256.0 * 32768.0) * 1.6
     /// And for the tune being played, which for another tracker's kind of module is that with the
     /// kind's own loudness in it (see `ForeignModule.loudness`).
     private let level: Float

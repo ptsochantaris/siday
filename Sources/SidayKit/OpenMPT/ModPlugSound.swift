@@ -187,7 +187,9 @@ struct ModPlugSound {
     /// True if that is to be multiplied by what the mixer itself turns the file down by: for an IT
     /// file that ModPlug Tracker made, which the mixer makes quieter the more channels it has.
     var levelIsTheMixers = false
-    /// And by what again to be what OpenMPT gives a plug-in, which in its oldest ways of adding up is less.
+    /// And by what again to be what OpenMPT gives a plug-in, which in its oldest ways of adding up is
+    /// less (a half, and a sixteenth). What the plug-ins give back is made as much louder again,
+    /// and no louder than OpenMPT's whole numbers can be.
     var plugInScale: Float = 1
     /// True if the song's volume is applied to the whole sound at the end, after the plug-ins, and
     /// not to each voice: OpenMPT's way in all but its oldest ways of adding up.

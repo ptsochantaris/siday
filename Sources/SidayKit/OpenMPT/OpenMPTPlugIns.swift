@@ -83,6 +83,11 @@ final class OpenMPTPlugIns {
     private let played: [Int]
     private let channelPlugIns: [Int]
     private let level: Float
+    /// The most that OpenMPT's whole numbers hold, as the plug-ins have it: what is made louder
+    /// than that is held there when it is put back into them (by Apple's processors, which
+    /// libopenmpt is heard on here), 16 times its loudest sample in all but its two oldest ways of
+    /// adding up, where a plug-in is given less.
+    private let largest: Float
     private var capacity: Int
     private let mixL: UnsafeMutablePointer<Float>, mixR: UnsafeMutablePointer<Float>
     private let wetL: UnsafeMutablePointer<Float>, wetR: UnsafeMutablePointer<Float>
@@ -106,6 +111,7 @@ final class OpenMPTPlugIns {
         self.slots = slots
         channelPlugIns = sound.channelPlugIns
         level = sound.level > 0 && sound.plugInScale > 0 ? sound.level * sound.plugInScale : 1
+        largest = 16 * (sound.plugInScale > 0 ? sound.plugInScale : 1)
         mixL = .allocate(capacity: Self.block)
         mixR = .allocate(capacity: Self.block)
         wetL = .allocate(capacity: Self.block)
@@ -194,7 +200,7 @@ final class OpenMPTPlugIns {
     /// The voices of a tick have been mixed: runs the plug-ins over it, and leaves in `master`,
     /// left and right in turn, what the listener is to hear.
     func process(master: UnsafeMutablePointer<Float>, frames: Int) {
-        let level = level, back = 1 / level
+        let level = level, back = 1 / level, largest = largest
         let mixL = mixL, mixR = mixR, wetL = wetL, wetR = wetR
         var done = 0
         while done < frames {
@@ -284,8 +290,8 @@ final class OpenMPTPlugIns {
             }
 
             for i in 0 ..< count {
-                out[i * 2] = pMixL[i] * back
-                out[i * 2 + 1] = pMixR[i] * back
+                out[i * 2] = max(-largest, min(largest, pMixL[i])) * back
+                out[i * 2 + 1] = max(-largest, min(largest, pMixR[i])) * back
             }
             done += count
         }
