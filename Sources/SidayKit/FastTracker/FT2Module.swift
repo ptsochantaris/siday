@@ -74,8 +74,15 @@ final class FT2Module {
     /// True for an XM file of a tracker whose arpeggio went as the other trackers' did, and not as
     /// FastTracker's, as OpenMPT reckons it: MadTracker 2, Skale Tracker, ModPlug Tracker up to
     /// 1.16, and OpenMPT itself in a file it saved not to be played as FastTracker plays it (see
-    /// `arpeggiatesAsOtherTrackers`). See `FT2Player.arpeggiatesAsOtherTrackers`.
+    /// `keepsFastTrackersWay`). See `FT2Player.arpeggiatesAsOtherTrackers`.
     private(set) var arpeggioOfOtherTrackers = false
+    /// True for an XM file in which OpenMPT plays the commands ModPlug Tracker added under X:
+    /// those of ModPlug Tracker up to 1.16, and of OpenMPT itself that it did not save to be played
+    /// strictly as FastTracker plays it (see `keepsFastTrackersWay`). See `FT2Replayer.xFinePorta`.
+    private(set) var playsModPlugXCommands = false
+    /// And true if, in such a file, a note's sample or the volume column putting a channel
+    /// somewhere takes it out of surround, as 8xx always does (OpenMPT's 10th way).
+    private(set) var panningEndsSurround = false
     /// How much louder such a file is played than one of FastTracker's own: by its pre-amp, the
     /// composer's, against the usual one of the way it asks to be added up by (48, or 128 in the
     /// ways of OpenMPT 1.17). One for any other file.
@@ -223,13 +230,16 @@ final class FT2Module {
             let modPlugWroteMore = f.at + 8 <= data.count && [0x74_78_65_74, 0x49_44_49_4D, 0x4D_41_4E_50, 0x4D_41_4E_43, 0x58_46_48_43, 0x4D_50_54_58, 0x4D_50_54_53]
                 .contains(extras.u32le(f.at)) || (f.at + 4 <= data.count && extras[f.at] == 0x46 && extras[f.at + 1] == 0x58)
             madeByFastTracker = saysFastTracker && (reader.u16le(58) < 0x0104 || !h[17 ..< 37].contains(0) && !modPlugWroteMore)
-            noteWhatLaterTrackersAdded(data, after: f.at)
             // (ModPlug Tracker's: by the signs above, or by the name its first versions gave the format.
             // OpenMPT goes by more signs than these, and the two agree on all but about one file in
             // a hundred of those that have them.)
             let byModPlug = saysFastTracker && !madeByFastTracker || Array(h[38 ..< 58]) == Array("FastTracker v 2.00  ".utf8)
             openMPTMix = Self.openMPTMix(of: data, name: Array(h[38 ..< 58]), byModPlug: byModPlug, channels: Int(song.antChn))
-            arpeggioOfOtherTrackers = Self.arpeggiatesAsOtherTrackers(data, name: Array(h[38 ..< 58]), byModPlug: byModPlug)
+            let name = Array(h[38 ..< 58])
+            arpeggioOfOtherTrackers = !Self.keepsFastTrackersWay(51, since: 0x0117_0302, data, name: name, byModPlug: byModPlug)
+            playsModPlugXCommands = !Self.keepsFastTrackersWay(58, since: 0x0118_0000, data, name: name, byModPlug: byModPlug)
+            panningEndsSurround = Self.keepsFastTrackersWay(10, since: 0x0117_0302, data, name: name, byModPlug: byModPlug)
+            noteWhatLaterTrackersAdded(data, after: f.at)
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         if song.repS > song.len { song.repS = 0 }
@@ -274,15 +284,15 @@ final class FT2Module {
         return (mode, extras.preAmp ?? 48, max(channels, extras.channels))
     }
 
-    /// Whether OpenMPT plays an XM file's arpeggio as FastTracker does (its switch for that, the
-    /// 51st of its ways of playing), or as the other trackers do: by the tracker's name for
-    /// MadTracker 2 and Skale Tracker; for ModPlug Tracker's files, whose every one of FastTracker's
-    /// ways OpenMPT turns off; and for OpenMPT's own by what the file says of its ways, or, before
-    /// 1.26 and with its "compatible play", by whether the version had FastTracker's arpeggio yet
-    /// (1.17.03.02), and before that play itself (1.17.02.46) not at all.
-    private static func arpeggiatesAsOtherTrackers(_ data: [UInt8], name: [UInt8], byModPlug: Bool) -> Bool {
+    /// Whether OpenMPT plays an XM file with one of FastTracker's ways, by its number among
+    /// OpenMPT's ways of playing (51 its arpeggio, 58 its keeping to its own X commands): MadTracker
+    /// 2 and Skale Tracker, by the tracker's name, without FastTracker's arpeggio; ModPlug Tracker's
+    /// files without any of its ways, which OpenMPT turns off together; and OpenMPT's own by what
+    /// the file says of its ways, or, before 1.26 and with its "compatible play", by whether the
+    /// version had the way yet (`since`), and before that play itself (1.17.02.46) with none.
+    private static func keepsFastTrackersWay(_ way: Int, since: Int, _ data: [UInt8], name: [UInt8], byModPlug: Bool) -> Bool {
         if name.starts(with: Array("MadTracker 2.0\0".utf8)) || name.starts(with: Array("Skale Tracker\0".utf8))
-            || name.starts(with: Array("Sk@le Tracker\0".utf8)) { return true }
+            || name.starts(with: Array("Sk@le Tracker\0".utf8)) { return way != 51 }
         var extras = ModPlugExtras()
         extras.readSongExtras(ByteReader(data))
         var version = extras.savedWith ?? 0
@@ -291,14 +301,14 @@ final class FT2Module {
             let parts = String(decoding: name.dropFirst(8), as: UTF8.self).split(separator: ".").map { Int($0.filter { $0.isHexDigit }, radix: 16) ?? 0 }
             version = (0 ..< 4).reduce(0) { $0 << 8 | ($1 < parts.count ? min(255, parts[$1]) : 0) }
         } else if byModPlug || version == 0 {
-            return byModPlug
+            return !byModPlug
         }
         // (A file with OpenMPT's extras has none of its ways but those they list; one without, all.)
         let listed = { (way: Int) in !extras.hasSongExtras || way < extras.behaviours.count && extras.behaviours[way] }
         var compatible = listed(0)
         if version < 0x0117_0246, version != 0x0117_0000 { compatible = false }
-        if compatible, version < 0x0126_0000 { return version < 0x0117_0302 }
-        return !listed(51)
+        if compatible, version < 0x0126_0000 { return version >= since }
+        return listed(way)
     }
 
     /// Looks over an XM file for what a later tracker put in it that FastTracker does not play,
@@ -331,13 +341,18 @@ final class FT2Module {
                 // were to FastTracker. What is left is a macro of the file's own that sends
                 // something else: the filter's kind, or a plug-in's setting.)
                 if note.effTyp == 35 || note.effTyp == 36, !madeByFastTracker { macroValues[Int(note.eff)] = true }
-                if note.effTyp == 33, note.eff == 0x99, !madeByFastTracker { reverbs = true }
+                if note.effTyp == 33, note.eff == 0x99, playsModPlugXCommands { reverbs = true }
+                // (Of ModPlug Tracker's X commands, those for notes left playing and for envelopes
+                // are not played.)
+                if note.effTyp == 33, playsModPlugXCommands {
+                    if note.eff >> 4 == 7 { commands.note(1) }
+                }
             }
         }
         if macroValues.indices.contains(where: { value in
             macroValues[value] && filterMacros[value] == nil && extras.macroSendsSomething(file, value < 0x80 ? 0 : 16 + value - 0x80)
         }) { commands.note(0) }
-        if let sentence = Shortfall.commandsLeftOut(commands.named(["the setting of a filter or a plug-in"]),
+        if let sentence = Shortfall.commandsLeftOut(commands.named(["the setting of a filter or a plug-in", "the settings of notes left playing and of envelopes"]),
                                                     why: "which FastTracker 2 did not have") {
             shortfalls.append(sentence)
         }

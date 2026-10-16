@@ -575,7 +575,18 @@ FastTracker's; OpenMPT plays their files so, and siday does too. Of all OpenMPT'
 an XM file that such trackers' files are played without, none was heard to change more than a
 handful of tunes when tried over a sample of 1,300 of them; the arpeggio changes about a thousand
 of the collection's. Of 182 such files set beside libopenmpt, 180 changed and none went further
-from it; 79 came nearer by the spectrum (one from 0.92 to 1.00). A tune ends where it
+from it; 79 came nearer by the spectrum (one from 0.92 to 1.00). ModPlug Tracker also added
+commands of its own under X, which OpenMPT plays in its files and in those of OpenMPT that were
+not saved to keep strictly to FastTracker's: X9F plays a sample backwards, round its loop if it
+has one and to its start if not, and X9E forwards again; X91 puts a channel in surround, in the
+middle with its right side turned over (not in mono, where that would leave nothing), until X90,
+or until the channel is put somewhere, as OpenMPT has it, unless X9B has asked for channels in
+surround to be put places as on four speakers, which X9A takes back; X6x makes a row longer by
+so many ticks; XAx starts a note, and 9xx after it, so many times 64K into a long sample; and,
+as before, X5x and X98/X99. Those for notes left playing and for envelopes (X7x) are not played,
+and such a file says so. Of the 76 files to hand that have them, set beside libopenmpt, 20 came
+nearer by the spectrum (one from 0.77 to 0.99) and none went further, and 80 others picked at
+random were not changed at all. A tune ends where it
 would play a row it has played before. `siday --raw file.raw tune.xm` writes
 what ft2play writes to a file, stereo samples as it has them, and the two agree to the sample.
 

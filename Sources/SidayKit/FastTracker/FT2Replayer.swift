@@ -74,6 +74,9 @@ final class FT2Channel {
     /// The note the channel was last given, with its sample's own transposing in it, counted from 1:
     /// for an arpeggio as the other trackers had it (see `FT2Player.arpeggiatesAsOtherTrackers`).
     var realNote: UInt8 = 0
+    /// For a file whose X commands are ModPlug Tracker's: whether the channel is in surround (X91),
+    /// and the last XAx, which 9xx starts that many times 64K further into a sample.
+    var surround = false, highOffset: UInt8 = 0
     var sampleNr: UInt8 = 0, instrNr: UInt8 = 0, effTyp: UInt8 = 0, eff: UInt8 = 0, smpOffset: UInt8 = 0
     var tremorSave: UInt8 = 0, tremorPos: UInt8 = 0
     var globVolSlideSpeed: UInt8 = 0, panningSlideSpeed: UInt8 = 0, mute: UInt8 = 0, waveCtrl: UInt8 = 0, portaDir: UInt8 = 0
@@ -241,7 +244,10 @@ extension FT2Player {
         ch.sampleRate = s.rate
         ch.oldVol = s.vol
         // (In a module of another tracker's the place between the speakers is the channel's, not the sample's.)
-        if !panningIsOfChannels { ch.oldPan = s.pan }
+        if !panningIsOfChannels {
+            ch.oldPan = s.pan
+            panEndsSurround(ch, always: false)
+        }
         if effTyp == 0x0E, eff & 0xF0 == 0x50 {
             ch.fineTune = Int8(truncatingIfNeeded: (Int(eff & 0x0F) << 4) - 128)
         } else {
@@ -258,7 +264,7 @@ extension FT2Player {
 
         if effTyp == 9 {
             if eff != 0 { ch.smpOffset = ch.eff }
-            ch.smpStartPos = Int32(ch.smpOffset) << 8
+            ch.smpStartPos = Int32(ch.smpOffset) << 8 | Int32(ch.highOffset) << 16
         } else {
             ch.smpStartPos = 0
         }
@@ -495,6 +501,7 @@ extension FT2Player {
     }
 
     func v_SetPan(_ ch: FT2Channel, _ volKol: inout UInt8) {
+        panEndsSurround(ch, always: false)
         volKol <<= 4
         ch.outPan = volKol
         if panningIsOfChannels { ch.oldPan = volKol }
@@ -564,7 +571,17 @@ extension FT2Player {
 
     // MARK: More effects of the first tick
 
+    /// A channel put somewhere is taken out of surround, in a file whose X commands are ModPlug
+    /// Tracker's, as OpenMPT has it: always by 8xx, and by a sample or the volume column where
+    /// the file goes by FastTracker's way with them (see `FT2Module.panningEndsSurround`); never
+    /// after X9B.
+    func panEndsSurround(_ ch: FT2Channel, always: Bool) {
+        guard ch.surround, !surroundPans, always || module.panningEndsSurround else { return }
+        setSurround(ch.nr, false)
+    }
+
     func setPan(_ ch: FT2Channel, _ param: UInt8) {
+        panEndsSurround(ch, always: true)
         ch.outPan = param
         // (Where the place is the channel's, it stays there for the notes that follow.)
         if panningIsOfChannels { ch.oldPan = param }
@@ -581,10 +598,34 @@ extension FT2Player {
     func xFinePorta(_ ch: FT2Channel, _ value: UInt8) {
         let type = value >> 4
         var param = value & 0x0F
-        // (X5x in a later tracker's file chooses the wave of a sweep from side to side.)
-        if type == 0x5, playsLaterCommands { ch.sweepWave = param & 7 }
-        // (And X98 and X99 take the channel out of ModPlug's reverb and put it in.)
-        if type == 0x9, playsLaterCommands, param == 8 || param == 9 { ch.reverb = param == 9 }
+        // (ModPlug Tracker's own, in a file in which OpenMPT plays them: see `playsModPlugXCommands`.)
+        if playsModPlugXCommands {
+            switch type {
+            case 0x5: ch.sweepWave = param & 7 // the wave of a sweep from side to side
+            case 0x6: // ticks more on the row, added up over its channels
+                song.timer &+= UInt16(param)
+                frameDelay &+= UInt16(param)
+            case 0x9:
+                switch param {
+                case 0x0, 0x1:
+                    setSurround(ch.nr, param == 1)
+                    if param == 1 {
+                        ch.outPan = 128
+                        if panningIsOfChannels { ch.oldPan = 128 }
+                        ch.status |= IS_Pan
+                    }
+                case 0xA, 0xB: surroundPans = param == 0xB // four speakers, or two
+                case 0x8, 0x9: ch.reverb = param == 9 // ModPlug's reverb, out and in
+                case 0xE: playForwards(ch.nr)
+                case 0xF: playBackwards(ch.nr, noteOnRow: ch.status & IS_NyTon != 0)
+                default: break
+                }
+            case 0xA:
+                ch.highOffset = param
+                if ch.status & IS_NyTon != 0 { startHigh(ch.nr, param) }
+            default: break
+            }
+        }
         if type == 0x1 {
             if param == 0 { param = ch.ePortaUpSpeed }
             ch.ePortaUpSpeed = param
@@ -1179,7 +1220,8 @@ extension FT2Player {
     }
 
     /// How many ticks of the row have gone.
-    private var ticksIn: UInt8 { UInt8(truncatingIfNeeded: song.tempo &- song.timer) }
+    /// How many ticks of the row have gone, counting those X6x added.
+    private var ticksIn: UInt8 { UInt8(truncatingIfNeeded: song.tempo &+ frameDelay &- song.timer) }
 
     func keyOffCmd(_ ch: FT2Channel, _ param: UInt8) {
         if ticksIn == param & 31 { keyOff(ch) }
@@ -1222,7 +1264,7 @@ extension FT2Player {
 
     func retrigNote(_ ch: FT2Channel, _ param: UInt8) {
         if param == 0 { return } // with nothing to count, it was done as the row was read
-        if Int(song.tempo &- song.timer) % Int(param) == 0 {
+        if Int(ticksIn) % Int(param) == 0 {
             startTone(0, 0, 0, ch)
             retrigEnvelopeVibrato(ch)
         }
@@ -1324,6 +1366,7 @@ extension FT2Player {
         song.timer &-= 1
         if song.timer == 0 {
             song.timer = song.tempo
+            frameDelay = 0
             tickZero = true
         }
 

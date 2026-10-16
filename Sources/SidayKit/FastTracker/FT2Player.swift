@@ -42,6 +42,15 @@ struct FT2Voice {
     /// FastTracker's line from one to the next. And whether it has been round its loop.
     var way = FT2Voice.fastTrackers
     var looped = false
+    /// For a file whose X commands are ModPlug Tracker's (see `FT2Player.playsModPlugXCommands`):
+    /// whether the voice is played backwards by X9F, which the mixer does as it does the way back
+    /// of a loop that goes back and forth: `backwardsOnce` for the whole of a sample that does not
+    /// loop, which ends at its start; `backwardsRound` for a loop that goes round, which goes round
+    /// backwards; nought for neither (a loop that goes back and forth only turns). And whether it
+    /// is in surround, its right side turned over.
+    var backwards: UInt8 = 0
+    var surround = false
+    static let backwardsOnce: UInt8 = 1, backwardsRound: UInt8 = 2
     static let fastTrackers: UInt8 = 255
 }
 
@@ -64,6 +73,18 @@ final class FT2Player {
     /// True if arpeggio goes as it did in the trackers other than FastTracker, for an XM file of
     /// one of theirs: see `FT2Module.arpeggioOfOtherTrackers` and `arpAsOtherTrackers`.
     let arpeggiatesAsOtherTrackers: Bool
+    /// True if the commands that ModPlug Tracker added under X are played, as OpenMPT plays them
+    /// in such a file (see `FT2Module.playsModPlugXCommands`): X5x the wave of a sweep from side to
+    /// side, X6x ticks more on a row, X90 and X91 surround off and on, X98 and X99 ModPlug's reverb,
+    /// X9E and X9F the sample forwards and backwards, and XAx where in a long sample 9xx starts.
+    let playsModPlugXCommands: Bool
+    /// False for sound that will be heard in mono, in which a channel in surround is not turned over,
+    /// and would be no more than its two sides taking each other away.
+    var stereoOutput = true
+    /// The ticks that X6x has added to the row playing.
+    var frameDelay: UInt16 = 0
+    /// True from X9B, until X9A: a channel in surround can be put somewhere and stay in surround.
+    var surroundPans = false
     let speedAndTempoUndoEachOther: Bool
     /// How far a vibrato's sum is brought down: by 5 places, or by 7 for a module whose vibrato is
     /// a quarter as deep. See `ForeignModule.vibratoIsAQuarterAsDeep`.
@@ -160,6 +181,7 @@ final class FT2Player {
          asFastTracker: Bool = false) {
         playsLaterCommands = !module.madeByFastTracker && !asFastTracker
         arpeggiatesAsOtherTrackers = module.arpeggioOfOtherTrackers && !asFastTracker
+        playsModPlugXCommands = module.playsModPlugXCommands && !asFastTracker
         endsDieAway = module.openMPTMix != nil && !asFastTracker
         readsAsOpenMPT = endsDieAway
         self.firstPlayedBy = firstPlayedBy
@@ -303,6 +325,7 @@ final class FT2Player {
         let vol = UInt32(v.pointee.SVol) &* CDA_Amp
         v.pointee.SLVol1 = Int32(bitPattern: (vol &* ft2PanningTab[256 - Int(v.pointee.SPan)]) >> (32 - 28))
         v.pointee.SRVol1 = Int32(bitPattern: (vol &* ft2PanningTab[Int(v.pointee.SPan)]) >> (32 - 28))
+        if v.pointee.surround, stereoOutput { v.pointee.SRVol1 = 0 &- v.pointee.SRVol1 }
         v.pointee.SLVolIP = (v.pointee.SLVol1 &- v.pointee.SLVol2) / volIPLen
         v.pointee.SRVolIP = (v.pointee.SRVol1 &- v.pointee.SRVol2) / volIPLen
         v.pointee.SVolIPLen = volIPLen
@@ -336,29 +359,13 @@ final class FT2Player {
             v.pointee.filterY1R = 0
             v.pointee.filterY2R = 0
         }
-        var type = s.typ
+        guard let (type, len) = shape(v, s) else { return }
         let sample16Bit = (type >> 4) & 1 != 0
-        var len: Int32
-        if type & (SType_Fwd + SType_Rev) != 0 {
-            var repL = s.repL, repS = s.repS
-            if sample16Bit {
-                repL >>= 1
-                repS >>= 1
-            }
-            v.pointee.SRevBase = s.pek.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
-            v.pointee.SRevBaseR = s.pekR.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
-            v.pointee.SRepL = repL
-            v.pointee.SRepS = repS
-            len = repS &+ repL
-        } else {
-            type &= ~(SType_Fwd + SType_Rev)
-            len = s.len
-            if sample16Bit { len >>= 1 }
-            if len == 0 { return }
-        }
         // A sample offset beyond the end of the sample: the voice stays cut.
         if smpStartPos >= len || s.pek == nil { return }
         v.pointee.SLen = len
+        v.pointee.backwards = 0
+        v.pointee.surround = stm[nr].surround
         v.pointee.SPos = smpStartPos
         v.pointee.SPosDec = 0
         v.pointee.SBase = UnsafeRawPointer(s.pek)
@@ -373,6 +380,94 @@ final class FT2Player {
             v.pointee.way = asked < IT2Resampling.own ? asked : IT2Resampling.sincLowPass
         }
         notes.struck[nr] = true
+    }
+
+    /// Gives a voice the shape of its sample: where its loop is and how it goes, and how long it is;
+    /// nil for a sample with nothing in it that does not loop.
+    private func shape(_ v: UnsafeMutablePointer<FT2Voice>, _ s: FT2Sample) -> (type: UInt8, length: Int32)? {
+        var type = s.typ
+        let sample16Bit = (type >> 4) & 1 != 0
+        if type & (SType_Fwd + SType_Rev) != 0 {
+            var repL = s.repL, repS = s.repS
+            if sample16Bit {
+                repL >>= 1
+                repS >>= 1
+            }
+            v.pointee.SRevBase = s.pek.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
+            v.pointee.SRevBaseR = s.pekR.map { UnsafeRawPointer($0) + Int(repS &+ repS &+ repL) * (sample16Bit ? 2 : 1) }
+            v.pointee.SRepL = repL
+            v.pointee.SRepS = repS
+            return (type, repS &+ repL)
+        }
+        type &= ~(SType_Fwd + SType_Rev)
+        var len = s.len
+        if sample16Bit { len >>= 1 }
+        return len == 0 ? nil : (type, len)
+    }
+
+    /// X9F, in a file whose X commands are ModPlug Tracker's: the channel's sample is played
+    /// backwards from where it is, as OpenMPT plays it; a note that has only just begun, on its row
+    /// or of a sample that does not loop, from its end, or the end of its loop. A sample that does
+    /// not loop ends at its start; one whose loop goes round goes round it backwards; one whose loop
+    /// goes back and forth turns.
+    func playBackwards(_ nr: Int, noteOnRow: Bool) {
+        let v = CI + chnReloc[nr]
+        let type = v.pointee.SType
+        guard type & SType_Off == 0, v.pointee.SBase != nil, v.pointee.SLen > 0, type & SType_RevDir == 0 else { return }
+        let width = v.pointee.sixteen ? 2 : 1
+        let loops = type & (SType_Fwd + SType_Rev) != 0 && v.pointee.SRepL > 0
+        var index = v.pointee.SPos
+        if index == 0, v.pointee.SPosDec == 0, noteOnRow || !loops { index = v.pointee.SLen - 1 }
+        if !loops || index < v.pointee.SRepS {
+            // (The sample up to where it is, as a loop back and forth from its start, already on its
+            // way back, and stopped when it is at the start.)
+            let length = loops ? v.pointee.SLen : index + 1
+            v.pointee.SRepS = 0
+            v.pointee.SRepL = length
+            v.pointee.SLen = length
+            v.pointee.SRevBase = v.pointee.SBase.map { $0 + Int(length) * width }
+            v.pointee.SRevBaseR = v.pointee.SBaseR.map { $0 + Int(length) * width }
+            v.pointee.backwards = FT2Voice.backwardsOnce
+        } else if type & SType_Rev == 0 {
+            // (The loop, as one that goes back and forth and on the way back stays so.)
+            v.pointee.SRevBase = v.pointee.SBase.map { $0 + Int(v.pointee.SRepS &+ v.pointee.SRepS &+ v.pointee.SRepL) * width }
+            v.pointee.SRevBaseR = v.pointee.SBaseR.map { $0 + Int(v.pointee.SRepS &+ v.pointee.SRepS &+ v.pointee.SRepL) * width }
+            v.pointee.backwards = FT2Voice.backwardsRound
+        }
+        v.pointee.SType = (type & ~(SType_Fwd + SType_Rev)) | SType_Rev | SType_RevDir
+        v.pointee.SPos = 2 &* v.pointee.SRepS &+ v.pointee.SRepL &- 1 &- index
+        v.pointee.SPosDec = 0
+    }
+
+    /// X9E: the channel's sample forwards again from where it is, with the loop it has.
+    func playForwards(_ nr: Int) {
+        let v = CI + chnReloc[nr]
+        guard v.pointee.SType & SType_Off == 0, v.pointee.SType & SType_RevDir != 0 else { return }
+        let index = 2 &* v.pointee.SRepS &+ v.pointee.SRepL &- 1 &- v.pointee.SPos
+        let ch = stm[nr]
+        guard let (type, len) = shape(v, ch.instrSeg.samp[Int(ch.sampleNr)]) else { return }
+        v.pointee.SType = type
+        v.pointee.SLen = len
+        v.pointee.backwards = 0
+        v.pointee.SPos = max(0, min(len - 1, index))
+        v.pointee.SPosDec = 0
+    }
+
+    /// X90 and X91: the channel's notes in surround, or not, from this one on.
+    func setSurround(_ nr: Int, _ on: Bool) {
+        stm[nr].surround = on
+        (CI + chnReloc[nr]).pointee.surround = on
+        stm[nr].status |= IS_Vol
+    }
+
+    /// XAx on a row with a note: the note starts that many times 64K into its sample, if it is so long.
+    func startHigh(_ nr: Int, _ value: UInt8) {
+        let v = CI + chnReloc[nr]
+        let place = Int32(value) << 16
+        if v.pointee.SType & SType_Off == 0, v.pointee.backwards == 0, v.pointee.SType & SType_RevDir == 0, place < v.pointee.SLen {
+            v.pointee.SPos = place
+            v.pointee.SPosDec = 0
+        }
     }
 
     private func mix_UpdateChannelVolPanFrq() {
@@ -638,9 +733,14 @@ final class FT2Player {
     /// A voice has run off the end of what it was playing: round its loop, or off. False if it is off.
     @inline(__always) private func wrap(_ v: UnsafeMutablePointer<FT2Voice>, _ realPos: inout Int32) -> Bool {
         var SType = v.pointee.SType
-        guard SType & (SType_Fwd + SType_Rev) != 0, v.pointee.SRepL > 0 else {
+        guard SType & (SType_Fwd + SType_Rev) != 0, v.pointee.SRepL > 0, v.pointee.backwards != FT2Voice.backwardsOnce else {
             v.pointee.SType = SType_Off
             return false
+        }
+        if v.pointee.backwards == FT2Voice.backwardsRound {
+            repeat { realPos &-= v.pointee.SRepL } while realPos >= v.pointee.SLen
+            v.pointee.looped = true
+            return true
         }
         repeat {
             realPos &-= v.pointee.SRepL

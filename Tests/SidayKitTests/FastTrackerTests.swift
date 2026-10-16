@@ -252,6 +252,44 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try secondTick("OpenMPT 1.28.00.00") <= 5)
 }
 
+@Test func xmOfModPlugTrackersHasItsXCommandsPlayed() throws {
+    /// A file as ModPlug Tracker wrote one, with a command on the first row's note; its sample a ramp
+    /// from the bottom to the top, round and round.
+    func modPlug(_ command: UInt8, _ value: UInt8) -> [UInt8] {
+        var file = xm(notes: [0x9B, 49, 1, command, value, 0x80])
+        file.replaceSubrange(38 ..< 58, with: Array("FastTracker v2.00   ".utf8))
+        file.replaceSubrange(file.count - 32 ..< file.count, with: [0x80] + [UInt8](repeating: 8, count: 31))
+        return file
+    }
+    /// How much more of the note rises from one sample to the next than falls.
+    func rising(_ file: [UInt8]) throws -> Int {
+        let left = stereo(try TuneLoader.load(file, format: .xm), seconds: 0.3).left[4800...]
+        return zip(left, left.dropFirst()).reduce(0) { $0 + ($1.1 > $1.0 ? 1 : $1.1 < $1.0 ? -1 : 0) }
+    }
+    // The ramp rises, in steps, and falls at once at the end of each time round.
+    #expect(try rising(modPlug(0, 0)) > 3000)
+    // X9F plays it backwards, round and round, so that it falls.
+    #expect(try rising(modPlug(33, 0x9F)) < -3000)
+    // FastTracker 2's own file has no such command.
+    var own = modPlug(33, 0x9F)
+    own = byFastTracker(own)
+    #expect(try rising(own) > 3000)
+
+    // X91 puts the channel in surround: in the middle, and its right side turned over.
+    var options = LoadOptions()
+    options.stereo = .abc
+    let surround = stereo(try TuneLoader.load(modPlug(33, 0x91), format: .xm, options: options), seconds: 0.3)
+    #expect(zip(surround.left[4800...], surround.right[4800...]).allSatisfy { abs($0 + $1) < 0.0001 })
+    #expect(surround.left[4800...].map(abs).max()! > 0.01)
+    // In mono that would be nothing at all, so there it is not turned over.
+    let mono = stereo(try TuneLoader.load(modPlug(33, 0x91), format: .xm), seconds: 0.3)
+    #expect(mono.left[4800...].map(abs).max()! > 0.01)
+
+    // X6x makes the row longer by so many ticks: here fifteen, of 960 samples each.
+    let plain = try TuneLoader.load(modPlug(0, 0), format: .xm).knownLength!
+    #expect(abs(try TuneLoader.load(modPlug(33, 0x6F), format: .xm).knownLength! - plain - 0.3) < 0.001)
+}
+
 @Test func xmFromALaterTrackerSweepsFromSideToSide() throws {
     var options = LoadOptions()
     options.stereo = .abc
@@ -506,11 +544,13 @@ private func levels(_ renderer: any Renderer) -> [Float] {
 }
 
 @Test func xmChannelPutInTheReverbIsHeardInItInALaterTrackersFile() throws {
-    // A note cut on its third row, with X99 beside it: in a file of a later tracker's the reverb
+    // A note cut on its third row, with X99 beside it: in a file of ModPlug Tracker's the reverb
     // goes on after it; without X99, or in a file of FastTracker's own, there is nothing then.
     func file(_ effect: [UInt8]) -> [UInt8] {
         let rows = [0x83 | (effect.isEmpty ? 0 : 0x18), 49, 1] + effect + [0x80] + [0x80, 0x80] + [0x81, 97, 0x80] + [UInt8](repeating: 0x80, count: 61 * 2)
-        return xm(pattern: (64, rows))
+        var file = xm(pattern: (64, rows))
+        file.replaceSubrange(38 ..< 58, with: Array("FastTracker v2.00   ".utf8))
+        return file
     }
     func tail(_ file: [UInt8]) throws -> Float {
         let sound = stereo(try TuneLoader.load(file, format: .xm), seconds: 1.5)
