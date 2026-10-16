@@ -92,3 +92,45 @@ private final class Tone: Renderer {
     #expect(steps > 100)
     #expect(measurement.level == whole)
 }
+
+@Test func aLevelIsKeptAsText() {
+    for level in [SongLevel(loudness: -22.95, truePeak: -1.25), SongLevel(loudness: nil, truePeak: -240)] {
+        let kept = SongLevel(text: level.text)
+        #expect(kept?.loudness == level.loudness)
+    }
+    #expect(SongLevel(text: "-18500 -3200") == SongLevel(loudness: -18.5, truePeak: -3.2))
+    #expect(SongLevel(text: "") == nil)
+    #expect(SongLevel(text: "loud -3200") == nil)
+}
+
+@Test func aLevelIsKeptForTheSongAndHowItIsPlayed() {
+    let file: [UInt8] = [1, 2, 3]
+    var options = LoadOptions(), policy = PlaybackPolicy()
+    let key = SongLevel.key(of: file, song: 0, options: options, policy: policy)
+    #expect(key == SongLevel.key(of: file, song: 0, options: options, policy: policy))
+    #expect(key != SongLevel.key(of: [1, 2, 4], song: 0, options: options, policy: policy))
+    #expect(key != SongLevel.key(of: file, song: 1, options: options, policy: policy))
+    options.amigaModel = .a500
+    #expect(key != SongLevel.key(of: file, song: 0, options: options, policy: policy))
+    options = LoadOptions()
+    policy.loops = 2
+    #expect(key != SongLevel.key(of: file, song: 0, options: options, policy: policy))
+}
+
+@Test func theGainGlidesToWhereTheSongNeedsIt() {
+    var gain = LevelGain()
+    var block = [Float](repeating: 1, count: 2 * 48000)
+    block.withUnsafeMutableBufferPointer { gain.apply($0.baseAddress!, frames: 48000) }
+    #expect(block.allSatisfy { $0 == 1 })
+    gain.glide(to: 0.5)
+    block = [Float](repeating: 1, count: 2 * 48000)
+    block.withUnsafeMutableBufferPointer { gain.apply($0.baseAddress!, frames: 24000) }
+    // Halfway there after half a second, and there after a second.
+    #expect(abs(block[2 * 23999] - 0.75) < 0.001)
+    block = [Float](repeating: 1, count: 2 * 48000)
+    block.withUnsafeMutableBufferPointer { gain.apply($0.baseAddress!, frames: 48000) }
+    #expect(abs(block[2 * 24001] - 0.5) < 1e-6)
+    #expect(block[2 * 47999] == 0.5 && block[2 * 47999 + 1] == 0.5)
+    #expect(gain.gain == 0.5)
+    #expect(LevelGain(2).gain == 2)
+}

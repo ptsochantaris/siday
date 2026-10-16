@@ -103,3 +103,79 @@ public final class SongMeasurement {
         }
     }
 }
+
+public extension SongLevel {
+    /// What a song's level can be kept under once it has been measured, so that it need not be
+    /// measured again: the file's digest, the song, and every setting that makes a difference to how
+    /// the song sounds or how long it is played. (What it is heard through is not among them: a song
+    /// is measured and levelled before any television it is played through.)
+    static func key(of file: [UInt8], song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
+        func milli(_ value: Double?) -> String { value.map { String(Int(($0 * 1000).rounded())) } ?? "-" }
+        let parts = [
+            "1", MD5.hex(file), String(song),
+            options.stereo.rawValue, options.chipType?.rawValue ?? "-", milli(options.clockHz), milli(options.frameHz),
+            options.sidModel.rawValue, options.sidEngine.rawValue, milli(options.sidFilterCurve),
+            options.songLengths == nil ? "-" : "own", options.usesBuiltInSongLengths ? "built-in" : "-",
+            options.amigaModel.rawValue, milli(options.amigaSeparation), options.s3mCard?.rawValue ?? "-",
+            String(policy.loops), milli(policy.defaultTime), milli(policy.maxTime), milli(policy.loopFade), milli(policy.endFade),
+        ]
+        return parts.joined(separator: " ")
+    }
+
+    /// The level as it can be kept in a line of text: the loudness and the true peak, in thousandths.
+    var text: String {
+        "\(loudness.map { String(Int(($0 * 1000).rounded())) } ?? "-") \(Int((max(truePeak, -999) * 1000).rounded()))"
+    }
+
+    /// A level kept as `text`.
+    init?(text: String) {
+        let parts = text.split(separator: " ")
+        guard parts.count == 2, let peak = Int(parts[1]) else { return nil }
+        if parts[0] == "-" {
+            loudness = nil
+        } else if let loudness = Int(parts[0]) {
+            self.loudness = Double(loudness) / 1000
+        } else {
+            return nil
+        }
+        truePeak = Double(peak) / 1000
+    }
+}
+
+/// The gain levelling puts on what a song sounds like, as it is played: none until the song has
+/// been measured, and then a glide, over a second, to what it was found to need, so that a song
+/// measured while it is heard is not heard to jump. (One measured before it begins starts there.)
+public struct LevelGain: Sendable {
+    public private(set) var gain: Float = 1
+    private var target: Float = 1
+    private var step: Float = 0
+    private static let glideFrames = Float(outputSampleRate)
+
+    public init(_ gain: Float = 1) {
+        self.gain = gain
+        target = gain
+    }
+
+    /// Glides to a gain from where it is.
+    public mutating func glide(to gain: Float) {
+        target = gain
+        step = (target - self.gain) / Self.glideFrames
+    }
+
+    public mutating func apply(_ buffer: UnsafeMutablePointer<Float>, frames: Int) {
+        if step == 0 {
+            guard gain != 1 else { return }
+            for i in 0 ..< frames * 2 { buffer[i] *= gain }
+            return
+        }
+        for i in 0 ..< frames {
+            gain += step
+            if (step > 0 && gain >= target) || (step < 0 && gain <= target) {
+                gain = target
+                step = 0
+            }
+            buffer[2 * i] *= gain
+            buffer[2 * i + 1] *= gain
+        }
+    }
+}
