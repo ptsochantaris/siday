@@ -78,6 +78,9 @@ final class FT2Player {
     /// side, X6x ticks more on a row, X90 and X91 surround off and on, X98 and X99 ModPlug's reverb,
     /// X9E and X9F the sample forwards and backwards, and XAx where in a long sample 9xx starts.
     let playsModPlugXCommands: Bool
+    /// True if a sample's finetune is heard whole, as OpenMPT plays such a file: see
+    /// `FT2Module.fineTunesFully` and `notePeriod`.
+    let fineTunesFully: Bool
     /// False for sound that will be heard in mono, in which a channel in surround is not turned over,
     /// and would be no more than its two sides taking each other away.
     var stereoOutput = true
@@ -182,6 +185,7 @@ final class FT2Player {
         playsLaterCommands = !module.madeByFastTracker && !asFastTracker
         arpeggiatesAsOtherTrackers = module.arpeggioOfOtherTrackers && !asFastTracker
         playsModPlugXCommands = module.playsModPlugXCommands && !asFastTracker
+        fineTunesFully = module.fineTunesFully && !asFastTracker
         endsDieAway = module.openMPTMix != nil && !asFastTracker
         readsAsOpenMPT = endsDieAway
         self.firstPlayedBy = firstPlayedBy
@@ -270,6 +274,20 @@ final class FT2Player {
         let tick = UnsafeMutablePointer<Float>.allocate(capacity: (Self.mostSamplesPerTick + 1) * 2)
         tick.initialize(repeating: 0, count: (Self.mostSamplesPerTick + 1) * 2)
         plugInTick = tick
+    }
+
+    /// The period of a note at `index` in FastTracker's table, which counts in sixteenths of a
+    /// semitone and has the channel's finetune in it with its lowest three bits dropped: in a file
+    /// whose finetune is heard whole, with those bits put back as OpenMPT puts them, half of them
+    /// off a linear period and, for Amiga periods, that part of the way to the next.
+    @inline(__always) func notePeriod(_ index: Int, _ ch: FT2Channel) -> UInt16 {
+        let period = note2Period(index)
+        guard fineTunesFully, ch.fineTune & 7 != 0, period != 0 else { return period }
+        let fine = Int(ch.fineTune)
+        if linearFrqTab { return UInt16(max(1, Int(period) - (fine / 2 - (fine & ~7) / 2))) }
+        let next = note2Period(index + 1)
+        guard next != 0 else { return period }
+        return UInt16(max(1, Int(period) + ((Int(next) - Int(period)) * (fine & 7) + 4) / 8))
     }
 
     @inline(__always) func note2Period(_ i: Int) -> UInt16 {

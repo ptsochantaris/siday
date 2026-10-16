@@ -256,7 +256,7 @@ extension FT2Player {
         if ton != 0 {
             let tmpTon = ((Int(ton) - 1) << 4) + ((Int(ch.fineTune) >> 3) + 16)
             if tmpTon < MAX_NOTES {
-                ch.realPeriod = note2Period(tmpTon)
+                ch.realPeriod = notePeriod(tmpTon, ch)
                 ch.outPeriod = ch.realPeriod
             }
         }
@@ -785,7 +785,7 @@ extension FT2Player {
                 let portaTmp = UInt16(truncatingIfNeeded: (((Int(p.ton) - 1) + Int(ch.relTonNr)) << 4) + ((Int(ch.fineTune) >> 3) + 16))
                 ch.realNote = UInt8(max(1, min(10 * 12 - 1, Int(p.ton) + Int(ch.relTonNr))))
                 if portaTmp < UInt16(MAX_NOTES) {
-                    ch.wantPeriod = note2Period(Int(portaTmp))
+                    ch.wantPeriod = notePeriod(Int(portaTmp), ch)
                     if ch.wantPeriod == ch.realPeriod {
                         ch.portaDir = 0
                     } else if ch.wantPeriod > ch.realPeriod {
@@ -1047,7 +1047,7 @@ extension FT2Player {
         }
         var tmpPeriod = loPeriod + fineTune + (Int(arpNote) << 4)
         if tmpPeriod >= (8 * 12 * 16 + 15) - 1 { tmpPeriod = (8 * 12 * 16 + 16) - 1 }
-        return note2Period(tmpPeriod)
+        return notePeriod(tmpPeriod, ch)
     }
 
     func vibrato2(_ ch: FT2Channel) {
@@ -1094,7 +1094,7 @@ extension FT2Player {
             ch.outPeriod = ch.realPeriod
         } else {
             let tmpTon = ((Int(ch.realNote) + up - 1) << 4) + ((Int(ch.fineTune) >> 3) + 16)
-            ch.outPeriod = note2Period(min(tmpTon, MAX_NOTES - 1))
+            ch.outPeriod = notePeriod(min(tmpTon, MAX_NOTES - 1), ch)
         }
         ch.status |= IS_Period
     }

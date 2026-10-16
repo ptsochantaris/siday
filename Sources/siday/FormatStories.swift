@@ -592,7 +592,11 @@ or until the channel is put somewhere, as OpenMPT has it, unless X9B has asked f
 surround to be put places as on four speakers, which X9A takes back; X6x makes a row longer by
 so many ticks; XAx starts a note, and 9xx after it, so many times 64K into a long sample; and,
 as before, X5x and X98/X99. Those for notes left playing and for envelopes (X7x) are not played,
-and such a file says so. Of the 76 files to hand that have them, set beside libopenmpt, 20 came
+and such a file says so. And FastTracker drops the lowest three bits of a sample's finetune,
+so that its notes are as much as six cents flat of what the file says; ModPlug Tracker did not,
+nor does OpenMPT in its files before 1.22.07.19, or in later ones that ask for it, and nor does
+siday in theirs: of 150 such files set beside libopenmpt, 104 came nearer by the spectrum and none
+further. Of the 76 files to hand that have the X commands, set beside libopenmpt, 20 came
 nearer by the spectrum (one from 0.77 to 0.99) and none went further, and 80 others picked at
 random were not changed at all. A tune ends where it
 would play a row it has played before. `siday --raw file.raw tune.xm` writes

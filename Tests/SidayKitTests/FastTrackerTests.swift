@@ -252,6 +252,22 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try secondTick("OpenMPT 1.28.00.00") <= 5)
 }
 
+@Test func xmOfModPlugTrackersHasItsSamplesFinetuneHeardWhole() throws {
+    /// The sound of a file with its sample's finetune set, by FastTracker or by ModPlug Tracker.
+    func sound(_ fine: Int8, byFastTracker own: Bool) throws -> [Float] {
+        var file = xm()
+        file[file.count - 32 - 40 + 13] = UInt8(bitPattern: fine)
+        if own { file = byFastTracker(file) } else { file.replaceSubrange(38 ..< 58, with: Array("FastTracker v2.00   ".utf8)) }
+        return stereo(try TuneLoader.load(file, format: .xm), seconds: 4).left
+    }
+    // FastTracker drops a finetune's lowest three bits: -28 is heard as -32.
+    #expect(try sound(-28, byFastTracker: true) == sound(-32, byFastTracker: true))
+    // ModPlug Tracker did not, nor does OpenMPT in its files: -28 is a little higher than -32.
+    let whole = try sound(-28, byFastTracker: false), dropped = try sound(-32, byFastTracker: false)
+    #expect(whole != dropped)
+    #expect(crossings(whole[4800...]) >= crossings(dropped[4800...]))
+}
+
 @Test func xmOfModPlugTrackersHasItsXCommandsPlayed() throws {
     /// A file as ModPlug Tracker wrote one, with a command on the first row's note; its sample a ramp
     /// from the bottom to the top, round and round.

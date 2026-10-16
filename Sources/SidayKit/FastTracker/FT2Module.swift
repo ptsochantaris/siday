@@ -83,6 +83,10 @@ final class FT2Module {
     /// And true if, in such a file, a note's sample or the volume column putting a channel
     /// somewhere takes it out of surround, as 8xx always does (OpenMPT's 10th way).
     private(set) var panningEndsSurround = false
+    /// True for an XM file in which OpenMPT keeps the whole of a sample's finetune, where
+    /// FastTracker drops its lowest three bits (OpenMPT's 76th way, which it had from 1.22.07.19).
+    /// See `FT2Player.notePeriod`.
+    private(set) var fineTunesFully = false
     /// How much louder such a file is played than one of FastTracker's own: by its pre-amp, the
     /// composer's, against the usual one of the way it asks to be added up by (48, or 128 in the
     /// ways of OpenMPT 1.17). One for any other file.
@@ -239,6 +243,7 @@ final class FT2Module {
             arpeggioOfOtherTrackers = !Self.keepsFastTrackersWay(51, since: 0x0117_0302, data, name: name, byModPlug: byModPlug)
             playsModPlugXCommands = !Self.keepsFastTrackersWay(58, since: 0x0118_0000, data, name: name, byModPlug: byModPlug)
             panningEndsSurround = Self.keepsFastTrackersWay(10, since: 0x0117_0302, data, name: name, byModPlug: byModPlug)
+            fineTunesFully = !Self.keepsFastTrackersWay(76, since: 0x0122_0719, data, name: name, byModPlug: byModPlug)
             noteWhatLaterTrackersAdded(data, after: f.at)
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
