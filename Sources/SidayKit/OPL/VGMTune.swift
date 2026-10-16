@@ -7,7 +7,8 @@
 // of writing the same to the same chip at the same moments. The format covers some fifty chips; of
 // those, the Yamaha FM chips of the PC's AdLib and Sound Blaster cards are played here, on the OPL3
 // that plays the other music made for those cards: the OPL (YM3526), the OPL2 (YM3812) and the OPL3
-// (YMF262), and two of any of them. VGZ is the same file packed by gzip. The format is set out in
+// (YMF262), and two of any of them; and the AY-3-8910 and the chips made like it, on the chip that
+// plays the ZX Spectrum's and the Atari ST's music. VGZ is the same file packed by gzip. The format is set out in
 // vgmspecs.txt, which comes with VGMPlay; libvgm, its player, is what this was set beside.
 
 /// A VGM file for the chips played here, read.
@@ -19,6 +20,8 @@ struct VGMFile {
         case opl2
         /// The YMF262, the OPL3, with eighteen channels and its two sides: the Sound Blaster Pro 2's and 16's.
         case opl3
+        /// General Instrument's AY-3-8910, or one of the chips made like it: Yamaha's YM2149 among them.
+        case ay
 
         /// Where a file gives its clock.
         var place: Int {
@@ -26,6 +29,7 @@ struct VGMFile {
             case .opl2: 0x50
             case .opl: 0x54
             case .opl3: 0x5C
+            case .ay: 0x74
             }
         }
 
@@ -35,8 +39,11 @@ struct VGMFile {
             case .opl2: 0x09
             case .opl: 0x0A
             case .opl3: 0x0C
+            case .ay: 0x12
             }
         }
+
+        var isOPL: Bool { self != .ay }
     }
 
     /// One of the chips a file is for, or two of the same: the second written to by commands of its own.
@@ -64,6 +71,10 @@ struct VGMFile {
     /// True for two OPL2s that were a Sound Blaster Pro's, the first heard on the left and the
     /// second on the right; otherwise each is heard from the middle.
     let sides: Bool
+    /// Which of the chips like the AY-3-8910 it is (the YM2149 and those after it from 0x10), and
+    /// how it is wired: a YM2149 with its clock halved (0x10), or one heard as a ZX Spectrum's are,
+    /// its first channel on the left and its last on the right (0x80).
+    let ayType: UInt8, ayFlags: UInt8
     var title = "", game = "", system = "", author = "", date = "", notes = ""
 
     /// The other chips the format has, by where a file gives each one's clock, and their names, to
@@ -73,7 +84,7 @@ struct VGMFile {
         (0x2C, "the YM2612 (a Sega Mega Drive's)"), (0x30, "the YM2151 (OPM)"), (0x38, "Sega's PCM chip"),
         (0x40, "the RF5C68"), (0x44, "the YM2203 (OPN)"), (0x48, "the YM2608 (OPNA)"), (0x4C, "the YM2610 (OPNB)"),
         (0x58, "the Y8950 (MSX-AUDIO)"), (0x60, "the YMF278B (OPL4)"), (0x64, "the YMF271 (OPX)"), (0x68, "the YMZ280B"),
-        (0x6C, "the RF5C164"), (0x70, "the 32X's PWM"), (0x74, "the AY-3-8910"), (0x80, "the Game Boy's"),
+        (0x6C, "the RF5C164"), (0x70, "the 32X's PWM"), (0x80, "the Game Boy's"),
         (0x84, "the NES's"), (0x88, "the MultiPCM"), (0x8C, "the uPD7759"), (0x90, "the OKIM6258"),
         (0x98, "the OKIM6295"), (0x9C, "Konami's SCC"), (0xA0, "the K054539"), (0xA4, "the PC Engine's HuC6280"),
         (0xA8, "the C140"), (0xAC, "the K053260"), (0xB0, "the Atari's POKEY"), (0xB4, "Capcom's QSound"),
@@ -100,18 +111,26 @@ struct VGMFile {
         let extra = header >= 0xC0 && word(0xBC) > 0 ? 0xBC + word(0xBC) : 0
         let headerEnd = extra > 0 ? min(header, extra) : header
         func clock(_ at: Int) -> UInt32 { at + 4 <= headerEnd ? bits(at) : 0 }
+        func byte(_ at: Int) -> UInt8 { at < headerEnd ? data[at] : 0 }
 
         for other in Self.others where clock(other.place) & 0x3FFF_FFFF != 0 {
-            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips are")
+            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips and the AY-3-8910 are")
         }
+        ayType = byte(0x78)
+        ayFlags = byte(0x79)
         let used = Chip.allCases.map { ($0, clock($0.place)) }.filter { $0.1 & 0x3FFF_FFFF != 0 }
         guard !used.isEmpty else { throw .unsupported("a VGM file for no chip that is played") }
-        guard used.count == 1 else { throw .unsupported("a VGM file for two kinds of FM chip at once, which is not played") }
+        guard used.count(where: { $0.0.isOPL }) <= 1 else { throw .unsupported("a VGM file for two kinds of FM chip at once, which is not played") }
+        if used.contains(where: { $0.0 == .ay }), ayType == 0x03 {
+            throw .unsupported("a VGM file for the AY8930, which is not played: only the AY-3-8910 and the chips made like it are")
+        }
         var parts: [Part] = []
         for (chip, clocked) in used {
             let two = clocked & 0x4000_0000 != 0
-            let hertz = Double(clocked & 0x3FFF_FFFF)
-            let rate = (hertz / (chip == .opl3 ? 288 : 72)).rounded(.down)
+            var hertz = Double(clocked & 0x3FFF_FFFF)
+            // (A YM2149 can be wired to halve its clock.)
+            if chip == .ay, ayType >= 0x10, ayFlags & 0x10 != 0 { hertz /= 2 }
+            let rate = chip.isOPL ? (hertz / (chip == .opl3 ? 288 : 72)).rounded(.down) : hertz / 8
             guard rate >= 10000, rate <= 1_000_000 else { throw .malformed("a VGM file whose chip's clock is \(clocked & 0x3FFF_FFFF) Hz") }
             parts.append(Part(chip: chip, two: two, clock: hertz, volumes: Array(repeating: two ? 0.5 : 1, count: two ? 2 : 1)))
         }
@@ -165,9 +184,23 @@ struct VGMFile {
             case .opl: "YM3526 (OPL)"
             case .opl2: "YM3812 (OPL2)"
             case .opl3: "YMF262 (OPL3)"
+            case .ay: ayName
             }
             return (part.two ? "2 × " : "") + name + (part.chip == .opl2 && sides ? ", left and right" : "")
         }.joined(separator: " and ")
+    }
+
+    private var ayName: String {
+        switch ayType {
+        case 0x01: "AY-3-8912"
+        case 0x02: "AY-3-8913"
+        case 0x04: "AY-3-8914"
+        case 0x10: "YM2149"
+        case 0x11: "YM3439"
+        case 0x12: "YMZ284"
+        case 0x13: "YMZ294"
+        default: "AY-3-8910"
+        }
     }
 
     /// What the file says of itself, in its GD3 tags: eleven pieces of text, each in English and
@@ -295,6 +328,68 @@ private final class VGMOPL: VGMSoundChip {
     func setMuted(_ muted: [Bool]) { opl.setMuted(muted) }
 }
 
+/// An AY-3-8910, or one like it, on the chip siday plays every AY tune on. Its writes are timed to
+/// the eighth of a sample, which is how finely the chip is stepped.
+private final class VGMAY: VGMSoundChip {
+    private let chip: UnsafeMutablePointer<AYChip>
+    let rate: Double
+    var samplesLeft = 0
+    var voices: Int { 3 }
+    /// True for one heard as a ZX Spectrum's are; otherwise its three channels are all in the middle,
+    /// as they were on the machines whose music a VGM file has.
+    private let apart: Bool
+    var card: OPLCard? { nil }
+
+    init(type: UInt8, flags: UInt8, clock: Double) {
+        apart = flags & 0x80 != 0
+        chip = .allocate(capacity: 1)
+        chip.initialize(to: AYChip(type: type >= 0x10 ? .ym : .ay, clockHz: clock, sampleRate: outputSampleRate, stereo: apart ? .abc : .mono))
+        rate = chip.pointee.innerRate
+        chip.pointee.reset()
+    }
+
+    deinit {
+        chip.deinitialize(count: 1)
+        chip.deallocate()
+    }
+
+    func reset() {
+        chip.pointee.reset()
+        samplesLeft = 0
+    }
+
+    func write(_ register: Int, _ value: UInt8) { chip.pointee.write(register, value) }
+
+    func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
+        var made = 0
+        while made < frames, samplesLeft > 0 {
+            samplesLeft -= 1
+            guard chip.pointee.innerStep() else { continue }
+            let (left, right) = chip.pointee.finishSample()
+            let remaining = samplesLeft + after
+            let level = remaining < fade ? gain * Float(remaining) / Float(fade) : gain
+            buffer[made * 2] = Float(left) * level
+            buffer[made * 2 + 1] = Float(right) * level
+            made += 1
+        }
+        return made
+    }
+
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) { chip.pointee.takeLevels(into: levels) }
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        chip.pointee.takeNotes(pitches: pitches, struck: struck)
+    }
+
+    func takeSides(into sides: UnsafeMutablePointer<Float>) {
+        if apart { chip.pointee.sides(into: sides) } else { for voice in 0 ..< 3 { sides[voice] = 0 } }
+    }
+
+    func setMuted(_ muted: [Bool]) {
+        func left(_ voice: Int) -> Bool { voice < muted.count && muted[voice] }
+        chip.pointee.setMuted(left(0), left(1), left(2))
+    }
+}
+
 /// Plays a VGM file: writes what the file says to each chip when it says, and brings what they make
 /// to the player's rate.
 ///
@@ -313,7 +408,8 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     private(set) var hasEnded = false
 
     private let file: VGMFile
-    /// Every chip, the first of two before the second, and how loud each is.
+    /// Every chip, the first of two before the second, the FM chip's before the AY's, and how loud
+    /// each is.
     private let chips: [any VGMSoundChip]
     private let gains: [Float]
     /// Which of them the commands for each kind of chip go to, the first and the second of the
@@ -341,6 +437,10 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// are brought to. These are louder than the other music for the chip, many of them because
     /// the file asks for more (see `VGMFile.volume`), and so this is half of theirs.
     static let gain: Float = 0.70
+    /// The same for the AY-3-8910's, by the middle of the 28 there are (2026-10-16): PC speaker music,
+    /// one channel playing, which is why this is half again an AY tune's (`ayOutputGain`). Some ask
+    /// to be three times as loud and some do not ask at all, so that they are either side of it.
+    static let ayGain: Float = 0.37
 
     /// How long the last notes are given to die away, and how much of that is faded, in seconds.
     private static let tailSeconds = 1.0, fadeSeconds = 0.2
@@ -353,8 +453,14 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         for part in file.parts {
             for (which, volume) in part.volumes.enumerated() {
                 slots[part.chip.rawValue * 2 + which] = chips.count
-                chips.append(VGMOPL(part.chip, clock: part.clock))
-                gains.append(Self.gain * file.volume * volume)
+                switch part.chip {
+                case .ay:
+                    chips.append(VGMAY(type: file.ayType, flags: file.ayFlags, clock: part.clock))
+                    gains.append(Self.ayGain * file.volume * volume)
+                default:
+                    chips.append(VGMOPL(part.chip, clock: part.clock))
+                    gains.append(Self.gain * file.volume * volume)
+                }
             }
         }
         self.chips = chips
@@ -460,6 +566,10 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 at += 3
             case 0xAF:
                 write(.opl3, second: true, 0x100 | Int(byte(1)), byte(2))
+                at += 3
+            case 0xA0:
+                // (The top bit of the register's number chooses the second.)
+                write(.ay, second: byte(1) & 0x80 != 0, Int(byte(1) & 0x7F), byte(2))
                 at += 3
             case 0x61:
                 waited = Int(byte(1)) | Int(byte(2)) << 8
@@ -580,7 +690,8 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     // MARK: Voices
 
     /// Each chip's channels, one after the other: nine for an OPL or an OPL2 and eighteen for an
-    /// OPL3. Where a tune has the drums on, they are the last three of a chip's first nine.
+    /// OPL3, and three for an AY-3-8910. Where a tune has the drums on, they are the last three of
+    /// an FM chip's first nine.
     var channelCount: Int { chips.reduce(0) { $0 + $1.voices } }
     /// An OPL3's second nine are there only in its own mode, which many of its tunes never use.
     var channelsAlwaysShown: Int { chips.count == 1 && chips[0].voices == 18 ? 9 : channelCount }
@@ -613,9 +724,11 @@ final class VGMRenderer: Renderer, ReferenceComparable {
 
     /// The music from its start as the FM chips make it: their own samples at their own rate, left
     /// and right in turn, two chips added together (or a Sound Blaster Pro's, each on its own
-    /// side), to the end or `frames` of them. For comparing with a reference player.
+    /// side), to the end or `frames` of them. For comparing with a reference player. A file with
+    /// no FM chip gives nothing.
     func renderRaw(frames: Int) -> [Int16] {
         let cards = chips.compactMap { $0.card }
+        guard !cards.isEmpty else { return [] }
         select(subsong: 0)
         var output: [Int16] = []
         output.reserveCapacity(min(frames, 1 << 24) * 2)
@@ -633,6 +746,8 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 output.append(Int16(clamping: left))
                 output.append(Int16(clamping: right))
             }
+            // (What the other chips were given is not made.)
+            for chip in chips where chip.card == nil { chip.samplesLeft = 0 }
         }
         select(subsong: 0)
         return output

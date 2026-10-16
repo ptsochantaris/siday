@@ -29,7 +29,7 @@ private func note(_ command: UInt8 = 0x5A, key: Bool = true) -> [UInt8] {
 /// A VGM file of version 1.71 for one OPL2 (or as `clock` says), its writes `commands`, so long in
 /// 44,100ths of a second, going round from `loop` (a place in `commands`) if given.
 private func vgm(_ commands: [UInt8], ticks: Int, loop: Int? = nil, clockAt: Int = 0x50, clock: Int = 3_579_545,
-                 volume: UInt8 = 0, extra: [UInt8] = [], tags gd3: [UInt8] = []) -> [UInt8] {
+                 volume: UInt8 = 0, extra: [UInt8] = [], tags gd3: [UInt8] = [], more: [(Int, [UInt8])] = []) -> [UInt8] {
     let start = 0x100 + extra.count
     var header = [UInt8](repeating: 0, count: 0x100)
     func put(_ at: Int, _ bytes: [UInt8]) { header.replaceSubrange(at ..< at + bytes.count, with: bytes) }
@@ -41,6 +41,7 @@ private func vgm(_ commands: [UInt8], ticks: Int, loop: Int? = nil, clockAt: Int
     put(0x34, long(start - 0x34))
     put(clockAt, long(clock))
     put(0x7C, [volume])
+    for (at, bytes) in more { put(at, bytes) }
     if !extra.isEmpty { put(0xBC, long(0x100 - 0xBC)) }
     var file = header + extra + commands + [0x66]
     if !gd3.isEmpty {
@@ -177,6 +178,67 @@ private var stereoOptions: LoadOptions {
     let extra = long(12) + long(0) + long(4) + [1, 0x09, 0x00] + word(0x8180)
     let more = stereo(try TuneLoader.load(vgm(oneNote, ticks: 44100, extra: extra), format: .vgm), seconds: 0.5)
     #expect(abs(loudness(side(more, 0)) / loudness(side(plain, 0)) - 1.5) < 0.01)
+}
+
+/// The writes that start a tone on an AY-3-8910's first channel, of the given period, at full volume.
+private func ayNote(period: Int, second: Bool = false) -> [UInt8] {
+    let writes: [(UInt8, UInt8)] = [(0, UInt8(period & 0xFF)), (1, UInt8(period >> 8)), (7, 0x3E), (8, 15)]
+    return writes.flatMap { [0xA0, $0.0 | (second ? 0x80 : 0), $0.1] }
+}
+
+private let ayClock = 1_789_773
+
+@Test func vgmOfAnAYChipPlaysItsToneFromTheMiddle() throws {
+    // 1,789,773 Hz over 16 times 254 is 440 Hz.
+    let file = vgm(ayNote(period: 254) + [0x61] + word(44100), ticks: 44100, clockAt: 0x74, clock: ayClock)
+    let renderer = try TuneLoader.load(file, format: .vgm, options: stereoOptions)
+    #expect(renderer.channelCount == 3)
+    #expect(renderer.info.detail == "AY-3-8910")
+    let sound = stereo(renderer, seconds: 1)
+    #expect(abs(crossings(side(sound, 0)[4800...]) * 10 / 9 - 440) <= 2)
+    #expect(loudness(side(sound, 0)[4800...]) > 0.01)
+    // Its first channel is not on the left, as a ZX Spectrum's would be: there are no sides.
+    #expect(side(sound, 0) == side(sound, 1))
+    var sides = [Float](repeating: 1, count: 3)
+    renderer.takeChannelSides(into: &sides)
+    #expect(sides == [0, 0, 0])
+}
+
+@Test func vgmOfAnAYChipHeardAsASpectrumsHasItsSides() throws {
+    let file = vgm(ayNote(period: 254) + [0x61] + word(44100), ticks: 44100, clockAt: 0x74, clock: ayClock, more: [(0x79, [0x80])])
+    let sound = stereo(try TuneLoader.load(file, format: .vgm, options: stereoOptions), seconds: 0.5)
+    #expect(loudness(side(sound, 0)[4800...]) > loudness(side(sound, 1)[4800...]) * 10)
+}
+
+@Test func vgmOfAYM2149WiredToHalveItsClockIsAnOctaveLower() throws {
+    let writes = ayNote(period: 127) + [0x61] + word(44100)
+    let halved = vgm(writes, ticks: 44100, clockAt: 0x74, clock: ayClock, more: [(0x78, [0x10, 0x10])])
+    let renderer = try TuneLoader.load(halved, format: .vgm, options: stereoOptions)
+    #expect(renderer.info.detail == "YM2149")
+    #expect(abs(crossings(side(stereo(renderer, seconds: 1), 0)[4800...]) * 10 / 9 - 440) <= 2)
+    // The halving is the YM2149's: an AY-3-8910 has no such pin.
+    let plain = vgm(writes, ticks: 44100, clockAt: 0x74, clock: ayClock, more: [(0x79, [0x10])])
+    #expect(abs(crossings(side(stereo(try TuneLoader.load(plain, format: .vgm), seconds: 1), 0)[4800...]) * 10 / 9 - 880) <= 3)
+}
+
+@Test func vgmOfAnFMChipAndAnAYChipPlaysBoth() throws {
+    let writes = note() + ayNote(period: 127) + [0x61] + word(44100)
+    let file = vgm(writes, ticks: 44100, more: [(0x74, long(ayClock))])
+    let renderer = try TuneLoader.load(file, format: .vgm, options: stereoOptions)
+    #expect(renderer.channelCount == 12)
+    #expect(renderer.info.detail == "YM3812 (OPL2) and AY-3-8910")
+    _ = stereo(renderer, seconds: 0.5)
+    var levels = [Float](repeating: 0, count: 12)
+    renderer.takeChannelLevels(into: &levels)
+    #expect(levels[0] > 0.1)
+    #expect(levels[9] > 0.1)
+    // Each is what it would be alone, added together.
+    let fm = stereo(try TuneLoader.load(vgm(note() + [0x61] + word(44100), ticks: 44100, more: [(0x74, long(ayClock))]), format: .vgm), seconds: 0.5)
+    let ay = stereo(try TuneLoader.load(vgm(ayNote(period: 127) + [0x61] + word(44100), ticks: 44100, more: [(0x74, long(ayClock))]), format: .vgm), seconds: 0.5)
+    let both = stereo(try TuneLoader.load(file, format: .vgm), seconds: 0.5)
+    #expect(zip(both, zip(fm, ay)).allSatisfy { abs($0 - ($1.0 + $1.1)) < 1e-6 })
+    // And the AY's chip alone, not the FM chip's, is refused if it is one that is not played.
+    #expect(throws: TuneError.self) { try TuneLoader.load(vgm(writes, ticks: 44100, more: [(0x74, long(ayClock)), (0x78, [0x03])]), format: .vgm) }
 }
 
 @Test func vgmOfASoundBlasterProKeepsItsSecondChipInTimeWithItsWrites() throws {

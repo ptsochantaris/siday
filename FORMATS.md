@@ -1926,10 +1926,27 @@ and Sound Blaster cards: the OPL (YM3526), with its one wave; the OPL2 (YM3812),
 OPL3 (YMF262), the Sound Blaster Pro 2's and 16's, with its eighteen channels and its two sides. Two
 of a chip are played too, and two OPL2s that a file marks as a Sound Blaster Pro's, Creative's first
 card in stereo, are put each on its own side, as that card had them. A file asks for its own
-volume, and may ask for one chip to be louder; both are heard. A file for any other chip is refused,
-with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,529 play
-and 180 are refused, for the Creative Music System's two SAA1099s (98), the Sega Mega Drive's YM2612
-(34), the AY-3-8910 (30), and the SN76489 of the PCjr and the Tandy 1000 (18). One is silent: a third
+volume, and may ask for one chip to be louder; both are heard.
+
+The AY-3-8910, General Instrument's chip of 1978 and the ZX Spectrum 128's and the Atari ST's (as
+Yamaha's YM2149), is played too, on the chip that plays their music, from 16 October 2026. The files
+for it to hand are PC speaker music. The speaker had no sound chip, only a square wave from the PC's
+timer, and the format has no chip for it, so the music was recorded as the first channel of an
+AY-3-8910, a square wave at one volume. A file says which of the chips like it is meant, and the
+YM2149's and those after it are heard through the YM2149's volumes, a YM2149 with its clock halved
+at half the pitch. Its three channels are all in the middle, as libvgm has them, unless the file
+asks for a ZX Spectrum's sides. It can be in a file with an FM chip, and
+is in two to hand, where the game beeps on the speaker as it starts. libvgm plays it on emu2149, a
+different emulation, and the two make nearly the same (spectrum 0.995 a window and 1.000 a song,
+the middle of 30). They part a little where a tune's notes are deep, as in Skate or Die!'s
+Downhill Race, whose bass is at 58 to 87 Hz. There siday's AY chip takes out what is steady over
+1,024 samples, a 47th of a second, as it does for every AY tune, and so that bass is up to 2 dB softer. California Games II's ask to
+be three times as loud as the others, and are.
+
+A file for any other chip is refused,
+with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,559 play
+and 150 are refused, for the Creative Music System's two SAA1099s (98), the Sega Mega Drive's YM2612
+(34), and the SN76489 of the PCjr and the Tandy 1000 (18). One is silent: a third
 of a second that sets the chip up and plays nothing.
 
 A write that comes at a moment is made before the first of the chip's samples at or after it, the
@@ -1944,7 +1961,8 @@ fast, and not even the same as itself, since where it puts those depends on how 
 asked for at a time. And in one file to hand it leaves out the louder chip the file asks for, which
 siday gives it, as the format has it. VGM files are louder than the other music for the chip, many
 of them because the file asks for more, and are turned down by 6 dB more than that music, by measure,
-to be as loud as it is.
+to be as loud as it is. The PC speaker's, one channel of the AY chip, are turned up by 3.4 dB more
+than an AY tune, since only one of its three channels plays.
 
 Each chip keeps its own time, in its own samples, and the chips go on together: the next writes are
 made when every chip has made all it was given before them. Until 16 October 2026 the second of two
