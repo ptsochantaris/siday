@@ -796,6 +796,48 @@ through until something is written there.
   distributed under the GNU General Public License, version 2 or later, with the rest of this project
 - Source: https://github.com/nukeykt/Nuked-OPL3
 
+## SAASound — the SAA1099
+
+`Sources/SidayKit/SAA1099/SAA1099.swift` is a Swift port of SAASound (https://github.com/stripwax/SAASound),
+Dave Hooper's emulation of the Philips SAA1099: its oscillators and when what is written to them is
+taken up, its noise, its envelopes, and how a channel's mixer, volume and envelope make its level.
+It is stepped at a rate of its own and not as SAASound steps it, and two things are otherwise than in
+SAASound: each channel swings either side of nought, and an offset written on its own is not held
+for a half of the wave more (see FORMATS.md, under VGM).
+
+```
+SAASound - a portable Phillips SAA 1099 sound chip emulator
+
+Copyright (c) 1998-2004, Dave Hooper <dave@beermex.com>
+Copyright (c) 2004-2025, Dave Hooper <dave@beermex.com> + Simon Owen <simon@simonowen.com>
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+- Neither the name Dave Hooper nor the names of its contributors may
+  be used to endorse or promote products derived from this software without
+  specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ## MAME — the SN76489
 
 `Sources/SidayKit/SN76489/SN76489.swift` is a Swift port of MAME's emulation of Texas Instruments'

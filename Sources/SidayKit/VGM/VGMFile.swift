@@ -7,10 +7,11 @@
 // of writing the same to the same chip at the same moments. The format covers some fifty chips; of
 // those, the Yamaha FM chips of the PC's AdLib and Sound Blaster cards are played here, on the OPL3
 // that plays the other music made for those cards: the OPL (YM3526), the OPL2 (YM3812) and the OPL3
-// (YMF262), and two of any of them; and the AY-3-8910 and the chips made like it, on the chip that
-// plays the ZX Spectrum's and the Atari ST's music. VGZ is the same file packed by gzip. The format
-// is set out in vgmspecs.txt, which comes with VGMPlay; libvgm, its player, is what this was set
-// beside.
+// (YMF262), and two of any of them; the AY-3-8910 and the chips made like it, on the chip that
+// plays the ZX Spectrum's and the Atari ST's music; the SN76489 of the PCjr and the Tandy 1000; the
+// two SAA1099s of the Creative Music System; and a DAC, which a Sound Blaster's samples are
+// recorded as written to. VGZ is the same file packed by gzip. The format is set out in
+// vgmspecs.txt, which comes with VGMPlay; libvgm, its player, is what this was set beside.
 
 /// A VGM file for the chips played here, read.
 struct VGMFile {
@@ -29,6 +30,8 @@ struct VGMFile {
         case dac
         /// Texas Instruments' SN76489, or one made like it: the PCjr's and the Tandy 1000's among them.
         case sn
+        /// Philips' SAA1099: the SAM Coupé's, and two of them the Creative Music System's.
+        case saa
 
         /// Where a file gives its clock.
         var place: Int {
@@ -39,6 +42,7 @@ struct VGMFile {
             case .ay: 0x74
             case .dac: 0x2C
             case .sn: 0x0C
+            case .saa: 0xC8
             }
         }
 
@@ -51,6 +55,7 @@ struct VGMFile {
             case .ay: 0x12
             case .dac: 0x02
             case .sn: 0x00
+            case .saa: 0x23
             }
         }
 
@@ -102,7 +107,7 @@ struct VGMFile {
         (0x98, "the OKIM6295"), (0x9C, "Konami's SCC"), (0xA0, "the K054539"), (0xA4, "the PC Engine's HuC6280"),
         (0xA8, "the C140"), (0xAC, "the K053260"), (0xB0, "the Atari's POKEY"), (0xB4, "Capcom's QSound"),
         (0xB8, "the Saturn's SCSP"), (0xC0, "the WonderSwan's"), (0xC4, "the Virtual Boy's VSU"),
-        (0xC8, "the SAA1099"), (0xCC, "the ES5503"), (0xD0, "the ES5506"), (0xD8, "the X1-010"),
+        (0xCC, "the ES5503"), (0xD0, "the ES5506"), (0xD8, "the X1-010"),
         (0xDC, "the C352"), (0xE0, "the GA20"),
     ]
 
@@ -127,7 +132,7 @@ struct VGMFile {
         func byte(_ at: Int) -> UInt8 { at < headerEnd ? data[at] : 0 }
 
         for other in Self.others where clock(other.place) & 0x3FFF_FFFF != 0 {
-            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips, the AY-3-8910, the SN76489 and a DAC are")
+            throw .unsupported("a VGM file for \(other.name), which is not played: only the AdLib's and Sound Blaster's FM chips, the AY-3-8910, the SN76489, the SAA1099 and a DAC are")
         }
         ayType = byte(0x78)
         ayFlags = byte(0x79)
@@ -167,6 +172,7 @@ struct VGMFile {
             case .ay: hertz / 8
             case .dac: 100_000.0
             case .sn: hertz / 16
+            case .saa: hertz / 128
             }
             guard rate >= 10000, rate <= 1_000_000 else { throw .malformed("a VGM file whose chip's clock is \(clocked & 0x3FFF_FFFF) Hz") }
             parts.append(Part(chip: chip, two: two, clock: hertz, volumes: Array(repeating: two ? 0.5 : 1, count: two ? 2 : 1)))
@@ -310,6 +316,7 @@ struct VGMFile {
             case .ay: ayName
             case .dac: "DAC (as a YM2612's)"
             case .sn: "SN76489"
+            case .saa: "SAA1099"
             }
             return (part.two ? "2 × " : "") + name + (part.chip == .opl2 && sides ? ", left and right" : "")
         }.joined(separator: " and ")

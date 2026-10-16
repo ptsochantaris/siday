@@ -314,3 +314,75 @@ final class VGMSN: VGMSoundChip {
         for channel in 0 ..< 4 { chip.muted[channel] = channel < muted.count && muted[channel] }
     }
 }
+
+/// An SAA1099. It is stepped at its clock over 128, as libvgm steps it, which is fast enough for its
+/// fastest noise; its writes are timed to the eighth of a sample, and what it makes is filtered as
+/// the DAC's is.
+final class VGMSAA: VGMSoundChip {
+    private var chip: SAA1099Chip
+    private let output: UnsafeMutablePointer<ChipOversampler>
+    private let clock: Double, chipRate: Double
+    let rate = ChipOversampler.innerRate
+    var samplesLeft = 0
+    var voices: Int { 6 }
+    private static let b1 = exp(-2.0 * Double.pi * 3.18309886184 / Double(outputSampleRate))
+    private var steadyLeft = 0.0, steadyRight = 0.0
+
+    init(clock: Double) {
+        self.clock = clock
+        chipRate = clock / 128
+        chip = SAA1099Chip(clock: clock, rate: chipRate)
+        output = .allocate(capacity: 1)
+        output.initialize(to: ChipOversampler(chipRate: chipRate, stereo: true))
+    }
+
+    deinit {
+        output.deinitialize(count: 1)
+        output.deallocate()
+    }
+
+    func reset() {
+        chip.reset()
+        output.pointee = ChipOversampler(chipRate: chipRate, stereo: true)
+        samplesLeft = 0
+        steadyLeft = 0
+        steadyRight = 0
+    }
+
+    /// A register's number and what is written to it: the chip is given the one and then the other.
+    func write(_ register: Int, _ value: UInt8) {
+        chip.writeAddress(UInt8(register & 0xFF))
+        chip.writeData(value)
+    }
+
+    func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
+        var made = 0
+        while made < frames, samplesLeft > 0 {
+            samplesLeft -= 1
+            guard output.pointee.innerStep({ chip.step() }) else { continue }
+            var (l, r) = output.pointee.finishSample()
+            // (What is steady is taken out, as on the card's board: the chip's levels are all above nought.)
+            steadyLeft = l * (1 - Self.b1) + steadyLeft * Self.b1
+            steadyRight = r * (1 - Self.b1) + steadyRight * Self.b1
+            l -= steadyLeft
+            r -= steadyRight
+            let remaining = samplesLeft + after
+            let scale = remaining < fade ? gain * Float(remaining) / Float(fade) : gain
+            buffer[made * 2] = Float(l) * scale
+            buffer[made * 2 + 1] = Float(r) * scale
+            made += 1
+        }
+        return made
+    }
+
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) { chip.takeLevels(into: levels) }
+    func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
+        chip.takeNotes(pitches: pitches, struck: struck, clock: clock)
+    }
+
+    func takeSides(into sides: UnsafeMutablePointer<Float>) { chip.sides(into: sides) }
+
+    func setMuted(_ muted: [Bool]) {
+        for channel in 0 ..< 6 { chip.muted[channel] = channel < muted.count && muted[channel] }
+    }
+}

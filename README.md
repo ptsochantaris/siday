@@ -29,7 +29,7 @@ siday ~/Music/chiptunes --shuffle
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
-| AdLib and Sound Blaster FM, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip; a recording's own writes, at its own moments, on the FM chip, the AY chip, the SN76489 or a DAC |
+| AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip; a recording's own writes, at its own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
 
 Each of these was set beside a reference player, most of them to the sample:
 [How it is built](#how-it-is-built) says what each is made from and what it was checked against, and
@@ -489,6 +489,9 @@ What it is made from:
   and from it how a file's volume and its chips' are read, when a write is made, and how its
   streams of samples are written and its blocks of them unpacked. Nothing of its own code is in the
   player.
+- [SAASound](https://github.com/stripwax/SAASound) by Dave Hooper, with Simon Owen: the Philips
+  SAA1099, the chip of the SAM Coupé and of the Creative Music System, as its author revised it on
+  the study of the chip by the DOSBox team and others.
 - [MAME](https://www.mamedev.org/)'s emulation of the SN76489 and the chips made like it, by Nicola
   Salmoria and others, as libvgm has it: the chip of the PCjr and the Tandy 1000. How their noises
   differ was found by Lord Nightmare, Michael Zapf, PlgDavid, Valley Bell and NewRisingSun, among

@@ -1971,9 +1971,26 @@ only within 0.6 dB, for a reason not found. King's Quest II's files ask to be 11
 libvgm plays the chip, and others to be louder, and siday has the chip 5 dB under libvgm's level,
 where the middle of them is as loud as the rest.
 
+Philips' SAA1099 has six square waves, each at its own volume on each side, two noises and two
+envelopes. It was the SAM Coupé's sound, and two of them were Creative's first card, the Creative
+Music System of 1987, sold again as the Game Blaster. It is played from 16 October 2026 on a Swift
+port of SAASound, Dave Hooper's emulation of it (with Simon Owen), which is the SimCoupé
+emulator's and was revised from 2018 on others' study of the chip itself. siday steps it at its
+clock over 128, as libvgm does, and band-limits it. Two things are not as SAASound has them. Each
+channel swings either side of nought, as libvgm has them, and not from nought up as the chip's own
+outputs do: otherwise every note started or stopped would move what is steady, and the card's
+filter would let that through as a thump (it was 11 to 14 dB of the lowest sound, beside libvgm).
+And an offset written to an oscillator on its own is taken up at the end of its half of a wave, not
+held for a half more: SAASound's author asks in its code whether the chip really does that, and it
+put a tune of many writes 2 dB from libvgm, which takes a write up at once. libvgm's own emulation of the chip
+is Valley Bell's, checked against recordings of the chip by NewRisingSun, and libvgm has MAME's as
+well. Beside Valley Bell's, siday is within 0.5 dB of it from moment to moment half the time, and its
+spectrum 0.992 a window, the middle of 13 files of the 98 to hand: as near as libvgm's two are to each
+other (0.6 dB). It is as loud as the rest by the middle of the 98.
+
 A file for any other chip is refused,
-with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,611 play
-and 98 are refused, all for the Creative Music System's two SAA1099s. One is silent: a third
+with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, all
+5,710 play. One is silent: a third
 of a second that sets the chip up and plays nothing.
 
 A write that comes at a moment is made before the first of the chip's samples at or after it, the

@@ -64,6 +64,9 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// level, which is this chip's at 0.5. (King's Quest II's ask to be 11.5 dB quieter than that, and
     /// the Tandy 1000's up to 7 dB louder, so that they are either side of it.)
     static let snGain: Float = 0.28
+    /// The same for an SAA1099's, by the middle of the 98 there are (2026-10-16), the Creative Music
+    /// System's.
+    static let saaGain: Float = 0.22
     /// The same for a DAC: as loud beside the FM chip as libvgm has it, by measure of each alone in
     /// both (2026-10-16, four files of three games; their FM at 2.8 dB over libvgm's, as for every
     /// FM chip, and so their DAC too).
@@ -90,6 +93,9 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 case .sn:
                     chips.append(VGMSN(file.snVariant, clock: part.clock))
                     gains.append(Self.snGain * file.volume * volume)
+                case .saa:
+                    chips.append(VGMSAA(clock: part.clock))
+                    gains.append(Self.saaGain * file.volume * volume)
                 default:
                     chips.append(VGMOPL(part.chip, clock: part.clock))
                     gains.append(Self.gain * file.volume * volume)
@@ -219,6 +225,10 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             case 0x4F, 0x3F:
                 write(.sn, second: command == 0x3F, 1, byte(1))
                 at += 2
+            case 0xBD:
+                // (The top bit of the register's number chooses the second.)
+                write(.saa, second: byte(1) & 0x80 != 0, Int(byte(1) & 0x7F), byte(2))
+                at += 3
             case 0x52:
                 write(.dac, second: false, Int(byte(1)), byte(2))
                 at += 3
@@ -375,7 +385,7 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                     switch kind {
                     case .dac, .opl3:
                         chips[stream.chip].write((stream.register >> 8 != 0 ? 0x100 : 0) | stream.register & 0xFF, value)
-                    case .opl, .opl2, .ay:
+                    case .opl, .opl2, .ay, .saa:
                         chips[stream.chip].write(stream.register & 0xFF, value)
                     case .sn:
                         // A volume, of four bits; or a period, of ten in two bytes, in two writes.
