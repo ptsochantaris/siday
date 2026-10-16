@@ -21,6 +21,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case plm
     case dsm
     case digi
+    case vgm
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -28,6 +29,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         let name = fileExtension.lowercased()
         if name == "mmd0" || name == "mmd1" || name == "mmd2" || name == "mmd3" {
             self = .med
+        } else if name == "vgz" {
+            // (A VGM file packed by gzip, which is how they are mostly kept.)
+            self = .vgm
         } else if name == "snd" {
             // (As SNDH files were named before the format had a name of its own.)
             self = .sndh
@@ -183,6 +187,10 @@ public enum TuneLoader {
             return try ROLTune.renderer(data, banks: options.adLibBanks)
         case .fmt:
             return try FMTTune.renderer(data)
+        case .vgm:
+            // What was written to the AdLib's or Sound Blaster's FM chip, and when. (A VGZ file has
+            // been unpacked above.)
+            return try VGMRenderer(data, options: options)
         }
     }
 

@@ -1911,6 +1911,41 @@ another emulation of the chip: tick by tick the two are as loud as each other to
 a decibel for half the ticks and one decibel for nine in ten, and their spectra keep close.
 It is heard as the other two are, and turned down by half, by measure, to be as loud as they are.
 
+## VGM — what was written to the chip, and when
+
+A VGM file (Video Game Music) holds no tune and no player:
+it is a recording of what a machine wrote to its sound chips while the music played, every write in
+order, with the waits between them counted in 44,100ths of a second. To play one is to write the same
+to the same chip at the same moments. The format grew to cover dozens of chips, of game consoles,
+arcade boards and computers; the PC's music was recorded from the games as they ran. VGZ is the same
+file packed by gzip, which is how they are mostly kept, and a gzip file of any kind is now unpacked
+before it is read.
+
+What is played here is the PC's FM music, on the OPL3 that plays the other music made for the AdLib
+and Sound Blaster cards: the OPL (YM3526), with its one wave; the OPL2 (YM3812), the AdLib's; and the
+OPL3 (YMF262), the Sound Blaster Pro 2's and 16's, with its eighteen channels and its two sides. Two
+of a chip are played too, and two OPL2s that a file marks as a Sound Blaster Pro's, Creative's first
+card in stereo, are put each on its own side, as that card had them. A file asks for its own
+volume, and may ask for one chip to be louder; both are heard. A file for any other chip is refused,
+with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, 5,529 play
+and 180 are refused, for the Creative Music System's two SAA1099s (98), the Sega Mega Drive's YM2612
+(34), the AY-3-8910 (30), and the SN76489 of the PCjr and the Tandy 1000 (18). One is silent: a third
+of a second that sets the chip up and plays nothing.
+
+A write that comes at a moment is made before the first of the chip's samples at or after it, the
+chip running at its clock over 288, or over 72 for the two before the OPL3, in whole samples a second,
+as libvgm runs it. Writes that come together each land a little after the one before, as on the chip
+itself, where each took a moment. `siday --raw file.raw tune.vgz` writes the chips' own samples, and
+they agree to the sample with the original Nuked OPL3 given the same writes at the same moments, on
+99 files of every kind, the Sound Blaster Pro's pairs among them. libvgm, Valley Bell's player of
+the format, makes nearly the same: the same notes and the same sound (spectrum 0.998, loudness over time
+0.999, for the middle of 61 files), but not quite the same moments for writes that come thick and
+fast, and not even the same as itself, since where it puts those depends on how much sound it is
+asked for at a time. And in one file to hand it leaves out the louder chip the file asks for, which
+siday gives it, as the format has it. VGM files are louder than the other music for the chip, many
+of them because the file asks for more, and are turned down by 6 dB more than that music, by measure,
+to be as loud as it is.
+
 ## AYL — Ay_Emul's playlists
 
 Ay_Emul, Sergey Bulba's player for Windows, keeps its playlists as text. An AYL file

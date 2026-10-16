@@ -29,7 +29,7 @@ siday ~/Music/chiptunes --shuffle
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
-| AdLib and Sound Blaster FM | CMF, ROL, FMT | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip |
+| AdLib and Sound Blaster FM | CMF, ROL, FMT; VGM and VGZ recordings of the OPL, OPL2 and OPL3 | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip; a recording's own writes, at its own moments |
 
 Each of these was set beside a reference player, most of them to the sample:
 [How it is built](#how-it-is-built) says what each is made from and what it was checked against, and
@@ -178,6 +178,8 @@ its own line as it starts.
   `SIDAY_SONGLENGTHS=<that file> swift test` checks every entry of it against the file.
 - A CMF or ROL file ends where its music does, with a second after it for the last notes to die away.
 - An FMT file went round for ever in its tracker. It is played through once, and given the same second.
+- A VGM file that goes round is played round as many times as `--loops` says, like a module; one that
+  does not ends where its writes do, with the same second.
 - Only a tune that is still playing at that point is faded out, since it would go on repeating. One
   that has come to rest there has an ending of its own and simply stops. An AY file that asks for a
   particular fade gets that one.
@@ -483,6 +485,9 @@ What it is made from:
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.
+- [libvgm](https://github.com/ValleyBell/libvgm) by Valley Bell: the player VGM files were set beside,
+  and from it how a file's volume and its chips' are read and when a write is made. Nothing of it is
+  in the player.
 - [fmdrv](https://github.com/viiri/fmdrv) by Sergei "x0r" Kolzun: SBFMDRV, the driver that played CMF
   files on a Sound Blaster, ported by him to C from the driver itself. The driver and the CMF format
   are Creative's.
