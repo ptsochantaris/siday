@@ -1989,7 +1989,9 @@ put a tune of many writes 2 dB from libvgm, which takes a write up at once. libv
 is Valley Bell's, checked against recordings of the chip by NewRisingSun, and libvgm has MAME's as
 well. Beside Valley Bell's, siday is within 0.5 dB of it from moment to moment half the time, and its
 spectrum 0.992 a window, the middle of 13 files of the 98 to hand: as near as libvgm's two are to each
-other (0.6 dB). It is as loud as the rest by the middle of the 98.
+other (0.6 dB). It is as loud as the rest by the middle of the 98. Its music puts most voices on one side or the
+other (nine of every ten volumes written to it are for one side alone), and so its sides are brought
+together as the Sound Blaster Pro's are, by the same setting.
 
 A file for any other chip is refused,
 with that chip's name. Of the 5,710 files to hand, from the OPL Archive and from PC games, all

@@ -29,8 +29,11 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     /// kind; -1 for one there is not.
     private let slots: [Int]
     private let mono: Bool
-    /// How much of the difference between a Sound Blaster Pro's two sides is kept, halved.
+    /// How much of the difference between a Sound Blaster Pro's two sides is kept, halved; and which
+    /// chips have their own sides brought together by as much, as the Creative Music System's
+    /// SAA1099s, whose voices are each on one side.
     private let side: Float
+    private let narrowed: [Bool]
     /// Where the next command is; how far into the music the commands have come, in 44,100ths of a
     /// second, to the end of the last wait; how far the chips have been taken, in the same with a
     /// fraction, since a stream writes between them; and how many of each chip's steps have been
@@ -107,6 +110,7 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         self.chips = chips
         self.gains = gains
         self.slots = slots
+        narrowed = file.parts.flatMap { part in part.volumes.map { _ in part.chip == .saa } }
         given = Array(repeating: 0, count: chips.count)
         made = chips.map { _ in .allocate(capacity: Self.madeCapacity * 2) }
         madeFrames = Array(repeating: 0, count: chips.count)
@@ -447,6 +451,14 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             }
             let count = min(ready, frames - done)
             let out = buffer + done * 2
+            for (index, block) in made.enumerated() where narrowed[index] && side < 0.5 {
+                for i in 0 ..< count {
+                    let l = block[i * 2], r = block[i * 2 + 1]
+                    let middle = (l + r) * 0.5, apart = (l - r) * side
+                    block[i * 2] = middle + apart
+                    block[i * 2 + 1] = middle - apart
+                }
+            }
             if file.sides {
                 // (A Sound Blaster Pro's two, each on its own side, twice as loud there as it would
                 // be in the middle; and then brought nearer together, as far as the listener asks.)

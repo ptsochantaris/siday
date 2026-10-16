@@ -409,7 +409,7 @@ private func saa(_ writes: [(UInt8, UInt8)], second: Bool = false) -> [UInt8] {
 @Test func vgmOfAnSAA1099PlaysItsToneAtItsPitchOnItsSides() throws {
     // Octave 6 and offset 11: 15,625 times 64 over 500 is 2,000 Hz. Left at its loudest, right silent.
     let writes = saa([(0x00, 0x0F), (0x08, 11), (0x10, 6), (0x14, 0x01), (0x1C, 0x01)]) + [0x61] + word(44100)
-    let renderer = try TuneLoader.load(saaFile(writes, ticks: 44100), format: .vgm, options: stereoOptions)
+    let renderer = try TuneLoader.load(saaFile(writes, ticks: 44100), format: .vgm, options: cardOptions)
     #expect(renderer.channelCount == 6)
     #expect(renderer.info.detail == "SAA1099")
     let sound = stereo(renderer, seconds: 1)
@@ -417,6 +417,14 @@ private func saa(_ writes: [(UInt8, UInt8)], second: Bool = false) -> [UInt8] {
     #expect(loudness(side(sound, 1)[4800...]) < loudness(side(sound, 0)[4800...]) * 0.001)
     var sides = [Float](repeating: 0, count: 6)
     renderer.takeChannelSides(into: &sides)
+    #expect(sides[0] == -1)
+    // Brought most of the way together unless the listener asks otherwise, as a Sound Blaster Pro's
+    // sides are: 0.6 of it on the left and 0.4 on the right. It is still said to be on the left.
+    let near = try TuneLoader.load(saaFile(writes, ticks: 44100), format: .vgm, options: stereoOptions)
+    let n = stereo(near, seconds: 1)
+    #expect(abs(loudness(side(n, 0)[4800...]) / loudness(side(sound, 0)[4800...]) - 0.6) < 0.01)
+    #expect(abs(loudness(side(n, 1)[4800...]) / loudness(side(sound, 0)[4800...]) - 0.4) < 0.01)
+    near.takeChannelSides(into: &sides)
     #expect(sides[0] == -1)
     // Nothing is heard until all its channels are switched on.
     let off = saa([(0x00, 0x0F), (0x08, 11), (0x10, 6), (0x14, 0x01)]) + [0x61] + word(44100)

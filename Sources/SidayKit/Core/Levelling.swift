@@ -130,8 +130,8 @@ public extension SongLevel {
     /// from before is measured again and not taken as it is. (1: the first, of 16 October 2026; 2:
     /// XM plug-ins given the voices as loud as OpenMPT's way of adding up has them; 3: the second of
     /// a Sound Blaster Pro's two FM chips kept in time with its writes; 4: its two sides brought most
-    /// of the way together, as an Amiga's are.)
-    static let soundVersion = 4
+    /// of the way together, as an Amiga's are; 5: the Creative Music System's too.)
+    static let soundVersion = 5
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {

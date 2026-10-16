@@ -81,7 +81,7 @@ struct Siday: ParsableCommand {
     @Option(help: "How far apart a module's left and right are kept, in percent. 100 is the Amiga's own, which is harsh in headphones.")
     var amigaSeparation = 20.0
 
-    @Option(help: "How far apart the left and right of a recording from the first Sound Blaster Pro (a VGM file of its two FM chips) are kept, in percent. 100 is the card's own, one chip on each side, which is harsh in headphones.")
+    @Option(help: "How far apart the left and right of a recording from the first Sound Blaster Pro or the Creative Music System (a VGM file of their chips) are kept, in percent. 100 is the card's own, which is harsh in headphones.")
     var sbProSeparation = 20.0
 
     @Option(help: "The sound card an S3M file is played on: gus, or sb for a Sound Blaster Pro's eight bits. Default: the one the file was saved with.")
