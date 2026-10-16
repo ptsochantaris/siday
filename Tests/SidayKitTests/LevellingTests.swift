@@ -140,3 +140,17 @@ private final class Tone: Renderer {
     let key = SongLevel.key(of: [1, 2, 3], song: 0, options: LoadOptions(), policy: PlaybackPolicy())
     #expect(key.hasPrefix("\(SongLevel.soundVersion) "))
 }
+
+@Test func aSongPartlyMeasuredHasALevelToStartAt() throws {
+    let measurement = SongMeasurement(renderer: Tone(length: 30, before: -20, after: -30, change: 10), policy: PlaybackPolicy())
+    #expect(measurement.provisional == nil)
+    measurement.measure(frames: 48000)
+    #expect(measurement.provisional == nil)
+    measurement.measure(frames: 4 * 48000)
+    // Five seconds in, it is as loud as those five seconds; measured whole, it is quieter.
+    let early = try #require(measurement.provisional?.loudness)
+    #expect(abs(early + 20) < 0.2)
+    while measurement.measure(frames: 48000) == nil {}
+    #expect(measurement.provisional == measurement.level)
+    #expect(try #require(measurement.level?.loudness) < early - 1)
+}

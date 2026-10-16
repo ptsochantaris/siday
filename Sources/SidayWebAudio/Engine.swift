@@ -308,6 +308,18 @@ final class WebPlayer {
         }
     }
 
+    /// True if the song is not to be heard until it is levelled: songs are levelled, and its level
+    /// is not known yet.
+    var waitsForLevel: Bool { levelling != .off && level == nil }
+
+    /// Starts the song at about its level, by what has been measured of it so far, when it cannot
+    /// wait any longer to be measured whole: at once, if hardly any of it has been heard. Once it
+    /// has been measured whole it glides from there to its level.
+    func startAtProvisionalLevel() {
+        guard waitsForLevel, presented < outputSampleRate / 10, let meter, meter.frames >= 2 * outputSampleRate else { return }
+        gain = LevelGain(SongLevel(loudness: meter.loudness, truePeak: meter.truePeak).gain(levelling))
+    }
+
     var levelChange: Double {
         guard levelling != .off, let level else { return .nan }
         return level.change(levelling)
@@ -489,6 +501,21 @@ public func sidaySetLevel(_ text: UnsafePointer<UInt8>, _ length: Int32) -> Int3
 @_cdecl("siday_level_change")
 public func sidayLevelChange() -> Double {
     player.levelChange
+}
+
+/// 1 if the song is not to be heard until it is levelled: songs are levelled, and its level is not
+/// known yet, from what was kept or from measuring it whole.
+@_expose(wasm, "siday_waits_for_level")
+@_cdecl("siday_waits_for_level")
+public func sidayWaitsForLevel() -> Int32 {
+    player.waitsForLevel ? 1 : 0
+}
+
+/// The song can wait no longer: it starts at about its level, by as much of it as has been measured.
+@_expose(wasm, "siday_start_at_provisional_level")
+@_cdecl("siday_start_at_provisional_level")
+public func sidayStartAtProvisionalLevel() {
+    player.startAtProvisionalLevel()
 }
 
 @_expose(wasm, "siday_pull")

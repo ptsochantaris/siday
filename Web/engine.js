@@ -86,10 +86,24 @@ let next = 0;
 let sending = false;
 /// Chunks handed to the audio thread that it has not yet played.
 let waiting = 0;
-/// Until when sending waits, after a song is loaded, for the page to say what level was kept for
-/// it: a moment, so that a song measured before starts at its level. Nothing once the page has said.
+/// Until when sending waits, after a song is loaded and while songs are levelled, for the song's
+/// level: first a moment for the page to say what level was kept for it, so that a song measured
+/// before starts at its level; and then, if none was, up to a second more while it is measured as
+/// it is rendered. A song that is measured whole in that time starts at its level; one that is
+/// not starts at about it, by as much of it as has been measured, and glides to it once the whole
+/// of it has been. Nothing once the level is known, or the song is on its way.
 let levelWait;
-const levelWaitLongest = 150;
+/// True once the moment for the page to answer is over, and the song is being measured.
+let measuring = false;
+const keptWaitLongest = 150;
+const measuringWaitLongest = 1000;
+
+/// The song was not measured before: it is given a little time to be measured now.
+function waitForMeasuring() {
+  measuring = true;
+  levelWait = performance.now() + measuringWaitLongest;
+  setTimeout(send, measuringWaitLongest + 10);
+}
 
 /// What the song's level is kept under, by the page (see `SongLevel.key`): the same for the same song
 /// of the same file, played the same way.
@@ -276,7 +290,14 @@ function finish() {
 /// Sends chunks until enough are waiting to be played, or there are no more to send yet.
 function send() {
   if (levelWait !== undefined) {
-    if (performance.now() < levelWait) return;
+    if (core.siday_waits_for_level() === 1) {
+      if (performance.now() < levelWait) return;
+      if (!measuring) {
+        waitForMeasuring();
+        return;
+      }
+      core.siday_start_at_provisional_level();
+    }
     levelWait = undefined;
   }
   // The song as the listener now wants it is taken up as soon as it has been rendered past the
@@ -399,8 +420,9 @@ self.onmessage = async (event) => {
       waiting = 0;
       sending = plays;
       if (plays) {
-        levelWait = performance.now() + levelWaitLongest;
-        setTimeout(send, levelWaitLongest + 10);
+        measuring = false;
+        levelWait = performance.now() + keptWaitLongest;
+        setTimeout(send, keptWaitLongest + 10);
       }
       start();
       break;
@@ -462,7 +484,8 @@ self.onmessage = async (event) => {
       // The level the page kept for the song, from when it was measured before, or none.
       if (file && message.key === levelKey()) {
         if (message.text) withBytes(new TextEncoder().encode(message.text).buffer, (text, length) => core.siday_set_level(text, length));
-        levelWait = undefined;
+        // (None was kept: the song is measured now, for a moment, before it is heard.)
+        if (levelWait !== undefined && !measuring && core.siday_waits_for_level() === 1) waitForMeasuring();
         send();
       }
       break;

@@ -20,6 +20,8 @@ final class Levels: @unchecked Sendable {
         var wanted: [Song] = []
         /// What has been found in this run, by file and song number.
         var found: [Song: SongLevel] = [:]
+        /// What has been found so far of a song that is being measured: see `SongMeasurement.provisional`.
+        var provisional: [Song: SongLevel] = [:]
         /// Songs that could not be measured, so as not to try again.
         var failed: Set<Song> = []
         /// The levels kept from earlier runs and found in this one, by `SongLevel.key`.
@@ -66,6 +68,12 @@ final class Levels: @unchecked Sendable {
     /// What was found for a song, if it has been measured.
     func level(of url: URL, song: Int) -> SongLevel? {
         state.withLock { $0.found[Song(url: url, number: song)] }
+    }
+
+    /// What has been found so far of a song that is still being measured, or of one that has been.
+    func provisionalLevel(of url: URL, song: Int) -> SongLevel? {
+        let song = Song(url: url, number: song)
+        return state.withLock { $0.found[song] ?? $0.provisional[song] }
     }
 
     /// Measures a song at once, on the thread that asks, if it has not been already; nil if it
@@ -115,7 +123,9 @@ final class Levels: @unchecked Sendable {
             while level == nil {
                 guard stillWanted() else { return nil }
                 level = measurement.measure(frames: outputSampleRate)
+                if level == nil, let provisional = measurement.provisional { state.withLock { $0.provisional[found] = provisional } }
             }
+            state.withLock { _ = $0.provisional.removeValue(forKey: found) }
             if let level { keep(level, as: key) }
         }
         state.withLock {

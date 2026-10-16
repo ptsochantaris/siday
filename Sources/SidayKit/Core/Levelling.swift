@@ -82,6 +82,15 @@ public final class SongMeasurement {
         block.deallocate()
     }
 
+    /// What has been found so far, while the song is still being played through, once there are a
+    /// couple of seconds of it to go by; or what was found, once it all has been. For starting a song
+    /// at about its level when it cannot wait to be measured whole.
+    public var provisional: SongLevel? {
+        if let level { return level }
+        guard meter.frames >= 2 * outputSampleRate else { return nil }
+        return SongLevel(loudness: meter.loudness, truePeak: meter.truePeak)
+    }
+
     /// Plays about `frames` more of the song, and returns what was found once it has all been played.
     @discardableResult
     public func measure(frames: Int) -> SongLevel? {

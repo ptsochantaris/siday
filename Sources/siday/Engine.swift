@@ -222,10 +222,17 @@ final class Engine: @unchecked Sendable {
                         wanted.append(Levels.Song(url: playlist[index + 1], number: nil))
                     }
                     levels.want(wanted)
+                    // A song not measured before is given up to a second to be measured now; if
+                    // that is not enough, it starts at about its level, by as much of it as has
+                    // been measured, and glides to its level once the whole of it has been.
+                    let until = Date().addingTimeInterval(1)
+                    while levels.level(of: url, song: subsong) == nil, Date() < until { usleep(10000) }
                     if let level = levels.level(of: url, song: subsong) {
                         gain = LevelGain(level.gain(levelling))
                         levelled = true
                         nowPlaying.withLock { $0.levelChange = level.change(levelling) }
+                    } else if let partly = levels.provisionalLevel(of: url, song: subsong) {
+                        gain = LevelGain(partly.gain(levelling))
                     }
                 }
 
