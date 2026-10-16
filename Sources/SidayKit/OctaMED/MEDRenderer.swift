@@ -79,11 +79,13 @@ public final class MEDRenderer: Renderer {
     private static let tickSpace = Int(Int64(MEDPlayer.longestTick) * Int64(outputSampleRate) * 2 / Int64(clock)) + 64
     /// A tune that has not come round after this many ticks is taken not to.
     private static let mostTicks = 50 * 60 * 120
-    /// As loud as a MOD file, which is played on the same chip. See `MODRenderer`.
-    private static let gain: Float = 0.26
-    /// And for a song in mixing mode, which has no chip: by measure, over the songs there were to
-    /// measure, as loud as MOD files are.
-    private static let mixingGain: Float = 0.58
+    /// Set by measure, so that the middle of a run of MED tunes is as loud as the middle of the
+    /// other kinds, by how loud they are heard (LUFS): 2 dB below a MOD file's, the same chip
+    /// playing it, as MED tunes fill it more.
+    private static let gain: Float = 0.206
+    /// And for a song in mixing mode, which has no chip: by the same measure, over the songs there
+    /// were to measure.
+    private static let mixingGain: Float = 0.46
 
     public init(_ data: [UInt8], options: LoadOptions) throws {
         module = try MEDModule(data)

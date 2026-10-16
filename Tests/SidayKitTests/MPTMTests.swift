@@ -973,8 +973,9 @@ private func ways(without left: Int...) -> Song {
     #expect(abs(softLeft.left / softMiddle.left - 1) < 0.02 && softLeft.right < softMiddle.right * 0.3)
     let middle = try sides(4, pan: 0x80), left = try sides(4, pan: 0x20)
     #expect(left.left > middle.left * 1.6 && left.right < middle.right * 0.3)
-    // And that way is twice as loud.
-    #expect(abs(softMiddle.left / middle.left - 2) < 0.05)
+    // And that way is twice as loud in OpenMPT; here each way is turned so that its files are as
+    // loud as the others, by how loud they are heard: that one by 0.8 dB and this by 2.4.
+    #expect(abs(softMiddle.left / middle.left - 2 * 1.1 / 1.32) < 0.05)
 }
 
 @Test func mptmFormatIsKnownByItsName() {

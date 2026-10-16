@@ -152,5 +152,6 @@ enum C67File {
     /// How loud the samples and the chip are made. OpenMPT has each at 48 for a file it has just
     /// read; these are less by the same part, set by measure, so that these files are about as
     /// loud as XM files are and the two stay to each other as OpenMPT has them.
-    private static let mixVolume: UInt8 = 30, synthVolume: UInt8 = 30
+    /// (Since 2026-10-16 by how loud the tunes are heard, LUFS.)
+    private static let mixVolume: UInt8 = 34, synthVolume: UInt8 = 34
 }

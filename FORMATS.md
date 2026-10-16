@@ -7,6 +7,17 @@ beside a tune is pressed, and on the command line `siday --about FORMAT` prints 
 a tune of it plays). What the player is made of as a whole is in the README's
 [How it is built](README.md#how-it-is-built).
 
+Every kind of file is made about as loud as every other, which comes before how loud each was in
+its own player: a loud tune is to be loud whatever it is, and a quiet one quiet. At first that was
+set by plain measure of the sound's power, the middle of a run of each kind brought to one level;
+since October 2026 it is by how loud the sound is heard, by the way broadcasters measure it
+(ITU-R BS.1770, in LUFS), which counts the middle of what the ear hears most and passes over
+silences. The two mostly agree; where they did not, it was bright chip sounds and the bass and FM
+of some kinds that plain power had got wrong, and the new measure put the tunes of the listening
+tests in the order they were heard in more often (23 of 25 times, where the old one had 18). MED,
+CMF, AY and AHX files were turned down by 1.2 to 2 dB for it, C67 up by 1.1, and the ways of
+adding up of ModPlug Tracker and OpenMPT as told in their own parts below.
+
 ## PT3 and the other AY trackers, VTX and AY files — the ZX Spectrum and the Amstrad CPC
 
 The AY-3-8910 is a sound chip that General Instrument made from 1978: three voices of square wave,
@@ -934,7 +945,11 @@ ported from gives ModPlug Tracker's own files is taken out again. The ways of Op
 which one is twice as loud as Impulse Tracker and puts a channel that is to one side at no more
 than one in the middle, are followed, and measured so they leave their files as loud as the rest.
 Measured over three hundred ModPlug Tracker and OpenMPT files and three hundred others, the middle
-file of every way is now within about a decibel of the middle IT file, and of the middle XM file.
+file of every way is now within about a decibel of the middle IT file, and of the middle XM file. By how
+loud they are heard (see the beginning), ModPlug Tracker's own way came out 1.4 dB louder than the
+rest even so, and is turned down by that; in an MPTM file OpenMPT 1.17's way, its compatible one and
+ModPlug Tracker's are raised by 0.8, 2.4 and 2.2 dB, which brings the middle file of each to the
+same level.
 
 All of that was checked by setting every sounding channel's filter beside libopenmpt's on every
 tick of a file's first minute: whether it is on, and the three numbers it is worked by. Of the 215

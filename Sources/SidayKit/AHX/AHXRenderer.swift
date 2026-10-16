@@ -62,7 +62,8 @@ public final class AHXRenderer: Renderer, ReferenceComparable {
     /// Two voices at their loudest on one side come to twice this. It is set by measure, so that the
     /// middle of a run of AHX tunes comes out as loud as the middle of a run of MOD files. It is less
     /// than a MOD file's, since a wave that is made up fills a voice as few samples do.
-    private static let gain: Float = 0.17
+    /// (Since 2026-10-16 by how loud the tunes are heard, LUFS, by which AHX's waves stood out.)
+    private static let gain: Float = 0.148
 
     public init(_ data: [UInt8], options: LoadOptions) throws {
         module = try AHXModule(data)

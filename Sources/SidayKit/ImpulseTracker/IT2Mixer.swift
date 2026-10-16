@@ -344,10 +344,12 @@ final class IT2Mixer {
     /// few-channel ones louder than the rest and not more like them. So that way is not followed,
     /// and the mixer's own turning down of a file with one of ModPlug Tracker's two signatures, by
     /// its count of channels, which the player it is ported from does, is taken out again too.
-    /// The ways of OpenMPT 1.17 are followed, which measured so are as loud as the rest.
+    /// The ways of OpenMPT 1.17 are followed, which measured so are as loud as the rest. (Measured
+    /// by how loud they are heard, LUFS, a file of ModPlug Tracker's own way comes out 1.4 dB louder
+    /// than the rest even so, and is turned down by that.)
     static func modPlugLevel(of module: IT2Module) -> Float {
         guard let levels = module.modPlugLevels else { return 1 }
-        var level: Float = levels.mixLevels == 3 ? 2 : 1
+        var level: Float = levels.mixLevels == 3 ? 2 : levels.mixLevels == 0 ? 0.85 : 1
         if levels.mixLevels == 2 { level = PreAmpTable[max(1, min(31, max(highestChannel(of: module) + 1, levels.channels))) / 2] }
         if module.MixVolume > 0 { level *= Float(levels.preAmp) / Float(module.MixVolume) }
         return level * 32768.0 / mixGain(of: module)

@@ -203,7 +203,10 @@ public final class AYFileRenderer: Renderer {
     /// Interrupts per second when the song does not ask for its own rate.
     private let baseFrameHz: Double
     private var frameHz: Double
-    private let gain = ayOutputGain
+    /// The chip's usual gain, less 1.5 dB: set by measure, so that the middle AY file is as loud as
+    /// the middle of the other kinds, and the tracker tunes for the same chip, by how loud they are
+    /// heard (LUFS).
+    private let gain = ayOutputGain * 0.84
 
     private var cpuHz = ayFileSpectrumCPUHz
     private var chipHz = defaultAYClockHz

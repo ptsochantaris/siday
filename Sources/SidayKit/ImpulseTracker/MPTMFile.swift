@@ -1210,7 +1210,11 @@ enum MPTMFile {
             let channels = max(1, min(31, max(highestChannel + 1, song.channels)))
             level = IT2Mixer.PreAmpTable[channels / 2]
         }
-        openMPT.gain = Float(preAmp) / Float(min(preAmp, 128)) * level * loudness
+        // (OpenMPT's ways of adding channels up leave the files of each about as loud as the others,
+        // measured by how loud they are heard, LUFS, only when those of its own way, of OpenMPT 1.17's
+        // last and of its compatible way are raised by 2.2, 0.8 and 2.4 dB.)
+        let byWay: Float = mixLevels == 0 ? 1.29 : mixLevels == 3 ? 1.1 : mixLevels == 4 ? 1.32 : 1
+        openMPT.gain = Float(preAmp) / Float(min(preAmp, 128)) * level * loudness * byWay
 
         // MARK: Plug-ins and FM
 

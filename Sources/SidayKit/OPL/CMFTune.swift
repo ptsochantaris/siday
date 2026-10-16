@@ -8,6 +8,10 @@
 /// their time from the one crystal, so a tick is a whole number of twenty-fourths of one of the
 /// chip's samples, and the two are kept in step here to exactly that.
 final class CMFTune: OPLTune {
+    /// Set by measure, so that the middle CMF tune is as loud as the middle of the other kinds, by
+    /// how loud they are heard (LUFS): 1.8 dB below the chip's usual gain (see `OPLTune.gain`).
+    static var gain: Float { 1.4 * 0.81 }
+
     private let driver: SBFMDriver
     /// What the PC's timer counts down from for one tick.
     private let period: Int
