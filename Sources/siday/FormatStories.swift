@@ -573,7 +573,17 @@ that gives itself away as another tracker's: by saying so, or,
 where it says FastTracker as ModPlug Tracker's files do, by a name padded with nothing instead of
 spaces or by what ModPlug Tracker writes after all that FastTracker reads. FastTracker lets any
 letter be typed for a command, and in a file of its own a letter it has no command for is
-nothing, as it was to FastTracker: often a mark for a demo to keep time by. A tune ends where it
+nothing, as it was to FastTracker: often a mark for a demo to keep time by. One of FastTracker's
+ways was its own and not the other trackers': its arpeggio counts a row's ticks down, so that at
+most speeds it plays the two notes after the first the other way round, and it goes up from the
+note nearest to where a slide has taken the pitch. MadTracker 2, Skale Tracker and ModPlug Tracker
+up to 1.16 counted up, from the note the channel was given, and so did OpenMPT in a file that it
+saved not to be played as FastTracker plays it, or before its version 1.17.03.02, which first had
+FastTracker's; OpenMPT plays their files so, and siday does too. Of all OpenMPT's other ways for
+an XM file that such trackers' files are played without, none was heard to change more than a
+handful of tunes when tried over a sample of 1,300 of them; the arpeggio changes about a thousand
+of the collection's. Of 182 such files set beside libopenmpt, 180 changed and none went further
+from it; 79 came nearer by the spectrum (one from 0.92 to 1.00). A tune ends where it
 would play a row it has played before. `siday --raw file.raw tune.xm` writes
 what ft2play writes to a file, stereo samples as it has them, and the two agree to the sample.
 

@@ -61,6 +61,9 @@ final class FT2Player {
     /// True if commands are played that FastTracker 2 has not got and the trackers after it
     /// have: for an XM file that another tracker made. So far, a sweep from side to side.
     let playsLaterCommands: Bool
+    /// True if arpeggio goes as it did in the trackers other than FastTracker, for an XM file of
+    /// one of theirs: see `FT2Module.arpeggioOfOtherTrackers` and `arpAsOtherTrackers`.
+    let arpeggiatesAsOtherTrackers: Bool
     let speedAndTempoUndoEachOther: Bool
     /// How far a vibrato's sum is brought down: by 5 places, or by 7 for a module whose vibrato is
     /// a quarter as deep. See `ForeignModule.vibratoIsAQuarterAsDeep`.
@@ -156,6 +159,7 @@ final class FT2Player {
     init(_ module: FT2Module, position: Int = 0, firstPlayedBy: UnsafeMutablePointer<UInt8>? = nil, songNumber: UInt8 = 0,
          asFastTracker: Bool = false) {
         playsLaterCommands = !module.madeByFastTracker && !asFastTracker
+        arpeggiatesAsOtherTrackers = module.arpeggioOfOtherTrackers && !asFastTracker
         endsDieAway = module.openMPTMix != nil && !asFastTracker
         readsAsOpenMPT = endsDieAway
         self.firstPlayedBy = firstPlayedBy

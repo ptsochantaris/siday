@@ -71,6 +71,9 @@ final class FT2Instrument {
 final class FT2Channel {
     var status: UInt8 = 0
     var relTonNr: Int8 = 0, fineTune: Int8 = 0
+    /// The note the channel was last given, with its sample's own transposing in it, counted from 1:
+    /// for an arpeggio as the other trackers had it (see `FT2Player.arpeggiatesAsOtherTrackers`).
+    var realNote: UInt8 = 0
     var sampleNr: UInt8 = 0, instrNr: UInt8 = 0, effTyp: UInt8 = 0, eff: UInt8 = 0, smpOffset: UInt8 = 0
     var tremorSave: UInt8 = 0, tremorPos: UInt8 = 0
     var globVolSlideSpeed: UInt8 = 0, panningSlideSpeed: UInt8 = 0, mute: UInt8 = 0, waveCtrl: UInt8 = 0, portaDir: UInt8 = 0
@@ -233,6 +236,7 @@ extension FT2Player {
 
         ton = ton &+ UInt8(bitPattern: ch.relTonNr)
         if ton >= 10 * 12 { return }
+        ch.realNote = ton
 
         ch.sampleRate = s.rate
         ch.oldVol = s.vol
@@ -738,6 +742,7 @@ extension FT2Player {
                 keyOff(ch)
             } else {
                 let portaTmp = UInt16(truncatingIfNeeded: (((Int(p.ton) - 1) + Int(ch.relTonNr)) << 4) + ((Int(ch.fineTune) >> 3) + 16))
+                ch.realNote = UInt8(max(1, min(10 * 12 - 1, Int(p.ton) + Int(ch.relTonNr))))
                 if portaTmp < UInt16(MAX_NOTES) {
                     ch.wantPeriod = note2Period(Int(portaTmp))
                     if ch.wantPeriod == ch.realPeriod {
@@ -1025,12 +1030,30 @@ extension FT2Player {
     }
 
     func arp(_ ch: FT2Channel, _ param: UInt8) {
+        if arpeggiatesAsOtherTrackers { return arpAsOtherTrackers(ch, param) }
         // FastTracker's table has sixteen entries and is read beyond them; what it finds there is here.
         let tick = ft2ArpTab[Int(song.timer & 0xFF)]
         if tick == 0 {
             ch.outPeriod = ch.realPeriod
         } else {
             ch.outPeriod = relocateTon(ch.realPeriod, tick == 1 ? param >> 4 : param & 0x0F, ch)
+        }
+        ch.status |= IS_Period
+    }
+
+    /// An arpeggio as the trackers other than FastTracker had it, as OpenMPT plays it for their XM
+    /// files: by the ticks of the row counted up, nought, the first digit and the second, and so
+    /// round again, where FastTracker counts them down and goes the other way round at most speeds;
+    /// and up from the note the channel was given, not from the nearest note to where a slide has
+    /// taken it; on the ticks between, the pitch is where it was.
+    private func arpAsOtherTrackers(_ ch: FT2Channel, _ param: UInt8) {
+        let tick = Int(ticksIn) % 3
+        let up = tick == 1 ? Int(param >> 4) : tick == 2 ? Int(param & 0x0F) : 0
+        if up == 0 || ch.realNote == 0 {
+            ch.outPeriod = ch.realPeriod
+        } else {
+            let tmpTon = ((Int(ch.realNote) + up - 1) << 4) + ((Int(ch.fineTune) >> 3) + 16)
+            ch.outPeriod = note2Period(min(tmpTon, MAX_NOTES - 1))
         }
         ch.status |= IS_Period
     }

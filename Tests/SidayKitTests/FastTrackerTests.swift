@@ -231,6 +231,27 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     return file
 }
 
+@Test func xmOfOtherTrackersHasTheirArpeggio() throws {
+    /// How many times the note crosses nought on the row's second tick (a tick is 960 samples).
+    func secondTick(_ tracker: String?) throws -> Int {
+        // C-4 with an arpeggio of an octave and nothing.
+        var file = xm(notes: [0x93, 49, 1, 0xC0, 0x80])
+        if let tracker { file.replaceSubrange(38 ..< 58, with: padded(tracker, 20)) } else { file = byFastTracker(file) }
+        let left = stereo(try TuneLoader.load(file, format: .xm), seconds: 0.1).left
+        return crossings(left[1060 ..< 1920])
+    }
+    // FastTracker 2 counts a row's ticks down, and at six to the row plays the octave on the third.
+    #expect(try secondTick(nil) <= 5)
+    // ModPlug Tracker, which says it is FastTracker but leaves its marks, did as the others did.
+    #expect(try secondTick("FastTracker v2.00   ") >= 8)
+    // MadTracker 2, as the other trackers, counts them up: the octave is on the second.
+    #expect(try secondTick("MadTracker 2.0") >= 8)
+    #expect(try secondTick("Skale Tracker") >= 8)
+    // And so does OpenMPT in a file of a version that had not yet FastTracker's, but not after it.
+    #expect(try secondTick("OpenMPT 1.17.02.48") >= 8)
+    #expect(try secondTick("OpenMPT 1.28.00.00") <= 5)
+}
+
 @Test func xmFromALaterTrackerSweepsFromSideToSide() throws {
     var options = LoadOptions()
     options.stereo = .abc

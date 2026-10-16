@@ -71,6 +71,11 @@ final class FT2Module {
     /// "mix levels", by their numbers), the song's pre-amp, and how many channels OpenMPT takes it
     /// to have. Nil for any other file, which is played as loud as FastTracker plays it.
     private(set) var openMPTMix: (mode: Int, preAmp: Int, channels: Int)?
+    /// True for an XM file of a tracker whose arpeggio went as the other trackers' did, and not as
+    /// FastTracker's, as OpenMPT reckons it: MadTracker 2, Skale Tracker, ModPlug Tracker up to
+    /// 1.16, and OpenMPT itself in a file it saved not to be played as FastTracker plays it (see
+    /// `arpeggiatesAsOtherTrackers`). See `FT2Player.arpeggiatesAsOtherTrackers`.
+    private(set) var arpeggioOfOtherTrackers = false
     /// How much louder such a file is played than one of FastTracker's own: by its pre-amp, the
     /// composer's, against the usual one of the way it asks to be added up by (48, or 128 in the
     /// ways of OpenMPT 1.17). One for any other file.
@@ -224,6 +229,7 @@ final class FT2Module {
             // a hundred of those that have them.)
             let byModPlug = saysFastTracker && !madeByFastTracker || Array(h[38 ..< 58]) == Array("FastTracker v 2.00  ".utf8)
             openMPTMix = Self.openMPTMix(of: data, name: Array(h[38 ..< 58]), byModPlug: byModPlug, channels: Int(song.antChn))
+            arpeggioOfOtherTrackers = Self.arpeggiatesAsOtherTrackers(data, name: Array(h[38 ..< 58]), byModPlug: byModPlug)
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         if song.repS > song.len { song.repS = 0 }
@@ -266,6 +272,33 @@ final class FT2Module {
         // (A file of the versions after that and before 1.23.01.04 says it adds up the old way, and does not.)
         if mode == 4, version >= addsUpAsFastTracker, version < (1 << 24 | 23 << 16 | 1 << 8 | 4) { mode = 5 }
         return (mode, extras.preAmp ?? 48, max(channels, extras.channels))
+    }
+
+    /// Whether OpenMPT plays an XM file's arpeggio as FastTracker does (its switch for that, the
+    /// 51st of its ways of playing), or as the other trackers do: by the tracker's name for
+    /// MadTracker 2 and Skale Tracker; for ModPlug Tracker's files, whose every one of FastTracker's
+    /// ways OpenMPT turns off; and for OpenMPT's own by what the file says of its ways, or, before
+    /// 1.26 and with its "compatible play", by whether the version had FastTracker's arpeggio yet
+    /// (1.17.03.02), and before that play itself (1.17.02.46) not at all.
+    private static func arpeggiatesAsOtherTrackers(_ data: [UInt8], name: [UInt8], byModPlug: Bool) -> Bool {
+        if name.starts(with: Array("MadTracker 2.0\0".utf8)) || name.starts(with: Array("Skale Tracker\0".utf8))
+            || name.starts(with: Array("Sk@le Tracker\0".utf8)) { return true }
+        var extras = ModPlugExtras()
+        extras.readSongExtras(ByteReader(data))
+        var version = extras.savedWith ?? 0
+        if name.starts(with: Array("OpenMPT ".utf8)) {
+            // (OpenMPT writes each part of its version in hex digits, as "1.27" for 0x0127.)
+            let parts = String(decoding: name.dropFirst(8), as: UTF8.self).split(separator: ".").map { Int($0.filter { $0.isHexDigit }, radix: 16) ?? 0 }
+            version = (0 ..< 4).reduce(0) { $0 << 8 | ($1 < parts.count ? min(255, parts[$1]) : 0) }
+        } else if byModPlug || version == 0 {
+            return byModPlug
+        }
+        // (A file with OpenMPT's extras has none of its ways but those they list; one without, all.)
+        let listed = { (way: Int) in !extras.hasSongExtras || way < extras.behaviours.count && extras.behaviours[way] }
+        var compatible = listed(0)
+        if version < 0x0117_0246, version != 0x0117_0000 { compatible = false }
+        if compatible, version < 0x0126_0000 { return version < 0x0117_0302 }
+        return !listed(51)
     }
 
     /// Looks over an XM file for what a later tracker put in it that FastTracker does not play,
