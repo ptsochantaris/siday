@@ -79,6 +79,7 @@ struct MEDMixer: ~Copyable {
         var struck = false
         /// True for a track that is left out of the sound: it plays on, and is not added in.
         var muted = false
+        /// How far it has swung either side of its middle, at its volume, since the lights were last told.
         var peak: Float = 0
     }
 
@@ -434,7 +435,10 @@ struct MEDMixer: ~Copyable {
         let width = now.sixteenBit ? 2 : 1
         let inMemory = now.sample >= 0 && now.right <= memorySize && now.frames <= memorySize
             && now.sample + now.right + now.frames * width <= memorySize
-        var peak: Float = 0
+        // For the light: the least and the most of what is played, of either half of a stereo
+        // sample that is heard. (A track held at one level is not heard, and is dark.)
+        var low = Float.greatestFiniteMagnitude, high = -Float.greatestFiniteMagnitude
+        let measuresLeft = now.leftGain != 0 || !twoHalves, measuresRight = twoHalves && now.rightGain != 0
         let nearerLeft = now.leftGain >= now.rightGain
         for i in 0 ..< count {
             if heard {
@@ -444,7 +448,14 @@ struct MEDMixer: ~Copyable {
                 let r = twoHalves ? (now.rightGain != 0 ? value(now, now.sample + now.right, plain: plain) : 0) : l
                 left[i] += l * now.leftGain
                 right[i] += r * now.rightGain
-                peak = max(peak, abs(l), abs(r))
+                if measuresLeft {
+                    low = min(low, l)
+                    high = max(high, l)
+                }
+                if measuresRight {
+                    low = min(low, r)
+                    high = max(high, r)
+                }
                 waves?.store(track, at: i, (nearerLeft ? l : r) * now.loudness)
             } else {
                 waves?.store(track, at: i, 0)
@@ -464,7 +475,7 @@ struct MEDMixer: ~Copyable {
                 break
             }
         }
-        now.peak = max(now.peak, peak * now.loudness)
+        if high > low { now.peak = max(now.peak, (high - low) * 0.5 * now.loudness) }
         channels[track] = now
     }
 

@@ -77,6 +77,10 @@ public final class MEDRenderer: Renderer {
     /// (Worked out in 64 bits, as a tick's length is below: clocks times samples is more than the 32
     /// that a whole number has in a browser can hold.)
     private static let tickSpace = Int(Int64(MEDPlayer.longestTick) * Int64(outputSampleRate) * 2 / Int64(clock)) + 64
+    /// In mixing mode, how much of a tick is made at once: a little, so that the lights, which are
+    /// measured as each piece is made, tell of the part of a long tick that is being heard and
+    /// not of all of it. (The sound is the same in pieces of any size.)
+    private static let pieceSpace = 512
     /// A tune that has not come round after this many ticks is taken not to.
     private static let mostTicks = 50 * 60 * 120
     /// Set by measure, so that the middle of a run of MED tunes is as loud as the middle of the
@@ -321,9 +325,8 @@ public final class MEDRenderer: Renderer {
         pieceStart = 0
         pieceFrames = 0
         if player.mode == .mixing {
-            // The tick's sound is made as it is asked for (a tick can be seconds long here).
-            player.mixer.takeLevels(into: &levels.now)
-            levels.tickMade()
+            // The tick's sound is made as it is asked for (a tick can be seconds long here), and
+            // its levels are measured as each piece of it is made.
             player.takeNotes(into: &notes)
             return
         }
@@ -349,8 +352,10 @@ public final class MEDRenderer: Renderer {
                 // Each track where the song puts it, and for mono the two sides as one.
                 if tickPosition == pieceStart + pieceFrames {
                     pieceStart = tickPosition
-                    pieceFrames = min(tickFrames - tickPosition, Self.tickSpace)
+                    pieceFrames = min(tickFrames - tickPosition, Self.pieceSpace)
                     player.mixer.render(left: left, right: right, count: pieceFrames)
+                    player.mixer.takeLevels(into: &levels.now)
+                    levels.tickMade()
                 }
                 let count = min(frames - done, pieceStart + pieceFrames - tickPosition)
                 let from = tickPosition - pieceStart

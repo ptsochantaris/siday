@@ -415,3 +415,24 @@ private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.
     #expect(raw.keepChannelWaves() != nil)
     #expect(raw.renderRaw(frames: 9600) == before)
 }
+
+@Test func ahxNoteIsToldWhenItIsHeard() throws {
+    // A tick works out what Paula is given on the next: a note is said to begin, and is lit, in
+    // the piece of the sound in which it is heard.
+    let renderer = try TuneLoader.load(tune(tracks: [[1: played], empty]), format: .ahx, options: LoadOptions())
+    let waves = renderer.keepChannelWaves()
+    var buffer = [Float](repeating: 0, count: 240 * 2), scope = [UInt8](repeating: 0, count: ChannelWaves.points)
+    var levels = [Float](repeating: 0, count: 4), pitches = levels, struck = [Bool](repeating: false, count: 4)
+    var lit: Int?, hit: Int?, moved: Int?
+    for piece in 0 ..< 100 {
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 240) }
+        renderer.takeChannelLevels(into: &levels)
+        renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+        scope.withUnsafeMutableBufferPointer { waves?.take(0, pitch: 0, periodic: false, behind: 0, into: $0.baseAddress!) }
+        if lit == nil, levels[0] > 0 { lit = piece }
+        if hit == nil, struck[0] { hit = piece }
+        if moved == nil, scope.contains(where: { $0 != 128 }) { moved = piece }
+    }
+    let first = try #require(moved)
+    #expect(lit == first && hit == first)
+}

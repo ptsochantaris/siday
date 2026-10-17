@@ -553,3 +553,36 @@ private func scopeHeights(_ renderer: any Renderer, pieces: Int = 40) -> [Int] {
     #expect(heard[0] > 80 && heard[1] > 120)
     #expect(heard[2...].allSatisfy { $0 == 0 })
 }
+
+/// In which of a run of short pieces of the sound a track's light is first lit, its note first
+/// struck, and its scope first moves.
+private func firstHeard(_ renderer: any Renderer, track: Int, pieces: Int = 100, frames: Int = 240) -> (lit: Int?, struck: Int?, moved: Int?) {
+    let waves = renderer.keepChannelWaves()
+    var buffer = [Float](repeating: 0, count: frames * 2), scope = [UInt8](repeating: 0, count: ChannelWaves.points)
+    var levels = [Float](repeating: 0, count: renderer.channelCount), pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    var lit: Int?, hit: Int?, moved: Int?
+    for piece in 0 ..< pieces {
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+        renderer.takeChannelLevels(into: &levels)
+        renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+        scope.withUnsafeMutableBufferPointer { waves?.take(track, pitch: 0, periodic: false, behind: 0, into: $0.baseAddress!) }
+        if lit == nil, levels[track] > 0 { lit = piece }
+        if hit == nil, struck[track] { hit = piece }
+        if moved == nil, scope.contains(where: { $0 != 128 }) { moved = piece }
+    }
+    return (lit, hit, moved)
+}
+
+@Test func oktalyzerTrackOfASplitVoiceIsLitWhenItIsHeard() throws {
+    // A split voice's tracks are mixed a tick before the chip plays them: their lights and their
+    // notes are of what the chip plays, as the sound and the scopes are. A whole voice is told
+    // its note a tick late, and is lit when it plays it.
+    let file = module([Entry(line: 0, track: 0, note: 13, instrument: 0), Entry(line: 0, track: 2, note: 13, instrument: 0)],
+                      split: [true, false, false, false])
+    for track in [0, 2] {
+        let heard = firstHeard(try TuneLoader.load(file, format: .okt, options: LoadOptions()), track: track)
+        let moved = try #require(heard.moved), lit = try #require(heard.lit), struck = try #require(heard.struck)
+        #expect(abs(lit - moved) <= 1 && abs(struck - moved) <= 1)
+    }
+}

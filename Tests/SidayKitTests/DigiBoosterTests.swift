@@ -375,3 +375,15 @@ private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.
     #expect(raw.keepChannelWaves() != nil)
     #expect(raw.renderRaw(frames: 9600) == before)
 }
+
+@Test func dbmTrackHeldAtOneLevelIsDark() throws {
+    // A sample that is one level all through, going round: nothing to hear, and no light; and
+    // beside it the square wave, lit as ever.
+    let held = Instrument(frames: [Int16](repeating: 12800, count: 32))
+    let renderer = try TuneLoader.load(dbm([[(0, 0, .note()), (0, 1, .note(4, 0, instrument: 2))]], instruments: [Instrument(), held]),
+                                       format: .dbm, options: options())
+    var buffer = [Float](repeating: 0, count: 24000 * 2), levels = [Float](repeating: 0, count: 2)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 24000) }
+    renderer.takeChannelLevels(into: &levels)
+    #expect(levels[0] > 0.2 && levels[1] == 0)
+}

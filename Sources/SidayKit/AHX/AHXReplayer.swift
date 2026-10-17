@@ -153,8 +153,12 @@ struct AHXReplayer: ~Copyable {
     var stopped: Bool { tempo == 0 }
     /// Whether a note has been played.
     private(set) var playedNote = false
-    /// For the lights: which voices have had a note started on them, until `takeNotes`.
+    /// For the lights: which voices have had a note started on them, until Paula is given it.
     private var struck = InlineArray<4, Bool>(repeating: false)
+    /// And what each voice is heard playing, which is what Paula was last given: its pitch, and
+    /// whether a note has been started on it since `takeNotes`.
+    private var heardPitches = InlineArray<4, Float>(repeating: 0)
+    private var heardStruck = InlineArray<4, Bool>(repeating: false)
 
     /// - Parameters:
     ///   - rate: the rate Paula makes samples at.
@@ -813,8 +817,13 @@ struct AHXReplayer: ~Copyable {
     /// One tick of the tracker's timer. False when the tick is the last of a pass through the tune:
     /// the next would play a row that has been played before.
     mutating func runTick() -> Bool {
-        // What the last tick worked out is what is heard during this one.
-        for v in 0 ..< 4 { setAudio(v) }
+        // What the last tick worked out is what is heard during this one, and what the lights tell of.
+        for v in 0 ..< 4 {
+            setAudio(v)
+            heardPitches[v] = pitch(v)
+            if struck[v] { heardStruck[v] = true }
+            struck[v] = false
+        }
 
         if stepWait == 0 {
             if newPosition {
@@ -868,16 +877,22 @@ struct AHXReplayer: ~Copyable {
 
     // MARK: Lights
 
-    /// What each voice is playing: its pitch, from its period and the length of its wave, and
-    /// whether an instrument has been started on it since this was last asked. Noise has no pitch,
-    /// and nor has a voice that is silent.
+    /// The pitch a voice has, from its period and the length of its wave. Noise has none, and nor
+    /// has a voice that is silent.
+    private func pitch(_ v: Int) -> Float {
+        let sounding = voices[v].instrument >= 0 && voices[v].volume > 0 && voices[v].wave <= Wave.square
+        let cycle = Double(Int(voices[v].period) * (4 << Int(voices[v].wavelength)))
+        return sounding ? ChannelPitch.note(ofHz: Paula.clockHz / cycle) : 0
+    }
+
+    /// What each voice is playing, as it is heard: its pitch, and whether an instrument has been
+    /// started on it since this was last asked. (A tick works out what Paula is given on the next,
+    /// and it is then that it is heard.)
     mutating func takeNotes(into notes: inout TickNotes) {
         for v in 0 ..< 4 {
-            let sounding = voices[v].instrument >= 0 && voices[v].volume > 0 && voices[v].wave <= Wave.square
-            let cycle = Double(Int(voices[v].period) * (4 << Int(voices[v].wavelength)))
-            notes.pitches[v] = sounding ? ChannelPitch.note(ofHz: Paula.clockHz / cycle) : 0
-            if struck[v] { notes.struck[v] = true }
-            struck[v] = false
+            notes.pitches[v] = heardPitches[v]
+            if heardStruck[v] { notes.struck[v] = true }
+            heardStruck[v] = false
         }
     }
 }

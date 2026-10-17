@@ -880,23 +880,31 @@ final class DBMPlayer {
                     continue
                 }
                 let gainLeft = Int32(track.gainLeft), gainRight = Int32(track.gainRight)
-                var peakLeft: Int32 = 0, peakRight: Int32 = 0
+                // For the light: how far each side swings, either side of its middle. (A track
+                // held at one level is not heard, and is dark.)
+                var lowLeft: Int32 = 32767, highLeft: Int32 = -32768, lowRight: Int32 = 32767, highRight: Int32 = -32768
                 let out = sums + done * 2
                 if track.muted {
                     for i in 0 ..< count {
-                        peakLeft = max(peakLeft, abs(Int32(premix[i * 2])))
-                        peakRight = max(peakRight, abs(Int32(premix[i * 2 + 1])))
+                        let l = Int32(premix[i * 2]), r = Int32(premix[i * 2 + 1])
+                        lowLeft = min(lowLeft, l)
+                        highLeft = max(highLeft, l)
+                        lowRight = min(lowRight, r)
+                        highRight = max(highRight, r)
                     }
                 } else {
                     for i in 0 ..< count {
                         let l = Int32(premix[i * 2]), r = Int32(premix[i * 2 + 1])
                         out[i * 2] &+= (l &* gainLeft) >> 14
                         out[i * 2 + 1] &+= (r &* gainRight) >> 14
-                        peakLeft = max(peakLeft, abs(l))
-                        peakRight = max(peakRight, abs(r))
+                        lowLeft = min(lowLeft, l)
+                        highLeft = max(highLeft, l)
+                        lowRight = min(lowRight, r)
+                        highRight = max(highRight, r)
                     }
                 }
-                let level = max(Float(peakLeft) * abs(Float(gainLeft)), Float(peakRight) * abs(Float(gainRight))) / (32768 * 16384)
+                let swingLeft = Float(max(0, highLeft - lowLeft)) * 0.5, swingRight = Float(max(0, highRight - lowRight)) * 0.5
+                let level = max(swingLeft * abs(Float(gainLeft)), swingRight * abs(Float(gainRight))) / (32768 * 16384)
                 if level > levels[index] { levels[index] = min(1, level) }
                 if let waves {
                     // The side it is nearer, which has its whole volume and is not put off: the

@@ -873,3 +873,62 @@ private func soundIsTheSame(_ file: [UInt8], song: Int = 0) throws -> Bool {
     #expect(four.count == 4 && four[0] > 90 && four.dropFirst().allSatisfy { $0 == 0 })
     for song in 0 ..< 3 { #expect(try soundIsTheSame(file, song: song)) }
 }
+
+/// In which of a run of short pieces of the sound a track's light is first lit, its note first
+/// struck, and its scope first moves.
+private func firstHeard(_ renderer: any Renderer, track: Int, pieces: Int = 100, frames: Int = 240) -> (lit: Int?, struck: Int?, moved: Int?) {
+    let waves = renderer.keepChannelWaves()
+    var buffer = [Float](repeating: 0, count: frames * 2), scope = [UInt8](repeating: 0, count: ChannelWaves.points)
+    var levels = [Float](repeating: 0, count: renderer.channelCount), pitches = levels
+    var struck = [Bool](repeating: false, count: renderer.channelCount)
+    var lit: Int?, hit: Int?, moved: Int?
+    for piece in 0 ..< pieces {
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+        renderer.takeChannelLevels(into: &levels)
+        renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+        scope.withUnsafeMutableBufferPointer { waves?.take(track, pitch: 0, periodic: false, behind: 0, into: $0.baseAddress!) }
+        if lit == nil, levels[track] > 0 { lit = piece }
+        if hit == nil, struck[track] { hit = piece }
+        if moved == nil, scope.contains(where: { $0 != 128 }) { moved = piece }
+    }
+    return (lit, hit, moved)
+}
+
+@Test func medTracksAreLitWhenTheyAreHeard() throws {
+    // Of eight tracks, those that share a voice (the first and fifth, both playing, and the second,
+    // whose partner is silent) are mixed a tick before the chip plays them; in mixing mode a
+    // tick is made as it is heard. Either way, a track's light and its note are of what is heard,
+    // as the sound and the scopes are.
+    let eight = module([Tune(entries: [c(line: 1), Entry(line: 1, track: 4, note: 25, instrument: 1), c(line: 1, track: 1)], flags: 0x40,
+                             tracks: 8)])
+    let mixing = module(version: 3, [Tune(entries: [c(line: 1)], tempo: 125, flags2: 0xA3, tracks: 4, channels: 4, mixing: 1)])
+    for (file, track) in [(eight, 0), (eight, 4), (eight, 1), (mixing, 0)] {
+        let renderer = try TuneLoader.load(file, format: .med)
+        let heard = firstHeard(renderer, track: track)
+        let moved = try #require(heard.moved), lit = try #require(heard.lit), struck = try #require(heard.struck)
+        #expect(abs(lit - moved) <= 1 && abs(struck - moved) <= 1)
+    }
+}
+
+@Test func medTrackOfMixingModeHeldAtOneLevelIsDark() throws {
+    // In mixing mode, the square wave made one level all through, going round: next to nothing to
+    // hear once it has begun, and next to no light. (What there is is where it comes round: the
+    // curve drawn through the samples about its first one has silence before it, from before the
+    // sample's start.) As it is, it is lit.
+    let square = module(version: 3, [Tune(entries: [c()], tempo: 125, flags2: 0xA3, tracks: 4, channels: 4, mixing: 1)])
+    let wave = [UInt8](repeating: 0x7F, count: 16) + [UInt8](repeating: 0x81, count: 16)
+    let at = try #require((0 ... square.count - 32).first { Array(square[$0 ..< $0 + 32]) == wave })
+    var held = square
+    held.replaceSubrange(at ..< at + 32, with: [UInt8](repeating: 0x7F, count: 32))
+    func level(_ file: [UInt8]) throws -> Float {
+        let renderer = try TuneLoader.load(file, format: .med)
+        var levels = [Float](repeating: 0, count: renderer.channelCount)
+        for _ in 0 ..< 2 {
+            _ = stereo(renderer, seconds: 0.25)
+            renderer.takeChannelLevels(into: &levels)
+        }
+        return levels[0]
+    }
+    #expect(try level(square) > 0.2)
+    #expect(try level(held) < 0.05)
+}

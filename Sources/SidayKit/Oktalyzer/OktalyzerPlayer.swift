@@ -94,9 +94,25 @@ struct OktalyzerPlayer: ~Copyable {
         /// arpeggio counts from.
         var note: Int16 = 0
         var base: Int16 = 0
-        /// For the lights: how far it swung in what was last mixed, and whether a note has begun.
+        /// For the lights: how far it swung in what was last mixed, and whether a note has begun
+        /// since then.
         var swing: Float = 0
         var struck = false
+        /// The pitch of what was last mixed, and whether a note began in it.
+        var mixedPitch: Float = 0
+        var mixedStruck = false
+        /// And the same of what the chip is playing, which was mixed on the tick before: this is
+        /// what the lights tell of, as it is what is heard.
+        var heardSwing: Float = 0, heardPitch: Float = 0
+        var heardStruck = false
+
+        /// The stretch mixed on the tick before is now the one the chip plays.
+        mutating func heard() {
+            heardSwing = swing
+            heardPitch = mixedPitch
+            if mixedStruck { heardStruck = true }
+            mixedStruck = false
+        }
         /// True for a track that is left out of what is mixed: it plays on, and is not added in.
         var muted = false
     }
@@ -483,6 +499,16 @@ struct OktalyzerPlayer: ~Copyable {
         let out = module.memory + module.mixPlace(v, mixBuffer)
         var first = voices[v].lanes.0, second = voices[v].lanes.1
         let loudness = Float(min(64, volumes[v] & 127)) / (64 * 256)
+        // What was mixed on the tick before is what the chip now plays, and what the lights tell
+        // of; and what is mixed now is noted for them on the next.
+        first.heard()
+        second.heard()
+        first.mixedPitch = pitch(first)
+        second.mixedPitch = pitch(second)
+        first.mixedStruck = first.struck
+        second.mixedStruck = second.struck
+        first.struck = false
+        second.struck = false
         first.swing = 0
         second.swing = 0
         if let laneBytes {
@@ -932,8 +958,8 @@ struct OktalyzerPlayer: ~Copyable {
         paula.takeLevels(into: &alone)
         for v in 0 ..< 4 {
             if voices[v].split {
-                levels[voices[v].track] = voices[v].lanes.0.swing
-                levels[voices[v].track + 1] = voices[v].lanes.1.swing
+                levels[voices[v].track] = voices[v].lanes.0.heardSwing
+                levels[voices[v].track + 1] = voices[v].lanes.1.heardSwing
             } else {
                 levels[voices[v].track] = alone[v]
             }
@@ -952,12 +978,13 @@ struct OktalyzerPlayer: ~Copyable {
         for v in 0 ..< 4 {
             let track = voices[v].track
             if voices[v].split {
-                notes.pitches[track] = pitch(voices[v].lanes.0)
-                notes.pitches[track + 1] = pitch(voices[v].lanes.1)
-                if voices[v].lanes.0.struck { notes.struck[track] = true }
-                if voices[v].lanes.1.struck { notes.struck[track + 1] = true }
-                voices[v].lanes.0.struck = false
-                voices[v].lanes.1.struck = false
+                // (Of what the chip is playing, which was mixed on the tick before.)
+                notes.pitches[track] = voices[v].lanes.0.heardPitch
+                notes.pitches[track + 1] = voices[v].lanes.1.heardPitch
+                if voices[v].lanes.0.heardStruck { notes.struck[track] = true }
+                if voices[v].lanes.1.heardStruck { notes.struck[track + 1] = true }
+                voices[v].lanes.0.heardStruck = false
+                voices[v].lanes.1.heardStruck = false
             } else {
                 // (A whole voice plays silence, over and over, until it is given a note.)
                 notes.pitches[track] = voices[v].period > 0 ? chip.pitches[v] : 0

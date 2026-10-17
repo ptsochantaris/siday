@@ -137,9 +137,33 @@ struct MEDPlayer: ~Copyable {
         var end = 0, restart = 0
         /// For a track that has a voice to itself: the lengths the chip is to be given, in words.
         var words: UInt16 = 0, loopWords: UInt16 = 0
-        /// For the lights: how far the track's sample swung in what was last mixed.
+        /// For the lights: how far the track's sample swung in what was last mixed, and whether it
+        /// has been given a note that the mixing has not yet taken up.
         var swing: Float = 0
         var struck = false
+        /// The pitch of what was last mixed, and whether a note began in it.
+        var mixedPitch: Float = 0
+        var mixedStruck = false
+        /// And the same of what the chip is playing: this is what the lights tell of, as it is what
+        /// is heard. For a track that shares a voice it is what was mixed on the tick before; for
+        /// one that has a voice to itself, what the chip was given on this tick.
+        var heardSwing: Float = 0, heardPitch: Float = 0
+        var heardStruck = false
+
+        /// What was mixed is now what the chip plays.
+        mutating func heard() {
+            heardSwing = swing
+            heardPitch = mixedPitch
+            if mixedStruck { heardStruck = true }
+            mixedStruck = false
+        }
+
+        /// Notes what the mixing takes up on this tick: a note that is sounding at this pitch, or none.
+        mutating func taken(_ pitch: Float) {
+            mixedPitch = pitch
+            mixedStruck = struck
+            struck = false
+        }
         /// True for a track that is left out of what is mixed: it plays on, and is not added in.
         var muted = false
     }
@@ -806,7 +830,12 @@ struct MEDPlayer: ~Copyable {
                 mixPair(voice)
                 continue
             }
-            // A voice with one track is played by the chip as it would be with four.
+            // A voice with one track is played by the chip as it would be with four: what it is
+            // given now is heard now. (And the track after the fourth that would share it is silent.)
+            lanes[voice].taken(lanes[voice].period != 0 ? Self.pitch(ofPeriod: lanes[voice].period) : 0)
+            lanes[voice].heard()
+            lanes[voice + 4].taken(0)
+            lanes[voice + 4].heard()
             lanes[voice].swing = 0
             guard lanes[voice].period != 0 else {
                 paula.stop(voices: 1 << voice)
@@ -858,7 +887,13 @@ struct MEDPlayer: ~Copyable {
     /// play after the one it is playing: a byte from each, added, with nothing between the bytes
     /// of a sample but the last one again.
     private mutating func mixPair(_ voice: Int) {
+        // What was mixed on the tick before is what the chip now plays, and what the lights tell
+        // of; and what is mixed now is noted for them on the next.
+        lanes[voice].heard()
+        lanes[voice + 4].heard()
         let first = feed(voice), second = feed(voice + 4)
+        lanes[voice].taken(first.step != 0 ? Self.pitch(ofPeriod: lanes[voice].period) : 0)
+        lanes[voice + 4].taken(second.step != 0 ? Self.pitch(ofPeriod: lanes[voice + 4].period) : 0)
         let count = (mixWordsNow >> 1) * 4
         // (A sample is read on past its end, as OctaMED read it: but not past the end of the file,
         // where the Amiga had whatever it had.)
@@ -1006,18 +1041,23 @@ struct MEDPlayer: ~Copyable {
         guard mode == .eightChannel else { return paula.takeLevels(into: &levels) }
         var alone = [Float](repeating: 0, count: 4)
         paula.takeLevels(into: &alone)
-        for t in 0 ..< 8 { levels[t] = t < 4 && !song.mixed[t] ? alone[t] : lanes[t].swing }
+        for t in 0 ..< 8 { levels[t] = t < 4 && !song.mixed[t] ? alone[t] : lanes[t].heardSwing }
     }
 
-    /// The pitch of each track's note, and whether one has begun since this was last asked.
+    /// The pitch a period of the chip's stands for.
+    private static func pitch(ofPeriod period: UInt16) -> Float {
+        ChannelPitch.note(ofRate: Paula.clockHz / Double(max(Paula.shortestPeriod, Int(period))))
+    }
+
+    /// The pitch of each track's note, and whether one has begun since this was last asked: of what
+    /// the chip is playing (see `Lane.heard`).
     mutating func takeNotes(into notes: inout TickNotes) {
         if mode == .mixing { return mixer.takeNotes(into: &notes) }
         guard mode == .eightChannel else { return paula.takeNotes(into: &notes) }
         for t in 0 ..< 8 {
-            let sounding = lanes[t].period != 0 && (lanes[t].place != 0 || t < 4 && !song.mixed[t])
-            notes.pitches[t] = sounding ? ChannelPitch.note(ofRate: Paula.clockHz / Double(max(Paula.shortestPeriod, Int(lanes[t].period)))) : 0
-            if lanes[t].struck { notes.struck[t] = true }
-            lanes[t].struck = false
+            notes.pitches[t] = lanes[t].heardPitch
+            if lanes[t].heardStruck { notes.struck[t] = true }
+            lanes[t].heardStruck = false
         }
     }
 
