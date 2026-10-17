@@ -564,8 +564,8 @@ final class ST3Cards {
                             smpR = smp
                         }
                     }
-                    if smp < v.pointee.low { v.pointee.low = smp }
-                    if smp > v.pointee.high { v.pointee.high = smp }
+                    v.pointee.low = min(v.pointee.low, smp)
+                    v.pointee.high = max(v.pointee.high, smp)
                     // (A voice of a channel that is left out of the sound adds nothing to it. One in
                     // ModPlug's reverb is added to what is sent there instead.)
                     let outL = ((smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))) & v.pointee.heard
@@ -660,8 +660,8 @@ final class ST3Cards {
             }
             let level = (byte * Int(Self.xvol[min(64, Int(ch.pointee.vol))])) >> 8
             let smp = UInt16(truncatingIfNeeded: level)
-            if level < Int(ch.pointee.low) { ch.pointee.low = Int32(level) }
-            if level > Int(ch.pointee.high) { ch.pointee.high = Int32(level) }
+            ch.pointee.low = min(ch.pointee.low, Int32(level))
+            ch.pointee.high = max(ch.pointee.high, Int32(level))
             if stereo {
                 let mixtype = ch.pointee.mixtype
                 if mixtype == 0 || mixtype == 2 {
@@ -867,21 +867,28 @@ final class ST3Cards {
         if let waves { moveWavesOn(waves) }
     }
 
+    /// What the loudest volume Scream Tracker gives a voice comes to, as `takeLevels` reckons volumes.
+    private static let gusLoudest: Float = {
+        let volume = Int32(gusVolTable[63] >> 4)
+        return Float(256 + (volume & 0xFF)) * Float(1 << min(15, Int(volume >> 8)))
+    }()
+
     /// How loud each of the card's sixteen channels was in the samples made since this was last asked.
-    func takeLevels(into levels: inout [Float]) {
+    /// (In `ST3Player.ACHANNELS` of them, which this is asked for at every piece of a tick that is made.)
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         for channel in 0 ..< 16 { levels[channel] = 0 }
-        for channel in ST3Module.firstExtraChannel ..< min(levels.count, ST3Player.ACHANNELS) { levels[channel] = 0 }
+        for channel in ST3Module.firstExtraChannel ..< ST3Player.ACHANNELS { levels[channel] = 0 }
         switch card {
         case .gus:
             // The card's volumes are logarithms; this is what one comes to, as a part of the loudest.
             func gain(_ volume: Int32) -> Float {
                 Float(256 + (volume & 0xFF)) * Float(1 << min(15, Int(volume >> 8)))
             }
-            let full = gain(Int32(Self.gusVolTable[63] >> 4))
+            let full = Self.gusLoudest
             for i in 0 ..< mixedVoices {
                 let v = voices + i
                 if v.pointee.high > v.pointee.low, v.pointee.owner >= 0, v.pointee.owner < 16 || v.pointee.owner >= ST3Module.firstExtraChannel,
-                   v.pointee.owner < levels.count {
+                   v.pointee.owner < ST3Player.ACHANNELS {
                     // (The volume is where it has got to: a voice that is sliding away has all but gone.)
                     let level = min(1, Float(v.pointee.high - v.pointee.low) * (1.0 / 65536.0) * gain(Int32(v.pointee.SVLI >> 3)) / full)
                     // A channel is the loudest of its voices: the note, and the one before it sliding away.
@@ -897,6 +904,10 @@ final class ST3Cards {
             }
         }
     }
+
+    /// True if what `render` makes of a tick is the same however many calls it is made in: it is,
+    /// except where ModPlug's reverb is given what is sent to it, in blocks as long as each call.
+    var makesTheSameInPieces: Bool { reverb == nil }
 
     /// Makes `count` samples at the player's rate. For a Sound Blaster the channels are read first and
     /// told afterwards where they have got to.

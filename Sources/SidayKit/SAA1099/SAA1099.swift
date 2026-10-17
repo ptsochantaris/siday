@@ -104,7 +104,8 @@ struct SAA1099Chip {
     private let noiseBase: UInt64
     var muted = InlineArray<6, Bool>(repeating: false)
     /// For what is shown of the voices.
-    private var reach = InlineArray<6, Int>(repeating: 0)
+    private var lowsLeft = InlineArray<6, Int>(repeating: .max), highsLeft = InlineArray<6, Int>(repeating: .min)
+    private var lowsRight = InlineArray<6, Int>(repeating: .max), highsRight = InlineArray<6, Int>(repeating: .min)
     private var struck = InlineArray<6, Bool>(repeating: false)
 
     /// - Parameters:
@@ -354,7 +355,7 @@ struct SAA1099Chip {
             case (true, true): tone * (2 - noise)
             }
             amps[channel].intermediate = level
-            guard enabled, !muted[channel] else { continue }
+            guard enabled else { continue }
             // Each channel swings either side of nought, as libvgm has them, and not from nought up
             // as the chip's own outputs do: a note started or stopped then moves nothing that is
             // steady, which the card's filter would let through as a thump.
@@ -370,17 +371,30 @@ struct SAA1099Chip {
             } else {
                 continue
             }
-            if l | r != 0 { reach[channel] = max(reach[channel], max(abs(l), abs(r))) }
+            lowsLeft[channel] = min(lowsLeft[channel], l)
+            highsLeft[channel] = max(highsLeft[channel], l)
+            lowsRight[channel] = min(lowsRight[channel], r)
+            highsRight[channel] = max(highsRight[channel], r)
+            guard !muted[channel] else { continue }
             left += l
             right += r
         }
         return (Double(left) / 480, Double(right) / 480)
     }
 
+    /// How far each channel has swung since this was last asked, on the side it has swung the more,
+    /// where 1 is a tone at the loudest: half the way from the lowest it has been to the highest. A
+    /// channel held at one level, as an envelope is while it rests, makes no sound and is dark; and
+    /// one left out of the sound is as it would be heard.
     mutating func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         for channel in 0 ..< 6 {
-            levels[channel] = Float(reach[channel]) / 240
-            reach[channel] = 0
+            let left = highsLeft[channel] > lowsLeft[channel] ? highsLeft[channel] - lowsLeft[channel] : 0
+            let right = highsRight[channel] > lowsRight[channel] ? highsRight[channel] - lowsRight[channel] : 0
+            levels[channel] = Float(max(left, right)) / 480
+            lowsLeft[channel] = .max
+            highsLeft[channel] = .min
+            lowsRight[channel] = .max
+            highsRight[channel] = .min
         }
     }
 

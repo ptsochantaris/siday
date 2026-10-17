@@ -48,11 +48,20 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     private let left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>
     private var tickFrames = 0, tickPosition = 0
     /// For the lights: the player's channels that the file's patterns use, in the patterns' order (the
-    /// first sixteen are the sound card's and the nine after them the AdLib's), how loud each was in
-    /// the tick last made, and room for the levels of them all.
+    /// first sixteen are the sound card's and the nine after them the AdLib's), and room for the
+    /// levels of them all. A tick is made whole and heard as it is given out, which may be over
+    /// several calls to `render`. So the tick is made a `piece` at a time, and each voice's level in
+    /// each piece is kept, `pieceLevels`, as are its pitch and whether a note is struck on it in the
+    /// tick; and the lights are of the pieces given out since they were last asked for, `heard`, and
+    /// not of what has been made.
+    /// (The levels are kept in plain memory, being written at every piece.)
     private let lights: [Int]
-    private var levels: TickLevels
-    private var channelLevels = [Float](repeating: 0, count: ST3Player.ACHANNELS)
+    private let lightChannels: UnsafeMutablePointer<Int>
+    private let pieceLevels: UnsafeMutablePointer<Float>, heard: UnsafeMutablePointer<Float>
+    private var tickPitches: [Float], tickStruck: [Bool]
+    /// How many of the player's frames each piece of a tick is.
+    private static let piece = 128
+    private let channelLevels: UnsafeMutablePointer<Float>
     private var notes: TickNotes
     private var channelPitches = [Float](repeating: 0, count: 25)
     /// The part of a sample that ticks are over by, in 2^-32s, carried from tick to tick.
@@ -119,7 +128,16 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
             if channel <= 24 || channel >= ST3Module.firstExtraChannel, !lights.contains(channel) { lights.append(channel) }
         }
         self.lights = lights
-        levels = TickLevels(voices: lights.count)
+        lightChannels = .allocate(capacity: max(1, lights.count))
+        for light in lights.indices { lightChannels[light] = lights[light] }
+        pieceLevels = .allocate(capacity: max(1, lights.count * (Self.tickSpace / Self.piece)))
+        pieceLevels.initialize(repeating: 0, count: max(1, lights.count * (Self.tickSpace / Self.piece)))
+        heard = .allocate(capacity: max(1, lights.count))
+        heard.initialize(repeating: 0, count: max(1, lights.count))
+        channelLevels = .allocate(capacity: ST3Player.ACHANNELS)
+        channelLevels.initialize(repeating: 0, count: ST3Player.ACHANNELS)
+        tickPitches = [Float](repeating: 0, count: lights.count)
+        tickStruck = [Bool](repeating: false, count: lights.count)
         notes = TickNotes(voices: lights.count)
 
         // Once through each of its songs in silence, to find how long it is and whether the AdLib
@@ -167,6 +185,10 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         left.deallocate()
         right.deallocate()
         firstPlayedBy.deallocate()
+        lightChannels.deallocate()
+        pieceLevels.deallocate()
+        heard.deallocate()
+        channelLevels.deallocate()
     }
 
     public func select(subsong: Int) {
@@ -229,7 +251,12 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         if !asScreamTracker { tellCardsOfWaves() }
         tickFrames = 0
         tickPosition = 0
-        levels.clear()
+        pieceLevels.update(repeating: 0, count: max(1, lights.count * (Self.tickSpace / Self.piece)))
+        for light in lights.indices {
+            heard[light] = 0
+            tickPitches[light] = 0
+            tickStruck[light] = false
+        }
         notes.clear()
         remainder = 0
         loopCount = 0
@@ -256,28 +283,56 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         started = true
         tickFrames = Self.tickLength(player, &remainder)
         tickPosition = 0
-        player.cards.render(left: left, right: right, count: tickFrames, channels: player.zchn)
-        if player.adlibused {
-            player.adlib.render(left: left, right: right, count: tickFrames, sinc: player.cards.sinc)
-        } else if waves != nil {
-            player.adlib.keepSilence(count: tickFrames)
-        }
-        player.cards.takeLevels(into: &channelLevels)
-        player.adlib.takeLevels(into: &channelLevels)
-        for light in lights.indices { levels.now[light] = channelLevels[lights[light]] }
-        levels.tickMade()
         // A channel of samples is at the pitch of its period, which is a fourteen-millionth of a
-        // second for each sample; the AdLib's voices are at whatever the chip has been told.
+        // second for each sample, as the tick begins: a Sound Blaster's that comes to the end of its
+        // sample in the tick is stopped by the time it is made. The AdLib's voices are at whatever
+        // the chip has been told, which it takes up as it makes the tick.
+        for light in lights.indices where Self.isSampled(lights[light]) {
+            let ch = player.zchn[lights[light]]
+            tickPitches[light] = ch.aspd > 0 && ch.m_speed != 0 ? ChannelPitch.note(ofRate: 14_317_056 / Double(ch.aspd)) : 0
+        }
+        // A piece at a time, which makes the same sound as the tick made at once: but ModPlug's reverb
+        // is given the sound in blocks of its own, and so a tick that has it is made whole.
+        let piece = player.cards.makesTheSameInPieces ? Self.piece : tickFrames
+        var start = 0
+        while start < tickFrames {
+            let count = min(piece, tickFrames - start)
+            player.cards.render(left: left + start, right: right + start, count: count, channels: player.zchn)
+            if player.adlibused {
+                player.adlib.render(left: left + start, right: right + start, count: count, sinc: player.cards.sinc)
+            } else if waves != nil {
+                player.adlib.keepSilence(count: count)
+            }
+            player.cards.takeLevels(into: channelLevels)
+            player.adlib.takeLevels(into: channelLevels)
+            // (A tick made whole has its levels in every piece.)
+            let voices = lights.count
+            for first in stride(from: start, to: start + count, by: Self.piece) {
+                let base = first / Self.piece * voices
+                for light in 0 ..< voices { pieceLevels[base + light] = channelLevels[lightChannels[light]] }
+            }
+            start += count
+        }
         player.adlib.takePitches(into: &channelPitches)
         for light in lights.indices {
             let ch = player.zchn[lights[light]]
-            if Self.isSampled(lights[light]) {
-                notes.pitches[light] = ch.aspd > 0 && ch.m_speed != 0 ? ChannelPitch.note(ofRate: 14_317_056 / Double(ch.aspd)) : 0
-            } else {
-                notes.pitches[light] = channelPitches[lights[light]]
-            }
-            if ch.struck { notes.struck[light] = true }
+            if !Self.isSampled(lights[light]) { tickPitches[light] = channelPitches[lights[light]] }
+            tickStruck[light] = ch.struck
             ch.struck = false
+        }
+    }
+
+    /// So many frames of the tick last made are being given out from where it has got to: the levels
+    /// of the pieces they are in are heard, and where it is begun, its pitches and the notes struck in it.
+    private func tickHeard(_ count: Int) {
+        for index in tickPosition / Self.piece ... (tickPosition + count - 1) / Self.piece {
+            let base = index * lights.count
+            for light in lights.indices where pieceLevels[base + light] > heard[light] { heard[light] = pieceLevels[base + light] }
+        }
+        guard tickPosition == 0 else { return }
+        for light in lights.indices {
+            notes.pitches[light] = tickPitches[light]
+            if tickStruck[light] { notes.struck[light] = true }
         }
     }
 
@@ -300,7 +355,10 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     }
 
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
-        self.levels.take(into: levels)
+        for light in lights.indices {
+            levels[light] = heard[light]
+            heard[light] = 0
+        }
     }
 
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
@@ -309,6 +367,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         while done < frames {
             if tickPosition == tickFrames { nextTick() }
             let count = min(frames - done, tickFrames - tickPosition)
+            tickHeard(count)
             if mono {
                 for i in 0 ..< count {
                     let both = (left[tickPosition + i] + right[tickPosition + i]) * (gain * 0.5)

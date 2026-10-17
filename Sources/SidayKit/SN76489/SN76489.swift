@@ -41,9 +41,9 @@ struct SN76489Chip {
     private(set) var stereoMask: UInt8 = 0xFF
     /// Channels left out of the sound.
     var muted = InlineArray<4, Bool>(repeating: false)
-    /// For what is shown of the voices: how loud each has been since this was last asked, and
-    /// whether its volume has jumped up.
-    private var reach = InlineArray<4, Double>(repeating: 0)
+    /// For what is shown of the voices: the lowest and the highest each has been since this was last
+    /// asked, and whether its volume has jumped up.
+    private var lows = InlineArray<4, Double>(repeating: .infinity), highs = InlineArray<4, Double>(repeating: -.infinity)
     private var struck = InlineArray<4, Bool>(repeating: false)
 
     /// The sixteen volumes, the last silence.
@@ -66,7 +66,8 @@ struct SN76489Chip {
             periods[channel] = 0
             counts[channel] = 0
             outputs[channel] = false
-            reach[channel] = 0
+            lows[channel] = .infinity
+            highs[channel] = -.infinity
             struck[channel] = false
         }
         for register in 0 ..< 8 { registers[register] = 0 }
@@ -129,10 +130,12 @@ struct SN76489Chip {
             counts[3] = periods[3]
         }
         var left = 0.0, right = 0.0
-        for channel in 0 ..< 4 where !muted[channel] {
+        for channel in 0 ..< 4 {
             let volume = volumes[channel]
             let level = channel == 3 || periods[channel] > 1 ? (outputs[channel] ? volume : -volume) : volume
-            if level != 0 { reach[channel] = max(reach[channel], abs(level)) }
+            lows[channel] = min(lows[channel], level)
+            highs[channel] = max(highs[channel], level)
+            guard !muted[channel] else { continue }
             if variant.stereo {
                 if stereoMask & (0x10 << UInt8(channel)) != 0 { left += level }
                 if stereoMask & (0x01 << UInt8(channel)) != 0 { right += level }
@@ -143,10 +146,15 @@ struct SN76489Chip {
         return variant.stereo ? (left * 0.5, right * 0.5) : (left * 0.5, left * 0.5)
     }
 
+    /// How far each channel has swung since this was last asked, where 1 is a tone at the loudest: half
+    /// the way from the lowest it has been to the highest. A channel held at one level, as one held
+    /// open at a period of one is until samples are played on its volume, makes no sound, and is dark;
+    /// and one left out of the sound is as it would be heard.
     mutating func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         for channel in 0 ..< 4 {
-            levels[channel] = Float(reach[channel])
-            reach[channel] = 0
+            levels[channel] = highs[channel] > lows[channel] ? Float((highs[channel] - lows[channel]) * 0.5) : 0
+            lows[channel] = .infinity
+            highs[channel] = -.infinity
         }
     }
 

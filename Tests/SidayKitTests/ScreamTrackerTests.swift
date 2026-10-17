@@ -670,3 +670,28 @@ private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.
         #expect(stereoSound(plain, seconds: 1) == stereoSound(kept, seconds: 1))
     }
 }
+
+@Test func s3mLightsAreOfWhatIsGivenOut() throws {
+    // The first instrument not looping: its 32 samples at C-4 are over in some 190 of the player's
+    // frames, at the start of the first tick, which is 960 of them. A tick is made whole; the lights
+    // are of the part of it given out.
+    var file = s3m()
+    file[0x70 + 31] = 0
+    for card in [ST3Card.gus, .sb] {
+        var options = LoadOptions()
+        options.s3mCard = card
+        let renderer = try TuneLoader.load(file, format: .s3m, options: options)
+        _ = stereoSound(renderer, seconds: 0.0125)
+        #expect(levels(renderer)[0] > 0.3)
+        _ = stereoSound(renderer, seconds: 0.005)
+        #expect(levels(renderer)[0] == 0)
+        // And the note is said to be struck as its tick begins to be given out, not before.
+        let again = try TuneLoader.load(file, format: .s3m, options: options)
+        var pitches = [Float](repeating: 0, count: 2), struck = [Bool](repeating: false, count: 2)
+        again.takeChannelNotes(pitches: &pitches, struck: &struck)
+        #expect(!struck[0])
+        _ = stereoSound(again, seconds: 0.001)
+        again.takeChannelNotes(pitches: &pitches, struck: &struck)
+        #expect(struck[0] && pitches[0] > 0)
+    }
+}

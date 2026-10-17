@@ -421,7 +421,14 @@ final class VGMRenderer: Renderer, ReferenceComparable {
     }
 
     /// Has every chip make all it was given, for hearing.
-    private func makeAll() {
+    /// - Parameter wanted: how many frames each chip is to have made, if it has as much to make: so
+    ///   that the chips make no more than is about to be heard, and what is said of their voices is
+    ///   of what is heard. (What a chip makes is the same however it is divided.)
+    /// - Returns: true if any chip made anything.
+    @discardableResult
+    private func makeAll(wanted: Int = madeCapacity) -> Bool {
+        var any = false
+        let wanted = min(wanted, Self.madeCapacity)
         for (index, chip) in chips.enumerated() {
             var fade = 0, after = 0
             if let tailFrom {
@@ -429,11 +436,14 @@ final class VGMRenderer: Renderer, ReferenceComparable {
                 after = steps(index, to: Double(tailFrom) + Self.tailSeconds * 44100) - given[index]
             }
             let block = made[index]
-            while chip.samplesLeft > 0, madeFrames[index] < Self.madeCapacity {
-                madeFrames[index] += chip.render(into: block + madeFrames[index] * 2, frames: Self.madeCapacity - madeFrames[index],
+            while chip.samplesLeft > 0, madeFrames[index] < wanted {
+                let left = chip.samplesLeft
+                madeFrames[index] += chip.render(into: block + madeFrames[index] * 2, frames: wanted - madeFrames[index],
                                                  gain: gains[index], fade: fade, after: after)
+                if chip.samplesLeft != left { any = true }
             }
         }
+        return any
     }
 
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
@@ -444,9 +454,14 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             let ready = madeFrames.min() ?? 0
             if ready == 0 {
                 if hasEnded { break }
+                // Every chip makes all it was given before the next writes, which land between its
+                // samples where they would have if it were the only chip.
+                if chips.contains(where: { $0.samplesLeft > 0 }) {
+                    if makeAll(wanted: frames - done) || makeAll() { continue }
+                }
                 advance()
                 if hasEnded { break }
-                makeAll()
+                makeAll(wanted: frames - done)
                 continue
             }
             let count = min(ready, frames - done)

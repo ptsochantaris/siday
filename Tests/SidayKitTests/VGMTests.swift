@@ -545,3 +545,52 @@ private let scopeFiles: [[UInt8]] = [
         #expect(stereo(plain, seconds: 2.5) == stereo(kept, seconds: 2.5))
     }
 }
+
+/// How loud a player says each of its voices has been since it was last asked.
+private func levels(_ renderer: any Renderer) -> [Float] {
+    var levels = [Float](repeating: 0, count: renderer.channelCount)
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    return levels
+}
+
+@Test func vgmVoiceHeldAtOneLevelIsDark() throws {
+    // An SN76489's channel held at a period of one stays at its volume, and makes no sound; the
+    // tone beside it does.
+    let sn = try TuneLoader.load(snFile(snTone(0, period: 1, volume: 0) + snTone(1, period: 254, volume: 0) + [0x61] + word(44100), ticks: 44100),
+                                 format: .vgm)
+    _ = stereo(sn, seconds: 0.2)
+    let snLevels = levels(sn)
+    #expect(snLevels[0] == 0 && snLevels[1] > 0.9)
+
+    // An SAA1099's envelope held at its loudest, with no tone or noise, is a level and not a sound;
+    // going down over and over, it is one.
+    let held = try TuneLoader.load(saaFile(saa([(0x02, 0xFF), (0x14, 0x00), (0x18, 0x82), (0x1C, 0x01)]) + [0x61] + word(44100), ticks: 44100),
+                                   format: .vgm)
+    _ = stereo(held, seconds: 0.2)
+    #expect(levels(held)[2] == 0)
+    let moving = try TuneLoader.load(saaFile(saa([(0x02, 0xFF), (0x09, 11), (0x10, 6 << 4), (0x14, 0x00), (0x18, 0x86), (0x1C, 0x01)]) + [0x61] + word(44100),
+                                             ticks: 44100), format: .vgm)
+    _ = stereo(moving, seconds: 0.2)
+    #expect(levels(moving)[2] > 0.5)
+
+    // A DAC left at one value is dark; one playing a sound is not.
+    let still = try TuneLoader.load(vgm([0x52, 0x2B, 0x80, 0x52, 0x2A, 0xC0, 0x61] + word(44100), ticks: 44100, clockAt: 0x2C, clock: 7_670_453),
+                                    format: .vgm)
+    _ = stereo(still, seconds: 0.2)
+    #expect(levels(still)[0] == 0)
+    let playing = try TuneLoader.load(scopeFiles[3], format: .vgm)
+    _ = stereo(playing, seconds: 0.2)
+    #expect(abs(levels(playing)[0] - 0.5) < 0.02)
+}
+
+@Test func vgmChipsMakeNoMoreThanIsGivenOut() throws {
+    // So that what is said of the voices is of what is heard: the chips make, between writes, what
+    // is asked for and no more.
+    let renderer = try TuneLoader.load(scopeFiles[0], format: .vgm)
+    let waves = try #require(renderer.keepChannelWaves())
+    var buffer = [Float](repeating: 0, count: 2000)
+    for frames in [100, 37, 500, 3, 999] {
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+        #expect(waves.ahead == 0)
+    }
+}

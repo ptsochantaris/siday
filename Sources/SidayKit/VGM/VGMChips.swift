@@ -190,9 +190,9 @@ final class VGMDAC: VGMSoundChip {
     private var on = false
     private var left = true, right = true
     private var muted = false
-    /// For the lights: how far from the middle it has been since this was last asked, and whether
-    /// a sound has been started.
-    private var reach = 0
+    /// For the lights: the lowest and highest it has been in what it has made since this was last
+    /// asked, and whether a sound has been started.
+    private var low: Float = .infinity, high: Float = -.infinity
     private var started = false
     // The filter: 3.18 Hz, at the rate of the player.
     private static let b1 = exp(-2.0 * Double.pi * 3.18309886184 / Double(outputSampleRate))
@@ -218,7 +218,8 @@ final class VGMDAC: VGMSoundChip {
         on = false
         left = true
         right = true
-        reach = 0
+        low = .infinity
+        high = -.infinity
         started = false
         steadyLeft = 0
         steadyRight = 0
@@ -229,7 +230,6 @@ final class VGMDAC: VGMSoundChip {
         switch register {
         case 0x2A:
             self.value = Int(value)
-            if on { reach = max(reach, abs(Int(value) - 0x80)) }
         case 0x2B:
             on = value & 0x80 != 0
         case 0x1B6:
@@ -263,12 +263,20 @@ final class VGMDAC: VGMSoundChip {
             made += 1
         }
         waves?.advance(wavesFrom, by: made)
+        if made > 0 {
+            low = min(low, out)
+            high = max(high, out)
+        }
         return made
     }
 
+    /// How far it has swung since this was last asked, where 1 is from the bottom of its eight bits
+    /// to the top: so a DAC left at one level, which makes no sound, is dark. (One left out of the
+    /// sound is as it would be heard.)
     func takeLevels(into levels: UnsafeMutablePointer<Float>) {
-        levels[0] = Float(reach) / 128
-        reach = 0
+        levels[0] = high > low ? (high - low) * 0.5 : 0
+        low = .infinity
+        high = -.infinity
     }
 
     func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {

@@ -181,11 +181,8 @@ final class ST3AdLib {
 
     /// How loud each of the card's nine voices was in the samples made since this was last asked:
     /// they are the channels from the sixteenth on.
-    func takeLevels(into levels: inout [Float]) {
-        levels.withUnsafeMutableBufferPointer { levels in
-            guard let first = levels.baseAddress, levels.count >= 25 else { return }
-            chip.pointee.takeLevels(into: first + 16, count: 9)
-        }
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) {
+        chip.pointee.takeLevels(into: levels + 16, count: 9)
     }
 
     /// The pitch each of the nine voices is set to: they are the channels from the sixteenth on.
