@@ -652,7 +652,7 @@ button:disabled {
   );
 }
 
-/* With scopes, the voices are a grid, each a scope of its wave with its lamp under it, as the
+/* With scopes, the voices are a grid, each a scope of its wave with its lamp over it, as the
    channels of FastTracker 2 had theirs above its patterns. The wave is drawn in the colour of its
    lamp (`--trace`), by Web/siday.js, on a dark ground of its own; the lamp is outside it, on the
    panel, where lamps look best. Without the lamps, the scope has the whole of its place. */
@@ -693,7 +693,7 @@ button:disabled {
 }
 
 .lights.scoped .light::before {
-  inset: auto auto 6px 50%;
+  inset: 6px auto auto 50%;
   width: 12px;
   height: 12px;
   transform: translateX(-50%);
@@ -704,7 +704,7 @@ button:disabled {
 }
 
 .lights.scoped .glow {
-  inset: auto auto 0 50%;
+  inset: 0 auto auto 50%;
   width: 24px;
   height: 24px;
   margin-left: -12px;
@@ -712,7 +712,7 @@ button:disabled {
 
 canvas.scope {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   display: block;
   width: 100%;

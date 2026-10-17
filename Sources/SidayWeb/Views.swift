@@ -357,8 +357,8 @@ struct Lights {
     /// Which the listener has muted: their lights are dimmed and have most of their colour taken
     /// out, and still flicker with what the voice is playing.
     var muted: [Bool]
-    /// Whether the lamps are shown, and whether each voice has a scope of its wave above its lamp, as
-    /// FastTracker 2 had above its patterns. With scopes the voices are a grid, of rows of up to
+    /// Whether the lamps are shown, and whether each voice has a scope of its wave under its lamp,
+    /// as FastTracker 2 had a scope of each channel above its patterns. With scopes the voices are a grid, of rows of up to
     /// eight (four on a narrow screen), as even as they can be; the scopes are drawn by `Web/siday.js`.
     var lamps = true
     var scopes = false
