@@ -197,3 +197,75 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     _ = render(renderer, seconds: 0.2)
     #expect(swing(render(renderer, seconds: 0.5), from: 4800) < 0.0001)
 }
+
+// MARK: Scopes
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+/// Each voice's scope, a point a byte, after a tune has played for so long, in pieces as the web
+/// player plays it.
+private func scopes(_ renderer: any Renderer, muted: [Bool] = [], seconds: Double = 0.3) -> [UInt8] {
+    renderer.setMuted(muted)
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    var buffer = [Float](repeating: 0, count: 1024 * 2)
+    for _ in 0 ..< Int(seconds * Double(outputSampleRate) / 1024) {
+        _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 1024) }
+    }
+    var scopes = [UInt8](repeating: 0, count: ChannelWaves.points * renderer.channelCount)
+    scopes.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return scopes
+}
+
+/// What a player makes of its tune, in pieces, with each voice's sound kept or not.
+private func sound(_ renderer: any Renderer, keeping: Bool, frames: Int = 24000) -> [Float] {
+    if keeping { #expect(renderer.keepChannelWaves() != nil) }
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    var done = 0
+    while done < frames {
+        let count = min(1000, frames - done)
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress! + done * 2, frames: count) }
+        done += count
+    }
+    return buffer
+}
+
+@Test func sapVoicesHaveScopes() throws {
+    // The first channel's square wave at full volume; the rest, and the loudspeaker, silent.
+    let file = sap(typeB, [(0x2000, tone()), player, table])
+    let shown = scopes(try SAPRenderer(file))
+    #expect(shown.count == 5 * 64)
+    #expect(height(shown[0 ..< 64]) > 110)
+    #expect(shown[64...].allSatisfy { $0 == 128 })
+    // At a quarter of the volume, a smaller scope; and left out, the scope it had.
+    let quiet = height(scopes(try SAPRenderer(sap(typeB, [(0x2000, tone(volume: 0xA4)), player, table])))[0 ..< 64])
+    #expect(quiet > 40 && quiet < 90)
+    #expect(height(scopes(try SAPRenderer(file), muted: [true])[0 ..< 64]) > 110)
+    // The sound is the same with them kept, and so is the machine's own.
+    #expect(sound(try SAPRenderer(file), keeping: true) == sound(try SAPRenderer(file), keeping: false))
+    let kept = try SAPRenderer(file)
+    _ = kept.keepChannelWaves()
+    #expect(kept.renderRaw(frames: 24000) == (try SAPRenderer(file)).renderRaw(frames: 24000))
+}
+
+@Test func sapStereoAndLoudspeakerHaveScopes() throws {
+    // Each POKEY's first channel, the second's quieter.
+    let code = tone(after: []) + tone(pokey: 0xD210, volume: 0xA4)
+    let stereo = sap(["STEREO", "TYPE B", "INIT 2000", "PLAYER 2080"], [(0x2000, code), player, table])
+    let shown = scopes(try SAPRenderer(stereo))
+    #expect(shown.count == 9 * 64)
+    #expect(height(shown[0 ..< 64]) > 110 && height(shown[256 ..< 320]) > 40 && height(shown[256 ..< 320]) < 90)
+    #expect(shown[64 ..< 256].allSatisfy { $0 == 128 } && shown[320...].allSatisfy { $0 == 128 })
+    #expect(sound(try SAPRenderer(stereo), keeping: true) == sound(try SAPRenderer(stereo), keeping: false))
+
+    // The loudspeaker alone, in and out, as in `sapConsoleLoudspeakerIsAVoice`; left out, it still moves.
+    let wait: [UInt8] = [0x8D, 0x0A, 0xD4]
+    let beeper: [UInt8] = [0xA9, 0x00, 0x8D, 0x1F, 0xD0] + wait + wait + wait + wait
+        + [0xA9, 0x08, 0x8D, 0x1F, 0xD0] + wait + wait + wait + wait + [0x4C, 0x00, 0x20]
+    let speaker = sap(["TYPE D", "INIT 2000"], [(0x2000, beeper)])
+    let beeped = scopes(try SAPRenderer(speaker))
+    #expect(beeped[0 ..< 256].allSatisfy { $0 == 128 } && height(beeped[256 ..< 320]) > 110)
+    #expect(height(scopes(try SAPRenderer(speaker), muted: [false, false, false, false, true])[256 ..< 320]) > 110)
+    #expect(sound(try SAPRenderer(speaker), keeping: true) == sound(try SAPRenderer(speaker), keeping: false))
+}

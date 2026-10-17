@@ -79,6 +79,19 @@ final class POKEY {
     private var reach = InlineArray<4, Int>(repeating: 0)
     private var struck = InlineArray<4, Bool>(repeating: false)
 
+    /// For the voices' scopes, once asked (`keepVoices`): each channel's part of the sum, and fifth the
+    /// console's loudspeaker, as its steps fall among the samples, kept as the sound's own steps are
+    /// (`deltaBuffer`): in `voiceSteps` all of each step, in the sample it falls in, and in `voiceParts`
+    /// the part of it that sample has, so that a sample is the average of what the voice was over it,
+    /// and a tone too high to hear is a level, as it is heard, and not some lower one it is not.
+    /// `voiceLevels` is where each stands as of the last sample handed out, and `speakerUp` whether the
+    /// loudspeaker is out.
+    private var voiceSteps: UnsafeMutablePointer<Int32>?
+    private var voiceParts: UnsafeMutablePointer<Float>?
+    private var voiceLevels = InlineArray<5, Int32>(repeating: 0)
+    private var speakerUp = false
+    var keepsVoices: Bool { voiceSteps != nil }
+
     // The DAC's sums, as ASAP has them from measurements of chips made by AMI: the channels'
     // levels added, and compressed by where the chip's output is set to work.
     private static let compressedSums: [Int] = [
@@ -103,12 +116,28 @@ final class POKEY {
 
     deinit {
         deltaBuffer.deallocate()
+        voiceSteps?.deallocate()
+        voiceParts?.deallocate()
     }
 
     func startFrame() {
         let kept = deltaBufferLength - trailing
         if kept > 0 { deltaBuffer.update(from: deltaBuffer + trailing, count: kept) }
         (deltaBuffer + kept).update(repeating: 0, count: trailing)
+        if let voiceSteps, let voiceParts {
+            for voice in 0 ..< 5 {
+                let steps = voiceSteps + voice * deltaBufferLength, parts = voiceParts + voice * deltaBufferLength
+                if kept > 0 {
+                    steps.update(from: steps + trailing, count: kept)
+                    parts.update(from: parts + trailing, count: kept)
+                }
+                (steps + kept).update(repeating: 0, count: trailing)
+                (parts + kept).update(repeating: 0, count: trailing)
+            }
+            // Nothing is left of the steps: where the voices stand is where the chip has them. (So it
+            // is once a tune has been started, whose first moments are made and not heard.)
+            if kept <= 0 { takeVoiceLevels() }
+        }
         if heardChanged {
             heardChanged = false
             let newOutput = Self.compressedSums[heardSum] << 16
@@ -138,6 +167,7 @@ final class POKEY {
             reach[c] = 0
             struck[c] = false
         }
+        speakerUp = false
         startFrame()
     }
 
@@ -148,6 +178,7 @@ final class POKEY {
     // MARK: The channels
 
     private func addDelta(_ c: Int, _ cycle: Int, _ delta: Int) {
+        if voiceSteps != nil { addVoiceStep(c, cycle, delta) }
         sumDACInputs += delta
         if leftOut & (1 << c) == 0 { heardSum += delta }
         if channels[c].mute & POKEYChannel.muteUser != 0 { return }
@@ -481,6 +512,62 @@ final class POKEY {
 
     // MARK: What is shown and heard
 
+    /// Starts keeping each voice's steps for its scope (see `voiceSteps`), with the loudspeaker in or
+    /// out as it now is.
+    func keepVoices(speakerUp: Bool) {
+        guard voiceSteps == nil else { return }
+        let steps = UnsafeMutablePointer<Int32>.allocate(capacity: 5 * deltaBufferLength)
+        steps.initialize(repeating: 0, count: 5 * deltaBufferLength)
+        let parts = UnsafeMutablePointer<Float>.allocate(capacity: 5 * deltaBufferLength)
+        parts.initialize(repeating: 0, count: 5 * deltaBufferLength)
+        voiceSteps = steps
+        voiceParts = parts
+        self.speakerUp = speakerUp
+        takeVoiceLevels()
+    }
+
+    /// Where each voice stands now, by the chip: a channel's part of the sum is its level while its
+    /// output is high, and nothing while it is low (see `POKEYChannel.delta`).
+    private func takeVoiceLevels() {
+        for c in 0 ..< 4 { voiceLevels[c] = Int32(max(0, channels[c].delta)) }
+        voiceLevels[4] = speakerUp ? 1 : 0
+    }
+
+    /// A voice's step at the given cycle, put in the sample where the middle of the sound's own step
+    /// for it falls (see `addExternalDelta`).
+    private func addVoiceStep(_ voice: Int, _ cycle: Int, _ delta: Int) {
+        guard let voiceSteps, let voiceParts, delta != 0 else { return }
+        let place = cycle &* sampleFactor &+ sampleOffset
+        let i = (place >> POKEYPair.sampleFactorShift) + Self.unitDeltaLength / 2
+        guard i >= 0, i < deltaBufferLength else { return }
+        let into = Float(place & ((1 << POKEYPair.sampleFactorShift) - 1)) / Float(1 << POKEYPair.sampleFactorShift)
+        voiceSteps[voice * deltaBufferLength + i] += Int32(delta)
+        voiceParts[voice * deltaBufferLength + i] += Float(delta) * (1 - into)
+    }
+
+    /// The console's loudspeaker going out or in, at the given cycle, for its scope.
+    func moveSpeaker(_ cycle: Int, up: Bool) {
+        guard up != speakerUp else { return }
+        speakerUp = up
+        addVoiceStep(4, cycle, up ? 1 : -1)
+    }
+
+    /// Keeps what each voice was over the samples from `start` to `end` (as `storeSample` counts them),
+    /// the four channels as voices `first` on and the loudspeaker, if it is asked for, as `speaker`.
+    func keepVoices(from start: Int, to end: Int, in waves: ChannelWaves, first: Int, speaker: Int?) {
+        guard let voiceSteps, let voiceParts, end > start else { return }
+        for voice in 0 ..< (speaker == nil ? 4 : 5) {
+            let steps = voiceSteps + voice * deltaBufferLength, parts = voiceParts + voice * deltaBufferLength
+            let kept = voice < 4 ? first + voice : speaker!
+            var level = voiceLevels[voice]
+            for i in start ..< end {
+                waves.store(kept, at: i - start, Float(level) + parts[i])
+                level &+= steps[i]
+            }
+            voiceLevels[voice] = level
+        }
+    }
+
     /// Leaves channels out of the sound, a bit for each. The sound goes to the new sum at the start
     /// of the next frame.
     func leaveOut(_ mask: Int) {
@@ -544,6 +631,9 @@ final class POKEYPair {
     var readySamplesStart = 0
     private(set) var readySamplesEnd = 0
     var stereo: Bool { extraMask != 0 }
+    /// Where each voice's sound is kept for its scope, once asked: the samples each chip has made of
+    /// its voices are kept there as they are handed out.
+    var waves: ChannelWaves?
 
     static let poly9Lookup: [UInt8] = {
         var table = [UInt8](repeating: 0, count: 511)
@@ -676,6 +766,11 @@ final class POKEYPair {
                 out += 1
             }
             i += 1
+        }
+        if let waves {
+            base.keepVoices(from: readySamplesStart, to: i, in: waves, first: 0, speaker: stereo ? 8 : 4)
+            if stereo { extra.keepVoices(from: readySamplesStart, to: i, in: waves, first: 4, speaker: nil) }
+            waves.advance(by: i - readySamplesStart)
         }
         if i == readySamplesEnd {
             base.accumulateTrailing(i)

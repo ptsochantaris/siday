@@ -111,6 +111,7 @@ final class SAPMachine {
             if (consol ^ data) & 8 != 0 {
                 speakerMoves += 1
                 gtiaOrCovoxPlayedThisFrame = true
+                if pokeys.base.keepsVoices { pokeys.base.moveSpeaker(cycle, up: data & 8 == 0) }
             }
             if !speakerLeftOut {
                 let delta = ((heardConsol & 8) - (data & 8)) << 20
@@ -270,6 +271,14 @@ final class SAPMachine {
         pokeys.extra.mute(0)
         nextPlayerCycle = 0
         return true
+    }
+
+    /// Starts keeping each voice's sound for its scope (see `POKEYPair.waves`): the channels of each
+    /// POKEY, and the console's loudspeaker, which the first keeps.
+    func keepVoices(in waves: ChannelWaves) {
+        pokeys.base.keepVoices(speakerUp: consol & 8 == 0)
+        pokeys.extra.keepVoices(speakerUp: false)
+        pokeys.waves = waves
     }
 
     /// Fills `buffer` with `blocks` samples, one for each POKEY, running the machine as it needs.

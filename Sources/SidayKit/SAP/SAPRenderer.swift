@@ -88,6 +88,10 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
         guard playing else {
             buffer.update(repeating: 0, count: frames * 2)
+            if let waves {
+                for voice in 0 ..< channelCount { waves.silence(voice, count: frames) }
+                waves.advance(by: frames)
+            }
             return
         }
         make(frames)
@@ -181,6 +185,21 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
             sampled[voice] = (voice < 4 ? machine.pokeys.base : machine.pokeys.extra).isSampled(voice & 3)
         }
         sampled[speaker] = false
+    }
+
+    /// Where each voice's sound is kept for its scope, once asked: each channel's level, from nought to
+    /// fifteen, and the loudspeaker, in or out. The machine is the same from one song to the next, and
+    /// so is this.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            let waves = ChannelWaves(voices: channelCount, rate: Double(outputSampleRate), fullSwing: 7.5)
+            waves.setVoice(speaker, rate: Double(outputSampleRate), fullSwing: 0.5)
+            machine.keepVoices(in: waves)
+            self.waves = waves
+        }
+        return waves
     }
 
     public func setMuted(_ muted: [Bool]) {
