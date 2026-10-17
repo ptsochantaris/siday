@@ -362,6 +362,7 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
     }
 
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
+        if let waves { return render(into: buffer, frames: frames, keeping: waves) }
         var done = 0
         while done < frames {
             if untilTick == 0 {
@@ -380,7 +381,47 @@ public final class STYMRenderer: Renderer, ReferenceComparable {
         }
     }
 
+    /// The same, keeping each channel's output in `waves` as the samples are made: kept apart from
+    /// `render`, so that the loop it runs when they are not kept is as it was.
+    @inline(never) private func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, keeping waves: ChannelWaves) {
+        var done = 0
+        while done < frames {
+            if untilTick == 0 {
+                nextTick()
+                untilTick = samplesPerTick
+            }
+            let count = min(untilTick, frames - done)
+            for frame in done ..< done + count {
+                let sample = chip.nextFiltered() * gain
+                // (As the channels were for this sample, before the timers' effects change them.)
+                let (a, b, c) = chip.channelOutputs()
+                waves.store(0, at: 0, a)
+                waves.store(1, at: 0, b)
+                waves.store(2, at: 0, c)
+                waves.advance(by: 1)
+                runTimers()
+                buffer[frame * 2] = sample
+                buffer[frame * 2 + 1] = sample
+            }
+            done += count
+            untilTick -= count
+        }
+    }
+
     public var channelCount: Int { 3 }
+
+    /// Where each channel's output is kept for its scope, an output sample at a time, once asked: a
+    /// channel is full at the top of its volume. The chip is the same from one song to the next.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            let waves = ChannelWaves(voices: 3, rate: Double(outputSampleRate), fullSwing: 1)
+            for channel in 0 ..< 3 { waves.setVoice(channel, rate: Double(outputSampleRate), fullSwing: chip.fullSwing(of: channel)) }
+            self.waves = waves
+        }
+        return waves
+    }
 
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         chip.takeLevels(into: levels)

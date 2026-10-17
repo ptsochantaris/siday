@@ -306,6 +306,32 @@ struct STSoundChip: ~Copyable {
         return Int32(heardMix[Int(levels & 0x7FFF)])
     }
 
+    /// What each channel is putting out now, as it would sound alone: its level looked up with the
+    /// other two at nought, as `takeLevels` measures it, without moving anything on. For the channels'
+    /// scopes, so asked for only when they are drawn, once an output sample, and not in the chip's own
+    /// steps. (A channel left out of the sound is told too.)
+    ///
+    /// A tone of a period under six, above 20 kHz, is taken to be high: it is heard as the level it
+    /// holds the channel open at, which is how a tune plays a level by hand (as `takeLevels` has it),
+    /// and its edges, taken once an output sample, would come out as a tone it is not.
+    func channelOutputs() -> (Float, Float, Float) {
+        let open: UInt32 = (tonePeriod.0 < 6 ? 0x1F : 0) | (tonePeriod.1 < 6 ? 0x1F << 5 : 0) | (tonePeriod.2 < 6 ? 0x1F << 10 : 0)
+        let voices = (toneEdges | toneMask | open) & (currentNoiseMask | noiseMask)
+        let envelopeLevel = UInt32(envelopes[envelope + envelopePosition + 64])
+        let a = stored(8), b = stored(9), c = stored(10)
+        var levels = a & 0x10 != 0 ? envelopeLevel : a << 1 | 1
+        levels |= (b & 0x10 != 0 ? envelopeLevel : b << 1 | 1) << 5
+        levels |= (c & 0x10 != 0 ? envelopeLevel : c << 1 | 1) << 10
+        levels &= voices
+        return (Float(mix[Int(levels & 0x1F)]), Float(mix[Int(levels & 0x1F << 5)]), Float(mix[Int(levels & 0x1F << 10)]))
+    }
+
+    /// How far a channel's output (`channelOutputs`) swings either side of its middle at its loudest:
+    /// from silence to the top of its volume, the other two being silent.
+    func fullSwing(of channel: Int) -> Float {
+        (Float(mix[31 << (channel * 5)]) - Float(mix[0])) / 2
+    }
+
     /// Leaves channels out of the sound, or brings them back: see `Renderer.setMuted`. True for one
     /// that is not to be heard. The three channels are not added up but looked up together, all three
     /// levels at once, so a channel is left out by being looked up at a level of nought: the other

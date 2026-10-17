@@ -225,6 +225,30 @@ final class STMachine {
         return runTimers() ? output : 0
     }
 
+    /// The same, keeping in `waves` what each of the sound chip's three channels and the STE's samples
+    /// are putting out, as they were for this sample, before any timer's code changes them.
+    @inline(__always) func nextFiltered(keeping waves: ChannelWaves) -> Float {
+        var level = hardware.chip.nextFiltered()
+        level += Float(hardware.samples.nextSample(ram: ram, ramSize: UInt32(Self.ramSize), mfp: &hardware.timers))
+        let (a, b, c) = hardware.chip.channelOutputs()
+        waves.store(0, at: 0, a)
+        waves.store(1, at: 0, b)
+        waves.store(2, at: 0, c)
+        waves.store(3, at: 0, Float(hardware.samples.output))
+        waves.advance(by: 1)
+        let output = max(-32768, min(32767, level))
+        return runTimers() ? output : 0
+    }
+
+    /// Where each voice's sound can be kept for its scope, an output sample at a time (`nextFiltered`):
+    /// a channel of the sound chip is full at the top of its volume, and the STE's samples at the
+    /// most they can swing.
+    func makeWaves() -> ChannelWaves {
+        let waves = ChannelWaves(voices: 4, rate: Double(outputSampleRate), fullSwing: 16384)
+        for channel in 0 ..< 3 { waves.setVoice(channel, rate: Double(outputSampleRate), fullSwing: hardware.chip.fullSwing(of: channel)) }
+        return waves
+    }
+
     /// Leaves voices out of the sound, or brings them back: see `Renderer.setMuted`. The sound chip's
     /// three channels, and fourth the STE's samples, which are played on and not added in. The machine
     /// is the same one from one song to the next, and keeps what it is told here.

@@ -566,3 +566,89 @@ private func ymTracker(second: Bool = true) -> [UInt8] {
     #expect(short.info.shortfalls.count == 1 && short.info.shortfalls[0].hasPrefix("The file is cut short"))
     #expect(throws: TuneError.self) { try TuneLoader.load(ym5(cut: 300), format: .ym) }
 }
+
+// MARK: Scopes
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+/// Each voice's scope, a point a byte, after a tune has played for so long, in pieces as the web
+/// player plays it; and whether it keeps them at all.
+private func scopes(_ renderer: any Renderer, muted: [Bool] = [], seconds: Double = 0.3) -> [UInt8] {
+    renderer.setMuted(muted)
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    guard session.keepChannelWaves() else { return [] }
+    var buffer = [Float](repeating: 0, count: 1024 * 2)
+    for _ in 0 ..< Int(seconds * Double(outputSampleRate) / 1024) {
+        _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 1024) }
+    }
+    var scopes = [UInt8](repeating: 0, count: ChannelWaves.points * renderer.channelCount)
+    scopes.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return scopes
+}
+
+/// What a player makes of its tune, in pieces, with each voice's sound kept or not.
+private func sound(_ renderer: any Renderer, keeping: Bool, frames: Int = 24000) -> [Float] {
+    if keeping { #expect(renderer.keepChannelWaves() != nil) }
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    var done = 0
+    while done < frames {
+        let count = min(1000, frames - done)
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress! + done * 2, frames: count) }
+        done += count
+    }
+    return buffer
+}
+
+@Test func sndhVoicesHaveScopes() throws {
+    // Channel A's square wave at full volume, and the STE's samples, a square wave of a hundred
+    // either side of nothing at full volume: some two fifths of as far as they can go.
+    let shown = scopes(try TuneLoader.load(testTone(samples: true), format: .sndh))
+    #expect(shown.count == 4 * 64)
+    #expect(height(shown[0 ..< 64]) > 110)
+    #expect(shown[64 ..< 128].allSatisfy { $0 == 128 } && shown[128 ..< 192].allSatisfy { $0 == 128 })
+    #expect(height(shown[192 ..< 256]) > 60 && height(shown[192 ..< 256]) < 100)
+    // A quieter channel has a smaller scope; one left out has the scope it had.
+    let quiet = height(scopes(try TuneLoader.load(testTone(volume: 10), format: .sndh))[0 ..< 64])
+    #expect(quiet > 10 && quiet < 100)
+    let muted = scopes(try TuneLoader.load(testTone(samples: true), format: .sndh), muted: [true, false, false, true])
+    #expect(height(muted[0 ..< 64]) > 110 && height(muted[192 ..< 256]) > 60)
+    // And the sound is the same with them kept.
+    #expect(sound(try TuneLoader.load(testTone(samples: true), format: .sndh), keeping: true)
+        == sound(try TuneLoader.load(testTone(samples: true), format: .sndh), keeping: false))
+}
+
+@Test func ymVoicesOnTheAtariHaveScopes() throws {
+    // Two tones, at full volume and a little below it; the third channel silent.
+    let shown = scopes(try TuneLoader.load(ym3(), format: .ym))
+    #expect(shown.count == 3 * 64)
+    #expect(height(shown[0 ..< 64]) > 110)
+    #expect(height(shown[64 ..< 128]) > 60 && height(shown[64 ..< 128]) < height(shown[0 ..< 64]))
+    #expect(shown[128 ..< 192].allSatisfy { $0 == 128 })
+    #expect(height(scopes(try TuneLoader.load(ym3(), format: .ym), muted: [true])[0 ..< 64]) > 110)
+    // A channel held at a steady level is flat, and the same channel switched on and off by a timer
+    // between ticks, the SID voice, is a square wave.
+    #expect(scopes(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: false), format: .ym))[0 ..< 64].allSatisfy { $0 == 128 })
+    #expect(height(scopes(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: true), format: .ym))[0 ..< 64]) > 110)
+    #expect(sound(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: true), format: .ym), keeping: true)
+        == sound(try TuneLoader.load(ym6(clock: 2_000_000, sidVoice: true), format: .ym), keeping: false))
+    #expect(sound(try TuneLoader.load(ym3(), format: .ym), keeping: true) == sound(try TuneLoader.load(ym3(), format: .ym), keeping: false))
+}
+
+@Test func ymVoicesOfSamplesHaveScopes() throws {
+    // Each voice's square wave is a hundred either side of nothing at full volume: some four fifths
+    // of as far as a voice can go.
+    let shown = scopes(try TuneLoader.load(ymTracker(), format: .ym))
+    #expect(shown.count == 2 * 64)
+    #expect(height(shown[0 ..< 64]) > 100 && height(shown[64 ..< 128]) > 100)
+    #expect(scopes(try TuneLoader.load(ymTracker(second: false), format: .ym))[64 ..< 128].allSatisfy { $0 == 128 })
+    #expect(height(scopes(try TuneLoader.load(ymTracker(), format: .ym), muted: [true, true])[64 ..< 128]) > 100)
+    #expect(sound(try TuneLoader.load(ymTracker(), format: .ym), keeping: true) == sound(try TuneLoader.load(ymTracker(), format: .ym), keeping: false))
+
+    // A digi-mix's one voice, as far either side.
+    let wave = (0 ..< 800).map { UInt8(bitPattern: $0 / 8 % 2 == 0 ? 100 : -100) }
+    var file = Array("MIX1LeOnArD!".utf8) + long(1) + long(wave.count) + long(1)
+    file += long(0) + long(wave.count) + word(40) + word(8000) + [0, 0, 0] + wave
+    #expect(height(scopes(try TuneLoader.load(file, format: .ym))[0 ..< 64]) > 100)
+    #expect(sound(try TuneLoader.load(file, format: .ym), keeping: true) == sound(try TuneLoader.load(file, format: .ym), keeping: false))
+}

@@ -169,6 +169,9 @@ struct STESound: ~Copyable {
         return muted ? 0 : level
     }
 
+    /// The level the samples are at, as it was last given out, or would have been if they were heard.
+    var output: Int16 { level }
+
     /// How far the samples have swung since this was last asked, where 1 is as far as they can.
     mutating func takeLevel() -> Float {
         defer { swing.clear() }

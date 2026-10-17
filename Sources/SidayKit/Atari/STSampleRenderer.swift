@@ -215,7 +215,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
         pieceRate = UInt32(reader.u16be(entry + 10))
     }
 
-    @inline(__always) private func nextMixSample() -> Int16 {
+    @inline(__always) private func nextMixSample(_ waves: ChannelWaves?) -> Int16 {
         let sample = Int8(bitPattern: byte(bank + pieceStart + piecePosition) ^ signFlip)
         pieceClock &+= pieceRate
         if pieceClock >= hostRate {
@@ -228,6 +228,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             pieceClock -= hostRate
         }
         swings[0].note(Int32(sample) << 7)
+        waves?.store(0, at: 0, Float(Int32(sample) << 7))
         return mutedVoices[0] ? 0 : Int16(sample) << 7
     }
 
@@ -269,7 +270,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
         }
     }
 
-    @inline(__always) private func nextTrackerSample() -> Int16 {
+    @inline(__always) private func nextTrackerSample(_ waves: ChannelWaves?) -> Int16 {
         var output: Int32 = 0
         for index in 0 ..< voiceCount where voices[index].running {
             guard voices[index].sample < samples.count else {
@@ -279,6 +280,7 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
             let sample = samples[voices[index].sample]
             let level = Int32(Int8(bitPattern: byte(sample.start + voices[index].position) ^ 0x80)) * voices[index].volume
             swings[index].note(level)
+            if index < 8 { waves?.store(index, at: 0, Float(level)) }
             if !mutedVoices[index] { output += level }
             voices[index].innerClock &+= voices[index].rate
             while voices[index].innerClock >= hostRate {
@@ -304,21 +306,59 @@ public final class STSampleRenderer: Renderer, ReferenceComparable {
     }
 
     @inline(__always) private func nextSample() -> Int16 {
-        if kind == .mix { return centred(nextMixSample()) }
+        if kind == .mix { return centred(nextMixSample(nil)) }
         if untilTick == 0 {
             nextTick()
             untilTick = samplesPerTick
         }
         untilTick -= 1
-        return centred(nextTrackerSample())
+        return centred(nextTrackerSample(nil))
+    }
+
+    /// The same, keeping each voice's part of it in `waves`, a voice that is not playing as nothing.
+    private func nextSample(keeping waves: ChannelWaves) -> Int16 {
+        for voice in 0 ..< channelCount { waves.store(voice, at: 0, 0) }
+        let sample: Int16
+        if kind == .mix {
+            sample = centred(nextMixSample(waves))
+        } else {
+            if untilTick == 0 {
+                nextTick()
+                untilTick = samplesPerTick
+            }
+            untilTick -= 1
+            sample = centred(nextTrackerSample(waves))
+        }
+        waves.advance(by: 1)
+        return sample
     }
 
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
+        if let waves { return make(frames, into: buffer, keeping: waves) }
         for frame in 0 ..< frames {
             let sample = Float(nextSample()) * gain
             buffer[frame * 2] = sample
             buffer[frame * 2 + 1] = sample
         }
+    }
+
+    /// So many samples, keeping each voice's part in `waves` as they are made: kept out of `render`, so
+    /// that the loop it runs when they are not kept is as it was.
+    @inline(never) private func make(_ count: Int, into buffer: UnsafeMutablePointer<Float>, keeping waves: ChannelWaves) {
+        for frame in 0 ..< count {
+            let sample = Float(nextSample(keeping: waves)) * gain
+            buffer[frame * 2] = sample
+            buffer[frame * 2 + 1] = sample
+        }
+    }
+
+    /// Where each voice's sound is kept for its scope, an output sample at a time, once asked: a voice
+    /// of a tracker tune is full at its loudest, 8,192 either side of nothing, and a digi-mix at twice that.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil { waves = ChannelWaves(voices: channelCount, rate: Double(outputSampleRate), fullSwing: kind == .mix ? 16384 : 8192) }
+        return waves
     }
 
     public var channelCount: Int { kind == .mix ? 1 : min(8, voiceCount) }

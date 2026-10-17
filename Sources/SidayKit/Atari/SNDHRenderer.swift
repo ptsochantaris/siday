@@ -82,17 +82,44 @@ public final class SNDHRenderer: Renderer {
             }
             guard playing else {
                 (buffer + done * 2).update(repeating: 0, count: (frames - done) * 2)
+                if let waves {
+                    for voice in 0 ..< 4 { waves.silence(voice, count: frames - done) }
+                    waves.advance(by: frames - done)
+                }
                 return
             }
             let count = min(untilTick, frames - done)
-            for frame in done ..< done + count {
-                let sample = machine.nextFiltered() * gain
-                buffer[frame * 2] = sample
-                buffer[frame * 2 + 1] = sample
+            if let waves {
+                make(count, into: buffer + done * 2, keeping: waves)
+            } else {
+                for frame in done ..< done + count {
+                    let sample = machine.nextFiltered() * gain
+                    buffer[frame * 2] = sample
+                    buffer[frame * 2 + 1] = sample
+                }
             }
             done += count
             untilTick -= count
         }
+    }
+
+    /// So many samples, keeping the voices' sound in `waves` as they are made: kept out of `render`,
+    /// so that the loop it runs when they are not kept is as it was.
+    @inline(never) private func make(_ count: Int, into buffer: UnsafeMutablePointer<Float>, keeping waves: ChannelWaves) {
+        for frame in 0 ..< count {
+            let sample = machine.nextFiltered(keeping: waves) * gain
+            buffer[frame * 2] = sample
+            buffer[frame * 2 + 1] = sample
+        }
+    }
+
+    /// Where each voice's sound is kept for its scope, once asked: the machine keeps it as it makes
+    /// each sample. The machine is the same one from one song to the next, and so is this.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil { waves = machine.makeWaves() }
+        return waves
     }
 
     /// The sound chip's three channels, and the samples an STE can play beside them.
