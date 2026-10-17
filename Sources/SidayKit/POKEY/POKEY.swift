@@ -74,10 +74,31 @@ final class POKEY {
     private var leftOut = 0
     private var heardSum = 0
     private var heardChanged = false
-    /// For what is shown of the voices: how loud each has been since this was last asked, and
-    /// whether its volume has jumped up.
+    /// For what is shown of the voices, of the samples handed out since this was last asked: how loud
+    /// each channel has been as a tone, the lowest and highest of the levels it has been held at (none,
+    /// while `heldLow` is above `heldHigh`), whether its volume has jumped up, and the control (`audc`)
+    /// it had at the last of them; and how often the console's loudspeaker has moved.
     private var reach = InlineArray<4, Int>(repeating: 0)
+    private var heldLow = InlineArray<4, Int>(repeating: 16)
+    private var heldHigh = InlineArray<4, Int>(repeating: -1)
     private var struck = InlineArray<4, Bool>(repeating: false)
+    private var heardAudc = InlineArray<4, Int>(repeating: 0)
+    private var speakerMoves = 0
+
+    /// What the lights are to be told as the samples are handed out: a frame is made at once and
+    /// handed out in parts, and the lights are of what has been handed out, as the scopes are. Each is
+    /// a channel's control (`audc`) changed, from what to what, or (for no channel) the console's
+    /// loudspeaker moving, and the sample it is heard in, as the sound's steps are put among them. They
+    /// come in the order they are heard; `lampsTold` of them have been.
+    private struct LampEvent {
+        var index: Int
+        var channel: Int
+        var was: Int
+        var now: Int
+    }
+
+    private var lampEvents: [LampEvent] = []
+    private var lampsTold = 0
 
     /// For the voices' scopes, once asked (`keepVoices`): each channel's part of the sum, and fifth the
     /// console's loudspeaker, as its steps fall among the samples, kept as the sound's own steps are
@@ -111,6 +132,7 @@ final class POKEY {
         deltaBufferLength = Int(Int64(sampleRate) * 312 * 114 / 1_773_447) + Self.unitDeltaLength + 2
         deltaBuffer = .allocate(capacity: deltaBufferLength)
         deltaBuffer.initialize(repeating: 0, count: deltaBufferLength)
+        lampEvents.reserveCapacity(1024)
         initialize(sampleRate: sampleRate)
     }
 
@@ -124,6 +146,20 @@ final class POKEY {
         let kept = deltaBufferLength - trailing
         if kept > 0 { deltaBuffer.update(from: deltaBuffer + trailing, count: kept) }
         (deltaBuffer + kept).update(repeating: 0, count: trailing)
+        if kept > 0 {
+            lampEvents.removeFirst(lampsTold)
+            for e in lampEvents.indices { lampEvents[e].index -= trailing }
+        } else {
+            // Nothing is to be left of what the lights were to be told, as once a tune has been started,
+            // whose first moments are made and not heard: what is heard is the chip as it is, and a note
+            // struck then is struck as the tune is first heard, if it is still sounding.
+            for event in lampEvents[lampsTold...] where event.channel >= 0 && event.now & 0xF > event.was & 0xF {
+                if channels[event.channel].audc & 0xF != 0 { struck[event.channel] = true }
+            }
+            lampEvents.removeAll(keepingCapacity: true)
+            for c in 0 ..< 4 { heardAudc[c] = channels[c].audc }
+        }
+        lampsTold = 0
         if let voiceSteps, let voiceParts {
             for voice in 0 ..< 5 {
                 let steps = voiceSteps + voice * deltaBufferLength, parts = voiceParts + voice * deltaBufferLength
@@ -165,8 +201,11 @@ final class POKEY {
         heardChanged = false
         for c in 0 ..< 4 {
             reach[c] = 0
+            heldLow[c] = 16
+            heldHigh[c] = -1
             struck[c] = false
         }
+        speakerMoves = 0
         speakerUp = false
         startFrame()
     }
@@ -262,8 +301,7 @@ final class POKEY {
         if channels[c].audc == data { return }
         generateUntilCycle(cycle)
         let volume = data & 0xF
-        if volume > channels[c].audc & 0xF { struck[c] = true }
-        reach[c] = max(reach[c], channels[c].audc & 0xF)
+        lampEvents.append(LampEvent(index: lampIndex(cycle), channel: c, was: channels[c].audc, now: data))
         channels[c].audc = data
         let delta = channels[c].delta
         if data & 0x10 != 0 {
@@ -578,12 +616,67 @@ final class POKEY {
         heardChanged = true
     }
 
-    /// How loud each channel has been since this was last asked, out of 1.
+    /// A level a channel has been held at, for its light.
+    private func noteHeld(_ c: Int, _ level: Int) {
+        heldLow[c] = min(heldLow[c], level)
+        heldHigh[c] = max(heldHigh[c], level)
+    }
+
+    /// Where among the samples what happens at the given cycle is heard: where the middle of the
+    /// sound's step for it falls (see `addExternalDelta`).
+    private func lampIndex(_ cycle: Int) -> Int {
+        let i = ((cycle &* sampleFactor &+ sampleOffset) >> POKEYPair.sampleFactorShift) + Self.unitDeltaLength / 2
+        return max(0, min(deltaBufferLength - 1, i))
+    }
+
+    /// The console's loudspeaker moving, at the given cycle, for its light.
+    func noteSpeakerMove(_ cycle: Int) {
+        lampEvents.append(LampEvent(index: lampIndex(cycle), channel: -1, was: 0, now: 0))
+    }
+
+    /// Tells the lights of the samples up to `end` (as `storeSample` counts them), as they are handed out.
+    func hearLamps(to end: Int) {
+        while lampsTold < lampEvents.count, lampEvents[lampsTold].index < end {
+            let event = lampEvents[lampsTold]
+            lampsTold += 1
+            let c = event.channel
+            guard c >= 0 else {
+                speakerMoves += 1
+                continue
+            }
+            // What the channel was until now, and whether its volume jumped up.
+            if event.was & 0x10 != 0 {
+                noteHeld(c, event.was & 0xF)
+            } else {
+                reach[c] = max(reach[c], event.was & 0xF)
+            }
+            if event.now & 0xF > event.was & 0xF { struck[c] = true }
+            heardAudc[c] = event.now
+        }
+    }
+
+    /// How often the console's loudspeaker has moved in the samples handed out since this was last asked.
+    func takeSpeakerMoves() -> Int {
+        defer { speakerMoves = 0 }
+        return speakerMoves
+    }
+
+    /// How loud each channel has been since this was last asked, out of 1. A channel playing a tone
+    /// swings between nothing and its volume; one held at a level (`isSampled`) swings only as far as
+    /// the levels it is held at have gone, so that one held still, which is not heard, is dark, as
+    /// the AY's channels are.
     func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         for c in 0 ..< 4 {
-            let now = channels[c].mute & ~POKEYChannel.muteUser == 0 || channels[c].audc & 0x10 != 0 ? channels[c].audc & 0xF : 0
-            levels[c] = Float(max(reach[c], now)) / 15
+            let volume = heardAudc[c] & 0xF
+            if heardAudc[c] & 0x10 != 0 {
+                noteHeld(c, volume)
+            } else if channels[c].mute & ~POKEYChannel.muteUser == 0 {
+                reach[c] = max(reach[c], volume)
+            }
+            levels[c] = Float(max(reach[c], heldHigh[c] - heldLow[c])) / 15
             reach[c] = 0
+            heldLow[c] = 16
+            heldHigh[c] = -1
         }
     }
 
@@ -597,7 +690,7 @@ final class POKEY {
 
     /// True for a channel held at its level, so that what is written to it is heard as a sample.
     func isSampled(_ c: Int) -> Bool {
-        channels[c].audc & 0x10 != 0
+        heardAudc[c] & 0x10 != 0
     }
 
     /// The pitch a channel is playing, in Hz, for one of the distortions that is heard as a note:
@@ -605,7 +698,7 @@ final class POKEY {
     /// the channel's counts. Nought for a channel that is silent, held, or noise, or is the lower
     /// half of a pair joined into one of sixteen bits.
     func pitch(of c: Int, clock: Double) -> Double {
-        let audc = channels[c].audc
+        let audc = heardAudc[c]
         guard audc & 0xF != 0, audc & 0x10 == 0, channels[c].mute & ~POKEYChannel.muteUser == 0 else { return 0 }
         if c == 0, audctl & 0x10 != 0 { return 0 }
         if c == 2, audctl & 0x08 != 0 { return 0 }
@@ -772,6 +865,8 @@ final class POKEYPair {
             if stereo { extra.keepVoices(from: readySamplesStart, to: i, in: waves, first: 4, speaker: nil) }
             waves.advance(by: i - readySamplesStart)
         }
+        base.hearLamps(to: i)
+        if stereo { extra.hearLamps(to: i) }
         if i == readySamplesEnd {
             base.accumulateTrailing(i)
             extra.accumulateTrailing(i)

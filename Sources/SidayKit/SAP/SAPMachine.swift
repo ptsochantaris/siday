@@ -35,8 +35,6 @@ final class SAPMachine {
     private var heardConsol = 8
     /// True if the console's loudspeaker is left out of the sound.
     var speakerLeftOut = false
-    /// How many times the loudspeaker has gone in or out since this was last taken.
-    var speakerMoves = 0
     private var covox = InlineArray<4, Int>(repeating: 0x80)
     private var nextPlayerCycle = pokeyNever
     private(set) var gtiaOrCovoxPlayedThisFrame = false
@@ -109,7 +107,7 @@ final class SAPMachine {
         } else if addr & 0xFF1F == 0xD01F {
             // The console's loudspeaker: the opposite of what is written, against the POKEY's sound.
             if (consol ^ data) & 8 != 0 {
-                speakerMoves += 1
+                pokeys.base.noteSpeakerMove(cycle)
                 gtiaOrCovoxPlayedThisFrame = true
                 if pokeys.base.keepsVoices { pokeys.base.moveSpeaker(cycle, up: data & 8 == 0) }
             }
@@ -249,7 +247,6 @@ final class SAPMachine {
         nmist = .onVBlank
         consol = 8
         heardConsol = 8
-        speakerMoves = 0
         for i in 0 ..< 4 { covox[i] = 0x80 }
         pokeys.initialize(ntsc: file.ntsc, stereo: file.stereo, sampleRate: sampleRate)
         pokeys.base.mute(0xFF)

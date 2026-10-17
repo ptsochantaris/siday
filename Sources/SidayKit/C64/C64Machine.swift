@@ -49,12 +49,34 @@ final class C64Machine: MOS6510Bus {
     private let residfp: UnsafeMutablePointer<ReSIDfpChip>?
     private let resid: UnsafeMutablePointer<SIDChip>?
     private var sidClock = 0
-    /// For the lights: what was last written to each of the SID's registers, the most each voice's
-    /// envelope has been of late, and how the volume has been moved about.
+    /// For the lights: what was last written to each of the SID's registers; and of the samples handed
+    /// out since the lights were last asked for, the most each voice's envelope has been, how the
+    /// volume has been moved about, and the pitch each voice had at the last of them.
     private var sidWritten = [UInt8](repeating: 0, count: 0x20)
     private var voicePeaks: (UInt8, UInt8, UInt8) = (0, 0, 0)
     private var volumeSwing = Swing<UInt8>(from: 0, to: 15)
     private var volumeMoves = 0
+    private var heardFrequencies: (UInt16, UInt16, UInt16) = (0, 0, 0)
+    /// What the lights are to know of a run of samples made and not yet handed out, the chip being run
+    /// ahead of what is handed out while the lights are of what has been, as the scopes are: how many
+    /// samples; each voice's envelope while it is sounding and its oscillator's setting while it is
+    /// playing a note, as they were when the run was made; and what was done to the chip before it.
+    private struct Lamp {
+        var count = 0
+        var envelopes: (UInt8, UInt8, UInt8) = (0, 0, 0)
+        var frequencies: (UInt16, UInt16, UInt16) = (0, 0, 0)
+        var gatesOpened: UInt8 = 0
+        var volumeMoves = 0
+        var volumeLow: UInt8 = 15
+        var volumeHigh: UInt8 = 0
+        /// True if nothing was done to the chip before the run.
+        var quiet: Bool { gatesOpened == 0 && volumeLow > volumeHigh }
+    }
+
+    /// The runs made, oldest first, and last the one to be made next, which so far has only what has
+    /// been done to the chip: never more than the samples and that one.
+    private let lamps: UnsafeMutablePointer<Lamp>
+    private var lampCount = 1
     /// For leaving the samples played on the volume out of the sound: whether they are left out;
     /// whether the song has been found to play any, which it is once and for good (see `setMuted`);
     /// and the run of volume moves being counted to find it, from the cycle the run began on.
@@ -67,7 +89,7 @@ final class C64Machine: MOS6510Bus {
     /// players that only set it or fade it move it a few hundred.
     private static let sampleMoves = 16
     private static let sampleCycles = 20000
-    /// The voices whose gates have been opened since the notes were last asked for.
+    /// The voices whose gates have been opened in the samples handed out since the notes were last asked for.
     private var gatesOpened: (Bool, Bool, Bool) = (false, false, false)
     private let sidClockHz: Double
     private let samples: UnsafeMutablePointer<Int16>
@@ -91,6 +113,8 @@ final class C64Machine: MOS6510Bus {
         colorRAM = .allocate(capacity: 1024)
         vicRegisters = .allocate(capacity: 64)
         samples = .allocate(capacity: sampleCapacity)
+        lamps = .allocate(capacity: sampleCapacity + 1)
+        lamps.initialize(repeating: Lamp(), count: sampleCapacity + 1)
         cyclesPerLine = ntsc ? 65 : 63
         linesPerFrame = ntsc ? 263 : 312
         cia1 = CIA(clockHz: clockHz)
@@ -126,6 +150,7 @@ final class C64Machine: MOS6510Bus {
         colorRAM.deallocate()
         vicRegisters.deallocate()
         samples.deallocate()
+        lamps.deallocate()
         voiceOutputs?.deallocate()
     }
 
@@ -198,6 +223,9 @@ final class C64Machine: MOS6510Bus {
         voicePeaks = (0, 0, 0)
         volumeSwing.clear()
         volumeMoves = 0
+        heardFrequencies = (0, 0, 0)
+        lamps[0] = Lamp()
+        lampCount = 1
         samplesFound = false
         volumeRunStart = 0
         volumeRun = 0
@@ -305,11 +333,11 @@ final class C64Machine: MOS6510Bus {
                 made = resid.pointee.clock(&pending, into: samples + sampleCount, maxSamples: room, voices: voiceOutputs)
             }
             if let waves, let voiceOutputs, made > 0 { keep(made, from: voiceOutputs, in: waves) }
+            if made > 0 { noteVoices(made) }
             sampleCount += made
             if pending == before { break }
         }
         sidClock = clock - pending
-        noteVoices()
     }
 
     /// Starts keeping each voice's sound for its scope, at the output's rate: the three voices as the
@@ -389,9 +417,10 @@ final class C64Machine: MOS6510Bus {
         return voice != 2 || sidWritten[0x18] & 0x80 == 0 || sidWritten[0x17] & 0x04 != 0
     }
 
-    /// Looks at the three envelopes, which is done whenever the SID is brought up to date: at every
-    /// write to it, and some hundreds of times a second besides.
-    private func noteVoices() {
+    /// Looks at the three envelopes and oscillators for the lights of the samples just made, which is
+    /// done whenever the SID is brought up to date: at every write to it, and some hundreds of times a
+    /// second besides.
+    private func noteVoices(_ made: Int) {
         var levels: (UInt8, UInt8, UInt8) = (0, 0, 0)
         if let residfp {
             levels = (residfp.pointee.voice0.envelopeGenerator.envelope_counter, residfp.pointee.voice1.envelopeGenerator.envelope_counter,
@@ -401,21 +430,42 @@ final class C64Machine: MOS6510Bus {
                       UInt8(truncatingIfNeeded: resid.pointee.voice1.envelope.envelope_counter),
                       UInt8(truncatingIfNeeded: resid.pointee.voice2.envelope.envelope_counter))
         }
-        if levels.0 > voicePeaks.0, sounds(0) { voicePeaks.0 = levels.0 }
-        if levels.1 > voicePeaks.1, sounds(1) { voicePeaks.1 = levels.1 }
-        if levels.2 > voicePeaks.2, sounds(2) { voicePeaks.2 = levels.2 }
+        let envelopes = (sounds(0) ? levels.0 : 0, sounds(1) ? levels.1 : 0, sounds(2) ? levels.2 : 0)
+        let frequencies = (pitch(0), pitch(1), pitch(2))
+        let next = lamps + lampCount - 1
+        // A run like the one before it, with nothing done to the chip between, is that run made longer.
+        if lampCount > 1, next.pointee.quiet {
+            let last = next - 1
+            if last.pointee.envelopes == envelopes, last.pointee.frequencies == frequencies {
+                last.pointee.count += made
+                return
+            }
+        }
+        next.pointee.count = made
+        next.pointee.envelopes = envelopes
+        next.pointee.frequencies = frequencies
+        lamps[lampCount] = Lamp()
+        lampCount += 1
+    }
+
+    /// A voice's oscillator setting while it is playing a note, unless it is making noise alone; nought
+    /// while it is not.
+    private func pitch(_ voice: Int) -> UInt16 {
+        let at = voice * 7
+        guard sounds(voice), sidWritten[at + 4] & 0xF0 != 0x80 else { return 0 }
+        return UInt16(sidWritten[at]) | UInt16(sidWritten[at + 1]) << 8
     }
 
     /// What the three voices are playing: the pitch each oscillator is set to, unless it is making
     /// noise alone, and whether its gate has been opened since this was last asked. The samples played
     /// on the volume have no pitch to tell.
     func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
-        for voice in 0 ..< 3 {
-            let at = voice * 7
-            let frequency = Double(Int(sidWritten[at]) | Int(sidWritten[at + 1]) << 8)
-            let pitched = sounds(voice) && sidWritten[at + 4] & 0xF0 != 0x80
-            pitches[voice] = pitched ? ChannelPitch.note(ofHz: frequency * sidClockHz / 16_777_216) : 0
+        func pitch(_ frequency: UInt16) -> Float {
+            frequency == 0 ? 0 : ChannelPitch.note(ofHz: Double(frequency) * sidClockHz / 16_777_216)
         }
+        pitches[0] = pitch(heardFrequencies.0)
+        pitches[1] = pitch(heardFrequencies.1)
+        pitches[2] = pitch(heardFrequencies.2)
         struck[0] = gatesOpened.0
         struck[1] = gatesOpened.1
         struck[2] = gatesOpened.2
@@ -445,11 +495,45 @@ final class C64Machine: MOS6510Bus {
             buffer[i * 2] = v
             buffer[i * 2 + 1] = v
         }
+        if n > 0 { hear(n) }
         if n < sampleCount {
             samples.update(from: samples + n, count: sampleCount - n)
         }
         sampleCount -= n
         return n
+    }
+
+    /// Gives the lights what is known of so many samples handed out, and lets it go.
+    private func hear(_ n: Int) {
+        var left = n, heard = 0
+        while left > 0, heard < lampCount - 1 {
+            let lamp = lamps + heard
+            voicePeaks = (max(voicePeaks.0, lamp.pointee.envelopes.0), max(voicePeaks.1, lamp.pointee.envelopes.1),
+                          max(voicePeaks.2, lamp.pointee.envelopes.2))
+            heardFrequencies = lamp.pointee.frequencies
+            if !lamp.pointee.quiet {
+                let gates = lamp.pointee.gatesOpened
+                gatesOpened = (gatesOpened.0 || gates & 1 != 0, gatesOpened.1 || gates & 2 != 0, gatesOpened.2 || gates & 4 != 0)
+                if lamp.pointee.volumeLow <= lamp.pointee.volumeHigh {
+                    volumeMoves += lamp.pointee.volumeMoves
+                    volumeSwing.note(lamp.pointee.volumeLow)
+                    volumeSwing.note(lamp.pointee.volumeHigh)
+                }
+                // (Heard once, though the run may be handed out in parts.)
+                lamp.pointee.gatesOpened = 0
+                lamp.pointee.volumeMoves = 0
+                lamp.pointee.volumeLow = 15
+                lamp.pointee.volumeHigh = 0
+            }
+            let taken = min(left, lamp.pointee.count)
+            lamp.pointee.count -= taken
+            left -= taken
+            if lamp.pointee.count == 0 { heard += 1 }
+        }
+        if heard > 0 {
+            lamps.update(from: lamps + heard, count: lampCount - heard)
+            lampCount -= heard
+        }
     }
 
     // MARK: Bus
@@ -553,9 +637,11 @@ final class C64Machine: MOS6510Bus {
             let r = a & 0x1F
             residfp?.pointee.write(r, value)
             resid?.pointee.write(r, value)
+            // (What is done to the chip is for the lights of the next samples it makes.)
+            let next = lamps + lampCount - 1
             if r == 0x18 {
                 if value & 0x0F != sidWritten[r] & 0x0F {
-                    volumeMoves += 1
+                    next.pointee.volumeMoves += 1
                     if !samplesFound {
                         if clock - volumeRunStart > Self.sampleCycles {
                             volumeRunStart = clock
@@ -568,13 +654,14 @@ final class C64Machine: MOS6510Bus {
                         }
                     }
                 }
-                volumeSwing.note(value & 0x0F)
+                next.pointee.volumeLow = min(next.pointee.volumeLow, value & 0x0F)
+                next.pointee.volumeHigh = max(next.pointee.volumeHigh, value & 0x0F)
             } else if value & 1 != 0, sidWritten[r] & 1 == 0 {
                 // A gate opening is a note being struck.
                 switch r {
-                case 0x04: gatesOpened.0 = true
-                case 0x0B: gatesOpened.1 = true
-                case 0x12: gatesOpened.2 = true
+                case 0x04: next.pointee.gatesOpened |= 1
+                case 0x0B: next.pointee.gatesOpened |= 2
+                case 0x12: next.pointee.gatesOpened |= 4
                 default: break
                 }
             }

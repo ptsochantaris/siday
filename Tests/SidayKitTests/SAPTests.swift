@@ -104,6 +104,23 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     #expect(struck[0])
 }
 
+@Test func sapChannelHeldAtALevelIsDarkUnlessTheLevelMoves() throws {
+    // The first channel held at a level, which is not heard: its light is dark, as an AY's is.
+    let held = try SAPRenderer(sap(typeB, [(0x2000, tone(volume: 0x18)), player, table]))
+    _ = render(held, seconds: 0.2)
+    var levels = [Float](repeating: 0, count: 5)
+    held.takeChannelLevels(into: &levels)
+    #expect(levels == [0, 0, 0, 0, 0])
+    #expect(render(held, seconds: 0.2).allSatisfy { abs($0) < 0.001 })
+    // Moved between two levels fifty times a second, a sample: lit as far as it moves.
+    // LDA $80, EOR #4, STA $80, ORA #$18, STA AUDC1, RTS: held at 8 and 12 in turn.
+    let player: (Int, [UInt8]) = (0x2080, [0xA5, 0x80, 0x49, 0x04, 0x85, 0x80, 0x09, 0x18, 0x8D, 0x01, 0xD2, 0x60])
+    let moving = try SAPRenderer(sap(typeB, [(0x2000, tone(volume: 0x18)), player, table]))
+    _ = render(moving, seconds: 0.2)
+    moving.takeChannelLevels(into: &levels)
+    #expect(abs(levels[0] - 4.0 / 15) < 0.001)
+}
+
 @Test func sapChannelCanBeLeftOut() throws {
     let renderer = try SAPRenderer(sap(typeB, [(0x2000, tone()), player, table]))
     #expect(swing(render(renderer, seconds: 0.5), from: 4800) > 0.01)

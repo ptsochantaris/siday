@@ -144,9 +144,9 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
     private var speakerWasSounding = false
 
     private func takeSpeakerMoves() {
-        lightMoves += machine.speakerMoves
-        noteMoves += machine.speakerMoves
-        machine.speakerMoves = 0
+        let moves = machine.pokeys.base.takeSpeakerMoves()
+        lightMoves += moves
+        noteMoves += moves
     }
 
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
