@@ -85,13 +85,28 @@ final class Player {
         return TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self))?.chapter
     }
 
-    /// What there is to say about the playlists last added: that tunes they name were not found.
-    private(set) var notice: String?
-    /// What the tunes of the playlists being read are found among. (Kept out of what the page is
-    /// drawn from: it is there only while they are read.)
+    /// What there is to say about the playlists last added, that tunes they name were not found, and
+    /// about a tune that could not be played, that a file it needs beside its own was not: with the
+    /// folder they are in, the page can find them.
+    var notice: String? {
+        let both = [listNotice, companionNotice].compactMap { $0 }
+        return both.isEmpty ? nil : both.joined(separator: " ")
+    }
+    /// What the button under the notice says.
+    var noticeButton: String {
+        listNotice == nil ? "Choose the folder it is in…" : "Choose the folder they are in…"
+    }
+    private var listNotice: String?
+    private var companionNotice: String?
+    /// The place in `files` of the tune that could not be played for want of a companion, while it is
+    /// still wanted: it is played when the companion is given.
+    private var wanting: Int?
+    /// The files the page has been given that are tunes or tunes' companions, which the tunes of
+    /// playlists and the companions of tunes are found among. (Kept out of what the page is drawn
+    /// from: it changes when files are added and is never drawn.)
     private let finding = Finding()
     private final class Finding {
-        var among = PlaylistFile.Finder([])
+        var given = FileFinder()
     }
 
     /// Lower-case copies, for searching.
@@ -206,7 +221,7 @@ final class Player {
                 let letters = Array(name.utf8)
                 guard let stop = letters.lastIndex(of: 0x2E) else { return 0 }
                 let kind = String(decoding: letters[(stop + 1)...], as: UTF8.self)
-                return TuneFormat(fileExtension: kind) != nil ? 1 : PlaylistFile.reads(fileExtension: kind) ? 2 : 0
+                return TuneFormat(fileExtension: kind) != nil ? 1 : PlaylistFile.reads(fileExtension: kind) ? 2 : Companions.are(fileExtension: kind) ? 3 : 0
             },
             { [self] lines in
                 // Each line is a name, a tab and a note. (The tab that counts is the last: a note has none.)
@@ -261,13 +276,20 @@ final class Player {
                 if let pixels = visualiser.pixels { try? sidayPaint(Int(bitPattern: pixels), visualiser.width, visualiser.height) }
             }
         )
-        try? sidayPlaylists(
+        try? sidayFiles(
             { [self] names in
-                finding.among = PlaylistFile.Finder(names.split(separator: "\n").map { String($0) })
+                finding.given.add(names.split(separator: "\n").map { String($0) })
+                // The companion a tune was waiting for may be among them.
+                if let wanting, files.indices.contains(wanting), companions(of: wanting).missing == nil {
+                    companionNotice = nil
+                    self.wanting = nil
+                    failures = 0
+                    play(wanting)
+                }
             },
             { [self] name, text in
                 // The file comes as a letter for each of its bytes.
-                let finder = finding.among
+                let finder = finding.given
                 let letters = Array(name.utf8)
                 guard let stop = letters.lastIndex(of: 0x2E),
                       let kind = PlaylistFile.Kind(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)),
@@ -286,7 +308,7 @@ final class Player {
                 return (["\(named) \(named - lines.count)"] + lines).joined(separator: "\n")
             },
             { [self] missing, named, list in
-                notice = Self.notice(missing: missing, of: named, in: list)
+                listNotice = Self.notice(missing: missing, of: named, in: list)
             }
         )
         tellOutput()
@@ -305,14 +327,36 @@ final class Player {
         return "\(whose) \(count). A web page can only read the files it is given, so it cannot fetch these tunes itself."
     }
 
-    /// The listener is to say where the tunes are that the playlists name and were not found.
+    /// The files a tune in the list needs beside its own, by their places among the files given (-1
+    /// for one that was not found); and of those it cannot be played without, the first that was not.
+    private func companions(of index: Int) -> (places: [Int], missing: Companion?) {
+        let path = files[index]
+        let letters = Array(path.utf8)
+        guard let stop = letters.lastIndex(of: 0x2E),
+              let format = TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)) else { return ([], nil) }
+        let name = letters.lastIndex(of: 0x2F).map { String(decoding: letters[($0 + 1)...], as: UTF8.self) } ?? path
+        let wanted = Companions.wanted(for: format, fileName: name)
+        let places = wanted.map { Companions.find($0, for: path, among: finding.given) ?? -1 }
+        return (places, wanted.indices.first { wanted[$0].required && places[$0] < 0 }.map { wanted[$0] })
+    }
+
+    /// What is said of a tune that cannot be played because a file it needs was not given to the page.
+    private static func notice(_ file: String, wants companion: Companion) -> String {
+        let name = file.split(separator: "/").last.map { String($0) } ?? file
+        let names = companion.names.count > 1 ? companion.names.dropLast().joined(separator: ", ") + " or " + (companion.names.last ?? "")
+            : companion.names.joined()
+        return "\(name) keeps \(companion.what) in a file of its own, \(names), which the page was not given. A web page can only read the files it is given, so it cannot fetch it itself."
+    }
+
+    /// The listener is to say where the tunes are that the playlists name and were not found, or the
+    /// file a tune needs beside its own.
     func chooseTunes() {
         try? sidayChooseTunes()
     }
 
     private func add(_ names: [String], notes: [String]) {
         guard !names.isEmpty else { return }
-        notice = nil
+        listNotice = nil
         let first = files.count
         files.append(contentsOf: names)
         self.notes.append(contentsOf: notes)
@@ -344,6 +388,10 @@ final class Player {
         try? sidayRemove(index)
         find()
         if let playing = current, playing > index { current = playing - 1 }
+        if let waiting = wanting {
+            wanting = waiting > index ? waiting - 1 : waiting < index ? waiting : nil
+            if wanting == nil { companionNotice = nil }
+        }
         if let described = tuneFile, described > index { tuneFile = described - 1 }
         guard wasCurrent else { return }
         current = nil
@@ -365,7 +413,9 @@ final class Player {
 
     /// Empties the list. Nothing plays after that until tunes are added again.
     func removeAll() {
-        notice = nil
+        listNotice = nil
+        companionNotice = nil
+        wanting = nil
         guard !files.isEmpty else { return }
         files = []
         notes = []
@@ -469,7 +519,17 @@ final class Player {
         paused = false
         position = 0
         rendered = 0
-        try? sidayPlay(index, song)
+        // With the files it needs beside its own; and if one it cannot be played without was not
+        // given, the page says so, and plays it when it is.
+        let (places, missing) = companions(of: index)
+        if let missing {
+            companionNotice = Self.notice(files[index], wants: missing)
+            wanting = index
+        } else if wanting == index {
+            companionNotice = nil
+            wanting = nil
+        }
+        try? sidayPlay(index, song, places.map { String($0) }.joined(separator: " "))
     }
 
     private func loaded(_ plays: Bool, _ text: String, _ songs: Int, _ song: Int, _ length: Double) {

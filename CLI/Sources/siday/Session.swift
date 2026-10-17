@@ -128,7 +128,7 @@ struct Scanner {
     /// capitals and small letters in a name are the same, and a full stop at a name's end is nothing:
     /// if there is no file where the entry says, each step of its path is looked for as Windows would,
     /// and then, if there is still none, as the one name in its folder that is the same compared
-    /// `PlaylistFile.loose`.
+    /// `FileFinder.loose`.
     static func find(_ entry: PlaylistFile.Entry, from folder: URL) -> URL? {
         let manager = FileManager.default
         let direct = written(entry, from: folder)
@@ -142,9 +142,9 @@ struct Scanner {
                 url = url.appendingPathComponent(part)
             } else {
                 let here = (try? manager.contentsOfDirectory(atPath: url.path)) ?? []
-                let wanted = PlaylistFile.plain(part), loosely = PlaylistFile.loose(part)
-                let alike = here.filter { PlaylistFile.loose($0) == loosely }
-                guard let named = here.first(where: { PlaylistFile.plain($0) == wanted }) ?? (alike.count == 1 ? alike[0] : nil) else { return nil }
+                let wanted = FileFinder.plain(part), loosely = FileFinder.loose(part)
+                let alike = here.filter { FileFinder.loose($0) == loosely }
+                guard let named = here.first(where: { FileFinder.plain($0) == wanted }) ?? (alike.count == 1 ? alike[0] : nil) else { return nil }
                 url = url.appendingPathComponent(named)
             }
         }

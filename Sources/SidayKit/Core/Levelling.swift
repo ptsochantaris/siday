@@ -118,12 +118,18 @@ public extension SongLevel {
     /// measured again: the file's digest, the song, and every setting that makes a difference to how
     /// the song sounds or how long it is played. (What it is heard through is not among them: a song
     /// is measured and levelled before any television it is played through.)
-    static func key(of file: [UInt8], song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
-        key(digest: digest(of: file), song: song, options: options, policy: policy)
+    /// (A tune's companions, the files it takes its samples or its instruments from, are as much a
+    /// part of how it sounds as its own file is.)
+    static func key(of file: [UInt8], companions: [[UInt8]?] = [], song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
+        key(digest: digest(of: file, companions: companions), song: song, options: options, policy: policy)
     }
 
-    /// What a file is known by in a `key`: worked out once, for a file whose songs are each to be keyed.
-    static func digest(of file: [UInt8]) -> String { MD5.hex(file) }
+    /// What a file is known by in a `key`, with its companions, those that were found, if any were:
+    /// worked out once, for a file whose songs are each to be keyed.
+    static func digest(of file: [UInt8], companions: [[UInt8]?] = []) -> String {
+        guard companions.contains(where: { $0 != nil }) else { return MD5.hex(file) }
+        return ([MD5.hex(file)] + companions.map { $0.map { MD5.hex($0) } ?? "-" }).joined(separator: "+")
+    }
 
     /// Which sound a level was measured from: raised whenever a change to a player makes any tune
     /// sound otherwise than it did, louder or quieter or other in any way, so that what was kept

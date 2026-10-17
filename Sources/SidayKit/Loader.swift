@@ -67,10 +67,10 @@ public enum TuneFormat: String, CaseIterable, Sendable {
 public enum TuneLoader {
     /// - Parameter path: where the file came from, if it is known. A SID tune missing from the song-length
     ///   database by content is looked up by its place in the HVSC collection instead.
-    /// - Parameter companion: the file the tune keeps part of itself in, for a kind that does, if it was
-    ///   found (see `Companions`).
+    /// - Parameter companions: the files the tune needs beside its own, for a kind that does: one for
+    ///   each that `Companions.wanted(for:fileName:)` gives, in its order, nil for one that was not found.
     public static func load(_ data: [UInt8], format: TuneFormat, path: String? = nil, options: LoadOptions = LoadOptions(),
-                            companion: [UInt8]? = nil) throws -> any Renderer {
+                            companions: [[UInt8]?] = []) throws -> any Renderer {
         guard !data.isEmpty else { throw TuneError.malformed("empty file") }
         // A module packed whole, by any of the packers modules were found packed with, is unpacked
         // first, and is then the module it was.
@@ -104,7 +104,10 @@ public enum TuneLoader {
             return try SAPRenderer(data, options: options)
         case .mfp:
             // A ProTracker module packed with its samples in a file of their own.
-            return try MODRenderer(MagneticFieldsPacker.module(data, samples: companion), options: options,
+            guard let samples = companions.first ?? nil else {
+                throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+            }
+            return try MODRenderer(MagneticFieldsPacker.module(data, samples: samples), options: options,
                                    origin: "packed by the Magnetic Fields Packer")
         case .agi:
             // A sound from one of Sierra's adventure games, as the Amiga versions played it or on the
@@ -217,7 +220,8 @@ public enum TuneLoader {
         case .cmf:
             return try CMFTune.renderer(data)
         case .rol:
-            return try ROLTune.renderer(data, banks: options.adLibBanks)
+            // Its instruments from the banks found for it, its own first.
+            return try ROLTune.renderer(data, banks: companions.compactMap { $0.map { AdLibBank($0) } })
         case .fmt:
             return try FMTTune.renderer(data)
         case .vgm:
@@ -229,6 +233,12 @@ public enum TuneLoader {
 
     /// One player per kind of module, each built for its own source type. (Handing `trackerSource`'s
     /// result to a generic player would need the type at run time, which Embedded Swift does not have.)
+    /// The last part of a path, the file's own name; empty if there is no path.
+    private static func fileName(_ path: String?) -> String {
+        guard let path else { return "" }
+        return path.utf8.split(separator: 0x2F).last.map { String(decoding: Array($0), as: UTF8.self) } ?? ""
+    }
+
     private static func trackerPlayer(_ data: [UInt8], format: TuneFormat, _ options: LoadOptions) throws -> any Renderer {
         switch format {
         case .pt3: return try AYFramePlayer(source: PT3Source(data), options: options)

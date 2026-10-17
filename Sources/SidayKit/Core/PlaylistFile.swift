@@ -16,7 +16,7 @@
 ///
 /// Like the rest of the library this reads no files. Whoever has the list finds its tunes: on a disk
 /// by following each path (`Entry.path`), and where files are known only by their names, as in a
-/// browser, with a `Finder`.
+/// browser, with a `FileFinder`.
 public struct PlaylistFile: Sendable {
     public struct Entry: Sendable, Equatable {
         /// Where the tune is, from the folder the list is in: the names of the folders on the way and
@@ -168,107 +168,19 @@ public struct PlaylistFile: Sendable {
         text.append(contentsOf: scalars)
         return String(text)
     }
+}
 
-    /// A name of a file or a folder as it is compared with another: in small letters, and without the
-    /// full stops and spaces at its end, which Windows, where these lists were made, does not keep.
-    public static func plain(_ name: String) -> [UInt8] {
-        var bytes = Array(name.lowercased().utf8)
-        while bytes.count > 1, bytes.last == 0x2E || bytes.last == 0x20 { bytes.removeLast() }
-        return bytes
+extension FileFinder {
+    /// The place of the file a list's entry means when it is a tune beside the list or below it,
+    /// and where the list itself is among the paths is known: the file at just that path. Nil if
+    /// the entry is of a tune somewhere else, or there is no such file.
+    public func place(of entry: PlaylistFile.Entry, besideList list: String) -> Int? {
+        guard !entry.absolute, !entry.path.contains("..") else { return nil }
+        return place(of: entry.path, beside: list)
     }
 
-    /// A name as it is compared when no file has it as `plain` has it: with only the letters of
-    /// English, the figures and the signs a typewriter has, so that an accented letter is set aside,
-    /// as written whole or as a letter and its accent, and so is whatever it was turned into on the way
-    /// from one computer to another. (The music of The Secret of Monkey Island in its VGM pack has
-    /// a list that says "Mêlée Island", and a file named "Mˆl‚e Island": the name was written in the
-    /// PC's own characters, and read as those of Windows.)
-    public static func loose(_ name: String) -> [UInt8] {
-        var bytes: [UInt8] = []
-        var accentable = false
-        for scalar in name.lowercased().unicodeScalars {
-            if scalar.value < 0x80 {
-                bytes.append(UInt8(scalar.value))
-                accentable = (0x61 ... 0x7A).contains(scalar.value)
-            } else if (0x300 ... 0x36F).contains(scalar.value) {
-                if accentable { bytes.removeLast() }
-                accentable = false
-            } else {
-                accentable = false
-            }
-        }
-        while bytes.count > 1, bytes.last == 0x2E || bytes.last == 0x20 { bytes.removeLast() }
-        return bytes
-    }
-
-    // MARK: Finding
-
-    /// Finds a list's tunes among files that are known only by their paths, and not on a disk that can
-    /// be looked through: the files a browser has been given. Where the list itself was among them is
-    /// not known, and nor is how much of the disk they came with, so a tune is found by the end of its
-    /// path: it is the file whose name is the same and which has the most folders above it of the same
-    /// names as the list gives, and the first of those if there are several. Where no file has the
-    /// name, one whose name is the same when compared `loose` is it.
-    public struct Finder: Sendable {
-        private let paths: [String]
-        /// The places in `paths` of the files of each name, and of each name as it is compared loosely.
-        private var named: [[UInt8]: [Int]] = [:]
-        private var loosely: [[UInt8]: [Int]] = [:]
-
-        /// - Parameter paths: each file by its path, with a stroke between folders.
-        public init(_ paths: [String]) {
-            self.paths = paths
-            for (place, path) in paths.enumerated() {
-                guard let file = path.utf8.split(separator: 0x2F).last.map({ String(decoding: Array($0), as: UTF8.self) }) else { continue }
-                named[PlaylistFile.plain(file), default: []].append(place)
-                loosely[PlaylistFile.loose(file), default: []].append(place)
-            }
-        }
-
-        /// A path's steps as they are compared: the file's own name loosely if `loose`.
-        private static func parts(_ path: [String], loose: Bool = false) -> [[UInt8]] {
-            path.indices.map { loose && $0 == path.count - 1 ? PlaylistFile.loose(path[$0]) : PlaylistFile.plain(path[$0]) }
-        }
-
-        private static func parts(_ path: String, loose: Bool = false) -> [[UInt8]] {
-            parts(path.utf8.split(separator: 0x2F).map { String(decoding: Array($0), as: UTF8.self) }, loose: loose)
-        }
-
-        /// The files a name can be, and whether they are of that name only loosely.
-        private func candidates(_ file: String) -> (places: [Int], loose: Bool)? {
-            if let places = named[PlaylistFile.plain(file)] { return (places, false) }
-            return loosely[PlaylistFile.loose(file)].map { ($0, true) }
-        }
-
-        /// The place of the file a list's entry means when it is a tune beside the list or below it,
-        /// and where the list itself is among the paths is known: the file at just that path. Nil
-        /// if the entry is of a tune somewhere else, or there is no such file. (Of a name that is the
-        /// same only loosely, there must be no other file at that place that it could be.)
-        public func place(of entry: Entry, besideList list: String) -> Int? {
-            guard !entry.absolute, !entry.path.contains(".."), let file = entry.path.last, let (places, loose) = candidates(file) else { return nil }
-            let wanted = Self.parts(list).dropLast() + Self.parts(entry.path, loose: loose)
-            let found = places.filter { Self.parts(paths[$0], loose: loose).elementsEqual(wanted) }
-            return loose && found.count > 1 ? nil : found.first
-        }
-
-        /// The place, in the paths this was made with, of the file a list's entry means; nil if none
-        /// of them is it.
-        public func place(of entry: Entry) -> Int? {
-            let path = entry.path.filter { $0 != ".." }
-            guard let file = path.last, let (places, loose) = candidates(file) else { return nil }
-            let wanted = Self.parts(path, loose: loose)
-            var best: Int?
-            var most = 0
-            for candidate in places {
-                let has = Self.parts(paths[candidate], loose: loose)
-                var same = 0
-                while same < wanted.count, same < has.count, wanted[wanted.count - 1 - same] == has[has.count - 1 - same] { same += 1 }
-                if same > most {
-                    best = candidate
-                    most = same
-                }
-            }
-            return best
-        }
+    /// The place of the file a list's entry means, wherever it is; nil if none of them is it.
+    public func place(of entry: PlaylistFile.Entry) -> Int? {
+        place(of: entry.path.filter { $0 != ".." })
     }
 }

@@ -18,8 +18,9 @@ const pageModuleAddress = new URL("./generated/SidayWeb.wasm", import.meta.url);
 
 /// The Swift side's callbacks: kind, added, loaded, progress, rendered, ended, held, pointed.
 let listeners;
-/// And those that read playlists: sought, listed, missed.
-let playlists;
+/// And those that find files that come with others, the tunes of playlists and the companions of
+/// tunes: given, listed, missed.
+let finding;
 /// The tunes, in the order the Swift side has them: { name, file }.
 const tunes = [];
 let context;
@@ -378,7 +379,7 @@ function heard(message) {
 /// The last request to play, until it has been passed to the engine.
 let starting = Promise.resolve();
 
-async function play(index, subsong) {
+async function play(index, subsong, companions) {
   const request = ++asked;
   remaking(false);
   const tune = tunes[index];
@@ -389,7 +390,13 @@ async function play(index, subsong) {
     renew(false);
   }
   try {
-    const [bytes, { engine, output }] = await Promise.all([read(tune.file), audio()]);
+    // With the tune, the files it needs beside its own that were found among those known, by their
+    // places there (-1 for one that was not found, which is sent as nothing).
+    const [bytes, { engine, output }, ...beside] = await Promise.all([
+      read(tune.file),
+      audio(),
+      ...companions.map((place) => (known[place] ? read(known[place].file) : null)),
+    ]);
     if (request !== asked) return;
     // The output drops what it was playing at once; the engine starts on the new tune.
     const run = ++serial;
@@ -398,7 +405,7 @@ async function play(index, subsong) {
     // (Another song: every voice of it is heard, whatever was muted in the last.)
     told = undefined;
     mutedNow = undefined;
-    engine.postMessage({ type: "load", tune: request, serial: run, name, bytes, subsong }, [name, bytes]);
+    engine.postMessage({ type: "load", tune: request, serial: run, name, bytes, companions: beside, subsong }, [name, bytes, ...beside.filter((item) => item)]);
     // A browser keeps the sound back until the listener has pressed something on the page. If it is
     // still holding a moment from now, the page shows the tune as paused, and pressing play starts it.
     pause(false);
@@ -425,18 +432,42 @@ async function seek(seconds) {
   engine.postMessage({ type: "seek", serial: run, position: seconds });
 }
 
-/// Every tune the page has been given since it was opened, by its name: where a playlist's tunes are
-/// looked for. A web page can only read the files it is given, so a playlist cannot be followed to
-/// its tunes on the disk as it is by a program: they have to be here, handed over with it or before
-/// it. (A tune taken out of the list is still here.)
-const given = new Map();
+/// Every file the page has been given since it was opened that is a tune or a tune's companion (a
+/// file it keeps its samples or takes its instruments from), in the order it was given: { name, file }.
+/// It is where a playlist's tunes and a tune's companions are looked for. A web page can only read
+/// the files it is given, so neither can be fetched from the disk as a program fetches them: they
+/// have to be here, handed over with the file that wants them or before it. The Swift side knows
+/// them by their names, and finds what is wanted among them by its place here. (A tune taken out of
+/// the list is still here.)
+const known = [];
+/// The place in `known` of each name.
+const knownAt = new Map();
 
-/// The tunes that playlists name, found among some that are known: for each list its tunes in its
+/// The page has been given files: the tunes and companions among them are known from now on, and
+/// the Swift side is told their names. A file of a name that was known already takes the place of
+/// the one that had it.
+function remember(items) {
+  const added = [];
+  for (const item of items) {
+    const place = knownAt.get(item.name);
+    if (place !== undefined) {
+      known[place] = { name: item.name, file: item.file };
+    } else {
+      knownAt.set(item.name, known.length);
+      known.push({ name: item.name, file: item.file });
+      added.push(item.name);
+    }
+  }
+  // (In pieces: a whole collection is more than a browser will take as one piece of text at once.)
+  for (let at = 0; at < added.length; at += 10000) finding?.given(added.slice(at, at + 10000).join("\n"));
+}
+
+/// The tunes that playlists name, found among those that are known: for each list its tunes in its
 /// order, each with what the list says about it and whether it is a tune beside the list or below
 /// it. With them, how many tunes the lists name in all and how many of those were not found. The
-/// lists are read on the Swift side, which is told what there is to find among and then given each
-/// list as text with a letter for each of its bytes.
-async function listed(lists, known) {
+/// lists are read on the Swift side, which is given each list as text with a letter for each of its
+/// bytes.
+async function listed(lists) {
   const texts = await Promise.all(
     lists.map(async (list) => {
       const bytes = new Uint8Array(await read(list.file));
@@ -446,17 +477,15 @@ async function listed(lists, known) {
     }),
   );
   const found = { lists: lists.map(() => []), named: lists.map(() => 0), missing: lists.map(() => 0) };
-  if (!playlists) return found;
-  playlists.sought(known.map((item) => item.name).join("\n"));
+  if (!finding) return found;
   texts.forEach((text, which) => {
-    const [counts, ...lines] = playlists.listed(lists[which].name, text).split("\n");
+    const [counts, ...lines] = finding.listed(lists[which].name, text).split("\n");
     [found.named[which], found.missing[which]] = counts.split(" ").map(Number);
     for (const line of lines) {
       const [entry, place, below, note] = line.split("\t");
       if (note !== undefined) found.lists[which].push({ ...known[Number(place)], note, below: below === "1", entry: Number(entry) });
     }
   });
-  playlists.sought("");
   return found;
 }
 
@@ -471,20 +500,21 @@ function reckon(lists, found, before = []) {
     .map((list, which) => ({ list, had: new Set([...(before[which] ?? []), ...found.lists[which].map((item) => item.entry)]) }))
     .filter((_, which) => found.missing[which] > 0);
   const sum = (numbers) => numbers.reduce((total, number) => total + number, 0);
-  playlists?.missed(sum(found.missing), sum(found.named), lists.length === 1 ? lists[0].name.split("/").pop() : "");
+  finding?.missed(sum(found.missing), sum(found.named), lists.length === 1 ? lists[0].name.split("/").pop() : "");
 }
 
-/// The listener has chosen the folder where the tunes of the unfinished playlists are. It is looked
-/// in and not added to the list: what is added is the tunes of those playlists that had not been
-/// found, in the order the lists have them. (The folder's tunes are known from now on, as any are
-/// that the page has been given.)
+/// The listener has chosen the folder where the tunes of the unfinished playlists are, or the
+/// companion of a tune that was not found. It is looked in and not added to the list: what is added
+/// is the tunes of those playlists that had not been found, in the order the lists have them. (The
+/// folder's tunes and companions are known from now on, as any are that the page has been given, and
+/// a tune that was waiting for its companion is played, if it has been found.)
 async function finish(chosen) {
-  const here = chosen.filter((item) => kindOf(item.name) === 1);
+  const here = chosen.filter((item) => kindOf(item.name) === 1 || kindOf(item.name) === 3);
+  remember(here);
   const lists = unfinished.map((item) => item.list);
   const before = unfinished.map((item) => item.had);
   if (lists.length === 0 || here.length === 0) return;
-  const found = await listed(lists, [...here, ...Array.from(given, ([name, file]) => ({ name, file }))]);
-  for (const item of here) given.set(item.name, item.file);
+  const found = await listed(lists);
   const accepted = found.lists.flatMap((items, which) => items.filter((item) => !before[which].has(item.entry)));
   if (accepted.length > 0) {
     // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
@@ -542,7 +572,8 @@ function counted(count) {
   return count.toLocaleString("en-US");
 }
 
-/// What kind of file a name is: 1 for a tune, 2 for a playlist, 0 for neither (see `listeners.kind`).
+/// What kind of file a name is: 1 for a tune, 2 for a playlist, 3 for a tune's companion, 0 for none
+/// of those (see `listeners.kind`).
 /// That goes by what follows the name's last full stop, so the page is asked once for each ending
 /// and not once for each file: a whole collection is a great many files and few endings.
 const kinds = new Map();
@@ -583,7 +614,8 @@ async function add(chosen) {
     songLengths = await read(database.file);
     if (sound) (await sound).engine.postMessage({ type: "songlengths", bytes: songLengths });
   }
-  // Tunes and playlists, in the order of their names.
+  // Tunes, playlists and companions, in the order of their names. The tunes and companions are
+  // known from now on, and are what the playlists' tunes are found among, with those given before.
   const sorted = chosen
     .map((item) => ({ ...item, kind: kindOf(item.name) }))
     .filter((item) => item.kind > 0)
@@ -591,14 +623,14 @@ async function add(chosen) {
   const tunesHere = sorted.filter((item) => item.kind === 1);
   const lists = sorted.filter((item) => item.kind === 2);
   const own = lists.filter((item) => item.own);
-  const known = () => [...tunesHere, ...Array.from(given, ([name, file]) => ({ name, file }))];
+  remember(sorted.filter((item) => item.kind === 1 || item.kind === 3));
   let accepted = tunesHere;
   let found = null;
   if (own.length > 0) {
     // A playlist that was itself dropped is played as it is written: its tunes, in its order. A
     // folder dropped with it is where its tunes are looked for, and is not itself added to the list;
     // tunes dropped with it, each for itself, come after the list's, but for those it has named.
-    found = await listed(own, known());
+    found = await listed(own);
     const named = new Set(found.lists.flat().map((item) => item.file));
     accepted = [...found.lists.flat(), ...tunesHere.filter((item) => item.own && !named.has(item.file))];
   } else if (lists.length > 0) {
@@ -606,7 +638,7 @@ async function add(chosen) {
     // beside it and below it: those it names come where the list is, as it has them. The tunes a
     // list names from somewhere else are added only if the folder does not hold them, which here
     // can only be tunes the page was given before.
-    found = await listed(lists, known());
+    found = await listed(lists);
     const below = new Map(lists.map((list, which) => [list, found.lists[which].filter((item) => item.below)]));
     const ordered = new Set(Array.from(below.values()).flat().map((item) => item.file));
     const held = new Set();
@@ -618,11 +650,10 @@ async function add(chosen) {
     };
     for (const item of sorted) {
       if (item.kind === 2) below.get(item).forEach(take);
-      else if (!ordered.has(item.file)) take(item);
+      else if (item.kind === 1 && !ordered.has(item.file)) take(item);
     }
     found.lists.flat().filter((item) => !item.below).forEach(take);
   }
-  for (const item of tunesHere) given.set(item.name, item.file);
   if (accepted.length > 0) {
     // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
     for (const item of accepted) tunes.push(item);
@@ -1058,8 +1089,8 @@ Object.assign(globalThis, {
   sidayAbout(word) {
     void about(word);
   },
-  sidayPlaylists(sought, listed, missed) {
-    playlists = { sought, listed, missed };
+  sidayFiles(given, listed, missed) {
+    finding = { given, listed, missed };
   },
   sidayPaint(address, width, height) {
     const canvas = document.querySelector("canvas.picture");
@@ -1087,8 +1118,8 @@ Object.assign(globalThis, {
   sidayChooseTunes() {
     choosers.tunes.click();
   },
-  sidayPlay(index, subsong) {
-    starting = play(index, subsong);
+  sidayPlay(index, subsong, companions) {
+    starting = play(index, subsong, companions === "" ? [] : companions.split(" ").map(Number));
   },
   sidayPause(paused) {
     pause(paused);

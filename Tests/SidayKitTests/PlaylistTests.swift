@@ -64,7 +64,7 @@ private func list(_ lines: [String], version: String = "1.6") -> [UInt8] {
 }
 
 @Test func playlistTunesAreFoundByTheEndsOfTheirPaths() throws {
-    let finder = PlaylistFile.Finder([
+    let finder = FileFinder([
         "music/Authors/Alos/Girl.pt2",
         "music/Authors/Davos/Girl.pt2",
         "music/Authors/Zbigniew N/Solidarnosc.stc",
@@ -90,7 +90,7 @@ private func list(_ lines: [String], version: String = "1.6") -> [UInt8] {
     #expect(beside("list.ayl", ["Loose.pt3"]) == 3)
     #expect(beside("music/all.ayl", ["Davos", "Girl.pt2"]) == nil)
     #expect(beside("music/Authors/Alos/link.ayl", ["..", "Davos", "Girl.pt2"]) == nil)
-    #expect(PlaylistFile.Finder([]).place(of: PlaylistFile.Entry(path: ["Girl.pt2"])) == nil)
+    #expect(FileFinder([]).place(of: PlaylistFile.Entry(path: ["Girl.pt2"])) == nil)
 }
 
 @Test func m3uNamesItsTunesInItsOrder() throws {
@@ -119,11 +119,11 @@ private func list(_ lines: [String], version: String = "1.6") -> [UInt8] {
 
 @Test func aNameTurnedIntoOtherCharactersIsFoundLoosely() {
     // What a VGM pack's list calls "Mêlée", and its file, named in the PC's characters read as Windows'.
-    #expect(PlaylistFile.loose("05 Mêlée Island.vgz") == PlaylistFile.loose("05 Mˆl‚e Island.vgz"))
+    #expect(FileFinder.loose("05 Mêlée Island.vgz") == FileFinder.loose("05 Mˆl‚e Island.vgz"))
     // An accent written after its letter is set aside with the letter, as one written with it is.
-    #expect(PlaylistFile.loose("Me\u{0302}le\u{0301}e.vgz") == PlaylistFile.loose("Mêlée.vgz"))
-    #expect(PlaylistFile.loose("Treulich geführt.VGZ") == PlaylistFile.loose("treulich gef\u{FFFD}hrt.vgz"))
-    let finder = PlaylistFile.Finder([
+    #expect(FileFinder.loose("Me\u{0302}le\u{0301}e.vgz") == FileFinder.loose("Mêlée.vgz"))
+    #expect(FileFinder.loose("Treulich geführt.VGZ") == FileFinder.loose("treulich gef\u{FFFD}hrt.vgz"))
+    let finder = FileFinder([
         "VGM/Monkey/05 Mˆl‚e Island.vgz",
         "VGM/Monkey/06 Melee Island.vgz",
         "VGM/Quest/14 Wedding (Treulich gef\u{FFFD}hrt).vgz",

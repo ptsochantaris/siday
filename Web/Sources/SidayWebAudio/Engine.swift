@@ -97,6 +97,10 @@ final class WebPlayer {
     private var gain = LevelGain()
     private var presented = 0
 
+    /// The files the next tune to be loaded needs beside its own, as `TuneLoader.load` takes them: one
+    /// for each it names, nil for one that was not found. Given before each load (`siday_companion`).
+    var companions: [[UInt8]?] = []
+
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     func load(_ data: [UInt8], name: String) -> Bool {
         renderer = nil
@@ -112,9 +116,9 @@ final class WebPlayer {
             return false
         }
         do {
-            let loaded = try TuneLoader.load(data, format: format, path: name, options: options)
+            let loaded = try TuneLoader.load(data, format: format, path: name, options: options, companions: companions)
             renderer = loaded
-            digest = SongLevel.digest(of: data)
+            digest = SongLevel.digest(of: data, companions: companions)
             self.format = format
             layout = format == .sid || format == .sndh || format == .cmf || format == .rol || format == .fmt || format == .stm || format == .stx ? nil : options.stereo
             ownStereo = format == .mod || format == .med || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
@@ -425,6 +429,21 @@ public func sidayLoad(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: Uns
     let bytes = Array(UnsafeBufferPointer(start: data, count: Int(length)))
     let name = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self)
     return player.load(bytes, name: name) ? 1 : 0
+}
+
+/// The files the tune next loaded needs beside its own, given one at a time before `siday_load`, in
+/// the order `Companions.wanted` has them: `found` 0 for one that was not found, and a `length` of
+/// -1 forgets those given before.
+@_expose(wasm, "siday_companion")
+@_cdecl("siday_companion")
+public func sidayCompanion(_ data: UnsafePointer<UInt8>?, _ length: Int32, _ found: Int32) {
+    if length < 0 {
+        player.companions = []
+    } else if found == 0 {
+        player.companions.append(nil)
+    } else {
+        player.companions.append(data.map { Array(UnsafeBufferPointer(start: $0, count: Int(length))) } ?? [])
+    }
 }
 
 /// HVSC's Songlengths.md5, for the SID tunes loaded after it. A length of zero forgets it.

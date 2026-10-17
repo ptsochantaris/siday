@@ -72,13 +72,15 @@ private func cell(_ module: [UInt8], pattern: Int, row: Int, voice: Int) -> [UIn
     #expect(cell(module, pattern: 1, row: 4, voice: 0) == note(856, 1, 0, 0))
 
     // It plays as a module, with the samples brought to it, and not without them.
-    let renderer = try TuneLoader.load(file, format: .mfp, companion: samples)
+    let renderer = try TuneLoader.load(file, format: .mfp, companions: [samples])
     #expect(renderer.info.format == "MOD" && renderer.info.detail == "packed by the Magnetic Fields Packer")
-    #expect(throws: TuneError.self) { try TuneLoader.load(file, format: .mfp) }
-    do {
-        _ = try TuneLoader.load(file, format: .mfp)
-    } catch let error as TuneError {
-        guard case .missingCompanion = error else { Issue.record("\(error)"); return }
+    for without in [[], [nil]] as [[[UInt8]?]] {
+        #expect {
+            try TuneLoader.load(file, format: .mfp, path: "music/Kid Chaos/Level 1-3.mfp", companions: without)
+        } throws: { error in
+            guard case let .missingCompanion(why) = error as? TuneError else { return false }
+            return why == "its samples are kept in a file of their own, Level 1-3.smp or Level 1_set.smp, which was not found"
+        }
     }
 }
 
@@ -99,16 +101,35 @@ private func cell(_ module: [UInt8], pattern: Int, row: Int, voice: Int) -> [UIn
 }
 
 @Test func companionsAreFoundByTheNamesTheCollectionsUse() {
-    #expect(Companions.ending(for: .mfp) == "smp" && Companions.ending(for: .mod) == nil)
-    #expect(Companions.names(for: .mod, fileName: "a.mod").isEmpty)
-    #expect(Companions.names(for: .mfp, fileName: "title.mfp") == ["title.smp"])
-    #expect(Companions.names(for: .mfp, fileName: "KidChaos Level 1-3.mfp") == ["KidChaos Level 1-3.smp", "KidChaos Level 1_set.smp"])
+    func names(_ format: TuneFormat, _ file: String) -> [[String]] { Companions.wanted(for: format, fileName: file).map(\.names) }
+    #expect(names(.mod, "a.mod").isEmpty)
+    #expect(names(.mfp, "title.mfp") == [["title.smp"]])
+    #expect(names(.mfp, "KidChaos Level 1-3.mfp") == [["KidChaos Level 1-3.smp", "KidChaos Level 1_set.smp"]])
+    #expect(names(.mfp, "MFP.ingame") == [["MFP.smp", "smp.ingame"]])
+    #expect(names(.rol, "TUNE.ROL") == [["TUNE.bnk"], ["standard.bnk"]])
+    #expect(names(.rol, "Standard.rol") == [["standard.bnk"]])
+    #expect(Companions.are(fileExtension: "SMP") && Companions.are(fileExtension: "bnk") && !Companions.are(fileExtension: "mfp"))
+
+    let samples = Companions.wanted(for: .mfp, fileName: "KidChaos Level 1-3.mfp")[0]
+    #expect(samples.required && samples.kind == "smp")
+    func find(_ companion: Companion, _ tune: String, _ files: [String]) -> String? {
+        Companions.find(companion, for: tune, among: FileFinder(files)).map { files[$0] }
+    }
     // Its own first, then the one it shares, whatever capitals either has.
-    let beside = ["KidChaos Level 1-3.mfp", "KIDCHAOS LEVEL 1_SET.SMP", "KidChaos Level 2_set.smp", "notes.txt"]
-    #expect(Companions.pick(for: .mfp, fileName: "KidChaos Level 1-3.mfp", among: beside) == "KIDCHAOS LEVEL 1_SET.SMP")
-    #expect(Companions.pick(for: .mfp, fileName: "KidChaos-Menu.mfp", among: beside + ["KidChaos_set.smp"]) == "KidChaos_set.smp")
-    // Failing those, the only file of its kind; and nothing where there are several.
-    #expect(Companions.pick(for: .mfp, fileName: "ingame.mfp", among: ["ingame.mfp", "samples.smp"]) == "samples.smp")
-    #expect(Companions.pick(for: .mfp, fileName: "ingame.mfp", among: beside) == nil)
-    #expect(Companions.pick(for: .mod, fileName: "a.mod", among: beside) == nil)
+    let beside = ["Kid/KidChaos Level 1-3.mfp", "Kid/KIDCHAOS LEVEL 1_SET.SMP", "Kid/KidChaos Level 2_set.smp", "Kid/notes.txt"]
+    #expect(find(samples, "Kid/KidChaos Level 1-3.mfp", beside) == "Kid/KIDCHAOS LEVEL 1_SET.SMP")
+    #expect(find(samples, "Kid/KidChaos Level 1-3.mfp", beside + ["Kid/KidChaos Level 1-3.smp"]) == "Kid/KidChaos Level 1-3.smp")
+    // Failing those, the only file of its kind beside it; and none where there are several.
+    let ingame = Companions.wanted(for: .mfp, fileName: "ingame.mfp")[0]
+    #expect(find(ingame, "A/ingame.mfp", ["A/ingame.mfp", "A/samples.smp", "B/other.smp"]) == "A/samples.smp")
+    #expect(find(ingame, "Kid/ingame.mfp", beside) == nil)
+    // Of its name somewhere else, the nearest: a song given by itself, its samples in a folder given after.
+    #expect(find(samples, "KidChaos Level 1-3.mfp", ["KidChaos Level 1-3.mfp", "Kid/KidChaos Level 1_set.smp"]) == "Kid/KidChaos Level 1_set.smp")
+    #expect(find(samples, "Games/Kid/x/KidChaos Level 1-3.mfp", ["Other/KidChaos Level 1-3.smp", "Games/Kid/KidChaos Level 1-3.smp"])
+        == "Games/Kid/KidChaos Level 1-3.smp")
+    // A ROL tune's banks: each found for itself.
+    let banks = Companions.wanted(for: .rol, fileName: "SONG.ROL")
+    let disk = ["ROL/SONG.ROL", "ROL/song.bnk", "ROL/STANDARD.BNK"]
+    #expect(banks.map { find($0, "ROL/SONG.ROL", disk) } == ["ROL/song.bnk", "ROL/STANDARD.BNK"])
+    #expect(banks.map { find($0, "ROL/SONG.ROL", ["ROL/SONG.ROL", "ROL/other.bnk"]) } == [nil, nil])
 }

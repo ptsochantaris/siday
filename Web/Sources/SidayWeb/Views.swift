@@ -17,13 +17,13 @@ struct PlayerView {
 
             NowPlaying(player: player)
 
-            // A playlist was added, and tunes it names were not there to be found.
-            // Being shown the folder they are in is all the page needs: it looks in it for them, and
-            // adds nothing else.
+            // A playlist was added, and tunes it names were not there to be found; or a tune could not
+            // be played, for a file it needs beside its own was not. Being shown the folder they are
+            // in is all the page needs: it looks in it for them, and adds nothing else.
             if let notice = player.notice {
                 div(.class("notice")) {
                     p { notice }
-                    button(.title("The folder is only looked in: nothing but the playlist's tunes is added")) { "Choose the folder they are in…" }
+                    button(.title("The folder is only looked in: nothing is added but what was not found")) { player.noticeButton }
                         .onClick { player.chooseTunes() }
                 }
             }

@@ -35,8 +35,9 @@ let output;
 
 /// The tune that is loaded: the page's count of its requests to play.
 let tune = 0;
-/// The file it came from, and the song of it that was asked for: { name, bytes, subsong }. Kept in
-/// case the song has to be rendered again.
+/// The file it came from, the files it needs beside its own, and the song of it that was asked for:
+/// { name, bytes, companions, subsong }, a companion that was not found being null. Kept in case the
+/// song has to be rendered again.
 let file;
 /// The song as far as it has been rendered: { samples, position, last, voices } for each chunk, in
 /// order, the sound as the chip made it and what its voices were doing in it: for each, how bright
@@ -143,6 +144,12 @@ function leaveOut(marks) {
 function load(marks, meanwhile = false) {
   const before = source;
   leaveOut(marks);
+  // (The files it needs beside its own, first: those that were found, and a place for those that were not.)
+  core.siday_companion(0, -1, 0);
+  for (const companion of file.companions) {
+    if (companion) withBytes(companion, (data, length) => core.siday_companion(data, length, 1));
+    else core.siday_companion(0, 0, 0);
+  }
   const plays = withBytes(file.name, (name, nameLength) =>
     withBytes(file.bytes, (data, length) => core.siday_load(data, length, name, nameLength)),
   ) === 1;
@@ -417,7 +424,7 @@ self.onmessage = async (event) => {
     case "load": {
       tune = message.tune;
       serial = message.serial;
-      file = { name: message.name, bytes: message.bytes, subsong: message.subsong };
+      file = { name: message.name, bytes: message.bytes, companions: message.companions ?? [], subsong: message.subsong };
       // Another song: every voice of it is heard.
       mask = undefined;
       whole = undefined;

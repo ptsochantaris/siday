@@ -38,61 +38,41 @@ struct TuneFiles: Sendable {
         if format == .sid {
             options.songLengths = SongLengthFiles.find(explicitPath: songLengthsPath, near: url)
         }
-        if format == .rol {
-            options.adLibBanks = BankFiles.find(for: url)
-        }
         return try TuneLoader.load([UInt8](data), format: format, path: url.standardizedFileURL.path, options: options,
-                                   companion: companion(of: url, format: format))
-    }
-
-    /// The file a tune keeps part of itself in, for a kind that does: looked for beside it, by the
-    /// names `Companions` gives. Nil for a kind that keeps all of itself in its own file.
-    private func companion(of url: URL, format: TuneFormat) throws -> [UInt8]? {
-        guard Companions.ending(for: format) != nil else { return nil }
-        let folder = url.standardizedFileURL.deletingLastPathComponent()
-        let beside = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        guard let name = Companions.pick(for: format, fileName: url.lastPathComponent, among: beside),
-              let data = try? Data(contentsOf: folder.appendingPathComponent(name))
-        else {
-            let names = Companions.names(for: format, fileName: url.lastPathComponent)
-            throw TuneError.missingCompanion("its samples are kept in a file of their own, \(names.joined(separator: " or ")), which is not beside it")
-        }
-        return [UInt8](data)
+                                   companions: CompanionFiles.find(for: url, format: format))
     }
 }
 
-/// AdLib instrument banks on disk, for ROL files. Each folder is looked through once and each bank read once.
-enum BankFiles {
-    private static let folders = Mutex<[String: [String: URL]]>([:])
-    private static let banks = Mutex<[String: AdLibBank]>([:])
+/// The files on disk that tunes need beside their own (see `Companions`): the samples some keep in
+/// a file of their own, the instrument banks of ROL files. They are looked for in the tune's folder,
+/// each folder looked through once and each file read once.
+enum CompanionFiles {
+    private static let folders = Mutex<[String: FileFinder]>([:])
+    private static let files = Mutex<[String: [UInt8]]>([:])
 
-    /// The banks beside a ROL file: one of the tune's own name, and then `STANDARD.BNK`, in capitals
-    /// or small letters.
-    static func find(for tune: URL) -> [AdLibBank] {
+    /// One for each of the files a tune of its kind needs, in the order `Companions` gives them; nil
+    /// for one that is not there.
+    static func find(for tune: URL, format: TuneFormat) -> [[UInt8]?] {
+        let wanted = Companions.wanted(for: format, fileName: tune.lastPathComponent)
+        guard !wanted.isEmpty else { return [] }
         let folder = tune.standardizedFileURL.deletingLastPathComponent()
-        let beside = folders.withLock { known -> [String: URL] in
+        let beside = folders.withLock { known -> FileFinder in
             if let listed = known[folder.path] { return listed }
-            var listed: [String: URL] = [:]
-            for file in (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-                where file.pathExtension.lowercased() == "bnk" {
-                listed[file.lastPathComponent.lowercased()] = file
-            }
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+            let listed = FileFinder(names.filter { name in
+                name.lastIndex(of: ".").map { Companions.are(fileExtension: String(name[name.index(after: $0)...])) } ?? false
+            })
             known[folder.path] = listed
             return listed
         }
-        let own = tune.deletingPathExtension().lastPathComponent.lowercased() + ".bnk"
-        var found: [AdLibBank] = []
-        for name in own == "standard.bnk" ? [own] : [own, "standard.bnk"] {
-            guard let file = beside[name] else { continue }
-            if let read = banks.withLock({ $0[file.path] }) {
-                found.append(read)
-            } else if let data = try? Data(contentsOf: file) {
-                let read = AdLibBank([UInt8](data))
-                banks.withLock { $0[file.path] = read }
-                found.append(read)
-            }
+        return wanted.map { companion in
+            guard let place = Companions.find(companion, for: tune.lastPathComponent, among: beside) else { return nil }
+            let file = folder.appendingPathComponent(beside.paths[place]).path
+            if let read = files.withLock({ $0[file] }) { return read }
+            guard let data = FileManager.default.contents(atPath: file) else { return nil }
+            files.withLock { $0[file] = [UInt8](data) }
+            return [UInt8](data)
         }
-        return found
     }
 }
 

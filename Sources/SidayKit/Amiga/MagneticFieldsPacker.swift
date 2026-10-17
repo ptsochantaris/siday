@@ -1,12 +1,12 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Read as libxmp reads these files (src/loaders/mfp_load.c), Copyright (C) 1996-2024 Claudio Matsuoka
-// and Hipolito Carraro Jr, used under the MIT licence (see THIRD-PARTY.md), but for its table of
-// patterns, which is read as the format's own replayer reads it.
+// Read as libxmp 4.6.3 reads these files (src/loaders/mfp_load.c), Copyright (C) 1996-2021 Claudio
+// Matsuoka and Hipolito Carraro Jr, used under the MIT licence (see THIRD-PARTY.md), but for its table
+// of patterns, which is read as the format's own replayer reads it.
 
-/// A module packed by the Magnetic Fields Packer, which some games' music was kept in: a ProTracker
-/// module, its notes in one file and its samples in another (see `Companions`).
+/// A module packed by the Magnetic Fields Packer, Shaun Southern's, which some games' music was kept
+/// in: a ProTracker module, its notes in one file and its samples in another (see `Companions`).
 /// The song keeps the samples' particulars without their names, the order, and each voice of each
 /// pattern as a tree: four bytes that each lead to four, that each lead to four, that each lead to a
 /// note, so that a stretch of rows like another is kept once. It is read into the ProTracker module it
@@ -14,10 +14,10 @@
 ///
 /// The table that says where each voice's tree begins has an entry for each place in the song, not
 /// for each pattern: the order the song keeps beside it is the one the module had, and is not what is
-/// played. (libxmp takes the table to be by pattern, and so plays a song whose patterns are not in the
-/// order of their numbers out of order; the format's replayer, in Wanted Team's player for EaglePlayer
-/// run by UADE, plays it by place, and so does this.) Places that play the same four trees share a
-/// pattern.
+/// played. (libxmp took the table to be by pattern until its release 4.7.1, and so played a song whose
+/// patterns are not in the order of their numbers out of order; the format's replayer, in Wanted
+/// Team's player for EaglePlayer run by UADE, plays it by place, and so does this.) Places that play
+/// the same four trees share a pattern.
 enum MagneticFieldsPacker {
     /// True for a file that is one of these songs, by libxmp's test: NoiseTracker's restart where it
     /// goes, samples' particulars that make sense, and the song's length given three times over.
@@ -34,13 +34,10 @@ enum MagneticFieldsPacker {
         return Int(data[248]) == word(378) && word(378) == word(380)
     }
 
-    /// The ProTracker module the song and its samples were; without the samples, if they are not to
-    /// hand, the song's notes cannot be heard, and it is not played.
-    static func module(_ data: [UInt8], samples: [UInt8]?) throws(TuneError) -> [UInt8] {
+    /// The ProTracker module the song and its samples were. (Without the samples the song's notes
+    /// cannot be heard, and it is not played: see `Companions`.)
+    static func module(_ data: [UInt8], samples: [UInt8]) throws(TuneError) -> [UInt8] {
         guard isOne(data) else { throw .malformed("not a Magnetic Fields Packer song") }
-        guard let samples else {
-            throw .missingCompanion("its samples are kept in a file of their own, beside it, which is not to hand")
-        }
         func word(_ at: Int) -> Int { at + 1 < data.count ? Int(data[at]) << 8 | Int(data[at + 1]) : 0 }
         let length = Int(data[248])
         guard length > 0, length <= 128 else { throw .malformed("a Magnetic Fields Packer song of no length") }

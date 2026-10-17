@@ -146,9 +146,7 @@ private func rol(instrument: String = "SINE", drums: Bool = false, volume: Float
 }
 
 private func played(_ file: [UInt8], banks: [[UInt8]] = [], seconds: Double = 1) throws -> (renderer: any Renderer, sound: [Float]) {
-    var options = LoadOptions()
-    options.adLibBanks = banks.map { AdLibBank($0) }
-    let renderer = try TuneLoader.load(file, format: .rol, options: options)
+    let renderer = try TuneLoader.load(file, format: .rol, companions: banks)
     return (renderer, mono(renderer, seconds: seconds))
 }
 
@@ -352,9 +350,7 @@ private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.
     // With the drums on, the bass drum struck: its scope moves, and those of the other drums do not.
     var loud = bank([("SINE", 0)])
     loud[62] = 0
-    var options = LoadOptions()
-    options.adLibBanks = [AdLibBank(loud)]
-    let session = TuneSession(renderer: try TuneLoader.load(rol(drums: true, also: 6), format: .rol, options: options), policy: PlaybackPolicy())
+    let session = TuneSession(renderer: try TuneLoader.load(rol(drums: true, also: 6), format: .rol, companions: [loud]), policy: PlaybackPolicy())
     #expect(session.keepChannelWaves())
     let shown = scopes(session, after: 2400)
     #expect(height(shown[0]) > 100 && height(shown[6]) > 20)

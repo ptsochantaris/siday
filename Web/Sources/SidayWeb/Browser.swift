@@ -9,8 +9,8 @@ import JavaScriptKit
 
 /// Hands over the Swift side's callbacks. Called once, before anything else.
 /// - Parameters:
-///   - kind: what a file of this name is: 1 for a tune that can be played, 2 for a playlist, and 0
-///     for anything else.
+///   - kind: what a file of this name is: 1 for a tune that can be played, 2 for a playlist, 3 for
+///     a tune's companion (see `Companions`), and 0 for anything else.
 ///   - added: files have been added to the list: a line for each, in the order they now have after
 ///     those already there, of its name, a tab, and what the playlist it came by says about it.
 ///   - loaded: the tune asked for with `sidayPlay` has started, or could not be: whether it plays, its
@@ -53,23 +53,25 @@ func sidayListen(
     _ frame: @escaping (Double, Double, Double) -> Void
 ) throws(JSException)
 
-/// Hands over the callbacks that read playlists, which the JavaScript side cannot: it has the files,
-/// and the Swift side knows what a playlist says. Called once, with `sidayListen`.
+/// Hands over the callbacks that find the files that come with others: the tunes a playlist names,
+/// and the companions of a tune, the files it keeps its samples in or takes its instruments from. The
+/// JavaScript side has the files, and the Swift side knows what a playlist says and what a tune
+/// needs. Called once, with `sidayListen`.
 /// - Parameters:
-///   - sought: the tunes that the playlists about to be read are to be found among: their names, one
-///     to a line. Empty when the reading is done, and they need not be kept.
-///   - listed: a playlist's name, as its tunes' names were given to `sought`, and its file, as text
-///     with a letter for each of its bytes. The answer is in lines: first how many tunes it names
-///     and how many of those were not among the ones given to `sought`, with a space between; then
-///     a line for each that was, in the list's order: which of the list's tunes it is, counted from
-///     0, a tab, its place among those given to `sought`, counted from 0, a tab, 1 if it is a tune
-///     beside the list or below it and 0 if it is one from somewhere else, a tab, and what the list
-///     says about it.
+///   - given: the page has been given these files, which are tunes or their companions: their names,
+///     one to a line. They are known from now on, after those given before, and are counted from 0
+///     in that order, over all the times this is called; a name is given once.
+///   - listed: a playlist's name, as the page has it, and its file, as text with a letter for each
+///     of its bytes. The answer is in lines: first how many tunes it names and how many of those
+///     were not among the files given, with a space between; then a line for each that was, in the
+///     list's order: which of the list's tunes it is, counted from 0, a tab, its place among the files
+///     given, a tab, 1 if it is a tune beside the list or below it and 0 if it is one from somewhere
+///     else, a tab, and what the list says about it.
 ///   - missed: playlists have been read, and this is how they came out: how many of the tunes they
 ///     name could not be found, how many they name, and the name of the list if it was a single one.
 @JSFunction(from: .global)
-func sidayPlaylists(
-    _ sought: @escaping (String) -> Void,
+func sidayFiles(
+    _ given: @escaping (String) -> Void,
     _ listed: @escaping (String, String) -> String,
     _ missed: @escaping (Int, Int, String) -> Void
 ) throws(JSException)
@@ -101,14 +103,17 @@ func sidayAbout(_ chapter: String) throws(JSException)
 func sidayChoose(_ folder: Bool) throws(JSException)
 
 /// Opens the browser's folder chooser for the folder that holds the tunes of the playlists last
-/// added, those of them that were not found. The folder is looked in and is not added to the list:
-/// the tunes that were missing are, and `missed` is told how the playlists stand now.
+/// added, those of them that were not found, or the companion of a tune that was not. The folder is
+/// looked in and is not added to the list: the tunes that were missing are, and `missed` is told how
+/// the playlists stand now; its tunes and companions are given (see `sidayFiles`).
 @JSFunction(from: .global)
 func sidayChooseTunes() throws(JSException)
 
-/// Loads a file from the list, by its place in it, and plays a song of it: -1 for the one the file names.
+/// Loads a file from the list, by its place in it, and plays a song of it: -1 for the one the file
+/// names. With it, the files it needs beside its own, by their places among the files given (see
+/// `sidayFiles`), with a space between, and -1 for one that was not found.
 @JSFunction(from: .global)
-func sidayPlay(_ index: Int, _ subsong: Int) throws(JSException)
+func sidayPlay(_ index: Int, _ subsong: Int, _ companions: String) throws(JSException)
 
 @JSFunction(from: .global)
 func sidayPause(_ paused: Bool) throws(JSException)
