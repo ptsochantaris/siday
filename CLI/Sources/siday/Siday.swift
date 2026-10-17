@@ -6,13 +6,13 @@ import SidayKit
 import Foundation
 import Synchronization
 
-extension OutputStyle: ExpressibleByArgument {}
-extension AYChipType: ExpressibleByArgument {}
-extension SIDModelChoice: ExpressibleByArgument {}
-extension SIDEngineChoice: ExpressibleByArgument {}
-extension AmigaModel: ExpressibleByArgument {}
-extension ST3Card: ExpressibleByArgument {}
-extension Levelling: ExpressibleByArgument {}
+extension OutputStyle: @retroactive ExpressibleByArgument {}
+extension AYChipType: @retroactive ExpressibleByArgument {}
+extension SIDModelChoice: @retroactive ExpressibleByArgument {}
+extension SIDEngineChoice: @retroactive ExpressibleByArgument {}
+extension AmigaModel: @retroactive ExpressibleByArgument {}
+extension ST3Card: @retroactive ExpressibleByArgument {}
+extension Levelling: @retroactive ExpressibleByArgument {}
 
 @main
 struct Siday: ParsableCommand {

@@ -6,7 +6,7 @@
 //
 //     swift Scripts/pack-formats.swift
 //
-// It writes Sources/siday/FormatStories.swift, which is to be committed with FORMATS.md whenever
+// It writes CLI/Sources/siday/FormatStories.swift, which is to be committed with FORMATS.md whenever
 // that changes. Run it from the top of the repository. A test sees that the two still agree.
 
 import Foundation
@@ -29,5 +29,5 @@ extension FormatStories {
 }
 
 """
-try swift.write(toFile: "Sources/siday/FormatStories.swift", atomically: true, encoding: .utf8)
-print("Wrote Sources/siday/FormatStories.swift (\(text.utf8.count) bytes of text).")
+try swift.write(toFile: "CLI/Sources/siday/FormatStories.swift", atomically: true, encoding: .utf8)
+print("Wrote CLI/Sources/siday/FormatStories.swift (\(text.utf8.count) bytes of text).")

@@ -96,19 +96,20 @@ thread only plays what it is sent, so nothing the page does can hold the sound u
 the page itself, written in [ElementaryUI](https://elementary.codes). Between them is `siday.js`,
 for what only a browser has: the chosen files and the audio graph.
 
-With these in the package, a plain `swift build` with no `--product` also compiles the web targets and
-what they depend on for the Mac, which takes minutes the first time and is of no use.
+The web player is a package of its own, in `Web/`, built on SidayKit: `Web/build.sh` builds it, and
+`Web/serve.sh` builds it if it needs to and serves it on this Mac only.
 
 ## On the command line
 
-`siday` is the player for the terminal, on macOS 26 or later. To build it:
+`siday` is the player for the terminal, on macOS 26 or later. It is a package of its own, in `CLI/`.
+To build it:
 
 ```
-swift build -c release --product siday
+swift build -c release --package-path CLI
 ```
 
-The binary is `.build/out/Products/Release/siday` (`swift build -c release --show-bin-path` prints the folder).
-Always use a release build: the emulators are far too slow in debug.
+The binary is `CLI/.build/release/siday` (`swift build -c release --package-path CLI --show-bin-path`
+prints the folder). Always use a release build: the emulators are far too slow in debug.
 
 ### Using it
 
@@ -300,10 +301,13 @@ Played, with a difference:
 
 ## How it is built
 
-`Sources/SidayKit` holds all emulation. It has no dependencies and uses none of Foundation: it is
-given a file's bytes and gives back samples, so it builds wherever Swift does, WebAssembly and Embedded
-Swift included (see `Embedded/`). `Sources/siday` is the player for macOS: reading files, Core Audio
-output, terminal keys and options (via swift-argument-parser).
+The repository is three packages. At the top is SidayKit, in `Sources/SidayKit`, which holds all
+emulation. It has no dependencies and uses none of Foundation: it is given a file's bytes and gives
+back samples, so it builds wherever Swift does, WebAssembly and Embedded Swift included (see
+`Embedded/`), and another package can depend on this repository for it alone. `CLI/` is the player
+for macOS: reading files, Core Audio output, terminal keys and options (via swift-argument-parser).
+`Web/` is the web player. `swift test` at the top tests SidayKit, and `swift test --package-path CLI`
+the command-line player.
 
 | Part | Based on | Checked against |
 |---|---|---|

@@ -8,7 +8,7 @@ import Testing
 
 @Test func theFormatsStoriesInThePlayerAreFORMATSmdAsItIs() throws {
     // FORMATS.md is packed into the player by Scripts/pack-formats.swift, to be run when it changes.
-    let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../FORMATS.md")
+    let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../FORMATS.md")
     let text = try String(contentsOf: file, encoding: .utf8)
     #expect(FormatStories.text + "\n" == text, "FORMATS.md has changed since it was packed: run swift Scripts/pack-formats.swift")
 }

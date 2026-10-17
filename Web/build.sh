@@ -5,7 +5,8 @@
 #   ./build.sh          then serve this folder, for instance:  python3 -m http.server --directory Web 8000
 set -e
 cd ${0:h}
-package=${PWD:h}
+# This folder is a package of its own (Package.swift), built on SidayKit in the one above it.
+package=$PWD
 
 # Embedded Swift for both: small modules, and no Swift runtime to download.
 sdk=${SIDAY_WASM_SDK:-$(swift sdk list | grep '_wasm-embedded$' | tail -1)}
@@ -33,6 +34,6 @@ command -v wasm-opt > /dev/null || optimise=(--no-optimize)
 swift package $common js --configuration release --product SidayWeb --output $output $optimise
 cp $output/SidayWeb.wasm $output/instantiate.js $output/runtime.js $output/bridge-js.js generated/
 # And FORMATS.md, of which the page shows the part on a format when the format's name is pressed.
-cp $package/FORMATS.md generated/
+cp ../FORMATS.md generated/
 
 ls -l generated | awk 'NR > 1 { printf "%9d  generated/%s\n", $5, $NF }'
