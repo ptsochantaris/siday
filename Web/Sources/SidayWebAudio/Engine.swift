@@ -133,6 +133,7 @@ final class WebPlayer {
                 || format == .digi
                 || format == .vgm
                 || format == .sap
+                || format == .agi
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

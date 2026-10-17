@@ -12,6 +12,7 @@ extension SIDModelChoice: @retroactive ExpressibleByArgument {}
 extension SIDEngineChoice: @retroactive ExpressibleByArgument {}
 extension AmigaModel: @retroactive ExpressibleByArgument {}
 extension ST3Card: @retroactive ExpressibleByArgument {}
+extension AGIReplay: @retroactive ExpressibleByArgument {}
 extension Levelling: @retroactive ExpressibleByArgument {}
 
 @main
@@ -86,6 +87,9 @@ struct Siday: ParsableCommand {
 
     @Option(help: "The sound card an S3M file is played on: gus, or sb for a Sound Blaster Pro's eight bits. Default: the one the file was saved with.")
     var s3mCard: ST3Card?
+
+    @Option(help: "How the music of Sierra's adventure games (an AGI file) is played: amiga, as the Amiga versions played it with Sierra's first routine; amiga-later, with its later one, whose tones are rounder and die away; or pc, on the PCjr's and Tandy 1000's chip, which it was written for.")
+    var agi: AGIReplay = .amiga
 
     @Option(help: "Bring every tune to the same loudness: off, full, or partial (halfway there, so that a quiet tune is still quieter than a loud one, but not by as much). Each song is measured as it plays, by playing it through unheard, and the next while it plays; what is found is kept for later runs. A song is turned up by no more than 6 dB. With --list, says how far each tune would be turned up or down. Default: off, each tune as loud as its file has it.")
     var level: Levelling = .off
@@ -183,6 +187,7 @@ struct Siday: ParsableCommand {
         options.amigaSeparation = amigaSeparation / 100
         options.sbProSeparation = sbProSeparation / 100
         options.s3mCard = s3mCard
+        options.agiReplay = agi
         options.sidFilterCurve = sidFilterCurve
         return TuneFiles(options: options, songLengthsPath: songLengthsPath)
     }

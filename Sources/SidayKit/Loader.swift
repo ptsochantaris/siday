@@ -23,6 +23,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case digi
     case vgm
     case sap
+    case agi
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -92,6 +93,10 @@ public enum TuneLoader {
             return try SNDHRenderer(data, options: options)
         case .sap:
             return try SAPRenderer(data, options: options)
+        case .agi:
+            // A sound from one of Sierra's adventure games, as the Amiga versions played it or on the
+            // PC's chip, as the options say.
+            return try AGIFile.renderer(data, options: options)
         case .mod:
             // A module of the Amiga's four channels is ProTracker's to play. One of more is a PC
             // tracker's, and FastTracker 2 plays those. (And a MED module that has been named as if

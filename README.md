@@ -30,6 +30,7 @@ siday ~/Music/chiptunes --shuffle
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
+| Sierra's adventure games, King's Quest to Manhunter | AGI sounds | Sierra's own routines for the Amiga, either of the two, on the Amiga's sound chip; or the PCjr's and Tandy 1000's chip, as Sierra's interpreter wrote to it |
 | AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip; a recording's own writes, at its own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
 
 Each of these was set beside a reference player, most of them to the sample:
@@ -154,6 +155,7 @@ its own line as it starts.
 | `--s3m-card gus\|sb` | The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. Default: the one the file was saved with, where it says, and otherwise the GUS |
 | `--amiga-separation 0…100` | How far apart a module's left and right are kept, in percent (default 20). 100 is the Amiga's own hard left and right, which is harsh in headphones |
 | `--sb-pro-separation 0…100` | The same for a VGM recording of the first Sound Blaster Pro, which had one FM chip on each side, or of the Creative Music System, whose voices are mostly on one side; and for a SAP file for two POKEYs, one on each side (default 20). 100 is the hardware's own |
+| `--agi amiga\|amiga-later\|pc` | How a Sierra AGI sound is played: as the Amiga versions of the games played it, with Sierra's first routine (the default, square waves) or its later one (rounder waves that die away); or on the PCjr's and Tandy 1000's chip, which the music was written for |
 | `--amiga a1200\|a500` | Which Amiga a module is heard on. The 1200 by default; the 500 has a low-pass filter at 4.4 kHz in the way, which is the darker sound much Amiga music was written on |
 | `--sid-model auto\|6581\|8580` | SID model (default: what the tune asks for) |
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
@@ -273,6 +275,9 @@ Played, with a difference:
   tried a handful do not start; the reference player does not start them either.
 - **MED:** notes for a MIDI synthesiser are not heard; in a MED4 file, a synthetic or hybrid sound
   is silent, and the hold and decay of notes are not read.
+- **AGI:** which of Sierra's two routines for the Amiga each game had is not known, and the first is
+  played unless the other is asked for; on the PC's chip, the later interpreters' turning down of
+  notes as they are held is left out, for want of a recording to set it beside.
 - **DBM:** played as DigiBooster 3 plays it, which leaves out three of DigiBooster Pro's commands:
   setting how far into an envelope a note is, sliding where a sample starts, and setting the tempo
   in beats a minute.
@@ -324,6 +329,8 @@ the command-line player.
 | Atari ST machine, its sound chip, timers and STE samples | AtariAudio by Arnaud Carré (MIT); the chip's mixing table measured by Paulo Simões | AtariAudio itself, sample for sample: three minutes of each of 5,897 tunes, and every song of those with several |
 | Atari ST YM files, their effects, digi-mixes and YM tracker tunes | AtariAudio | AtariAudio, sample for sample, on the 23 files to hand; no YM2 or YMT2 file among them |
 | Ice unpacking | the C version by Hans Wessels (public domain) | — |
+| Sierra AGI sounds on the Amiga | Sierra's two routines, read in Wanted Team's player of the sounds for EaglePlayer | that player itself, run by UADE: all 745 files of UnExoticA's collection, each routine, by how loud each side is from moment to moment |
+| Sierra AGI sounds on the PC | the chip's writes as NewRisingSun's recordings of King's Quest II show them | those recordings, on the same chip: the chip told the same in 9 of the 13, and in the rest but where a recording leaves out writes |
 | 8-bit Atari machine, its 6502 and its POKEY | ASAP by Piotr Fusik (GPL) | ASAP's `asapconv` itself, sample for sample: the first 30 seconds of every song of the 6,337 files of ASMA, 8,349 of them, and three minutes of 286 songs of 200 of the files |
 
 ### Each format
@@ -419,6 +426,12 @@ What it is made from:
   6502 and its POKEY, with the POKEY's band-limited steps and the levels of its DAC as Fusik
   measured them. The SAP format is Adam Bienias's, and the music is kept in it by the
   [Atari SAP Music Archive](https://asma.atari.org/).
+- Wanted Team's player of Sierra's AGI sounds for EaglePlayer (2006), which keeps the routines
+  Sierra's interpreter for the Amiga played them with: what those routines do was read in it, and
+  [UADE](https://zakalwe.fi/uade/) ran it to set the player here beside. NewRisingSun's recordings
+  of King's Quest II on the PCjr and the Tandy 1000, at [vgmrips.net](https://vgmrips.net/), show
+  how Sierra's interpreter wrote to their chip. The files are as
+  [UnExoticA](https://www.exotica.org.uk/) keeps them.
 - [pt2-clone](https://github.com/8bitbubsy/pt2-clone) by Olav Sørensen (8bitbubsy): the Amiga as a
   module needs it. The replayer is his C port of ProTracker 2.3D's, and Paula, her filters and the
   reading of modules are his too; the band-limited steps in Paula's output are by aciddose. ProTracker

@@ -145,6 +145,9 @@ public extension SongLevel {
             options.amigaModel.rawValue, milli(options.amigaSeparation), options.s3mCard?.rawValue ?? "-", milli(options.sbProSeparation),
             String(policy.loops), milli(policy.defaultTime), milli(policy.maxTime), milli(policy.loopFade), milli(policy.endFade),
         ]
+        // (Said only where it is not as it is unless changed, so that the keys made before it was a
+        // choice still stand.)
+        if options.agiReplay != .amiga { return (parts + ["agi=" + options.agiReplay.rawValue]).joined(separator: " ") }
         return parts.joined(separator: " ")
     }
 

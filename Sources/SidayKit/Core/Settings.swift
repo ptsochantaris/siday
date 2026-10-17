@@ -13,6 +13,7 @@ public enum Setting: Int, CaseIterable, Sendable {
     case chip, clock, frameRate, stereoOrder, sbProSeparation
     case sidModel, sidEngine, sidFilter
     case amiga, amigaSeparation, s3mCard
+    case agiReplay
 
     /// One of the things a setting can be chosen to be.
     public struct Choice: Sendable {
@@ -58,7 +59,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .songs, .shortestSong, .loops, .fade, .defaultTime, .maxTime, .levelling: .playing
         case .chip, .clock, .frameRate, .stereoOrder, .sbProSeparation: .ay
         case .sidModel, .sidEngine, .sidFilter: .sid
-        case .amiga, .amigaSeparation, .s3mCard: .modules
+        case .amiga, .amigaSeparation, .s3mCard, .agiReplay: .modules
         }
     }
 
@@ -82,6 +83,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .amigaSeparation: "amiga-separation"
         case .s3mCard: "s3m-card"
         case .sbProSeparation: "sb-pro-separation"
+        case .agiReplay: "agi"
         case .levelling: "level"
         }
     }
@@ -106,6 +108,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .s3mCard: "S3M sound card"
         case .sbProSeparation: "Sound Blaster Pro, CMS and stereo POKEY left and right"
         case .levelling: "Loudness"
+        case .agiReplay: "Sierra's adventure games"
         }
     }
 
@@ -139,13 +142,15 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .sidFilter:
             "Where the 6581's filter sits. No two of the real chips were alike in this, and they differed by as much as this goes. It is something only reSIDfp has."
         case .amiga:
-            "Which Amiga a module made for one is heard on: a MOD, MED, AHX, SoundFX or Oktalyzer file. The 500 has a filter in the way that takes off the top of the sound, above 4.4 kHz: the darker sound that much Amiga music was written on."
+            "Which Amiga a module made for one is heard on: a MOD, MED, AHX, SoundFX or Oktalyzer file, or a Sierra game's sound as the Amiga played it. The 500 has a filter in the way that takes off the top of the sound, above 4.4 kHz: the darker sound that much Amiga music was written on."
         case .amigaSeparation:
-            "How far apart the left and right of a module made for the Amiga are kept: a MOD, MED, AHX, SoundFX or Oktalyzer file. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
+            "How far apart the left and right of a module made for the Amiga are kept: a MOD, MED, AHX, SoundFX or Oktalyzer file, or a Sierra game's sound as the Amiga played it. An Amiga put each of its four voices hard to one side, which is harsh in headphones. It makes no difference in mono or through a television."
         case .s3mCard:
             "The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. A file says which it was saved with; one that does not is given the Ultrasound."
         case .sbProSeparation:
             "How far apart the left and right of a recording from the first Sound Blaster Pro or the Creative Music System are kept (a VGM file of their chips), and of an 8-bit Atari tune for two POKEYs. The Sound Blaster Pro had one FM chip on each side and nothing of either on the other, the Atari's stereo upgrade one POKEY on each side, and the Creative Music System's music puts most of its voices on one side or the other: that is harsh in headphones. It makes no difference in mono or through a television."
+        case .agiReplay:
+            "The music of Sierra's adventure games of the 1980s, King's Quest to Manhunter (an AGI file), was written for the three-voice chip of IBM's PCjr and the Tandy 1000, and the Amiga versions of the games played it with routines of their own. The first plays every tone as a square wave, held at the note's volume; the later one plays it as a rounder wave that dies away over each note's first second. Which games had which is not known: Wanted Team's player of these files, by which they are heard on the Amiga today, plays the first unless told otherwise."
         case .levelling:
             "A tune is heard as loud as its file has it, so one written quiet is heard quiet. Levelled, each song is turned up or down to be as loud as the rest; halfway, it is moved half as far, and a quiet tune is still quieter than a loud one, but not by as much. No song is turned up by more than 6 dB. A song is measured the first time it is played: it waits up to a second to be, starts at about its level by what has been measured of it if that is not enough, and glides to its level once the whole of it has been. Its level is kept in this browser for the next time."
         }
@@ -193,6 +198,9 @@ public enum Setting: Int, CaseIterable, Sendable {
             .scale(low: "together", high: "apart")
         case .s3mCard:
             .choice([Choice("auto", "As the file says"), Choice("gus", "Gravis Ultrasound"), Choice("sb", "Sound Blaster Pro")])
+        case .agiReplay:
+            .choice([Choice("amiga", "Amiga, Sierra's first routine"), Choice("amiga-later", "Amiga, Sierra's later routine"),
+                     Choice("pc", "PCjr and Tandy 1000")])
         case .levelling:
             .choice([Choice("off", "as each file has it"), Choice("full", "levelled, every song alike"), Choice("partial", "levelled halfway")])
         }
@@ -207,7 +215,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .defaultTime: 2
         case .sidFilter: 50
         case .amigaSeparation, .sbProSeparation: 20
-        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling: 0
+        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling, .agiReplay: 0
         }
     }
 
@@ -262,12 +270,14 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .digi: false
             case .vgm: false
             case .sap: false
+            case .agi: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid
-        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt)
+        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt || format == .agi)
         case .s3mCard: format == .s3m
         case .sbProSeparation: format == .vgm || format == .sap
+        case .agiReplay: format == .agi
         }
     }
 
@@ -314,5 +324,6 @@ public enum Setting: Int, CaseIterable, Sendable {
         options.amigaSeparation = value(.amigaSeparation) / 100
         options.s3mCard = ([nil, .gus, .sb] as [ST3Card?])[place(.s3mCard)]
         options.sbProSeparation = value(.sbProSeparation) / 100
+        options.agiReplay = ([.amiga, .amigaLater, .pc] as [AGIReplay])[place(.agiReplay)]
     }
 }

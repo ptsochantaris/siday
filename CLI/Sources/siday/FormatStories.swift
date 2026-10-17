@@ -211,6 +211,81 @@ hundred of them. The other formats ASAP reads, the native files of the Atari's t
 TMC, MPT and the rest), which it plays by putting each tracker's own player beside them, are not
 read here: ASMA has them as SAP files.
 
+## AGI — Sierra's adventure games
+
+Sierra On-Line made King's Quest for IBM's PCjr in 1984, and the interpreter it was written for, the
+Adventure Game Interpreter, ran its games for the rest of the decade: King's Quest I to IV, Space
+Quest I and II, Police Quest, Leisure Suit Larry, The Black Cauldron, Gold Rush!, Manhunter I and II,
+Mixed-Up Mother Goose, Donald Duck's Playground. The PCjr had a sound chip of three voices and a
+noise, Texas Instruments' SN76496, and the Tandy 1000 that followed it had one made like it; that is
+what the music was written for. A sound in one of these games is four voices, three of tones and one of
+noise, and each voice is a list of notes: how long the note lasts, in sixtieths of a second, and the
+three bytes that were to be written to the chip for it, two for its tone (or its noise's kind and
+rate) and one for its volume. A file here is one sound taken out of a game's volumes, the AGI file
+as UnExoticA has them: four places that say where the voices begin, and the voices, each ended by
+a duration of 65,535. It plays once and ends, as it did in the game.
+
+The games came to the Amiga in the later 1980s, and there was no such chip for their sounds to be
+written to: Sierra's interpreter for the Amiga played them on Paula, with routines of its own, which
+Wanted Team kept in their player of the sounds for EaglePlayer (2006). That player was read for the
+player here, and the Amiga's is how a file is played unless the listener asks otherwise. There were
+two routines in the interpreter's time, and Wanted Team's player keeps both. Sierra's first plays
+a tone as a square wave, a wave of two samples, at a period of sixteen of Paula's clocks for each
+the chip's clock would have been divided by, so that it is at the chip's pitch, or as near as
+Paula's slightly slower clock has it; its volume is the note's, from 64 at the loudest down to
+nought in fifteen even steps, not the chip's steps of 2 dB, so that a quiet note is louder than it
+was on the PC. Its later routine plays the tone as a wave of eight steps, more nearly a sine, and
+turns each note down as it is held: by two of the chip's steps at first, then one, then none, and
+then further over a second, to eleven steps under where it began, where it is left. Its noise is
+turned down the same way only once, over the sound's first second: what is begun for a tone at each
+of its notes is begun for the noise with the sound. The noise is a
+stretch of 4,096 bytes from a shift register of sixteen bits, played at one of three rates as the
+chip's were, the fourth, which follows the third tone, taken as the slowest; the chip's other kind
+of noise, its periodic one, is played as the first. Each voice is started once, at its first note,
+and left running: a note after that changes only its period and its volume, so that a tone goes on
+from where the last one left off. The interrupt that starts the notes comes round as often as a
+timer of 11,822 of the Amiga's E clock's ticks, and takes one more than that to come round: sixty
+times a second, all but exactly. Which games had which routine is not known, and Wanted Team's player
+plays the first unless it is told otherwise, which is how these files are heard on the Amiga today;
+so it is here (`--agi amiga-later` for the other, or the setting in the browser).
+
+Both routines were checked against Wanted Team's player itself, run by UADE (3.05, which carries the
+same file) with Paula's filters off, and its later routine chosen by setting the one value its
+configuration sets. Every one of the 745 files of UnExoticA's collection was played both ways by
+both, and how loud each was from moment to moment, side by side and a hundredth of a second at a
+time, was set beside the other's: 0.989 alike on average for the first routine and 0.992 for the
+later one, and each file as long in both, but for the half second of quiet the player here gives
+any tune that comes to an end. Played a voice at a time, the pitches, the volumes
+and the dying away of the notes agree, and the noise to the sample. Where the two differ it is in
+the phase of a tone, which comes of the voice never being started again: a note's period is taken up
+when the sample that is playing ends, so that where in its wave a voice is depends on exactly when
+each note before it began, which differs between the two by a little; and where two voices on one
+side play the same note, whether they add up or cancel depends on that too. Through UADE the first
+notes also begin a tick later, its first interrupt coming after its start.
+
+The other way of playing the files (`--agi pc`) is on the chip they were written for, as the
+interpreter for the PCjr and the Tandy wrote to it. That is as NewRisingSun's recordings of King's
+Quest II on those machines show (at vgmrips.net): sixty times a second, each voice whose note has had
+its time is given its next, its bytes written to the chip as they are in the file, the tone's lower
+bits first, then its upper ones, then the volume; and when a voice comes to its end it is silenced.
+A note of silence has nought in its two tone bytes, and the recordings show that the interpreter
+wrote those too. The chip, as MAME has it, takes a byte that does not name a register as being for
+the last one named, which for those is the last voice's volume: so a silent note can leave the voice
+before it at its loudest until that voice's next note. A noise's note is given its two commands alone, its noise's and its
+volume's, and not the nought beside them, which written would turn the noise to its other kind; no
+recording has a noise from these interpreters to say what they wrote. Each of the 13 recordings of the
+interpreter of the DOS version is of a file in UnExoticA's collection. Eight sound the same as their
+file played here, from moment to moment, and in a ninth the chip is told the same throughout the
+file, the recording going on past its end. The other four differ where the recording leaves out
+writes that, by its own reckoning, changed nothing: the silent notes' bytes, and the volumes written
+again after them, and the silencing of voices at the end. ScummVM's reading of Sierra's later interpreters for the PC has
+them turn every note down as it is held, as the Amiga's later routine does; that is not done here,
+for want of a recording to set it beside.
+
+On the Amiga the sounds are as loud as a MOD file, which is played on the same chip: the middle of a
+hundred of the sounds of ten seconds or more is within a dB of the rest of the music with either
+routine. On the PC's chip they were 6.7 dB louder than that, and are turned down to match.
+
 ## MOD — ProTracker and the Amiga
 
 The module began on the Amiga in 1987, with Karsten Obarski's Ultimate Soundtracker: four tracks,

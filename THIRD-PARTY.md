@@ -130,6 +130,18 @@ other formats ASAP reads, and the trackers' players it carries for them, nothing
 - GNU General Public License, version 2 or later
 - Source: https://github.com/pfusik/asap
 
+## Sierra AGI sounds
+
+`Sources/SidayKit/AGI` plays the sounds of Sierra On-Line's AGI games as the company's interpreter
+for the Amiga did, by the two routines Wanted Team kept in their player of the sounds for
+EaglePlayer ("Sierra AGI player module V1.0", 2006, on Aminet as `mus/play/EP_SierraAGI.lha`, and
+carried by UADE as `Sierra-AGI`; it says of itself "(c) 1986-88 by Sierra On-Line, adapted by Wanted
+Team"). Its 68000 code was read for what the routines do, and nothing of it is carried here but what
+it holds as data: the two waves of the tones, the shift register the noise is made from and its
+constant, the steps by which the later routine turns a note down, and the rates of the noise and the
+timer. The way the PC's interpreter wrote to the chip is as NewRisingSun's recordings of King's Quest
+II show it (https://vgmrips.net/); the chip is MAME's (below).
+
 ## pt2-clone — the Amiga
 
 `Sources/SidayKit/Amiga` is a Swift port of the playing parts of pt2-clone 1.92
