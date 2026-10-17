@@ -146,6 +146,57 @@ A SID file does not say how long its songs are. The collection keeps a list of t
 by people who listened, and the list of its release 85 is built in; a newer `Songlengths.md5`
 can be given to be asked first.
 
+## SAP — the 8-bit Ataris
+
+Atari's 400 and 800 came out in 1979, with a chip of their own for sound: the POKEY, which Doug
+Neubauer designed, and which also read the keyboard, the paddles and the serial port, whence its
+name. Its four channels each count down from a frequency of their own, from the machine's clock
+divided by 28 or by 114, and the first and third from the clock itself; each time one comes to
+nought its output may change, and how is its "distortion": a plain square wave, or one let through
+only where the chip's shift registers of 4, 5, 9 or 17 bits say so, which makes the buzzes,
+rumbles and hisses that are its sound as much as the square waves are. Two channels can be joined
+into one of sixteen bits, for finer pitches; the first two can be passed through high-pass filters
+clocked by the other two; and a channel can be held at one of its sixteen levels, so that what is
+written to it is a sample. The XL machines of 1983 and the XE of 1985 kept it, and so did the
+musicians of the Atari scene, in Poland above all, long after the machines were sold.
+
+SAP is to these what SID is to the Commodore: not a recording but the program that played the tune,
+6502 code and its data lifted out of a game or a demo, after a header of a few lines of text that
+say where it goes and how it is to be called. Adam Bienias made the format in the 1990s, for his
+Slight Atari Player, the first player of it, for Windows. The Atari SAP Music Archive, ASMA, has kept the machines' music in it
+since 1999, after the High Voltage SID Collection's example, and has some 8,000 songs. A file is of
+one of four types: B, whose start is called once with the song's number and whose player is called
+as often as the header asks, once a frame or several times; C, music made in Chaos Music Composer,
+whose player is called at places of its own; D, whose start is run as the machine's program and never
+returns, its player called as the vertical blank interrupt would have called it; and S, the same
+with a counter counted down in place of a player, for SoftSynth's music. A tune for two POKEYs, one on each side, is
+marked as stereo, and one for the American machines' 60 frames a second as NTSC.
+
+The player here is a port of ASAP, Piotr Fusik's Another Slight Atari Player: its POKEY, its 6502,
+and as much of the machine as a tune needs. The 6502 is not the C64's of this project, which makes
+each of its accesses to memory in a cycle of its own: ASAP's runs an instruction whole and counts
+its cycles before it, and its tunes are heard as they are because of where in its cycles each write
+to the POKEY falls. Of the rest of the machine there are the screen's lines, which tunes count, the
+nine cycles of each that ANTIC, the chip that draws it, takes from the processor to refresh the
+memory, the WSYNC register that holds the
+processor until a line ends, and the console's one-bit loudspeaker. The POKEY is not stepped cycle
+by cycle: ASAP works out when each channel's output next changes, and puts each change into the
+sound where it falls between two samples, as a step band-limited by a windowed sinc, so that the
+chip's highest tones come out without the false notes a plain sampling would add. The four channels
+are added as the chip's own DAC adds them, a little less than in proportion, as Fusik measured on
+chips that AMI made, and the sum goes through a gentle high-pass filter.
+
+It was checked against ASAP itself, its `asapconv` writing the sound at 48,000 samples a second:
+every song of the 6,337 files of the ASMA collection to hand, 8,349 of them, agrees with it to the
+sample over its first 30 seconds, and the 286 songs of 200 of the files, taken at random, over
+three minutes. `siday --raw file.raw tune.sap` writes what that was compared
+with. The songs' lengths are the ones the file gives, which ASMA's people found by listening; where
+one ends, a song that is still playing is faded, and one that has fallen silent stops. ASAP makes its tunes
+about 7 dB louder than the others here, so they are turned down to match, by the middle of two
+hundred of them. The other formats ASAP reads, the native files of the Atari's trackers (CMC, RMT,
+TMC, MPT and the rest), which it plays by putting each tracker's own player beside them, are not
+read here: ASMA has them as SAP files.
+
 ## MOD — ProTracker and the Amiga
 
 The module began on the Amiga in 1987, with Karsten Obarski's Ultimate Soundtracker: four tracks,

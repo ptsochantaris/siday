@@ -4,8 +4,8 @@
 
 A player of chiptunes and tracker modules written entirely in Swift, in two forms: **a page that
 plays in your browser**, and a command-line player for macOS. Both are the same emulators underneath:
-of the sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the Commodore 64, the Amiga and
-the PC's AdLib and Sound Blaster cards, and of the trackers that played modules on the Amiga and the PC.
+of the sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the 8-bit Ataris, the Commodore
+64, the Amiga and the PC's AdLib and Sound Blaster cards, and of the trackers that played modules on the Amiga and the PC.
 
 The name is the two families of sound chip it began with, SID and AY. How to pronounce it is left open.
 
@@ -25,6 +25,7 @@ siday ~/Music/chiptunes --shuffle
 |---|---|---|
 | ZX Spectrum, Amstrad CPC | PT3, PT2, PT1, STC, STP, ASC, PSC, SQT, FTC, FXM, PSM, GTR, and TurboSound pairs; VTX and YM register recordings; AY program rips, beeper music included | each tracker's own player, or the tune's own program on a Z80, on the AY chip |
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
+| Atari 400, 800, XL and XE | SAP, for one POKEY or two | the tune's own program on a 6502, on the POKEY |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
@@ -314,6 +315,7 @@ output, terminal keys and options (via swift-argument-parser).
 | Atari ST machine, its sound chip, timers and STE samples | AtariAudio by Arnaud Carré (MIT); the chip's mixing table measured by Paulo Simões | AtariAudio itself, sample for sample: three minutes of each of 5,897 tunes, and every song of those with several |
 | Atari ST YM files, their effects, digi-mixes and YM tracker tunes | AtariAudio | AtariAudio, sample for sample, on the 23 files to hand; no YM2 or YMT2 file among them |
 | Ice unpacking | the C version by Hans Wessels (public domain) | — |
+| 8-bit Atari machine, its 6502 and its POKEY | ASAP by Piotr Fusik (GPL) | ASAP's `asapconv` itself, sample for sample: the first 30 seconds of every song of the 6,337 files of ASMA, 8,349 of them, and three minutes of 286 songs of 200 of the files |
 
 ### Each format
 
@@ -404,6 +406,10 @@ What it is made from:
   of YM files as the ST played them. The YM format is his too. The table of
   how the ST mixes its chip's three channels was measured on the machine by Paulo Simões. The SNDH
   format is the work of the [SNDH archive](https://sndh.atari.org/) and those who keep it.
+- [ASAP](https://asap.sourceforge.net/) by Piotr Fusik: the 8-bit Atari as a SAP file needs it, its
+  6502 and its POKEY, with the POKEY's band-limited steps and the levels of its DAC as Fusik
+  measured them. The SAP format is Adam Bienias's, and the music is kept in it by the
+  [Atari SAP Music Archive](https://asma.atari.org/).
 - [pt2-clone](https://github.com/8bitbubsy/pt2-clone) by Olav Sørensen (8bitbubsy): the Amiga as a
   module needs it. The replayer is his C port of ProTracker 2.3D's, and Paula, her filters and the
   reading of modules are his too; the band-limited steps in Paula's output are by aciddose. ProTracker

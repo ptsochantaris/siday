@@ -117,6 +117,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## ASAP — the 8-bit Ataris
+
+`Sources/SidayKit/POKEY` and `Sources/SidayKit/SAP` are a Swift port of the emulation in ASAP 8.0.0
+(Another Slight Atari Player, https://asap.sourceforge.net/, source at
+https://github.com/pfusik/asap): its POKEY (`POKEY.swift`), with its band-limited steps and the
+levels of its DAC; its 6502 (`SAP6502.swift`); the machine around them and the calling of a SAP
+file's code (`SAPMachine.swift`); and the reading of a SAP file's header (`SAPFile.swift`). Of the
+other formats ASAP reads, and the trackers' players it carries for them, nothing is used.
+
+- Copyright (C) 2005-2026 Piotr Fusik
+- GNU General Public License, version 2 or later
+- Source: https://github.com/pfusik/asap
+
 ## pt2-clone — the Amiga
 
 `Sources/SidayKit/Amiga` is a Swift port of the playing parts of pt2-clone 1.92

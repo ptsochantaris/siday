@@ -127,6 +127,7 @@ final class WebPlayer {
                 || format == .dsm
                 || format == .digi
                 || format == .vgm
+                || format == .sap
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {
