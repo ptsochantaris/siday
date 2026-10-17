@@ -149,3 +149,28 @@ private final class HeldChord: AYFrameSource {
     #expect(height(scopes[0 ..< 64]) > 100)
     #expect(scopes[64...].allSatisfy { $0 == 128 })
 }
+
+/// A channel held open by a tone too fast to hear, at a steady volume, as a sample player holds one.
+private final class HeldOpen: AYFrameSource {
+    let info = TuneInfo(format: "TEST")
+    private(set) var loopCount = 0
+    var chipCount: Int { 1 }
+    func restart() {}
+    func tick(_ regs: UnsafeMutablePointer<AYRegs>) {
+        regs[0].tonA = 2
+        regs[0].mixer = 0b111_110
+        regs[0].amplA = 15
+    }
+}
+
+@Test func aChannelHeldOpenByATooFastToneIsNoWave() {
+    // Read once an output sample, a tone of 55 kHz would come out as some other tone: it is the
+    // channel held open at its volume, which is flat.
+    let session = TuneSession(renderer: AYFramePlayer(source: HeldOpen(), options: LoadOptions()), policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    var buffer = [Float](repeating: 0, count: 2048 * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 2048) }
+    var scopes = [UInt8](repeating: 0, count: ChannelWaves.points * 3)
+    scopes.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    #expect(scopes[0 ..< 64].allSatisfy { $0 == 128 })
+}

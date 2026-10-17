@@ -282,7 +282,10 @@ struct AYChip: ~Copyable {
     func channelOutputs() -> (Float, Float, Float) {
         let n = noise & 1, e = envelope
         func out(_ ch: AYToneChannel) -> Float {
-            let index = (0 &- ((ch.tone | ch.toneOff) & (n | ch.noiseOff))) & (ch.envelopeOn ? e : ch.volume &* 2 &+ 1)
+            // A tone above 18 kHz holds the channel open, as the lights take it (see `takeLevels`):
+            // read once an output sample, it would come out as a tone it is not.
+            let tone = ch.period < 6 && ch.toneOff == 0 && ch.noiseOff != 0 ? 1 : ch.tone
+            let index = (0 &- ((tone | ch.toneOff) & (n | ch.noiseOff))) & (ch.envelopeOn ? e : ch.volume &* 2 &+ 1)
             return Float(dac[unchecked: index])
         }
         return (out(a), out(b), out(c))
