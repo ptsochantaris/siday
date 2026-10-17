@@ -96,18 +96,24 @@ enum ProWizard {
     /// The packer a file is from, if it is from one of them. Each test is given the first 64 KB of
     /// the file, or all of it if it is shorter, and given more when it asks, in steps of 4 KB; one that
     /// asks for more than the file has is taken to have said no. (`pw_check`, reading a file)
+    ///
+    /// A request that cannot be met still reads what is left of the file, without its being given to
+    /// the test; so after one, any request finds nothing more to read, and is not met either.
     static func packer(of data: [UInt8]) -> Packer? {
         var size = min(data.count, 0x10000)
+        var atTheEnd = false
         var packers = Packer.allCases[...]
         while let packer = packers.first {
             let answer = packer.test(data, size)
             if answer == 0 { return packer }
             if answer > 0 {
-                let fetched = min((answer + 0xFFF) & ~0xFFF, data.count - size)
-                if fetched >= answer {
-                    size += fetched
+                // (Compared before it is rounded up, which could be more than a whole number holds in
+                // a browser, where it has 32 bits.)
+                if !atTheEnd, answer <= data.count - size {
+                    size += min((answer + 0xFFF) & ~0xFFF, data.count - size)
                     continue
                 }
+                atTheEnd = true
             }
             packers = packers.dropFirst()
         }
@@ -178,17 +184,19 @@ enum ProWizard {
 }
 
 /// A packed file, read as libxmp reads a file: in the Amiga's order, high byte first, and a read past
-/// the end gives what a read of a file past its end gives there (every bit set), and marks the reading
-/// as failed, until the next seek, which clears the mark as libxmp's does, or until the mark is taken.
-/// (`HIO_HANDLE` and `hio_read8` and the rest)
+/// the end gives what a read of a file past its end gives there (every bit set). Each keeps one error,
+/// as libxmp does: a read past the end marks it as at the end, which the next seek clears; a seek to
+/// before the start marks it as refused, which a seek does not clear but a later read past the end
+/// replaces; and taking the error clears either. (`HIO_HANDLE` and `hio_read8` and the rest)
 struct PackedReader {
     let data: [UInt8]
     private(set) var position = 0
-    /// Set once something has been read past the end, since the last seek or the last time it was taken.
-    private(set) var failed = false
-    /// Set by a seek to before the start, which no later seek clears. (fseek fails there, and libxmp
-    /// clears only the error of having come to the end.)
-    private var lost = false
+    private enum Error { case none, atTheEnd, refused }
+    private var error = Error.none
+
+    /// True while there is an error: of something read past the end since the last seek, or of a seek
+    /// to before the start; either since the error was last taken.
+    var failed: Bool { error != .none }
 
     init(_ data: [UInt8]) {
         self.data = data
@@ -199,12 +207,11 @@ struct PackedReader {
     /// (`hio_seek` from the start)
     mutating func seek(_ place: Int) {
         guard place >= 0 else {
-            lost = true
-            failed = true
+            error = .refused
             return
         }
         position = place
-        failed = lost
+        if error == .atTheEnd { error = .none }
     }
 
     /// (`hio_seek` from where the reading is)
@@ -212,17 +219,16 @@ struct PackedReader {
         seek(position + count)
     }
 
-    /// Whether the reading has failed, as `failed` says, and the mark cleared but for a seek to before
-    /// the start. (`hio_error`)
+    /// Whether there is an error, as `failed` says; and the error is cleared. (`hio_error`)
     mutating func takeError() -> Bool {
         let was = failed
-        failed = lost
+        error = .none
         return was
     }
 
     mutating func read8() -> UInt8 {
         guard position < data.count else {
-            failed = true
+            error = .atTheEnd
             return 0xFF
         }
         position += 1
@@ -233,7 +239,7 @@ struct PackedReader {
     mutating func read16b() -> UInt16 {
         guard position + 2 <= data.count else {
             position = max(position, data.count)
-            failed = true
+            error = .atTheEnd
             return 0xFFFF
         }
         position += 2
@@ -243,7 +249,7 @@ struct PackedReader {
     mutating func read32b() -> UInt32 {
         guard position + 4 <= data.count else {
             position = max(position, data.count)
-            failed = true
+            error = .atTheEnd
             return 0xFFFF_FFFF
         }
         position += 4
@@ -254,7 +260,7 @@ struct PackedReader {
     mutating func read(_ count: Int) -> [UInt8] {
         let start = min(position, data.count)
         let end = min(data.count, start + max(0, count))
-        if end - start < count { failed = true }
+        if end - start < count { error = .atTheEnd }
         position = end
         return Array(data[start ..< end])
     }
