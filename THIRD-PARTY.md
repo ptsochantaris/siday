@@ -130,6 +130,46 @@ other formats ASAP reads, and the trackers' players it carries for them, nothing
 - GNU General Public License, version 2 or later
 - Source: https://github.com/pfusik/asap
 
+## ProWizard — modules packed by games' packers
+
+`Sources/SidayKit/Packers/ProWizard` is a Swift port of the part of ProWizard, as libxmp 4.6.3 keeps
+it (`src/loaders/prowizard`), that unpacks the modules of The Player 4.x, 5.0a, 6.0a and 6.1a,
+NoisePacker 1 to 3, ProRunner 1.0 and 2.0, ProPacker 2.1 and 3.0, Pha Packer, Tracker Packer 3, AC1D
+Packer, the Novotrade Packer, Digital Illusions' packer and Game Music Creator, and the finding of a
+file's packer (`prowiz.c`), with libxmp's reading of a file (`hio.c`, `dataio.c`) as far as they need it.
+
+- Copyright (C) 1997-1999 Sylvain "Asle" Chipaux
+- Copyright (C) 1996-2021 Claudio Matsuoka and Hipolito Carraro Jr
+- Source: https://github.com/libxmp/libxmp
+
+```
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+## ChipTracker
+
+`Sources/SidayKit/Amiga/ChipTrackerFile.swift` reads ChipTracker's modules as its own replayer does,
+as Wanted Team keep it in their player of the files for EaglePlayer ("ChipTracker player module
+V1.2", 2007, carried by UADE as `ChipTracker`; it says of itself "(c) 1991 by Krister 'Kris' Wombell,
+adapted by Wanted Team"). Its 68000 code was read for that, and nothing of it is carried here but its
+table of periods.
+
 ## Sierra AGI sounds
 
 `Sources/SidayKit/AGI` plays the sounds of Sierra On-Line's AGI games as the company's interpreter

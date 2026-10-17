@@ -316,7 +316,53 @@ sound, NUKE, and DUKE, which is NUKE with each byte first turned into its differ
 before. The unpacking follows Teemu Suutari's ancient, a library that unpacks most of the packers the
 Amiga had, and agrees with it to the byte on every packed module to hand: 28 packed by PowerPacker
 and 8 by XPK. One of the eight unpacks to a module packed again by The Player 4.1, a packer made for
-modules that reshapes them as it packs, and that one is not played.
+modules, which is unpacked in its turn, as below.
+
+The programmers who put music into games packed it with packers made for modules, which knew what a
+module was and kept it as their own replayers wanted it: ProTracker kept every note in four bytes,
+room for anything and mostly nothing, so a packer kept only what was there, and some put the
+samples' differences in place of the samples, or a track used twice once. Each group had its own,
+and the music of a game is as often found in one of them as not: The Player, in its versions 4, 5,
+6.0 and 6.1; NoisePacker, in three versions; ProRunner, in two;
+ProPacker, in two; Pha Packer, Tracker Packer, AC1D Packer, the Novotrade Packer, Digital Illusions'
+packer; and the files of Game Music Creator, a tracker of its own whose songs are near enough to
+ProTracker's to be read as one. What was packed was a ProTracker module, or one in all but name, and
+that is what each is unpacked to again, to be played as ProTracker played it. Sylvain Chipaux's
+ProWizard knew how to unpack them all; libxmp keeps it, and the unpacking here is a port of the part
+of it these packers need. Its tests are asked in the order libxmp asks them, and are given as much
+of a file as libxmp gives them; a module that says what it is in four letters is taken as one before
+any packer is asked, and one of the oldest, which says nothing, only after. Every one of the 787
+files of UnExoticA's collection that ProWizard unpacks is unpacked here to the same bytes, and so are
+some 28,000 copies of them cut short or changed at random, including those ProWizard refuses or
+reads past the end of. Two things here are the player's own and not ProWizard's: a Pha Packer file
+does not say how long its song is, and ProWizard counts it to the last place in the order that plays
+a pattern other than the first, so that a jingle whose every place plays one pattern comes out as a
+song of no length, and is played here as that pattern once (fourteen files, of Brian the Lion and of
+Frankenstein); and the
+modules of Ultimate Pinball Quest, which say "KURT" where ProRunner's say "SNT.", are taken as
+ProRunner's, and so unpacked are as UADE plays them. Not played: the eight of Winter Olympics that say
+"+SNT", which unpacked as ProRunner's are not as UADE plays them; ten of Game Music Creator's, which
+ProWizard refuses or which are cut short; and eight named for packers that none of these packers
+takes, and that cannot be read as modules either. Two of Brian the Lion's are silent, because
+ProWizard numbers their patterns wrongly, where UADE plays them; and one of Evil's Doom's is silent
+in both. A file whose last sample is cut short (sixteen of The Player 4's, as the games' rippers
+left them) says so, and plays with that sample silent.
+
+ChipTracker, Krister Wombell's tracker of 1991, kept a module as ProTracker did but for its notes:
+its title and its 31 samples are where ProTracker's are, and after them, where ProTracker has the
+length of its song, it has "KRIS"; then in place of patterns it has tracks, each one voice's 64 rows,
+and for each place in the song the four tracks to play there, each moved up or down by so many
+semitones. A note is kept as its place in a table of six octaves, two below ProTracker's three. It is
+read into the ProTracker module it would be, as ChipTracker's own replayer reads it, which Wanted Team
+keep in their player of the files for EaglePlayer: a pattern for each different four tracks and
+moves, each note's period from that table after its move, no finetune, which that replayer does not
+use, and the start of a loop counted in bytes, not in ProTracker's words. The 41 files of UnExoticA's
+collection, set beside that replayer run by UADE over their first minute, are 0.997 alike on average
+by how loud each side is from moment to moment. (OpenMPT reads these files otherwise: it keeps every
+note within ProTracker's three octaves, uses the samples' finetune, and counts a loop's start in
+words.) OpenMPT also reads some as having sounds of their own making, from waveforms kept before the
+tracks; no file to hand has them, nor a replayer of them to play them by, and such a file is not
+played.
 
 ## MED — MED and OctaMED
 
