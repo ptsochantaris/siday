@@ -24,6 +24,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case vgm
     case sap
     case agi
+    case mfp
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -52,6 +53,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         switch self {
         case .pt3, .pt2, .pt1, .stc, .stp, .asc, .sqt, .psc, .ftc, .fxm, .psm, .gtr, .vtx, .ay: "PT3"
         case .sfx, .okt: "SFX"
+        case .mfp: "MOD"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -65,7 +67,10 @@ public enum TuneFormat: String, CaseIterable, Sendable {
 public enum TuneLoader {
     /// - Parameter path: where the file came from, if it is known. A SID tune missing from the song-length
     ///   database by content is looked up by its place in the HVSC collection instead.
-    public static func load(_ data: [UInt8], format: TuneFormat, path: String? = nil, options: LoadOptions = LoadOptions()) throws -> any Renderer {
+    /// - Parameter companion: the file the tune keeps part of itself in, for a kind that does, if it was
+    ///   found (see `Companions`).
+    public static func load(_ data: [UInt8], format: TuneFormat, path: String? = nil, options: LoadOptions = LoadOptions(),
+                            companion: [UInt8]? = nil) throws -> any Renderer {
         guard !data.isEmpty else { throw TuneError.malformed("empty file") }
         // A module packed whole, by any of the packers modules were found packed with, is unpacked
         // first, and is then the module it was.
@@ -97,6 +102,10 @@ public enum TuneLoader {
             return try SNDHRenderer(data, options: options)
         case .sap:
             return try SAPRenderer(data, options: options)
+        case .mfp:
+            // A ProTracker module packed with its samples in a file of their own.
+            return try MODRenderer(MagneticFieldsPacker.module(data, samples: companion), options: options,
+                                   origin: "packed by the Magnetic Fields Packer")
         case .agi:
             // A sound from one of Sierra's adventure games, as the Amiga versions played it or on the
             // PC's chip, as the options say.

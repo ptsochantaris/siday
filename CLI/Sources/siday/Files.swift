@@ -41,7 +41,23 @@ struct TuneFiles: Sendable {
         if format == .rol {
             options.adLibBanks = BankFiles.find(for: url)
         }
-        return try TuneLoader.load([UInt8](data), format: format, path: url.standardizedFileURL.path, options: options)
+        return try TuneLoader.load([UInt8](data), format: format, path: url.standardizedFileURL.path, options: options,
+                                   companion: companion(of: url, format: format))
+    }
+
+    /// The file a tune keeps part of itself in, for a kind that does: looked for beside it, by the
+    /// names `Companions` gives. Nil for a kind that keeps all of itself in its own file.
+    private func companion(of url: URL, format: TuneFormat) throws -> [UInt8]? {
+        guard Companions.ending(for: format) != nil else { return nil }
+        let folder = url.standardizedFileURL.deletingLastPathComponent()
+        let beside = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        guard let name = Companions.pick(for: format, fileName: url.lastPathComponent, among: beside),
+              let data = try? Data(contentsOf: folder.appendingPathComponent(name))
+        else {
+            let names = Companions.names(for: format, fileName: url.lastPathComponent)
+            throw TuneError.missingCompanion("its samples are kept in a file of their own, \(names.joined(separator: " or ")), which is not beside it")
+        }
+        return [UInt8](data)
     }
 }
 

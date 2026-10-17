@@ -134,6 +134,7 @@ final class WebPlayer {
                 || format == .vgm
                 || format == .sap
                 || format == .agi
+                || format == .mfp
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

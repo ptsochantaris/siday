@@ -149,12 +149,15 @@ public enum TuneError: Error, CustomStringConvertible {
     case unreadable(String)
     case unsupported(String)
     case malformed(String)
+    /// The tune keeps part of itself in another file (see `Companions`), which was not given with it.
+    case missingCompanion(String)
 
     public var description: String {
         switch self {
         case let .unreadable(s): "unreadable: \(s)"
         case let .unsupported(s): "unsupported: \(s)"
         case let .malformed(s): "malformed: \(s)"
+        case let .missingCompanion(s): s
         }
     }
 }
