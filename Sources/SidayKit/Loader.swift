@@ -34,6 +34,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "vgz" {
             // (A VGM file packed by gzip, which is how they are mostly kept.)
             self = .vgm
+        } else if ProWizard.extensions.contains(name) {
+            // (A module packed by one of the packers games and demos used, named for the packer.)
+            self = .mod
         } else if name == "snd" {
             // (As SNDH files were named before the format had a name of its own.)
             self = .sndh
@@ -104,11 +107,20 @@ public enum TuneLoader {
             if data.count > 4, data[0] == 0x4D, data[1] == 0x4D, data[2] == 0x44, data[3] >= 0x30, data[3] <= 0x33 {
                 return try MEDRenderer(data, options: options)
             }
+            // A module packed for a game or a demo is unpacked into the ProTracker module it was. As
+            // libxmp does, a module that says what it is in four letters is taken to be one first, and
+            // one of the oldest, which says nothing, only once no packer has taken it.
+            func unpacked() throws -> (any Renderer)? {
+                guard let (packer, module) = ProWizard.unpack(data) else { return nil }
+                return try MODRenderer(module, options: options, packedBy: packer)
+            }
+            if !ProTrackerModule.saysWhatItIs(data), let renderer = try unpacked() { return renderer }
             do {
                 return try MODRenderer(data, options: options)
             } catch let error as TuneError {
-                guard case .unsupported = error, let more = try? XMRenderer(data, options: options) else { throw error }
-                return more
+                if case .unsupported = error, let more = try? XMRenderer(data, options: options) { return more }
+                if let renderer = try unpacked() { return renderer }
+                throw error
             }
         case .med:
             return try MEDRenderer(data, options: options)

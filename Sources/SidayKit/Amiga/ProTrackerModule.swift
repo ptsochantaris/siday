@@ -98,6 +98,13 @@ final class ProTrackerModule {
         patterns[(pattern * Self.rows + row) * Self.channels + channel]
     }
 
+    /// True if a file has four letters where a module of 31 samples says which tracker it is from (any
+    /// four letters: those of a tracker this player does not know too). One of 15 samples has notes there.
+    static func saysWhatItIs(_ data: [UInt8]) -> Bool {
+        guard data.count >= 1084 + 1024 else { return false }
+        return data[1080 ..< 1084].allSatisfy { $0 >= 0x20 && $0 < 0x7F }
+    }
+
     /// - Parameter asProTracker: true to cut a sample that is longer than ProTracker has room for
     ///   off at 64 KB, as ProTracker does. Such a file is some other tracker's, made to be played
     ///   by the Amiga's routines, which play the whole of it, or by a player on another machine.
