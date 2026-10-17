@@ -476,3 +476,48 @@ private func said(_ renderer: any Renderer) -> (levels: [Float], pitches: [Float
     }
     #expect(heardSome && differed)
 }
+
+// MARK: Scopes
+
+/// Each voice's scope after so long, its sound kept from the start.
+private func scopes(_ renderer: any Renderer, seconds: Double = 0.5) -> [[UInt8]] {
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: frames) }
+    var all = [UInt8](repeating: 0, count: renderer.channelCount * ChannelWaves.points)
+    all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return (0 ..< renderer.channelCount).map { Array(all[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points]) }
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func hvlVoicesHaveScopes() throws {
+    // Of six voices, the note at full volume on the first, at a quarter of it on the second, and
+    // nothing on the others.
+    let file = tune(channels: 6, positions: [[0, 0, 1, 0, 2, 0, 2, 0, 2, 0, 2, 0]],
+                    tracks: [[0: played], [0: row(note: 37, instrument: 1, command: 0xC, parameter: 0x10)], empty])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .hvl, options: LoadOptions()) }
+    let heard = scopes(try fresh())
+    #expect(heard.count == 6)
+    #expect(height(heard[0]) > 120)
+    // (A quarter of the swing is half the height.)
+    #expect(height(heard[1]) > 55 && height(heard[1]) < 75)
+    #expect(heard[2...].allSatisfy { $0.allSatisfy { $0 == 128 } })
+
+    // A voice left out still has its scope.
+    let muted = try fresh()
+    muted.setMuted([true])
+    #expect(height(scopes(muted)[0]) > 120)
+
+    // And the sound is the same, its voices kept or not; and so is what is written for comparison.
+    let plain = try fresh(), kept = try fresh()
+    #expect(kept.keepChannelWaves() != nil)
+    #expect(stereo(kept, seconds: 1) == stereo(plain, seconds: 1))
+    let raw = try HVLRenderer(file, options: LoadOptions())
+    let before = raw.renderRaw(frames: 9600)
+    #expect(raw.keepChannelWaves() != nil)
+    #expect(raw.renderRaw(frames: 9600) == before)
+}

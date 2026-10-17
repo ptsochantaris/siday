@@ -207,6 +207,10 @@ struct Paula: ~Copyable {
     /// Where each voice's sound is kept for its scope, before the voices are added together and
     /// filtered, if it is wanted.
     var waves: ChannelWaves?
+    /// Which of those each voice is kept as: her own number, unless a player's tracks are not her
+    /// voices. -1 for a voice that is not kept, as one that plays what a player has mixed of two
+    /// tracks, whose own sound the player keeps.
+    var waveNumbers: InlineArray<4, Int> = [0, 1, 2, 3]
     /// The memory the voices read their samples from, which is the module's and not Paula's.
     private let memory: UnsafePointer<Int8>
     private let memorySize: Int
@@ -357,10 +361,11 @@ struct Paula: ~Copyable {
         guard count > 0 else { return }
         left.update(repeating: 0, count: count)
         right.update(repeating: 0, count: count)
-        voices[0].mix(into: left, count: count, memory, memorySize, table, waves: waves, number: 0)
-        voices[1].mix(into: right, count: count, memory, memorySize, table, waves: waves, number: 1)
-        voices[2].mix(into: right, count: count, memory, memorySize, table, waves: waves, number: 2)
-        voices[3].mix(into: left, count: count, memory, memorySize, table, waves: waves, number: 3)
+        let numbers = waveNumbers
+        voices[0].mix(into: left, count: count, memory, memorySize, table, waves: numbers[0] < 0 ? nil : waves, number: numbers[0])
+        voices[1].mix(into: right, count: count, memory, memorySize, table, waves: numbers[1] < 0 ? nil : waves, number: numbers[1])
+        voices[2].mix(into: right, count: count, memory, memorySize, table, waves: numbers[2] < 0 ? nil : waves, number: numbers[2])
+        voices[3].mix(into: left, count: count, memory, memorySize, table, waves: numbers[3] < 0 ? nil : waves, number: numbers[3])
         waves?.advance(by: count)
     }
 }

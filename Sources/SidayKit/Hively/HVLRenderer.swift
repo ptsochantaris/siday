@@ -116,9 +116,22 @@ public final class HVLRenderer: Renderer, ReferenceComparable {
         replayer.setMuted(muted)
     }
 
+    /// Where the mixer keeps each voice's sound for its scope, once asked; a song started afresh
+    /// keeps it there too. A voice at its loudest is a byte's swing times the volume's 64.
+    private var channelWaves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if channelWaves == nil {
+            channelWaves = ChannelWaves(voices: module.channels, rate: Double(outputSampleRate), fullSwing: 128 * 64)
+            replayer.channelWaves = channelWaves
+        }
+        return channelWaves
+    }
+
     private func restart() {
         replayer = HVLReplayer(module, waves: waves, position: songList[currentSubsong].start)
         replayer.setMuted(muted)
+        replayer.channelWaves = channelWaves
         tickPosition = tickFrames
         levels.clear()
         notes.clear()
@@ -155,6 +168,7 @@ public final class HVLRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+        channelWaves?.ahead = tickFrames - tickPosition
     }
 
     public var channelCount: Int { module.channels }

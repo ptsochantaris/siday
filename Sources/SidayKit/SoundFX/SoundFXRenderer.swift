@@ -135,10 +135,23 @@ public final class SoundFXRenderer: Renderer {
         player.paula.setMuted(muted)
     }
 
+    /// Where Paula keeps each voice's sound for its scope, at her own rate, once asked; a song
+    /// started afresh keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            waves = ChannelWaves(voices: 4, rate: Double(outputSampleRate * 2), fullSwing: 1)
+            player.paula.waves = waves
+        }
+        return waves
+    }
+
     private func restart() {
         let song = songList[currentSubsong]
         player = SoundFXPlayer(module, model: model, first: song.first, end: song.end)
         player.paula.setMuted(muted)
+        player.paula.waves = waves
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0
@@ -185,6 +198,7 @@ public final class SoundFXRenderer: Renderer {
             tickPosition += count
             done += count
         }
+        waves?.ahead = tickFrames - tickPosition
     }
 
     /// Paula's four voices.

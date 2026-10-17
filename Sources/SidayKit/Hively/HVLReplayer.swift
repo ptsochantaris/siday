@@ -213,6 +213,9 @@ struct HVLReplayer: ~Copyable {
     private var struck = InlineArray<16, Bool>(repeating: false)
     /// The voices that are left out of the sound: they play on, and are given to neither side.
     private var muted = InlineArray<16, Bool>(repeating: false)
+    /// Where each voice's sound is kept for its scope, before it is put between the speakers and
+    /// added to the others, if it is wanted: as its byte times its volume.
+    var channelWaves: ChannelWaves?
 
     /// - Parameter position: where in the list of positions to start.
     init(_ module: HVLModule, waves: AHXWaves, position start: UInt16 = 0) {
@@ -1032,6 +1035,7 @@ struct HVLReplayer: ~Copyable {
     mutating func mix(left: UnsafeMutablePointer<Int32>, right: UnsafeMutablePointer<Int32>, count: Int) {
         left.update(repeating: 0, count: count)
         right.update(repeating: 0, count: count)
+        let kept = channelWaves
         for v in 0 ..< channels {
             let buffer = UnsafePointer(memory + v * Self.voiceMemory)
             var position = voices[v].samplePosition
@@ -1040,6 +1044,7 @@ struct HVLReplayer: ~Copyable {
             let panLeft = Int32(voices[v].panLeft), panRight = Int32(voices[v].panRight)
             var low: Int32 = 0, high: Int32 = 0
             if volume == 0 {
+                kept?.silence(v, count: count)
                 Self.advance(&position, by: delta, count: count)
                 if voices[v].ringOn {
                     var ringPosition = voices[v].ringPosition
@@ -1059,6 +1064,7 @@ struct HVLReplayer: ~Copyable {
                         let sample = ((Int32(buffer[Int(position >> 16)]) &* Int32(ring[Int(ringPosition >> 16)])) >> 7) &* volume
                         low = min(low, sample)
                         high = max(high, sample)
+                        kept?.store(v, at: i, Float(sample))
                         left[i] &+= (sample &* panLeft) >> 7
                         right[i] &+= (sample &* panRight) >> 7
                         position &+= delta
@@ -1076,6 +1082,7 @@ struct HVLReplayer: ~Copyable {
                         let sample = Int32(buffer[Int(position >> 16)]) &* volume
                         low = min(low, sample)
                         high = max(high, sample)
+                        kept?.store(v, at: i, Float(sample))
                         left[i] &+= (sample &* panLeft) >> 7
                         right[i] &+= (sample &* panRight) >> 7
                         position &+= delta
@@ -1087,6 +1094,7 @@ struct HVLReplayer: ~Copyable {
             voices[v].low = low
             voices[v].high = high
         }
+        kept?.advance(by: count)
         let gain = module.mixGain
         for i in 0 ..< count {
             left[i] = max(-0x8000, min(0x7FFF, (left[i] &* gain) >> 8))

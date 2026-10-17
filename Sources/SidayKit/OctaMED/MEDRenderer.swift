@@ -235,6 +235,52 @@ public final class MEDRenderer: Renderer {
         player.setMuted(muted)
     }
 
+    /// Where each track's sound is kept for its scope, once asked; a song started afresh keeps it
+    /// there too. There is a place for every track any of the file's songs has a light for, at
+    /// the rate the song that is playing makes its sound: the chip's, or the mixer's.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            let most = songList.map { lights(of: $0.song) }.max() ?? lights
+            let waves = ChannelWaves(voices: max(lights, most), rate: Double(outputSampleRate), fullSwing: 1)
+            self.waves = waves
+            keepWaves(waves)
+        }
+        return waves
+    }
+
+    /// The rate the tracks are kept at for the song that is playing.
+    private var wavesRate = 0.0
+
+    private func keepWaves(_ waves: ChannelWaves) {
+        let rate = Double(player.mode == .mixing ? outputSampleRate : outputSampleRate * 2)
+        if rate != wavesRate {
+            // What was kept at the other rate would be read at this one: it is put behind silence,
+            // as much as is kept of a voice.
+            for track in 0 ..< waves.voices {
+                waves.setVoice(track, rate: rate, fullSwing: 1)
+                waves.silence(track, count: Self.wavesCleared)
+                waves.advance(track, by: Self.wavesCleared)
+            }
+            wavesRate = rate
+        }
+        player.keepWaves(waves)
+    }
+    /// As much of a voice as `ChannelWaves` keeps.
+    private static let wavesCleared = 16384
+
+    /// How many lights one of the file's own songs has: one for each track that can be heard, and
+    /// of a song in mixing mode, no more than its widest block has.
+    private func lights(of fileSong: Int) -> Int {
+        let song = module.songs[fileSong]
+        switch song.mode {
+        case .mixing: return max(1, min(song.channels, song.blocks.map { $0.tracks }.max() ?? 4))
+        case .eightChannel: return 8
+        case .fourChannel: return 4
+        }
+    }
+
     private func restart() {
         let song = songList[currentSubsong]
         player = MEDPlayer(module, song: song.song, model: model, place: song.place, firstPlayedBy: firstPlayedBy + firstRowOfSong[song.song],
@@ -244,10 +290,9 @@ public final class MEDRenderer: Renderer {
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0
-        // A light for each track that can be heard: of a song in mixing mode, no more than its
-        // widest block has.
-        lights = player.mode == .mixing ? max(1, min(player.channels, module.songs[song.song].blocks.map { $0.tracks }.max() ?? 4)) : player.channels
+        lights = lights(of: song.song)
         levels = TickLevels(voices: lights)
+        if let waves { keepWaves(waves) }
         notes = TickNotes(voices: lights)
         remainder = 0
         remainderOf = 0
@@ -282,8 +327,10 @@ public final class MEDRenderer: Renderer {
             player.takeNotes(into: &notes)
             return
         }
+        player.keepSharedWaves(from: 0, count: tickFrames, of: tickFrames * 2)
         player.paula.generate(left: left, right: right, count: tickFrames)
         player.halfTick()
+        player.keepSharedWaves(from: tickFrames, count: tickFrames, of: tickFrames * 2)
         player.paula.generate(left: left + tickFrames, right: right + tickFrames, count: tickFrames)
         player.takeLevels(into: &levels.now)
         levels.tickMade()
@@ -326,6 +373,9 @@ public final class MEDRenderer: Renderer {
             tickPosition += count
             done += count
         }
+        // (What has been made and not handed out: the rest of the tick, or in mixing mode of the
+        // piece of it.)
+        waves?.ahead = (player.mode == .mixing ? pieceStart + pieceFrames : tickFrames) - tickPosition
     }
 
     /// Paula's four voices, or the eight tracks that are mixed into them, or as many tracks as a

@@ -327,3 +327,51 @@ private let row = 6.0 * 960 / 48000
     renderer.takeChannelSides(into: &sides)
     #expect(abs(pitches[1] - pitches[0] - 12) < 0.01 && sides == [-1, 1])
 }
+
+// MARK: Scopes
+
+/// Each track's scope after so long, its sound kept from the start.
+private func scopes(_ renderer: any Renderer, seconds: Double = 0.5) -> [[UInt8]] {
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: frames) }
+    var all = [UInt8](repeating: 0, count: renderer.channelCount * ChannelWaves.points)
+    all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return (0 ..< renderer.channelCount).map { Array(all[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points]) }
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func dbmTracksHaveScopes() throws {
+    // A square wave as loud as a sample goes: at full volume on the first of three tracks, hard
+    // left; at a quarter of it on the second, in the middle; and nothing on the third.
+    let loudest = (0 ..< 32).map { Int16($0 < 16 ? 32767 : -32767) }
+    let instruments = [Instrument(frames: loudest, panning: -128, sixteen: true), Instrument(frames: loudest, sixteen: true)]
+    let file = dbm([[(0, 0, .note()), (0, 1, .note(4, 0, instrument: 2, (0x0C, 0x10)))]], tracks: 3, instruments: instruments)
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .dbm, options: options()) }
+    let heard = scopes(try fresh())
+    #expect(height(heard[0]) > 120)
+    // (A quarter of the swing is half the height.)
+    #expect(height(heard[1]) > 55 && height(heard[1]) < 75)
+    #expect(heard[2].allSatisfy { $0 == 128 })
+
+    // A track left out still has its scope.
+    let muted = try fresh()
+    muted.setMuted([true])
+    #expect(height(scopes(muted)[0]) > 120)
+
+    // And the sound is the same, its tracks kept or not; and so is what the replayer writes.
+    let plain = try fresh(), kept = try fresh()
+    #expect(kept.keepChannelWaves() != nil)
+    var a = [Float](repeating: 0, count: 48000 * 2), b = a
+    a.withUnsafeMutableBufferPointer { plain.render(into: $0.baseAddress!, frames: 48000) }
+    b.withUnsafeMutableBufferPointer { kept.render(into: $0.baseAddress!, frames: 48000) }
+    #expect(a == b)
+    let raw = try DBMRenderer(file, options: options())
+    let before = raw.renderRaw(frames: 9600)
+    #expect(raw.keepChannelWaves() != nil)
+    #expect(raw.renderRaw(frames: 9600) == before)
+}

@@ -341,3 +341,49 @@ private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? z
     #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
     #expect(nothing.levels == whole.levels)
 }
+
+// MARK: Scopes
+
+/// Each voice's scope after so long, its sound kept from the start.
+private func scopes(_ renderer: any Renderer, seconds: Double = 0.5) -> [[UInt8]] {
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: frames) }
+    var all = [UInt8](repeating: 0, count: renderer.channelCount * ChannelWaves.points)
+    all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return (0 ..< renderer.channelCount).map { Array(all[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points]) }
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func soundFXVoicesHaveScopes() throws {
+    // A note at full volume on the first voice, one at a quarter of it on the second, and nothing
+    // on the others.
+    let file = module([
+        Entry(line: 0, voice: 0, period: 428, instrument: 1),
+        Entry(line: 0, voice: 1, period: 428, instrument: 1, command: 6, data: 48),
+    ])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .sfx, options: LoadOptions()) }
+    let heard = scopes(try fresh())
+    // The chip's band-limited steps overshoot a square's edges by a third, and a scope is as tall
+    // as all of it: the square's own level is three quarters of the way up.
+    #expect(height(heard[0]) > 90)
+    // A quarter of the swing is half the height, or a little more, of the overshoot too.
+    let part = Double(height(heard[1])) / Double(height(heard[0]))
+    #expect(part > 0.45 && part < 0.75)
+    #expect(heard[2].allSatisfy { $0 == 128 } && heard[3].allSatisfy { $0 == 128 })
+
+    // A voice left out still has its scope.
+    let muted = try fresh()
+    muted.setMuted([true])
+    #expect(height(scopes(muted)[0]) == height(heard[0]))
+
+    // And the sound is the same, its voices kept or not.
+    let plain = try fresh(), kept = try fresh()
+    #expect(kept.keepChannelWaves() != nil)
+    let without = listened(plain, seconds: 1), with = listened(kept, seconds: 1)
+    #expect(with.left == without.left && with.right == without.right)
+}

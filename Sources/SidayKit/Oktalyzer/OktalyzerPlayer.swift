@@ -169,6 +169,17 @@ struct OktalyzerPlayer: ~Copyable {
     var wordsSeen: [[Int]]?
     private var ticksRun = 0
 
+    /// Where each track's sound is kept for its scope, once it is wanted (`keepWaves`). The chip
+    /// keeps a whole voice's; the two tracks of a split voice are kept here, as each was before
+    /// the two were added.
+    private var waves: ChannelWaves?
+    /// What each track of a split voice gave to the stretches mixed for the voice, byte for byte:
+    /// the stretch being mixed, which the chip plays on the next tick, and the one it is playing
+    /// on this; and how many bytes each has. Two tracks to each of the four voices, the stretches
+    /// being mixed first. Only there while the sound is kept.
+    private var laneBytes: UnsafeMutablePointer<Int8>?
+    private var laneCounts = InlineArray<16, Int>(repeating: 0)
+
     /// - Parameters:
     ///   - position: where in the order of playing to start.
     ///   - firstPlayedBy: which of the songs found in this order first played each line.
@@ -204,6 +215,7 @@ struct OktalyzerPlayer: ~Copyable {
     deinit {
         periods.deallocate()
         visited.deallocate()
+        laneBytes?.deallocate()
     }
 
     // MARK: The sound chip
@@ -473,12 +485,22 @@ struct OktalyzerPlayer: ~Copyable {
         let loudness = Float(min(64, volumes[v] & 127)) / (64 * 256)
         first.swing = 0
         second.swing = 0
+        if let laneBytes {
+            // What was mixed on the tick before is what the chip now plays.
+            for lane in 0 ..< 2 {
+                let mixing = v * 2 + lane, playing = 8 + mixing
+                (laneBytes + playing * OktalyzerModule.mixBufferSize).update(from: laneBytes + mixing * OktalyzerModule.mixBufferSize,
+                                                                             count: laneCounts[mixing])
+                laneCounts[playing] = laneCounts[mixing]
+                laneCounts[mixing] = 0
+            }
+        }
         if first.place == nil || second.place == nil {
             // One track, or neither: the voice plays that track's note as it is.
             if first.place == nil {
-                mixAlone(v, &second, into: out, extra: extra, loudness)
+                mixAlone(v, &second, lane: 1, into: out, extra: extra, loudness)
             } else {
-                mixAlone(v, &first, into: out, extra: extra, loudness)
+                mixAlone(v, &first, lane: 0, into: out, extra: extra, loudness)
             }
         } else {
             // Both: the voice plays at the period of the higher note, and the lower is stretched to it.
@@ -488,9 +510,9 @@ struct OktalyzerPlayer: ~Copyable {
             first.note = Self.kept(first.note)
             second.note = Self.kept(second.note)
             if firstLeads {
-                mixPair(v, leader: &first, other: &second, into: out, extra: extra, loudness)
+                mixPair(v, leader: &first, other: &second, leaderLane: 0, into: out, extra: extra, loudness)
             } else {
-                mixPair(v, leader: &second, other: &first, into: out, extra: extra, loudness)
+                mixPair(v, leader: &second, other: &first, leaderLane: 1, into: out, extra: extra, loudness)
             }
         }
         voices[v].lanes = (first, second)
@@ -502,7 +524,20 @@ struct OktalyzerPlayer: ~Copyable {
         }
     }
 
-    private mutating func mixAlone(_ v: Int, _ lane: inout Lane, into out: UnsafeMutablePointer<Int8>, extra: Int, _ loudness: Float) {
+    /// Keeps what a track of a split voice gave to the stretch being mixed for it, for its scope:
+    /// so many bytes, from a stretch of memory or from the track's sample, with silence after the
+    /// first `have` of them.
+    private mutating func keepMixed(_ v: Int, lane: Int, from bytes: UnsafePointer<Int8>, have: Int, count: Int) {
+        guard let laneBytes else { return }
+        let slot = v * 2 + lane, kept = laneBytes + slot * OktalyzerModule.mixBufferSize
+        let count = min(count, OktalyzerModule.mixBufferSize), have = max(0, min(have, count))
+        for i in 0 ..< have { kept[i] = bytes[i] }
+        for i in have ..< count { kept[i] = 0 }
+        laneCounts[slot] = count
+    }
+
+    private mutating func mixAlone(_ v: Int, _ lane: inout Lane, lane which: Int, into out: UnsafeMutablePointer<Int8>, extra: Int,
+                                   _ loudness: Float) {
         lane.note = Self.kept(lane.note)
         guard let place = lane.place else {
             // Silence is mixed as the lowest note is.
@@ -516,14 +551,15 @@ struct OktalyzerPlayer: ~Copyable {
         voices[v].mixedWords = want
         let to = copy(lane, from: place, into: out, words: want)
         lane.swing = Self.swing(out, want * 2) * loudness
+        keepMixed(v, lane: which, from: out, have: want * 2, count: want * 2)
         // (A track that is left out has been measured for its light, and is now taken out again:
         // the voice plays silence for as long, at the period of the track's note.)
         if lane.muted { for i in 0 ..< want * 2 { out[i] = 0 } }
         Self.take(UInt16(want), from: &lane, to: to)
     }
 
-    private mutating func mixPair(_ v: Int, leader: inout Lane, other: inout Lane, into out: UnsafeMutablePointer<Int8>, extra: Int,
-                                  _ loudness: Float) {
+    private mutating func mixPair(_ v: Int, leader: inout Lane, other: inout Lane, leaderLane: Int, into out: UnsafeMutablePointer<Int8>,
+                                  extra: Int, _ loudness: Float) {
         let period = periods[Int(leader.note)], slower = periods[Int(other.note)]
         let want = words(ofNote: Int(leader.note)) + extra
         voices[v].mixedPeriod = period
@@ -562,6 +598,7 @@ struct OktalyzerPlayer: ~Copyable {
                 }
             }
             other.swing = Self.swing(out, want * 2) * loudness
+            keepMixed(v, lane: 1 - leaderLane, from: out, have: want * 2, count: want * 2)
             // (Left out, it is taken out again once measured, and the leader is added to silence.)
             if other.muted { for i in 0 ..< want * 2 { out[i] = 0 } }
         }
@@ -577,6 +614,11 @@ struct OktalyzerPlayer: ~Copyable {
             high = max(high, byte)
         }
         leader.swing = high > low ? Float(Int(high) - Int(low)) * loudness : 0
+        if laneBytes != nil {
+            // (Its sample as it is, where it is in memory; and none past the end of what is kept.)
+            let inMemory = max(0, min(have * 2, module.silence - place))
+            keepMixed(v, lane: leaderLane, from: module.memory + max(0, place), have: place >= 0 ? inMemory : 0, count: want * 2)
+        }
         // A leader that is left out is measured and moved on as ever, and none of it is added: the
         // voice still plays at its period, and the other track is still stretched to it.
         let added = leader.muted ? 0 : have
@@ -834,6 +876,42 @@ struct OktalyzerPlayer: ~Copyable {
             }
         }
         paula.setMuted(chip)
+    }
+
+    // MARK: Scopes
+
+    /// Starts keeping each track's sound in `waves`, for its scope, at the chip's rate: the
+    /// chip keeps a whole voice's as the track it plays, and the two tracks of a split voice are
+    /// kept here (`keepSplitWaves`).
+    mutating func keepWaves(_ waves: ChannelWaves) {
+        self.waves = waves
+        paula.waves = waves
+        for v in 0 ..< 4 { paula.waveNumbers[v] = voices[v].split ? -1 : voices[v].track }
+        if laneBytes == nil {
+            let space = 16 * OktalyzerModule.mixBufferSize
+            laneBytes = .allocate(capacity: space)
+            laneBytes!.initialize(repeating: 0, count: space)
+        }
+    }
+
+    /// Keeps so many samples of the sound of each track of a split voice, before the chip makes
+    /// them, from so far into a tick of so many: what the track gave to the stretch the chip is
+    /// playing, spread over the tick, which the stretch lasts as near as its period comes to it,
+    /// at the volume the chip plays it at.
+    mutating func keepSplitWaves(from start: Int, count: Int, of total: Int) {
+        guard let waves, let laneBytes, total > 0 else { return }
+        for v in 0 ..< 4 where voices[v].split {
+            let volume = Float(min(64, told[v] & 127)) * (1.0 / (128.0 * 64.0))
+            for lane in 0 ..< 2 {
+                let track = voices[v].track + lane, playing = 8 + v * 2 + lane
+                let bytes = laneBytes + playing * OktalyzerModule.mixBufferSize, have = laneCounts[playing]
+                guard have > 0 else {
+                    waves.silence(track, count: count)
+                    continue
+                }
+                for i in 0 ..< count { waves.store(track, at: i, Float(bytes[(start + i) * have / total]) * volume) }
+            }
+        }
     }
 
     // MARK: The lights

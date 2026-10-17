@@ -495,3 +495,61 @@ private func apartAsOnAnAmiga() -> LoadOptions {
     let back = listened(renderer)
     #expect(back.left == heard.left && back.right == heard.right)
 }
+
+// MARK: Scopes
+
+/// How tall each track's scope has been at its tallest, taken as the web player takes them, over
+/// so many pieces of the sound.
+private func scopeHeights(_ renderer: any Renderer, pieces: Int = 40) -> [Int] {
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    var buffer = [Float](repeating: 0, count: 1024 * 2)
+    var all = [UInt8](repeating: 0, count: renderer.channelCount * ChannelWaves.points)
+    var heights = [Int](repeating: 0, count: renderer.channelCount)
+    for _ in 0 ..< pieces {
+        _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 1024) }
+        all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+        for track in 0 ..< renderer.channelCount {
+            let height = all[track * ChannelWaves.points ..< (track + 1) * ChannelWaves.points].map { abs(Int($0) - 128) }.max() ?? 0
+            heights[track] = max(heights[track], height)
+        }
+    }
+    return heights
+}
+
+@Test func oktalyzerTracksHaveScopes() throws {
+    // The first voice is split: the ramp on its first track, alone, and nothing on its second. The
+    // ramp on the third track, the second voice's, and the quieter one on the fourth; nothing on the fifth.
+    let file = module([Entry(line: 0, track: 0, note: 1, instrument: 0), Entry(line: 0, track: 2, note: 1, instrument: 0),
+                       Entry(line: 0, track: 3, note: 1, instrument: 1)], split: [true, false, false, false])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .okt, options: LoadOptions()) }
+    let heard = scopeHeights(try fresh())
+    // A track of a split voice alone is mixed as it is, and is as tall as the same note on a whole
+    // voice. (A fiftieth of a second of the ramp at this note is half of it, and half the swing is
+    // seven tenths of the height.)
+    #expect(heard[0] > 80 && heard[0] == heard[2])
+    // The quieter ramp is half as long and half the size, and plays at a volume of 40.
+    #expect(heard[3] > 40 && heard[3] < heard[2])
+    #expect(heard[1] == 0 && heard[4] == 0)
+
+    // A track left out still has its scope, of either kind of voice.
+    let muted = try fresh()
+    muted.setMuted([true, false, true])
+    #expect(scopeHeights(muted) == heard)
+
+    // And the sound is the same, its tracks kept or not.
+    let plain = try fresh(), kept = try fresh()
+    #expect(kept.keepChannelWaves() != nil)
+    let without = listened(plain, seconds: 1), with = listened(kept, seconds: 1)
+    #expect(with.left == without.left && with.right == without.right)
+}
+
+@Test func oktalyzerTwoTracksOfASplitVoiceHaveScopesApart() throws {
+    // The ramp that goes up on the first track and the one that goes down, an octave above, on the
+    // second: mixed into one voice, and each seen as it was before they were added.
+    let file = module([Entry(line: 0, track: 0, note: 1, instrument: 0), Entry(line: 0, track: 1, note: 13, instrument: 2)],
+                      split: [true, false, false, false])
+    let heard = scopeHeights(try TuneLoader.load(file, format: .okt, options: LoadOptions()))
+    #expect(heard[0] > 80 && heard[1] > 120)
+    #expect(heard[2...].allSatisfy { $0 == 0 })
+}

@@ -774,3 +774,102 @@ private func apartAsOnAnAmiga() -> LoadOptions {
     let other = listened(half)
     #expect(loudest(other.left) == 0 && other.right == drawn.right && other.levels == drawn.levels)
 }
+
+// MARK: Scopes
+
+/// How tall each track's scope has been at its tallest, taken as the web player takes them, over
+/// so many pieces of the sound; the voices' waves kept from the start. (Kept and taken by the
+/// player, without a session, so that a song can be changed for another under them.)
+private func scopeHeights(_ renderer: any Renderer, pieces: Int = 40, song: Int? = nil) -> [Int] {
+    let waves = renderer.keepChannelWaves()
+    #expect(waves != nil)
+    if let song { renderer.select(subsong: song) }
+    var buffer = [Float](repeating: 0, count: 1024 * 2)
+    var scope = [UInt8](repeating: 0, count: ChannelWaves.points)
+    var heights = [Int](repeating: 0, count: renderer.channelCount)
+    for _ in 0 ..< pieces {
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 1024) }
+        for track in 0 ..< renderer.channelCount {
+            scope.withUnsafeMutableBufferPointer { waves?.take(track, pitch: 0, periodic: false, behind: 0, into: $0.baseAddress!) }
+            heights[track] = max(heights[track], scope.map { abs(Int($0) - 128) }.max() ?? 0)
+        }
+    }
+    return heights
+}
+
+/// The same sound from a song, its tracks' waves kept or not.
+private func soundIsTheSame(_ file: [UInt8], song: Int = 0) throws -> Bool {
+    let plain = try TuneLoader.load(file, format: .med), kept = try TuneLoader.load(file, format: .med)
+    _ = kept.keepChannelWaves()
+    plain.select(subsong: song)
+    kept.select(subsong: song)
+    return stereo(plain, seconds: 1) == stereo(kept, seconds: 1)
+}
+
+@Test func medTracksHaveScopes() throws {
+    // Four tracks: the square wave at full volume on the first, at a quarter of it on the second,
+    // and nothing on the others.
+    let file = module([Tune(entries: [c(), c(track: 1, command: 0x0C, data: 0x16)])])
+    let heard = scopeHeights(try TuneLoader.load(file, format: .med))
+    // (The chip's band-limited steps overshoot a square's edges by a third, and a scope is as tall
+    // as all of it. A quarter of the swing is half the height, or a little more, of that too.)
+    #expect(heard[0] > 90)
+    #expect(Double(heard[1]) / Double(heard[0]) > 0.45 && Double(heard[1]) / Double(heard[0]) < 0.75)
+    #expect(heard[2] == 0 && heard[3] == 0)
+    let muted = try TuneLoader.load(file, format: .med)
+    muted.setMuted([true])
+    #expect(scopeHeights(muted) == heard)
+    #expect(try soundIsTheSame(file))
+}
+
+@Test func medTracksThatShareAVoiceHaveScopesApart() throws {
+    // Eight tracks: the first and the fifth share the first voice, a note on each an octave apart,
+    // and each is seen as it was before they were added. The rest are silent.
+    let file = module([Tune(entries: [c(), Entry(line: 0, track: 4, note: 25, instrument: 1)], flags: 0x40, tracks: 8)])
+    let heard = scopeHeights(try TuneLoader.load(file, format: .med))
+    #expect(heard.count == 8)
+    // (Mixed bytes have no band-limited steps of their own: a square at full volume fills its scope.)
+    #expect(heard[0] > 120 && heard[4] > 120)
+    #expect([1, 2, 3, 5, 6, 7].allSatisfy { heard[$0] == 0 })
+    // Either left out still has its scope.
+    let muted = try TuneLoader.load(file, format: .med)
+    muted.setMuted([true, false, false, false, true])
+    #expect(scopeHeights(muted) == heard)
+    #expect(try soundIsTheSame(file))
+}
+
+@Test func medTracksOfMixingModeHaveScopes() throws {
+    // Mixing mode: the square wave at full volume on the first track, at a quarter of it on the
+    // second, and nothing on the others.
+    let tune = Tune(entries: [c(), c(track: 1, command: 0x0C, data: 0x16)], tempo: 125, flags2: 0xA3, tracks: 4, channels: 4, mixing: 1,
+                    pans: [-16, 16, 0, 0])
+    let file = module(version: 3, [tune])
+    let heard = scopeHeights(try TuneLoader.load(file, format: .med))
+    // (Drawn smoothly between its samples, a square overshoots its edges a little.)
+    #expect(heard[0] > 110)
+    #expect(Double(heard[1]) / Double(heard[0]) > 0.45 && Double(heard[1]) / Double(heard[0]) < 0.6)
+    #expect(heard[2] == 0 && heard[3] == 0)
+    let muted = try TuneLoader.load(file, format: .med)
+    muted.setMuted([true])
+    #expect(scopeHeights(muted) == heard)
+    #expect(try soundIsTheSame(file))
+}
+
+@Test func medScopesAreKeptFromOneSongToAnother() throws {
+    // A file of three songs: four tracks, eight, and mixing mode with six. Its scopes are kept
+    // for the most tracks any of them has, and go on being kept whichever is played.
+    // (Every song has the first's track volumes, which go to its four tracks: so the note of the
+    // song of six is on the second.)
+    let six = Tune(entries: [c(track: 1)], tempo: 125, flags2: 0xA3, tracks: 6, channels: 6, mixing: 1)
+    let file = module(version: 3, [Tune(entries: [c()]), Tune(entries: [c(track: 6)], flags: 0x40, tracks: 8), six])
+    let renderer = try TuneLoader.load(file, format: .med)
+    #expect(renderer.subsongCount == 3)
+    #expect(renderer.keepChannelWaves()?.voices == 8)
+    let eight = scopeHeights(renderer, song: 1)
+    #expect(eight.count == 8 && eight[6] > 120 && eight.enumerated().allSatisfy { $0.offset == 6 || $0.element == 0 })
+    let mixing = scopeHeights(renderer, song: 2)
+    #expect(mixing.count == 6 && mixing[1] > 110 && mixing.enumerated().allSatisfy { $0.offset == 1 || $0.element == 0 })
+    let four = scopeHeights(renderer, song: 0)
+    #expect(four.count == 4 && four[0] > 90 && four.dropFirst().allSatisfy { $0 == 0 })
+    for song in 0 ..< 3 { #expect(try soundIsTheSame(file, song: song)) }
+}

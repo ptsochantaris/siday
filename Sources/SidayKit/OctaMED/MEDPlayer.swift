@@ -309,6 +309,19 @@ struct MEDPlayer: ~Copyable {
     /// For the comparison with OctaMED's own player: when this is not nil, each tick is written down.
     var record: MEDRegisterTick?
 
+    /// Where each track's sound is kept for its scope, once it is wanted (`keepWaves`). The chip
+    /// keeps a voice's own, and the mixer the tracks of mixing mode; the two tracks that share a
+    /// voice in five-to-eight channel mode are kept here, as each was before the two were added.
+    private var waves: ChannelWaves?
+    /// What each track that shares a voice gave to the stretches mixed for the voice, byte for
+    /// byte: the stretch being mixed, which the chip plays on the next tick, and the one it is
+    /// playing on this; and how many bytes each has. A slot for each of the eight tracks, the
+    /// stretches being mixed first. Only there while the sound is kept.
+    private var laneBytes: UnsafeMutablePointer<Int8>?
+    private var laneCounts = InlineArray<16, Int>(repeating: 0)
+    /// The volume the chip was told for each voice when the stretch it is playing began.
+    private var laneVolumes: InlineArray<4, UInt8> = [0, 0, 0, 0]
+
     /// - Parameters:
     ///   - song: which of the file's songs.
     ///   - place: where in its order of playing to start; nil for where the file says.
@@ -423,6 +436,7 @@ struct MEDPlayer: ~Copyable {
         periods.deallocate()
         sine.deallocate()
         visited.deallocate()
+        laneBytes?.deallocate()
     }
 
     // MARK: The sound chip
@@ -873,6 +887,24 @@ struct MEDPlayer: ~Copyable {
                 c &+= kept.step
             }
         }
+        if let laneBytes {
+            // For the scopes: what was mixed on the tick before is what the chip now plays, at the
+            // volume it has just been told; and each track's bytes of this tick's are kept apart.
+            laneVolumes[voice] = pairVolumes[voice]
+            for (lane, feed) in [(voice, first), (voice + 4, second)] {
+                let mixing = laneBytes + lane * MEDModule.mixBufferSize, playing = laneBytes + (8 + lane) * MEDModule.mixBufferSize
+                playing.update(from: mixing, count: laneCounts[lane])
+                laneCounts[8 + lane] = laneCounts[lane]
+                let kept = min(count, MEDModule.mixBufferSize)
+                var c: UInt32 = 0
+                for i in 0 ..< kept {
+                    let at = feed.from + Int(Int16(truncatingIfNeeded: c >> 16))
+                    mixing[i] = at >= 0 && at < size ? memory[at] : 0
+                    c &+= feed.step
+                }
+                laneCounts[lane] = kept
+            }
+        }
         // The part of a byte that the last step came to is dropped: the next tick begins on a whole one.
         if first.step != 0 { lanes[voice].place &+= Int(a >> 16) }
         if second.step != 0 { lanes[voice + 4].place &+= Int(b >> 16) }
@@ -892,6 +924,51 @@ struct MEDPlayer: ~Copyable {
         for voice in 0 ..< 4 where song.mixed[voice] {
             paula.setLocation(voice, mixPlace(voice, mixBuffer))
             paula.setLength(voice, UInt16(wordsNext))
+        }
+    }
+
+    /// Starts keeping each track's sound in `waves`, for its scope: by the mixer in mixing mode,
+    /// at its rate; and otherwise at the chip's, by the chip for a track that has a voice to
+    /// itself and here for two that share one (`keepSharedWaves`).
+    mutating func keepWaves(_ waves: ChannelWaves) {
+        self.waves = waves
+        guard mode != .mixing else {
+            mixer.waves = waves
+            return
+        }
+        paula.waves = waves
+        guard mode == .eightChannel else { return }
+        for voice in 0 ..< 4 { paula.waveNumbers[voice] = song.mixed[voice] ? -1 : voice }
+        if laneBytes == nil {
+            let space = 16 * MEDModule.mixBufferSize
+            laneBytes = .allocate(capacity: space)
+            laneBytes!.initialize(repeating: 0, count: space)
+        }
+    }
+
+    /// Keeps so many samples of the sound of each track that shares a voice in five-to-eight
+    /// channel mode, before the chip makes them, from so far into a tick of so many: what the
+    /// track gave to the stretch the chip is playing, which lasts the tick, spread over it, at the
+    /// volume the chip plays it at. The fifth to eighth tracks of a voice that has one track are
+    /// silent, and so is any that is kept for another of the file's songs and not this one.
+    mutating func keepSharedWaves(from start: Int, count: Int, of total: Int) {
+        guard let waves, mode != .mixing else { return }
+        for track in min(channels, waves.voices) ..< waves.voices { waves.silence(track, count: count) }
+        guard let laneBytes, total > 0 else { return }
+        for voice in 0 ..< 4 {
+            guard song.mixed[voice] else {
+                waves.silence(voice + 4, count: count)
+                continue
+            }
+            let volume = Float(min(64, laneVolumes[voice] & 127)) * (1.0 / (128.0 * 64.0))
+            for lane in [voice, voice + 4] {
+                let bytes = laneBytes + (8 + lane) * MEDModule.mixBufferSize, have = laneCounts[8 + lane]
+                guard have > 0 else {
+                    waves.silence(lane, count: count)
+                    continue
+                }
+                for i in 0 ..< count { waves.store(lane, at: i, Float(bytes[(start + i) * have / total]) * volume) }
+            }
         }
     }
 

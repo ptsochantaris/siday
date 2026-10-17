@@ -368,3 +368,50 @@ private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? z
     #expect(loudest(nothing.left) == 0 && loudest(nothing.right) == 0)
     #expect(said(silent).levels == wholeSaid.levels)
 }
+
+// MARK: Scopes
+
+/// Each voice's scope after so long, its sound kept from the start.
+private func scopes(_ renderer: any Renderer, seconds: Double = 0.5) -> [[UInt8]] {
+    let session = TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    let frames = Int(seconds * Double(outputSampleRate))
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: frames) }
+    var all = [UInt8](repeating: 0, count: renderer.channelCount * ChannelWaves.points)
+    all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return (0 ..< renderer.channelCount).map { Array(all[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points]) }
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func ahxVoicesHaveScopes() throws {
+    // The note at full volume on the first voice, at a quarter of it on the second, and nothing on
+    // the others.
+    let file = tune(positions: [[0, 0, 1, 0, 2, 0, 2, 0]],
+                    tracks: [[0: played], [0: row(note: 37, instrument: 1, command: 0xC, parameter: 0x10)], empty])
+    func fresh() throws -> any Renderer { try TuneLoader.load(file, format: .ahx, options: LoadOptions()) }
+    let heard = scopes(try fresh())
+    // The chip's band-limited steps overshoot a square's edges by a third, and a scope is as tall
+    // as all of it: the square's own level is three quarters of the way up.
+    #expect(height(heard[0]) > 90)
+    // A quarter of the swing is half the height, or a little more, of the overshoot too.
+    let part = Double(height(heard[1])) / Double(height(heard[0]))
+    #expect(part > 0.45 && part < 0.75)
+    #expect(heard[2].allSatisfy { $0 == 128 } && heard[3].allSatisfy { $0 == 128 })
+
+    // A voice left out still has its scope.
+    let muted = try fresh()
+    muted.setMuted([true])
+    #expect(height(scopes(muted)[0]) == height(heard[0]))
+
+    // And the sound is the same, its voices kept or not; and so is what is written for comparison.
+    let plain = try fresh(), kept = try fresh()
+    #expect(kept.keepChannelWaves() != nil)
+    #expect(stereo(kept, seconds: 1) == stereo(plain, seconds: 1))
+    let raw = try AHXRenderer(file, options: LoadOptions())
+    let before = raw.renderRaw(frames: 9600)
+    #expect(raw.keepChannelWaves() != nil)
+    #expect(raw.renderRaw(frames: 9600) == before)
+}

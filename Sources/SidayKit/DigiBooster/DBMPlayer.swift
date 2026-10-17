@@ -120,6 +120,10 @@ final class DBMPlayer {
     /// The most frames that are mixed at once: more than the longest tick, at the slowest tempo.
     static let mostFrames = 4096
     private let premix = Memory<Int16>(capacity: mostFrames * 2)
+    /// Where each track's sound is kept for its scope, if it is wanted: its instrument's, after its
+    /// echo and its volume and before it is added to the others. A track at its loudest swings one
+    /// either side of nothing.
+    var waves: ChannelWaves?
 
     /// For telling the file's songs apart: see `ModuleSongs`.
     private let firstPlayedBy: UnsafeMutablePointer<UInt8>?
@@ -860,7 +864,11 @@ final class DBMPlayer {
         var done = 0
         while done < frames {
             let count = min(Self.mostFrames, frames - done)
-            for (index, track) in tracks.enumerated() where track.isOn {
+            for (index, track) in tracks.enumerated() {
+                guard track.isOn else {
+                    waves?.silence(index, count: count)
+                    continue
+                }
                 if let echo = track.echo {
                     echo.pull(premix, count, from: track.hasChain ? track.voice : nil)
                     track.isOn = true
@@ -868,6 +876,7 @@ final class DBMPlayer {
                     track.isOn = voice.pull(premix, count)
                 } else {
                     track.isOn = false
+                    waves?.silence(index, count: count)
                     continue
                 }
                 let gainLeft = Int32(track.gainLeft), gainRight = Int32(track.gainRight)
@@ -889,7 +898,15 @@ final class DBMPlayer {
                 }
                 let level = max(Float(peakLeft) * abs(Float(gainLeft)), Float(peakRight) * abs(Float(gainRight))) / (32768 * 16384)
                 if level > levels[index] { levels[index] = min(1, level) }
+                if let waves {
+                    // The side it is nearer, which has its whole volume and is not put off: the
+                    // other has much the same, quieter and a little later.
+                    let side = abs(gainLeft) >= abs(gainRight) ? 0 : 1
+                    let gain = Float(max(abs(gainLeft), abs(gainRight))) / (32768 * 16384)
+                    for i in 0 ..< count { waves.store(index, at: i, Float(premix[i * 2 + side]) * gain) }
+                }
             }
+            waves?.advance(by: count)
             done += count
         }
     }

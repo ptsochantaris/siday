@@ -104,6 +104,10 @@ struct MEDMixer: ~Copyable {
 
     /// When this is not nil, everything the mixer is told is written down.
     var events: [MEDMixEvent]?
+    /// Where each track's sound is kept for its scope, if it is wanted: its sample at its volume,
+    /// before it is divided between the sides and added to the others. (Of a stereo sample, the
+    /// half for the side it is nearer.) A track at its loudest swings one either side of nothing.
+    var waves: ChannelWaves?
 
     /// - Parameters:
     ///   - channels: how many tracks are mixed.
@@ -409,9 +413,14 @@ struct MEDMixer: ~Copyable {
 
     private mutating func mix(_ track: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
         var now = channels[track]
-        guard !now.silent else { return }
+        let waves = track < (waves?.voices ?? 0) ? waves : nil
+        guard !now.silent else {
+            waves?.silence(track, count: count)
+            return
+        }
         if now.backwards ? now.offset <= now.end : now.offset >= now.end {
             channels[track].silent = true
+            waves?.silence(track, count: count)
             return
         }
         let whole = Int(now.step >> 32)
@@ -426,6 +435,7 @@ struct MEDMixer: ~Copyable {
         let inMemory = now.sample >= 0 && now.right <= memorySize && now.frames <= memorySize
             && now.sample + now.right + now.frames * width <= memorySize
         var peak: Float = 0
+        let nearerLeft = now.leftGain >= now.rightGain
         for i in 0 ..< count {
             if heard {
                 // The four samples about this one are plainly there unless it is near an end.
@@ -435,6 +445,9 @@ struct MEDMixer: ~Copyable {
                 left[i] += l * now.leftGain
                 right[i] += r * now.rightGain
                 peak = max(peak, abs(l), abs(r))
+                waves?.store(track, at: i, (nearerLeft ? l : r) * now.loudness)
+            } else {
+                waves?.store(track, at: i, 0)
             }
             let sum = UInt64(now.fraction) + part
             now.fraction = UInt32(truncatingIfNeeded: sum)
@@ -446,7 +459,10 @@ struct MEDMixer: ~Copyable {
                 now.offset &+= moved
                 if now.offset >= now.end { turn(&now) }
             }
-            if now.silent { break }
+            if now.silent {
+                if let waves { for after in i + 1 ..< count { waves.store(track, at: after, 0) } }
+                break
+            }
         }
         now.peak = max(now.peak, peak * now.loudness)
         channels[track] = now
@@ -466,6 +482,11 @@ struct MEDMixer: ~Copyable {
             for track in 0 ..< self.count where channels[track].muted == leftOut { mix(track, left: left, right: right, count: count) }
             leftOut.toggle()
         } while !leftOut
+        if let waves {
+            // (Any track kept for another of the file's songs, and not mixed in this one, is silent.)
+            for track in min(self.count, waves.voices) ..< waves.voices { waves.silence(track, count: count) }
+            waves.advance(by: count)
+        }
 
         if echoKind != 0 {
             // What came out so long ago is added, quieter, to what comes out now: so it comes

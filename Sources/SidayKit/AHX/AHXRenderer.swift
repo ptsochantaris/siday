@@ -127,12 +127,26 @@ public final class AHXRenderer: Renderer, ReferenceComparable {
         replayer.paula.setMuted(muted)
     }
 
+    /// Where Paula keeps each voice's sound for its scope, at her own rate, once asked; a song
+    /// started afresh keeps it there too. (But not what is written out for comparison, for which
+    /// she is run at another rate.)
+    private var channelWaves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if channelWaves == nil {
+            channelWaves = ChannelWaves(voices: 4, rate: Double(outputSampleRate * 2), fullSwing: 1)
+            replayer.paula.waves = channelWaves
+        }
+        return channelWaves
+    }
+
     /// - Parameter asReference: with the sound chip run as the player this is ported from runs it,
     ///   at the output's own rate, for `renderRaw`.
     private func restart(asReference: Bool = false) {
         replayer = AHXReplayer(module, waves: waves, model: model, rate: Double(outputSampleRate * (asReference ? 1 : 2)),
                                position: songList[currentSubsong].start)
         replayer.paula.setMuted(muted)
+        if !asReference { replayer.paula.waves = channelWaves }
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0
@@ -188,6 +202,7 @@ public final class AHXRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+        channelWaves?.ahead = tickFrames - tickPosition
     }
 
     /// Paula's four voices.

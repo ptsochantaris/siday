@@ -123,6 +123,18 @@ public final class DBMRenderer: Renderer, ReferenceComparable {
         for (index, track) in player.tracks.enumerated() { track.muted = index < muted.count && muted[index] }
     }
 
+    /// Where the replayer keeps each track's sound for its scope, once asked; a song started
+    /// afresh keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            waves = ChannelWaves(voices: module.tracks, rate: Double(outputSampleRate), fullSwing: 1)
+            player.waves = waves
+        }
+        return waves
+    }
+
     /// - Parameter asReplayer: as the replayer's own example program plays the file, for `renderRaw`.
     private func restart(asReplayer: Bool = false) {
         let song = songList[currentSubsong]
@@ -130,6 +142,7 @@ public final class DBMRenderer: Renderer, ReferenceComparable {
         player = DBMPlayer(module, song: song.song, order: start, listEnd: asReplayer ? .stopsAsReplayer : start == 0 ? .goesRound : .stops,
                            asTheFileAsks: !asReplayer, rowBase: rowBases[song.song])
         setMuted(muted)
+        player.waves = waves
         tickFrames = 0
         tickPosition = 0
         blockPosition = 0
@@ -188,6 +201,7 @@ public final class DBMRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+        waves?.ahead = tickFrames - tickPosition
     }
 
     /// The song from its start as the replayer's own example program writes it to a file: sixteen

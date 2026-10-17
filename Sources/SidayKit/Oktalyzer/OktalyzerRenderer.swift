@@ -111,10 +111,24 @@ public final class OktalyzerRenderer: Renderer {
         player.setMuted(muted)
     }
 
+    /// Where each track's sound is kept for its scope, at the chip's rate, once asked; a song
+    /// started afresh keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            let waves = ChannelWaves(voices: module.trackCount, rate: Double(outputSampleRate * 2), fullSwing: 1)
+            self.waves = waves
+            player.keepWaves(waves)
+        }
+        return waves
+    }
+
     private func restart() {
         let song = songList[currentSubsong]
         player = OktalyzerPlayer(module, model: model, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
         player.setMuted(muted)
+        if let waves { player.keepWaves(waves) }
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0
@@ -137,8 +151,10 @@ public final class OktalyzerRenderer: Renderer {
         if !player.runTick() { loopCount += 1 }
         tickFrames = Self.tickLength(&remainder)
         tickPosition = 0
+        player.keepSplitWaves(from: 0, count: tickFrames, of: tickFrames * 2)
         player.paula.generate(left: left, right: right, count: tickFrames)
         player.halfTick()
+        player.keepSplitWaves(from: tickFrames, count: tickFrames, of: tickFrames * 2)
         player.paula.generate(left: left + tickFrames, right: right + tickFrames, count: tickFrames)
         player.takeLevels(into: &levels.now)
         levels.tickMade()
@@ -163,6 +179,7 @@ public final class OktalyzerRenderer: Renderer {
             tickPosition += count
             done += count
         }
+        waves?.ahead = tickFrames - tickPosition
     }
 
     /// A light for each track: four, and one more for each voice that is split.
