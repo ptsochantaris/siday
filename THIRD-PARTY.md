@@ -170,6 +170,17 @@ V1.2", 2007, carried by UADE as `ChipTracker`; it says of itself "(c) 1991 by Kr
 adapted by Wanted Team"). Its 68000 code was read for that, and nothing of it is carried here but its
 table of periods.
 
+## Magnetic Fields Packer
+
+`Sources/SidayKit/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as
+libxmp 4.6.3 reads them (`src/loaders/mfp_load.c`, Copyright (C) 1996-2021 Claudio Matsuoka and
+Hipolito Carraro Jr, under the MIT licence given above for ProWizard), but for the table that says
+where each voice's notes begin, which is read as the format's replayer reads it (and as libxmp has
+since 4.7.1): Wanted Team's player
+of the files for EaglePlayer ("Magnetic Fields Packer player module V1.3", 2003, carried by UADE as
+`MagneticFieldsPacker`; it says of itself "(c) 1994-95 by Shaun Southern, adapted by Mr.Larmer/Wanted
+Team"), with which it was compared. Nothing of that player is carried here.
+
 ## Sierra AGI sounds
 
 `Sources/SidayKit/AGI` plays the sounds of Sierra On-Line's AGI games as the company's interpreter

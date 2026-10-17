@@ -27,6 +27,17 @@ asked. A song is turned up by 6 dB at the most, so that one meant to be quiet is
 never so far that its peaks come within 1 dB of the top. It is measured once: the level found is
 kept, on the computer or in the browser.
 
+Some files are not all of a tune, or not a tune at all. A playlist names tunes in other files; a
+ROL tune takes its instruments from a bank in a file beside it; a song packed with the Magnetic
+Fields Packer keeps its samples in a file of their own. They are all found in one way, by
+`FileFinder`: by the names they are known to have, beside the file that wants them first, and as
+Windows would, to which a capital and a small letter are one. On the command line that is the
+folder on the disk. In a browser it is the files the page has been given, since a page can read no
+others: a tune or companion given once is known for as long as the page is open, and when one
+that is wanted has not been given, the page says so and asks for the folder it is in, which it
+looks in and adds nothing else from. A companion (a bank, a file of samples) is not a tune, and is
+not listed as one.
+
 ## PT3 and the other AY trackers, VTX and AY files — the ZX Spectrum and the Amstrad CPC
 
 The AY-3-8910 is a sound chip that General Instrument made from 1978: three voices of square wave,
@@ -363,6 +374,26 @@ note within ProTracker's three octaves, uses the samples' finetune, and counts a
 words.) OpenMPT also reads some as having sounds of their own making, from waveforms kept before the
 tracks; no file to hand has them, nor a replayer of them to play them by, and such a file is not
 played.
+
+The Magnetic Fields Packer was Shaun Southern's, by the replayer's own word and libxmp's, from 1994
+and 1995, and the games that used it kept a module in two files: the song, and its samples in a
+file of their own. The song has the samples' lengths and loops without their names, the order of the
+places in the song, and each voice of each pattern as a tree: four bytes that each lead to four, that
+each lead to four, that each lead to a note, so that a stretch of rows like another is kept once. It is
+read back into the ProTracker module it was, and played as one. The samples are looked for beside the
+song: `title.smp` for `title.mfp`, or, where songs share them, the name up to its last hyphen with
+`_set` (`KidChaos Level 1_set.smp` for `KidChaos Level 1-3.mfp`); then, as the Amiga's own disks
+named them, `smp.title` for `mfp.title`; and failing those, the one file ending `.smp` beside it, if
+there is only one. Without them the song is not played, and says why. libxmp, as far as its release
+4.6.3, read the table that says where each voice's tree begins as having an entry for each pattern;
+the format's own replayer, in Wanted Team's player for EaglePlayer, reads it as having one for each
+place in the song, which is how it is read here, and the order the file keeps beside it is the one
+the module had before it was packed, not the one that is played. (libxmp reads it so too since
+4.7.1, of July 2026, in which Alice Rowan put it right.) Set beside the replayer, run by UADE, over
+their first 40 seconds, by how loud each side is from moment to moment, the 37 songs of UnExoticA's
+collection read the old way are 0.76 alike with it on average, those whose patterns are not in the
+order of their numbers coming out scrambled; read the replayer's way they are 0.994 alike, and
+0.982 at the least.
 
 ## MED — MED and OctaMED
 
@@ -2051,8 +2082,8 @@ looked for in three places, and the first to have it wins:
 2. `STANDARD.BNK` beside it;
 3. the bank built into the player.
 
-The built-in bank is what lets a ROL file be played by itself, and it is all the browser has to go
-on. It has 9,683 instruments: AdLib's own 145; some 1,200 more from a dozen enlarged banks that
+The built-in bank is what lets a ROL file be played by itself. (A browser has the banks it has been
+given, found as the command line finds them beside the tune, and the built-in bank for the rest.) It has 9,683 instruments: AdLib's own 145; some 1,200 more from a dozen enlarged banks that
 travelled with collections of ROL files; and the rest from the bank of IMPlay, a later player of the
 same kind of music, for the sake of the names. Banks do not always agree about a name. Where they
 differ, AdLib's bank has it, and after that the sound that most banks give it.
