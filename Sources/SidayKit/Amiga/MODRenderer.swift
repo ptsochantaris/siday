@@ -56,8 +56,9 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// run of modules comes out between the middles of the Spectrum's, the Atari's and the C64's tunes.
     private static let gain: Float = 0.26
 
-    /// - Parameter packedBy: the packer the module was unpacked from, if it was packed (see `ProWizard`).
-    public init(_ data: [UInt8], options: LoadOptions, packedBy packer: String? = nil) throws {
+    /// - Parameter origin: what the module was read from, if it was not a module of its own: the
+    ///   packer it was unpacked from (see `ProWizard`), or the tracker whose file it was read out of.
+    public init(_ data: [UInt8], options: LoadOptions, origin: String? = nil) throws {
         module = try ProTrackerModule(data)
         longFile = module.hasLongSamples ? data : nil
         model = options.amigaModel
@@ -68,7 +69,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         var info = TuneInfo(format: "MOD")
         info.title = module.title
         info.detail = module.channelCount == 4 ? module.kind.name : "\(module.kind.name), \(module.channelCount) channels"
-        if let packer { info.detail = "packed by \(packer)" }
+        if let origin { info.detail = origin }
         info.shortfalls = module.shortfalls
         self.info = info
 

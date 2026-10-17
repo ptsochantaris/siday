@@ -34,8 +34,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "vgz" {
             // (A VGM file packed by gzip, which is how they are mostly kept.)
             self = .vgm
-        } else if ProWizard.extensions.contains(name) {
-            // (A module packed by one of the packers games and demos used, named for the packer.)
+        } else if ProWizard.extensions.contains(name) || name == "kris" {
+            // (A module packed by one of the packers games and demos used, named for the packer; or
+            // one of ChipTracker's, which is read into a module.)
             self = .mod
         } else if name == "snd" {
             // (As SNDH files were named before the format had a name of its own.)
@@ -112,7 +113,10 @@ public enum TuneLoader {
             // one of the oldest, which says nothing, only once no packer has taken it.
             func unpacked() throws -> (any Renderer)? {
                 guard let (packer, module) = ProWizard.unpack(data) else { return nil }
-                return try MODRenderer(module, options: options, packedBy: packer)
+                return try MODRenderer(module, options: options, origin: "packed by \(packer)")
+            }
+            if ChipTrackerFile.isOne(data) {
+                return try MODRenderer(ChipTrackerFile.module(data), options: options, origin: "ChipTracker")
             }
             if !ProTrackerModule.saysWhatItIs(data), let renderer = try unpacked() { return renderer }
             do {
