@@ -171,6 +171,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         let song = songList[currentSubsong]
         player = IT2Player(module, order: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asImpulseTracker: asImpulseTracker, forSound: true)
         player.mixer.setMuted(channels: mutedChannels)
+        player.mixer.heardInMono = mono && !asImpulseTracker
         // (What is made to be set beside the player this is ported from is not shown.)
         if !asImpulseTracker, let waves { player.mixer.keepWaves(in: waves, channels: lights) }
         tickFrames = 0

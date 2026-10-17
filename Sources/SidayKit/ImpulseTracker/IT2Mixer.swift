@@ -107,6 +107,11 @@ final class IT2Mixer {
     private let FilterParameters: UnsafeMutablePointer<UInt8>
     /// Whether the file is in stereo: in one that is not, every voice is in the middle.
     private let stereoOutput: Bool
+    /// True if the two sides are to be heard together, as one. A voice in surround is then mixed as one
+    /// in the middle, which is as loud on each side: with one side upside down, as surround has it,
+    /// the two would cancel and the voice would not be heard at all. (Not in the original, which mixes
+    /// for a mono card without stereo, and so without surround, at all.)
+    var heardInMono = false
     /// For an MPTM file that asks for it: see `OpenMPTSong`.
     private let softPanning: Bool
     /// The sample number that stands for a MIDI note on a voice, which has no sound. See `IT2Module`.
@@ -887,7 +892,7 @@ final class IT2Mixer {
                     }
                 }
             } else {
-                let Surround = sc.pointee.FinalPan == PAN_SURROUND
+                let Surround = sc.pointee.FinalPan == PAN_SURROUND && !heardInMono
                 if sc.pointee.fLeftVolume == 0, sc.pointee.fRightVolume == 0 { sounded = min(sounded, 300) }
                 // A voice of a channel that is left out is added to nothing that is heard: see `setMuted`.
                 let muted = (mutedChannels >> UInt64(sc.pointee.HostChnNum & 63)) & 1 != 0

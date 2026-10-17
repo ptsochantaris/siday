@@ -95,6 +95,19 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
     #expect(mono.left[4800...].map(abs).max()! > 0.01)
 }
 
+@Test func itChannelInSurroundIsHeardInMono() throws {
+    // A channel in surround (a pan of 100 in the header) is on both sides, one of them upside down.
+    var options = LoadOptions()
+    options.stereo = .abc
+    let surround = stereo(try TuneLoader.load(it(pan: 100), format: .it, options: options), seconds: 0.5)
+    #expect(surround.left[4800...].map(abs).max()! > 0.01)
+    #expect(zip(surround.left[4800...], surround.right[4800...]).allSatisfy { abs($0 + $1) < 1e-6 })
+    // Heard as one, the two would cancel: it is as loud as a channel in the middle.
+    let mono = stereo(try TuneLoader.load(it(pan: 100), format: .it), seconds: 0.5).left
+    let middle = stereo(try TuneLoader.load(it(pan: 32), format: .it), seconds: 0.5).left
+    #expect(abs(loudness(mono[4800...]) - loudness(middle[4800...])) < loudness(middle[4800...]) * 0.01)
+}
+
 @Test func itKnowsHowLongItIsAndHowManySongsItHas() throws {
     // 64 rows of 6 ticks at fifty ticks a second.
     let plain = try TuneLoader.load(it(), format: .it)
