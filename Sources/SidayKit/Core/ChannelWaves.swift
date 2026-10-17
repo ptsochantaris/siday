@@ -6,7 +6,8 @@
 ///
 /// A player that can show its voices keeps one of these once asked (`Renderer.keepChannelWaves`)
 /// and writes each voice's sound into it as it makes it, before the voices are added together, at
-/// whatever rate it makes them. A scope is then taken from the latest of it (`take`).
+/// whatever rate it makes them: each voice can have a rate and a loudness of its own, as a sound
+/// card's samples and its FM chip's voices have. A scope is then taken from the latest of it (`take`).
 ///
 /// A scope is steady: a voice whose pitch is the pitch of its wave, a chip's, is shown as two of its
 /// cycles, begun where it rises through its middle, so a held note stands still and its shape can
@@ -21,26 +22,29 @@ public final class ChannelWaves {
     private static let capacity = 16384
 
     public let voices: Int
-    /// How many of its samples a voice is kept at in a second.
-    let rate: Double
-    /// How far a voice at its loudest swings either side of its middle, as it is kept: its scope is
-    /// full at that.
-    let fullSwing: Float
+    /// How many of its samples each voice is kept at in a second.
+    private var rates: [Double]
+    /// How far each voice at its loudest swings either side of its middle, as it is kept: its scope
+    /// is full at that.
+    private var fullSwings: [Float]
     /// How many frames of the output the player has made and not yet handed out: how far what is
     /// kept is ahead of what has been heard.
     public var ahead = 0
 
     private let ring: UnsafeMutablePointer<Float>
-    private var written = 0
+    /// How many samples of each voice have been kept.
+    private var written: [Int]
     /// The last scope shown of each voice, at full height; and whether there is one.
     private let previous: UnsafeMutablePointer<Float>
     private var shown: [Bool]
     private let candidate: UnsafeMutablePointer<Float>
 
+    /// Every voice at the same rate and loudness, until told otherwise (`setVoice`).
     public init(voices: Int, rate: Double, fullSwing: Float) {
         self.voices = voices
-        self.rate = rate
-        self.fullSwing = fullSwing
+        rates = Array(repeating: rate, count: voices)
+        fullSwings = Array(repeating: fullSwing, count: voices)
+        written = Array(repeating: 0, count: voices)
         ring = .allocate(capacity: max(1, voices) * Self.capacity)
         ring.initialize(repeating: 0, count: max(1, voices) * Self.capacity)
         previous = .allocate(capacity: max(1, voices) * Self.points)
@@ -56,9 +60,16 @@ public final class ChannelWaves {
         candidate.deallocate()
     }
 
-    /// Keeps a sample of a voice, so many samples on from the last `advance`.
+    /// Gives a voice a rate and a loudness of its own.
+    public func setVoice(_ voice: Int, rate: Double, fullSwing: Float) {
+        guard voice < voices else { return }
+        rates[voice] = rate
+        fullSwings[voice] = fullSwing
+    }
+
+    /// Keeps a sample of a voice, so many samples on from the last `advance` of it.
     @inline(__always) public func store(_ voice: Int, at offset: Int, _ value: Float) {
-        ring[voice &* Self.capacity &+ ((written &+ offset) & (Self.capacity &- 1))] = value
+        ring[voice &* Self.capacity &+ ((written[voice] &+ offset) & (Self.capacity &- 1))] = value
     }
 
     /// Keeps silence for a voice that is not playing, for so many samples on from the last `advance`.
@@ -66,9 +77,14 @@ public final class ChannelWaves {
         for offset in 0 ..< count { store(voice, at: offset, 0) }
     }
 
-    /// Moves on past samples that have been kept.
+    /// Moves every voice on past samples that have been kept.
     @inline(__always) public func advance(by count: Int) {
-        written &+= count
+        for voice in 0 ..< voices { written[voice] &+= count }
+    }
+
+    /// Moves one voice on past samples that have been kept: for a voice kept at a rate of its own.
+    @inline(__always) public func advance(_ voice: Int, by count: Int) {
+        written[voice] &+= count
     }
 
     /// A voice's sample at a place in what has been kept, between two of them if need be.
@@ -93,6 +109,7 @@ public final class ChannelWaves {
         }
         guard voice < voices else { return flat(scope) }
         let base = ring + voice * Self.capacity
+        let rate = rates[voice], fullSwing = fullSwings[voice], written = written[voice]
         let end = written - Int((Double(behind + ahead) * rate / Double(outputSampleRate)).rounded())
         var length: Double, span: Int
         if periodic, pitch > 0 {

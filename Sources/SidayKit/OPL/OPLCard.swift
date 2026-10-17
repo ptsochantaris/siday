@@ -24,6 +24,29 @@ final class OPLCard {
 
     /// How many of the chip's samples are still to be made before the next tick.
     var samplesLeft = 0
+    /// Where each channel's output is kept for its scope, at the chip's own rate, if it is wanted:
+    /// `wavesChannels` of the chip's channels, as voices from `wavesFrom` on (see `keepWaves`).
+    private var waves: ChannelWaves?
+    private var wavesFrom = 0, wavesChannels = 0
+    /// The chip's rate.
+    let rate: Double
+
+    /// Keeps the output of the first `channels` of the chip's channels for their scopes, in `waves`
+    /// as the voices from `first` on, at the chip's rate.
+    func keepWaves(in waves: ChannelWaves, first: Int, channels: Int) {
+        self.waves = waves
+        wavesFrom = first
+        wavesChannels = channels
+        for voice in first ..< first + channels { waves.setVoice(voice, rate: rate, fullSwing: 4000) }
+    }
+
+    @inline(__always) private func keepWaves() {
+        guard let waves else { return }
+        for ii in 0 ..< wavesChannels {
+            waves.store(wavesFrom + ii, at: 0, Float(chip.pointee.channelOutput(ii)))
+            waves.advance(wavesFrom + ii, by: 1)
+        }
+    }
     /// The chip's channels left out of the sound, a bit for each: kept here, since a reset makes the
     /// chip anew.
     private var muted: UInt32 = 0
@@ -31,6 +54,7 @@ final class OPLCard {
     /// - Parameter rate: how many samples a second the chip makes, which is what its clock makes it:
     ///   an OPL2's clock over 72, an OPL3's over 288. The usual clocks make the same.
     init(rate: Double = OPL3Chip.rate) {
+        self.rate = rate
         chip = .allocate(capacity: 1)
         chip.initialize(to: OPL3Chip())
         window = .allocate(capacity: 16)
@@ -92,6 +116,7 @@ final class OPLCard {
                 position -= 1 << 32
                 for i in 0 ..< 15 { window[i] = window[i + 1] }
                 var sample = Float(chip.pointee.OPL3_Generate().left) * (1.0 / 32768.0)
+                keepWaves()
                 steady = (sample * a0) + (steady * b1)
                 sample -= steady
                 window[15] = sample
@@ -133,6 +158,7 @@ final class OPLCard {
                     windowRight[i] = windowRight[i + 1]
                 }
                 let both = chip.pointee.OPL3_Generate()
+                keepWaves()
                 var left = Float(both.left) * (1.0 / 32768.0), right = Float(both.right) * (1.0 / 32768.0)
                 steady = (left * a0) + (steady * b1)
                 steadyRight = (right * a0) + (steadyRight * b1)

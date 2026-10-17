@@ -637,6 +637,15 @@ struct OPL3Chip: ~Copyable {
         return (mix0, mix1)
     }
 
+    /// What a channel puts out now, as the chip adds up its operators: for the channel's scope
+    /// (`ChannelWaves`), read after a sample has been made, so that the chip itself does nothing more.
+    /// A channel left out of the sound is told too. Its operators at their loudest swing about 4,000
+    /// either side of nothing.
+    func channelOutput(_ ii: Int) -> Int16 {
+        let out = (channel + ii).pointee.out
+        return Int16(bitPattern: UInt16(truncatingIfNeeded: Int32(out.0.pointee) + Int32(out.1.pointee) + Int32(out.2.pointee) + Int32(out.3.pointee)))
+    }
+
     /// One sample from each of the chip's four outputs. An OPL2's music comes out of the first two
     /// alike; the other two are the second pair of outputs the OPL3 has, which few cards connected.
     ///
