@@ -361,7 +361,7 @@ function heard(message) {
         shownPosition = message.position;
         shownFor = asked;
         // (One list and not two: handed two, the Swift side gets them the wrong way round.)
-        told = { position: message.position, bars: message.bars, voices: message.voices ?? [] };
+        told = { position: message.position, bars: message.bars, voices: message.voices ?? [], scopes: message.scopes ?? null };
         tell();
       }, seconds * 1000);
       break;
@@ -982,6 +982,49 @@ function drawn(now) {
   requestAnimationFrame(drawn);
   const canvas = document.querySelector("canvas.picture");
   if (canvas && !document.hidden) listeners?.frame(now / 1000, canvas.clientWidth, canvas.clientHeight);
+  if (!document.hidden) drawScopes();
+}
+
+// The scopes: each voice's wave as the engine sent it with the sound now being heard (see
+// `ChannelWaves`), 64 points a voice, drawn across its place in the colour of its lamp. Paused, or
+// with nothing heard yet, each is a flat line. A scope is drawn again only when there is something
+// new to draw in it.
+function drawScopes() {
+  const canvases = document.querySelectorAll("canvas.scope");
+  if (canvases.length === 0) return;
+  const scopes = silenced ? null : told?.scopes ?? null;
+  const ratio = window.devicePixelRatio || 1;
+  canvases.forEach((canvas, voice) => {
+    const width = Math.round(canvas.clientWidth * ratio), height = Math.round(canvas.clientHeight * ratio);
+    if (width === 0 || height === 0) return;
+    const cell = canvas.parentElement;
+    const look = `${width} ${height} ${cell.className}`;
+    if (canvas.drawnFrom === scopes && canvas.look === look) return;
+    canvas.drawnFrom = scopes;
+    canvas.look = look;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const pen = canvas.getContext("2d");
+    pen.clearRect(0, 0, width, height);
+    const colour = getComputedStyle(cell).getPropertyValue("--trace").trim() || "#ff4a30";
+    const margin = 4 * ratio, middle = height / 2, reach = height / 2 - margin;
+    pen.lineWidth = 1.5 * ratio;
+    pen.lineJoin = "round";
+    pen.strokeStyle = colour;
+    pen.shadowColor = colour;
+    pen.shadowBlur = 4 * ratio;
+    pen.beginPath();
+    for (let point = 0; point < 64; point++) {
+      const at = voice * 64 + point;
+      const value = scopes && at < scopes.length ? (scopes[at] - 128) / 127 : 0;
+      const x = margin + (point / 63) * (width - 2 * margin);
+      if (point === 0) pen.moveTo(x, middle - value * reach);
+      else pen.lineTo(x, middle - value * reach);
+    }
+    pen.stroke();
+  });
 }
 requestAnimationFrame(drawn);
 
@@ -1085,7 +1128,8 @@ Object.assign(globalThis, {
     keep("siday.away", names);
   },
   sidayRememberedHidden() {
-    // The picture to listen by is away until it is asked for.
+    // The picture to listen by is away until it is asked for. (So are the scopes, by a mark of their
+    // own, which holds for a listener who has been here before them too: see `Player.hidden`.)
     return kept("siday.away") ?? "picture";
   },
   sidayOutput(name, place) {

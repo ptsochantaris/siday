@@ -64,9 +64,9 @@ class SidayOutput extends AudioWorkletProcessor {
       if (!chunk) return true;
 
       // The page hears of each chunk as it begins to play: where the song has got to, and the
-      // spectrum analyser's bars and the voices' lights for it.
+      // spectrum analyser's bars and the voices' lights and scopes for it.
       if (this.offset === 0) {
-        this.port.postMessage({ type: "progress", serial: this.serial, position: chunk.position, bars: chunk.bars, voices: chunk.voices });
+        this.port.postMessage({ type: "progress", serial: this.serial, position: chunk.position, bars: chunk.bars, voices: chunk.voices, scopes: chunk.scopes });
       }
       // 1 throughout, or a ramp down to silence or up from it across this block.
       const from = this.audible ? 1 : 0, to = this.paused ? 0 : 1;

@@ -98,6 +98,10 @@ public protocol Renderer: AnyObject {
     /// moves in and out, a click at a time: the ZX Spectrum's beeper, the 8-bit Atari's console
     /// speaker. Nil if the tune has none.
     var speakerChannel: Int? { get }
+    /// Starts keeping what each voice sounds like, for its scope, and gives what it is kept in; nil
+    /// for a player that cannot. Kept from then on, at a little cost, so asked for only where
+    /// scopes are drawn.
+    func keepChannelWaves() -> ChannelWaves?
     /// Leaves voices out of the sound: a mark for each of the `channelCount`, true for one that is
     /// not to be heard, and none at all for every voice heard. A voice left out goes on playing: the
     /// tune is the same tune, note for note and to the same end, and what is said of the voice here
@@ -133,6 +137,7 @@ public extension Renderer {
     }
     var channelsAreSampled: Bool { false }
     var speakerChannel: Int? { nil }
+    func keepChannelWaves() -> ChannelWaves? { nil }
     func setMuted(_: [Bool]) {}
     func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
         let all = channelsAreSampled

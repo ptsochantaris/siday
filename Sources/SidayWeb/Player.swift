@@ -43,13 +43,18 @@ struct Marked {
 
 /// A part of the page that the listener can put away, and bring back.
 enum Part: String, CaseIterable {
-    case analyser, lights, picture, list
+    case analyser, lights, waves, picture, list
+
+    /// True for a part that is put away until the listener first asks for it: the scopes, which
+    /// are more than most want to see.
+    var startsHidden: Bool { self == .waves }
 
     /// What its button says it is.
     var title: String {
         switch self {
         case .analyser: "Spectrum analyser"
         case .lights: "A light for each voice"
+        case .waves: "A scope of each voice's wave"
         case .picture: "A picture to listen by"
         case .list: "List of tunes"
         }
@@ -147,7 +152,12 @@ final class Player {
     static let outputs = OutputStyle.allCases.filter { $0 != .acb }
     private(set) var shuffled = false
     /// The parts of the page that have been put away: at first, those that were on the last visit.
-    private(set) var hidden: [Part] = ((try? sidayRememberedHidden()) ?? "").split(separator: ",").compactMap { Part(rawValue: String($0)) }
+    /// What is remembered is the parts put away, and those of the parts that start put away that
+    /// were brought out, marked with a "+".
+    private(set) var hidden: [Part] = {
+        let words = ((try? sidayRememberedHidden()) ?? "").split(separator: ",").map { String($0) }
+        return Part.allCases.filter { $0.startsHidden ? !words.contains("+" + $0.rawValue) : words.contains($0.rawValue) }
+    }()
     /// The listener's settings (see `Setting`): a value for each, in the order of its cases. At
     /// first, what they were on the last visit.
     private(set) var settings = Player.rememberedSettings
@@ -723,7 +733,7 @@ final class Player {
     /// there to be shown: it is where tunes are added, and with none in it yet it says how.
     func has(_ part: Part) -> Bool {
         switch part {
-        case .analyser, .lights, .picture: current != nil && problem == nil
+        case .analyser, .lights, .waves, .picture: current != nil && problem == nil
         case .list: true
         }
     }
@@ -740,7 +750,10 @@ final class Player {
         } else {
             hidden.append(part)
         }
-        try? sidayHidden(hidden.map { $0.rawValue }.joined(separator: ","))
+        let words = Part.allCases.compactMap { part -> String? in
+            part.startsHidden ? (hidden.contains(part) ? nil : "+" + part.rawValue) : (hidden.contains(part) ? part.rawValue : nil)
+        }
+        try? sidayHidden(words.joined(separator: ","))
         // The list comes back where it was, or where it would have followed the tunes to since.
         if part == .list, shows(.list) { scrollList(to: listTop) }
     }

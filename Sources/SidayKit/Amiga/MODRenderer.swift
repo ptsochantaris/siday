@@ -112,6 +112,18 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// The voices left out of the sound, which a song started afresh is started without.
     private var muted: [Bool] = []
 
+    /// Where Paula keeps each voice's sound for its scope, at her own rate, once asked; a song
+    /// started afresh keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            waves = ChannelWaves(voices: 4, rate: Double(outputSampleRate * 2), fullSwing: 1)
+            replayer.paula.waves = waves
+        }
+        return waves
+    }
+
     public func setMuted(_ muted: [Bool]) {
         self.muted = muted
         replayer.paula.setMuted(muted)
@@ -124,6 +136,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         let song = songList[currentSubsong]
         replayer = ProTrackerReplayer(module, model: model, position: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number)
         replayer.paula.setMuted(muted)
+        replayer.paula.waves = waves
         down = (HalfBand(), HalfBand())
         tickFrames = 0
         tickPosition = 0
@@ -178,6 +191,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+        waves?.ahead = tickFrames - tickPosition
     }
 
     /// Paula's four voices.

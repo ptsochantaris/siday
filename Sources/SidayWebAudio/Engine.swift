@@ -67,6 +67,8 @@ final class WebPlayer {
     /// The voice that is the computer's own loudspeaker, if one is (`Renderer.speakerChannel`).
     private var speaker: Int?
     private(set) var voicesTaken: [UInt8] = []
+    /// Each voice's scope as the sound handed out so far ends: `ChannelWaves.points` bytes a voice.
+    private(set) var scopes: [UInt8] = []
     var voiceCount: Int { lights.count }
     /// The voices the listener has left out of the sound: a mark for each, true for one not to be
     /// heard, or none at all. A song is rendered whole and kept, so a change here is heard when
@@ -155,6 +157,7 @@ final class WebPlayer {
             session = TuneSession(renderer: renderer, policy: policy)
             following = false
         }
+        session?.keepChannelWaves()
         let key = SongLevel.key(digest: digest, song: song, options: options, policy: policy)
         if key != levelKey {
             levelKey = key
@@ -171,6 +174,7 @@ final class WebPlayer {
         sampled = lights
         speaker = renderer.speakerChannel
         voicesTaken = lights + lights + lights + sides + lights
+        scopes = [UInt8](repeating: 128, count: lights.count * ChannelWaves.points)
         settle()
         blockLength = 0
         blockCursor = 0
@@ -335,6 +339,14 @@ final class WebPlayer {
     func analyse() {
         spectrum.analyse()
         bars = (spectrum.levels + spectrum.caps).map { UInt8(max(0, min(255, $0 * 255))) }
+    }
+
+    /// Brings `scopes` up to the end of the sound handed out so far: the session has made the rest
+    /// of its block too, and that is not heard yet.
+    func takeScopes() {
+        guard let session, !scopes.isEmpty else { return }
+        let behind = blockLength - blockCursor
+        scopes.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: behind) }
     }
 
     /// Hands over what is known of the voices for the sound made since they were last taken, in `voicesTaken`.
@@ -577,6 +589,17 @@ public func sidaySpectrumBands() -> Int32 {
 public func sidayLights() -> UnsafePointer<UInt8>? {
     player.takeVoices()
     return player.voicesTaken.withUnsafeBufferPointer { $0.baseAddress }
+}
+
+/// Each voice's scope, as the sound rendered so far ends (see `ChannelWaves.take`): 64 bytes for each
+/// of the `siday_lights_count` voices, one voice after another, 128 for the middle, 1 at the bottom
+/// and 255 at the top. Flat for a tune whose player does not keep its voices' sound. Nil if there
+/// are no voices.
+@_expose(wasm, "siday_scopes")
+@_cdecl("siday_scopes")
+public func sidayScopes() -> UnsafePointer<UInt8>? {
+    player.takeScopes()
+    return player.scopes.withUnsafeBufferPointer { $0.baseAddress }
 }
 
 /// How many voices the loaded tune has lights for: an AY chip's three channels, a module's tracks.

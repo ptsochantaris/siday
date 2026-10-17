@@ -237,6 +237,37 @@ public final class TuneSession {
         }
     }
 
+    /// What each voice's sound is kept in for its scope, once asked for (`keepChannelWaves`).
+    private var waves: ChannelWaves?
+
+    /// Starts keeping what each voice sounds like, for its scope, if the player can. Returns
+    /// false if it cannot.
+    @discardableResult
+    public func keepChannelWaves() -> Bool {
+        if waves == nil { waves = renderer.keepChannelWaves() }
+        return waves != nil
+    }
+
+    /// Each voice's scope, as the sound given out was `behind` frames ago: `ChannelWaves.points`
+    /// bytes a voice, one voice after another, `renderer.channelCount` of them (see
+    /// `ChannelWaves.take`). Flat for every voice of a player that keeps none, and while a
+    /// silence that was played through to find whether the tune goes on is given out.
+    public func takeChannelWaves(into scopes: UnsafeMutablePointer<UInt8>, behind: Int) {
+        let count = renderer.channelCount
+        guard let waves, silenceAhead == 0 else {
+            scopes.update(repeating: 128, count: count * ChannelWaves.points)
+            return
+        }
+        // Where the sound after a silence is being given out, the player has made all of it already.
+        let unheard = soundAhead != nil ? soundAheadFrames - soundAheadGiven : 0
+        let speaker = renderer.speakerChannel
+        for voice in 0 ..< count {
+            let pitch = voice < channelPitches.count ? channelPitches[voice] : 0
+            let periodic = voice != speaker && !(voice < channelsSampled.count && channelsSampled[voice])
+            waves.take(voice, pitch: pitch, periodic: periodic, behind: behind + unheard, into: scopes + voice * ChannelWaves.points)
+        }
+    }
+
     /// Asks the renderer how loud its voices have been and what they are playing. Where some of the
     /// frames these are for came from somewhere else, each voice keeps the louder of what it has and
     /// what the renderer says, the later pitch and side, and a note struck in either.

@@ -113,11 +113,15 @@ struct Paula: ~Copyable {
             stepsLeft = 16
         }
 
-        /// Adds `count` samples of this voice to `output`.
+        /// Adds `count` samples of this voice to `output`, and keeps them in `waves` as voice `number`
+        /// if it is given.
         mutating func mix(into output: UnsafeMutablePointer<Float>, count: Int, _ memory: UnsafePointer<Int8>, _ size: Int,
-                          _ table: UnsafePointer<Float>)
+                          _ table: UnsafePointer<Float>, waves: ChannelWaves?, number: Int)
         {
-            guard active, location != -1, storedLocation != -1 else { return }
+            guard active, location != -1, storedLocation != -1 else {
+                waves?.silence(number, count: count)
+                return
+            }
             for j in 0 ..< count {
                 if nextSampleDue {
                     nextSampleDue = false
@@ -131,6 +135,7 @@ struct Paula: ~Copyable {
                     stepsLeft -= 1
                 }
                 if !muted { output[j] += sample }
+                waves?.store(number, at: j, sample)
                 phase += delta
                 if phase >= 1 {
                     phase -= 1
@@ -199,6 +204,9 @@ struct Paula: ~Copyable {
     }
 
     private var voices = InlineArray<4, Voice>(repeating: Voice())
+    /// Where each voice's sound is kept for its scope, before the voices are added together and
+    /// filtered, if it is wanted.
+    var waves: ChannelWaves?
     /// The memory the voices read their samples from, which is the module's and not Paula's.
     private let memory: UnsafePointer<Int8>
     private let memorySize: Int
@@ -349,10 +357,11 @@ struct Paula: ~Copyable {
         guard count > 0 else { return }
         left.update(repeating: 0, count: count)
         right.update(repeating: 0, count: count)
-        voices[0].mix(into: left, count: count, memory, memorySize, table)
-        voices[1].mix(into: right, count: count, memory, memorySize, table)
-        voices[2].mix(into: right, count: count, memory, memorySize, table)
-        voices[3].mix(into: left, count: count, memory, memorySize, table)
+        voices[0].mix(into: left, count: count, memory, memorySize, table, waves: waves, number: 0)
+        voices[1].mix(into: right, count: count, memory, memorySize, table, waves: waves, number: 1)
+        voices[2].mix(into: right, count: count, memory, memorySize, table, waves: waves, number: 2)
+        voices[3].mix(into: left, count: count, memory, memorySize, table, waves: waves, number: 3)
+        waves?.advance(by: count)
     }
 }
 

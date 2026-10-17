@@ -164,8 +164,8 @@ struct NowPlaying {
                     .bindValue(#Binding(player.volume))
             }
 
-            if !player.lights.isEmpty, player.shows(.lights) {
-                Lights(levels: player.lights, sampled: player.sampled, muted: player.muted)
+            if !player.lights.isEmpty, player.shows(.lights) || player.shows(.waves) {
+                Lights(levels: player.lights, sampled: player.sampled, muted: player.muted, lamps: player.shows(.lights), scopes: player.shows(.waves))
             }
         }
     }
@@ -357,24 +357,38 @@ struct Lights {
     /// Which the listener has muted: their lights are dimmed and have most of their colour taken
     /// out, and still flicker with what the voice is playing.
     var muted: [Bool]
+    /// Whether the lamps are shown, and whether each voice has a scope of its wave above its lamp, as
+    /// FastTracker 2 had above its patterns. With scopes the voices are a grid, of rows of up to
+    /// eight (four on a narrow screen), as even as they can be; the scopes are drawn by `Web/siday.js`.
+    var lamps = true
+    var scopes = false
 
     var body: some View {
-        div(.class("lights")) {
+        div(.class(scopes ? "lights scoped" : "lights"), .style(scopes ? ["--across": "\(Self.across(levels.count, 8))", "--across-narrow": "\(Self.across(levels.count, 4))"] : [:])) {
             ForEach(Array(levels.indices), key: { String($0) }) { index in
                 div(.class(name(index)), .title("Click to mute this voice or bring it back. Right-click, or press and hold, to hear it alone."),
                     .custom(name: "role", value: "button"), .custom(name: "tabindex", value: "0"),
                     .custom(name: "aria-label", value: "Voice \(index + 1)"), .custom(name: "aria-pressed", value: isMuted(index) ? "true" : "false")) {
-                    div(.class("glow"), .style(["opacity": "\(glow(levels[index]))", "transform": "scale(\(size(levels[index])))"])) {}
+                    if scopes { canvas(.class("scope")) {} }
+                    if lamps {
+                        div(.class("glow"), .style(["opacity": "\(glow(levels[index]))", "transform": "scale(\(size(levels[index])))"])) {}
+                    }
                 }
             }
         }
+    }
+
+    /// How many voices to a row, for rows of at most `most`, the rows as nearly the same as can be.
+    private static func across(_ count: Int, _ most: Int) -> Int {
+        let rows = max(1, (count + most - 1) / most)
+        return max(1, (count + rows - 1) / rows)
     }
 
     private func isMuted(_ index: Int) -> Bool { index < muted.count && muted[index] }
 
     private func name(_ index: Int) -> String {
         let kind = index < sampled.count ? sampled[index] : .chip
-        return "light" + (kind == .sample ? " sampled" : kind == .speaker ? " speaker" : "") + (isMuted(index) ? " muted" : "")
+        return "light" + (kind == .sample ? " sampled" : kind == .speaker ? " speaker" : "") + (isMuted(index) ? " muted" : "") + (lamps ? "" : " unlit")
     }
 
     /// A lamp at half its level is well under half as bright, so that a loud voice stands out from a

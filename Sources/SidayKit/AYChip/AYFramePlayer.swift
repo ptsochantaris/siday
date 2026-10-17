@@ -188,6 +188,15 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
                 let (l2, r2) = chip1.pointee.sample()
                 l += l2; r += r2
             }
+            if let waves {
+                for chip in 0 ..< chipCount {
+                    let (a, b, c) = chips[chip].channelOutputs()
+                    waves.store(chip * 3, at: 0, a)
+                    waves.store(chip * 3 + 1, at: 0, b)
+                    waves.store(chip * 3 + 2, at: 0, c)
+                }
+                waves.advance(by: 1)
+            }
             buffer[i * 2] = Float(l) * gain
             buffer[i * 2 + 1] = Float(r) * gain
         }
@@ -195,6 +204,15 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
     }
 
     public var channelCount: Int { chipCount * 3 }
+
+    /// Where each channel's output is kept for its scope, an output sample at a time, once asked.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        // A channel at its loudest goes between the bottom and the top of the DAC's table.
+        if waves == nil { waves = ChannelWaves(voices: chipCount * 3, rate: Double(outputSampleRate), fullSwing: 0.5) }
+        return waves
+    }
 
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for chip in 0 ..< chipCount { chips[chip].sides(into: sides + chip * 3) }

@@ -276,6 +276,18 @@ struct AYChip: ~Copyable {
         return (left, levelA * a.panRight + levelB * b.panRight + levelC * c.panRight)
     }
 
+    /// What each channel is putting out now, from its place in the DAC table: as `updateMixer` works
+    /// it out, without moving anything on. For the channels' scopes, so asked for only when they are
+    /// drawn, once an output sample, and not in the chip's own steps. (A muted channel is told too.)
+    func channelOutputs() -> (Float, Float, Float) {
+        let n = noise & 1, e = envelope
+        func out(_ ch: AYToneChannel) -> Float {
+            let index = (0 &- ((ch.tone | ch.toneOff) & (n | ch.noiseOff))) & (ch.envelopeOn ? e : ch.volume &* 2 &+ 1)
+            return Float(dac[unchecked: index])
+        }
+        return (out(a), out(b), out(c))
+    }
+
     /// Where each channel lies between the two sides, from -1 on the left to 1 on the right: where
     /// it is heard, if the chip is heard in stereo, and if it is not, where it would be the usual
     /// way round, the first channel on the left and the last on the right.

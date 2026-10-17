@@ -437,6 +437,7 @@ public final class AYFileRenderer: Renderer {
         position = Double(frameTStates)
         eventIndex = 0
         beeperLevel = 0
+        beeperUp = false
         firstFrame = true
     }
 
@@ -463,6 +464,7 @@ public final class AYFileRenderer: Renderer {
         if event.register == AYPortEvent.beeper {
             // Ay_Emul's sign: the speaker bit pulls the output down.
             beeperLevel = event.value != 0 ? beeperPull : 0
+            beeperUp = event.value != 0
         } else {
             chip.pointee.write(Int(event.register), event.value)
         }
@@ -521,6 +523,7 @@ public final class AYFileRenderer: Renderer {
                     let event = events[next]
                     if event.register == AYPortEvent.beeper {
                         beeper = event.value != 0 ? beeperPull : 0
+                        beeperUp = event.value != 0
                         moves &+= 1
                     } else {
                         chip.pointee.write(Int(event.register), event.value)
@@ -532,6 +535,14 @@ public final class AYFileRenderer: Renderer {
                 position += step
             } while !complete
             let (left, right) = chip.pointee.finishSample()
+            if let waves {
+                let (a, b, c) = chip.pointee.channelOutputs()
+                waves.store(0, at: 0, a)
+                waves.store(1, at: 0, b)
+                waves.store(2, at: 0, c)
+                waves.store(3, at: 0, beeperUp ? 1 : 0)
+                waves.advance(by: 1)
+            }
             buffer[i * 2] = Float(left) * gain
             buffer[i * 2 + 1] = Float(right) * gain
         }
@@ -560,6 +571,18 @@ public final class AYFileRenderer: Renderer {
     public var channelCount: Int { 4 }
     public var channelsAlwaysShown: Int { 0 }
     public var speakerChannel: Int? { 3 }
+
+    /// Where each channel's output, and the beeper's, is kept for its scope, an output sample at a
+    /// time, once asked; and whether the beeper is out, which its level does not say of one muted.
+    private var waves: ChannelWaves?
+    private var beeperUp = false
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        // A channel at its loudest goes between the bottom and the top of the DAC's table, and the
+        // beeper between in and out.
+        if waves == nil { waves = ChannelWaves(voices: 4, rate: Double(outputSampleRate), fullSwing: 0.5) }
+        return waves
+    }
 
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         chip.pointee.sides(into: sides)

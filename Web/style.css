@@ -104,6 +104,10 @@ button.view.lights {
   --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='2.6' cy='8' r='2.3'/%3E%3Ccircle cx='8' cy='8' r='2.3'/%3E%3Ccircle cx='13.4' cy='8' r='2.3'/%3E%3C/svg%3E");
 }
 
+button.view.waves {
+  --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M1.5 8 C3.5 1.5 5.5 1.5 6 8 S8.5 14.5 10.5 8 S13.5 1.5 14.5 8'/%3E%3C/svg%3E");
+}
+
 button.view.picture {
   --picture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='5.6' cy='10' r='4.6'/%3E%3Ccircle cx='11.6' cy='4.8' r='3'/%3E%3C/svg%3E");
 }
@@ -646,6 +650,81 @@ button:disabled {
     rgb(255 60 210 / 0.62) 37%, rgb(255 60 210 / 0.38) 42%, rgb(255 60 210 / 0.22) 48%,
     rgb(255 60 210 / 0.12) 54%, rgb(255 60 210 / 0.05) 61%, rgb(255 60 210 / 0) 70%
   );
+}
+
+/* With scopes, the voices are a grid, each a scope of its wave with its lamp under it, as the
+   channels of FastTracker 2 had theirs above its patterns. The wave is drawn in the colour of its
+   lamp (`--trace`), by Web/siday.js, on a dark ground of its own; the lamp is outside it, on the
+   panel, where lamps look best. Without the lamps, the scope has the whole of its place. */
+/* A scope is no wider than a few times its height, so that a tune of one voice or four has a row
+   of small pictures in the middle, and not a line across the panel to vie with the time bar. */
+.lights.scoped {
+  display: grid;
+  grid-template-columns: repeat(var(--across), minmax(0, 96px));
+  justify-content: center;
+  gap: 6px;
+  height: auto;
+  margin-top: 6px;
+}
+
+@media (max-width: 560px) {
+  .lights.scoped {
+    grid-template-columns: repeat(var(--across-narrow), minmax(0, 96px));
+  }
+}
+
+.lights.scoped .light {
+  --trace: #ff4a30;
+  aspect-ratio: auto;
+  height: 76px;
+  border-radius: 6px;
+}
+
+.lights.scoped .light.sampled {
+  --trace: #4a96ff;
+}
+
+.lights.scoped .light.speaker {
+  --trace: #ff5cd8;
+}
+
+.lights.scoped .light.unlit {
+  height: 50px;
+}
+
+.lights.scoped .light::before {
+  inset: auto auto 6px 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%);
+}
+
+.lights.scoped .light.unlit::before {
+  display: none;
+}
+
+.lights.scoped .glow {
+  inset: auto auto 0 50%;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+}
+
+canvas.scope {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: calc(100% - 28px);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--line);
+  pointer-events: none;
+}
+
+.lights.scoped .light.unlit canvas.scope {
+  height: 100%;
 }
 
 .fill {

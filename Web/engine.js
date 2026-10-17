@@ -240,7 +240,10 @@ function render() {
   // whether it is playing a sample.
   const voices = new Uint8Array(core.memory.buffer, taken, count * 5).slice();
   for (let voice = 0; voice < count; voice++) if (voices[voice] >= heard) shown[voice] = true;
-  kept.push({ samples, position: core.siday_position(), last, voices });
+  // And each voice's scope as the chunk ends: 64 points a voice.
+  const scoped = count > 0 ? core.siday_scopes() : 0;
+  const scopes = scoped ? new Uint8Array(core.memory.buffer, scoped, count * 64).slice() : null;
+  kept.push({ samples, position: core.siday_position(), last, voices, scopes });
   if (kept.mutes !== "" && whole) {
     // With voices left out, the song is as long as it is whole: no longer, whatever the module
     // went on to render, and its length the length that was found then.
@@ -325,7 +328,16 @@ function send() {
     for (let voice = 0; voice < shown.length; voice++) {
       if (shown[voice]) voices[lit.length + light++] = mask && mask[voice] ? 1 : 0;
     }
-    output.postMessage({ type: "chunk", serial, samples, position: chunk.position, bars, voices, last: chunk.last }, [samples.buffer]);
+    // The scopes of the voices that have a light, in the same order.
+    let scopes = null;
+    if (chunk.scopes) {
+      scopes = new Uint8Array(light * 64);
+      let place = 0;
+      for (let voice = 0; voice < shown.length; voice++) {
+        if (shown[voice]) scopes.set(chunk.scopes.subarray(voice * 64, voice * 64 + 64), 64 * place++);
+      }
+    }
+    output.postMessage({ type: "chunk", serial, samples, position: chunk.position, bars, voices, scopes, last: chunk.last }, [samples.buffer]);
     waiting++;
     if (chunk.last) sending = false;
   }
