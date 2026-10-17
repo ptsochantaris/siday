@@ -2110,3 +2110,40 @@ path: the file of the same name with the most folders above it named as the list
 
 It was checked on the 10,031 lists of that collection: every one of the 42,804 tunes they name
 is found, and all are played but five, which are in a format that is not (FLS).
+
+## M3U — the plainest playlists
+
+M3U, "MP3 URL", was made at Fraunhofer, the institute where MP3 itself was made, for WinPlay3, its
+player for Windows, by 1996. A list is the paths of its tunes, one to a line, from the folder the
+list is in or from the top of the disk, and nothing more. Players since have added lines that begin
+with `#`: `#EXTM3U` at the top, and `#EXTINF` before a tune with its length and the name to show for
+it. A plain `.m3u` is in the characters of the computer it was written on, a Windows code page more
+often than not, and M3U8 is the same list in Unicode, which is what Apple's streaming of video over
+the web was later built on.
+
+The lists that matter here come with the VGM packs of vgmrips.net. A pack is a game's music: a
+folder of its tunes, numbered, a text file of who wrote them and who made the pack, a picture from
+the game, and an M3U of the tunes in the order they come in the game, for a player to follow. Each
+of the 239 folders of the collection's PC packs has one, 261 in all, and some have several: the
+Lemmings packs have one for the series and one for each game, and the songs that AdLib sold for its
+card have one for each of its albums and juke boxes, thirteen in all.
+
+`PlaylistFile` reads one as it reads an AYL: the tunes, in order, and nothing else. A line that
+begins with `#` is passed over, `#EXTINF` with the rest, since a tune's name and length are read from
+its own file, and so is a line that is an address on the internet. The text is taken as Unicode if it
+is well formed as that, and otherwise as the characters of the Windows of the West, which is what the
+two lists of the packs that are not in Unicode are in. Its tunes are found as an AYL's are, on the
+command line and in a browser, and a folder that has lists in it is played by the same rules.
+
+One thing more is done for them. Three of the 4,672 tunes the packs' lists name are not there as the
+list writes them: The Secret of Monkey Island's list says "Mêlée Island", and the file is called
+"Mˆl‚e Island", and two of King's Quest II's have the same trouble. The names were written in the
+PC's own characters, in which ê and é are 0x88 and 0x82, and read later as those of Windows, in which
+the same numbers are ˆ and ‚. So where no file has a tune's name, even as Windows would compare it,
+the one file in its folder whose name is the same with every character that is not plain ASCII set
+aside, and a letter that an accent is written after along with the accent, is taken to be it. Where
+two files could be it, neither is.
+
+It was checked on all the packs' lists: every tune they name is found, all 4,369 tunes of the packs
+are played once, and each list's tunes are played together and in its order. Six of the lists have
+an order other than that of the tunes' names.

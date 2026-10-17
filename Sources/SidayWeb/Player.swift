@@ -258,7 +258,10 @@ final class Player {
             { [self] name, text in
                 // The file comes as a letter for each of its bytes.
                 let finder = finding.among
-                guard let list = PlaylistFile(text.unicodeScalars.map { UInt8(truncatingIfNeeded: $0.value) }) else { return "0 0" }
+                let letters = Array(name.utf8)
+                guard let stop = letters.lastIndex(of: 0x2E),
+                      let kind = PlaylistFile.Kind(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)),
+                      let list = PlaylistFile(text.unicodeScalars.map { UInt8(truncatingIfNeeded: $0.value) }, kind: kind) else { return "0 0" }
                 var named = 0
                 var lines: [String] = []
                 // (What a list names that is no kind of tune played here is passed over, and not looked for.)

@@ -3,12 +3,16 @@
 
 /// A playlist: a file that is not a tune but a list of tunes, to be played in the order it has them.
 ///
-/// The kind read is Ay_Emul's (AYL), which is text: a line that says what the file is, and then the
+/// Two kinds are read, both text. Ay_Emul's (AYL) is a line that says what the file is, and then the
 /// tunes, one to a line, each by its path from the folder the list is in, written as Windows writes
 /// one. A tune may be followed by what Ay_Emul knew about it, between a line that is `<` and a line
 /// that is `>`: its name and author, how long it is, the chip it is to be played on. Of those only
 /// the comment is kept, to be shown with the tune: the rest is what the tune's own file says, or what
 /// Ay_Emul needed to find a module inside a larger file, which is found here without being told.
+///
+/// The other is M3U, the plainest of all: a tune's path on each line, and lines that begin with `#`,
+/// which are about the list or the tune after them and are passed over (a tune's name and length are
+/// read from its own file). It is how the packs of VGM files give the order of a game's music.
 ///
 /// Like the rest of the library this reads no files. Whoever has the list finds its tunes: on a disk
 /// by following each path (`Entry.path`), and where files are known only by their names, as in a
@@ -43,21 +47,43 @@ public struct PlaylistFile: Sendable {
         }
     }
 
+    /// The kinds of playlist that are read.
+    public enum Kind: Sendable {
+        /// Ay_Emul's.
+        case ayl
+        /// The plain list of paths that players on every kind of computer read and write, M3U, and
+        /// M3U8, which is the same in Unicode.
+        case m3u
+
+        /// The kind of playlist a file of this extension, in any case, is; nil if it is none.
+        public init?(fileExtension: String) {
+            switch fileExtension.lowercased() {
+            case "ayl": self = .ayl
+            case "m3u", "m3u8": self = .m3u
+            default: return nil
+            }
+        }
+    }
+
     public private(set) var entries: [Entry] = []
 
     /// True if a file of this extension, in any case, is a playlist.
     public static func reads(fileExtension: String) -> Bool {
-        fileExtension.lowercased() == "ayl"
+        Kind(fileExtension: fileExtension) != nil
     }
 
     /// What every list begins with, before the number of the version of the format it is in.
     private static let heading = Array("ZX Spectrum Sound Chip Emulator Play List File".utf8)
     private static let comment = Array("Comment=".utf8)
 
-    /// The list in a file's bytes; nil if they are not a list.
-    public init?(_ data: [UInt8]) {
+    /// The list in a file's bytes; nil if they are not a list of that kind.
+    public init?(_ data: [UInt8], kind: Kind = .ayl) {
         var data = data[...]
         if data.starts(with: [0xEF, 0xBB, 0xBF]) { data = data.dropFirst(3) }
+        if kind == .m3u {
+            readM3U(data)
+            return
+        }
         // A list is in Unicode, or, if it is an old one from Russia, as most are, in the Cyrillic of
         // the Windows of its day. Which, is decided for the whole of it.
         let unicode = Self.isUnicode(data)
@@ -84,6 +110,26 @@ public struct PlaylistFile: Sendable {
                 guard !parts.isEmpty, !line.allSatisfy({ $0 == 0x20 || $0 == 0x09 }) else { continue }
                 entries.append(Entry(path: parts, absolute: line.first == 0x2F || line.first == 0x5C))
             }
+        }
+    }
+
+    /// The tunes of an M3U list: every line that is not empty, nor a remark, nor the address of
+    /// something on the internet. (M3U came with a player for Windows, WinPlay3, and an M3U file is
+    /// in the characters of the computer that wrote it: in Unicode, if it is well formed as that,
+    /// and otherwise taken to be in those of the Windows of the West, as the lists in VGM packs are.)
+    private mutating func readM3U(_ data: ArraySlice<UInt8>) {
+        let unicode = Self.isUnicode(data)
+        for raw in data.split(separator: 0x0A) {
+            var line = raw[...]
+            while let last = line.last, last == 0x0D || last == 0x20 || last == 0x09 { line = line.dropLast() }
+            while let first = line.first, first == 0x20 || first == 0x09 { line = line.dropFirst() }
+            guard let first = line.first, first != 0x23 else { continue } // #
+            if line.indices.dropLast(2).contains(where: { line[$0] == 0x3A && line[$0 + 1] == 0x2F && line[$0 + 2] == 0x2F }) { continue } // ://
+            let parts = line.split(whereSeparator: { $0 == 0x2F || $0 == 0x5C }).map { part in
+                unicode ? String(decoding: part, as: UTF8.self) : TextEncoding.windows1252.decode(part) ?? TextEncoding.latin1.decode(part) ?? ""
+            }.filter { $0 != "." }
+            guard !parts.isEmpty else { continue }
+            entries.append(Entry(path: parts, absolute: first == 0x2F || first == 0x5C))
         }
     }
 
@@ -131,50 +177,90 @@ public struct PlaylistFile: Sendable {
         return bytes
     }
 
+    /// A name as it is compared when no file has it as `plain` has it: with only the letters of
+    /// English, the figures and the signs a typewriter has, so that an accented letter is set aside,
+    /// as written whole or as a letter and its accent, and so is whatever it was turned into on the way
+    /// from one computer to another. (The music of The Secret of Monkey Island in its VGM pack has
+    /// a list that says "Mêlée Island", and a file named "Mˆl‚e Island": the name was written in the
+    /// PC's own characters, and read as those of Windows.)
+    public static func loose(_ name: String) -> [UInt8] {
+        var bytes: [UInt8] = []
+        var accentable = false
+        for scalar in name.lowercased().unicodeScalars {
+            if scalar.value < 0x80 {
+                bytes.append(UInt8(scalar.value))
+                accentable = (0x61 ... 0x7A).contains(scalar.value)
+            } else if (0x300 ... 0x36F).contains(scalar.value) {
+                if accentable { bytes.removeLast() }
+                accentable = false
+            } else {
+                accentable = false
+            }
+        }
+        while bytes.count > 1, bytes.last == 0x2E || bytes.last == 0x20 { bytes.removeLast() }
+        return bytes
+    }
+
     // MARK: Finding
 
     /// Finds a list's tunes among files that are known only by their paths, and not on a disk that can
     /// be looked through: the files a browser has been given. Where the list itself was among them is
     /// not known, and nor is how much of the disk they came with, so a tune is found by the end of its
     /// path: it is the file whose name is the same and which has the most folders above it of the same
-    /// names as the list gives, and the first of those if there are several.
+    /// names as the list gives, and the first of those if there are several. Where no file has the
+    /// name, one whose name is the same when compared `loose` is it.
     public struct Finder: Sendable {
         private let paths: [String]
-        /// The places in `paths` of the files of each name.
+        /// The places in `paths` of the files of each name, and of each name as it is compared loosely.
         private var named: [[UInt8]: [Int]] = [:]
+        private var loosely: [[UInt8]: [Int]] = [:]
 
         /// - Parameter paths: each file by its path, with a stroke between folders.
         public init(_ paths: [String]) {
             self.paths = paths
             for (place, path) in paths.enumerated() {
-                guard let file = Self.parts(path).last else { continue }
-                named[file, default: []].append(place)
+                guard let file = path.utf8.split(separator: 0x2F).last.map({ String(decoding: Array($0), as: UTF8.self) }) else { continue }
+                named[PlaylistFile.plain(file), default: []].append(place)
+                loosely[PlaylistFile.loose(file), default: []].append(place)
             }
         }
 
-        private static func parts(_ path: String) -> [[UInt8]] {
-            path.utf8.split(separator: 0x2F).map { PlaylistFile.plain(String(decoding: Array($0), as: UTF8.self)) }
+        /// A path's steps as they are compared: the file's own name loosely if `loose`.
+        private static func parts(_ path: [String], loose: Bool = false) -> [[UInt8]] {
+            path.indices.map { loose && $0 == path.count - 1 ? PlaylistFile.loose(path[$0]) : PlaylistFile.plain(path[$0]) }
+        }
+
+        private static func parts(_ path: String, loose: Bool = false) -> [[UInt8]] {
+            parts(path.utf8.split(separator: 0x2F).map { String(decoding: Array($0), as: UTF8.self) }, loose: loose)
+        }
+
+        /// The files a name can be, and whether they are of that name only loosely.
+        private func candidates(_ file: String) -> (places: [Int], loose: Bool)? {
+            if let places = named[PlaylistFile.plain(file)] { return (places, false) }
+            return loosely[PlaylistFile.loose(file)].map { ($0, true) }
         }
 
         /// The place of the file a list's entry means when it is a tune beside the list or below it,
         /// and where the list itself is among the paths is known: the file at just that path. Nil
-        /// if the entry is of a tune somewhere else, or there is no such file.
+        /// if the entry is of a tune somewhere else, or there is no such file. (Of a name that is the
+        /// same only loosely, there must be no other file at that place that it could be.)
         public func place(of entry: Entry, besideList list: String) -> Int? {
-            guard !entry.absolute, !entry.path.contains("..") else { return nil }
-            let wanted = Self.parts(list).dropLast() + entry.path.map { PlaylistFile.plain($0) }
-            guard let file = wanted.last, let candidates = named[file] else { return nil }
-            return candidates.first { Self.parts(paths[$0]).elementsEqual(wanted) }
+            guard !entry.absolute, !entry.path.contains(".."), let file = entry.path.last, let (places, loose) = candidates(file) else { return nil }
+            let wanted = Self.parts(list).dropLast() + Self.parts(entry.path, loose: loose)
+            let found = places.filter { Self.parts(paths[$0], loose: loose).elementsEqual(wanted) }
+            return loose && found.count > 1 ? nil : found.first
         }
 
         /// The place, in the paths this was made with, of the file a list's entry means; nil if none
         /// of them is it.
         public func place(of entry: Entry) -> Int? {
-            let wanted = entry.path.filter { $0 != ".." }.map { PlaylistFile.plain($0) }
-            guard let file = wanted.last, let candidates = named[file] else { return nil }
+            let path = entry.path.filter { $0 != ".." }
+            guard let file = path.last, let (places, loose) = candidates(file) else { return nil }
+            let wanted = Self.parts(path, loose: loose)
             var best: Int?
             var most = 0
-            for candidate in candidates {
-                let has = Self.parts(paths[candidate])
+            for candidate in places {
+                let has = Self.parts(paths[candidate], loose: loose)
                 var same = 0
                 while same < wanted.count, same < has.count, wanted[wanted.count - 1 - same] == has[has.count - 1 - same] { same += 1 }
                 if same > most {

@@ -23,7 +23,7 @@ struct Siday: ParsableCommand {
         Keys while playing: space pause · n or → next · p or ← previous · + and - subsong · i the format's story · q quit.
         Each voice of a tune has a light on the status line. 1 to 9, and 0 for the tenth, leave a voice out or bring it back; [ and ] choose one, m leaves it out or brings it back, and s plays it alone (s again brings the others back). A voice left out goes on playing, unheard, and the tune is as long as it is whole. Every tune starts with all its voices.
         Folders are searched recursively. The files are only ever read.
-        A playlist (Ay_Emul's AYL) plays the tunes it names, in its order. In a folder, the playlists add only the tunes the folder does not itself hold.
+        A playlist (Ay_Emul's AYL, or an M3U) plays the tunes it names, in its order. In a folder, the playlists add only the tunes the folder does not itself hold.
         """
     )
 

@@ -36,7 +36,8 @@ struct Scanner {
             if !note.isEmpty, result.notes[url] == nil { result.notes[url] = note }
         }
         func playlist(_ url: URL) -> PlaylistFile? {
-            (try? Data(contentsOf: url)).flatMap { PlaylistFile([UInt8]($0)) }
+            guard let kind = PlaylistFile.Kind(fileExtension: url.pathExtension) else { return nil }
+            return (try? Data(contentsOf: url)).flatMap { PlaylistFile([UInt8]($0), kind: kind) }
         }
         for path in paths {
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
@@ -125,7 +126,9 @@ struct Scanner {
 
     /// The file a playlist's entry means, if it is there. The lists were made on Windows, to which
     /// capitals and small letters in a name are the same, and a full stop at a name's end is nothing:
-    /// if there is no file where the entry says, each step of its path is looked for as Windows would.
+    /// if there is no file where the entry says, each step of its path is looked for as Windows would,
+    /// and then, if there is still none, as the one name in its folder that is the same compared
+    /// `PlaylistFile.loose`.
     static func find(_ entry: PlaylistFile.Entry, from folder: URL) -> URL? {
         let manager = FileManager.default
         let direct = written(entry, from: folder)
@@ -138,8 +141,10 @@ struct Scanner {
             } else if manager.fileExists(atPath: url.appendingPathComponent(part).path) {
                 url = url.appendingPathComponent(part)
             } else {
-                let wanted = PlaylistFile.plain(part)
-                guard let named = (try? manager.contentsOfDirectory(atPath: url.path))?.first(where: { PlaylistFile.plain($0) == wanted }) else { return nil }
+                let here = (try? manager.contentsOfDirectory(atPath: url.path)) ?? []
+                let wanted = PlaylistFile.plain(part), loosely = PlaylistFile.loose(part)
+                let alike = here.filter { PlaylistFile.loose($0) == loosely }
+                guard let named = here.first(where: { PlaylistFile.plain($0) == wanted }) ?? (alike.count == 1 ? alike[0] : nil) else { return nil }
                 url = url.appendingPathComponent(named)
             }
         }

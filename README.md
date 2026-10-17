@@ -38,8 +38,8 @@ Each of these was set beside a reference player, most of them to the sample:
 What is not played, and what is played with something missing, is under
 [Playback caveats](#playback-caveats).
 
-A playlist in Ay_Emul's AYL format plays the tunes it names, in its order, whatever kinds of tune
-they are.
+A playlist, in Ay_Emul's AYL format or an M3U such as the VGM packs come with, plays the tunes it
+names, in its order, whatever kinds of tune they are.
 
 ## In a browser
 
@@ -113,7 +113,7 @@ siday <files, folders or playlists…>
 
 Folders are searched recursively and files are recognised by extension. The files are only ever read.
 
-A playlist (an AYL file) is played as it is written: the tunes it names, in its order, and under
+A playlist (an AYL or M3U file) is played as it is written: the tunes it names, in its order, and under
 each what the list says about it, if it says anything. In a folder, the tunes are played in the
 order of their names, and a playlist is the order of the tunes beside it and below it: those are
 played where the list is, as it has them. The tunes a list names from somewhere else are added

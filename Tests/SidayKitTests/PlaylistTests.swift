@@ -92,3 +92,48 @@ private func list(_ lines: [String], version: String = "1.6") -> [UInt8] {
     #expect(beside("music/Authors/Alos/link.ayl", ["..", "Davos", "Girl.pt2"]) == nil)
     #expect(PlaylistFile.Finder([]).place(of: PlaylistFile.Entry(path: ["Girl.pt2"])) == nil)
 }
+
+@Test func m3uNamesItsTunesInItsOrder() throws {
+    let text = "#EXTM3U\r\n#EXTINF:123,A Game - Title\r\n01 Title.vgz\r\n\r\n  sub\\02 Level.vgm \r\n./03 End.vgz\r\nhttp://example.com/04.vgz\r\n/music/05 Elsewhere.vgz"
+    let playlist = try #require(PlaylistFile(Array(text.utf8), kind: .m3u))
+    #expect(playlist.entries.map(\.path) == [["01 Title.vgz"], ["sub", "02 Level.vgm"], ["03 End.vgz"], ["music", "05 Elsewhere.vgz"]])
+    #expect(playlist.entries.map(\.absolute) == [false, false, false, true])
+    #expect(playlist.entries.allSatisfy { $0.note.isEmpty })
+    // Not in Unicode: in the characters of the Windows of the West; and in Unicode, with or without its mark.
+    #expect(PlaylistFile(Array("05 M".utf8) + [0xEA, 0x6C, 0xE9, 0x65] + Array(" Island.vgz\r\n".utf8), kind: .m3u)?.entries.first?.path == ["05 Mêlée Island.vgz"])
+    #expect(PlaylistFile([0xEF, 0xBB, 0xBF] + Array("Mêlée.vgz\n".utf8), kind: .m3u)?.entries.first?.path == ["Mêlée.vgz"])
+    #expect(PlaylistFile([], kind: .m3u)?.entries.isEmpty == true)
+    // An M3U is not an AYL, nor the other way round.
+    #expect(PlaylistFile(Array(text.utf8)) == nil)
+    #expect(PlaylistFile.Kind(fileExtension: "M3U") == .m3u)
+    #expect(PlaylistFile.Kind(fileExtension: "m3u8") == .m3u)
+    #expect(PlaylistFile.Kind(fileExtension: "ayl") == .ayl)
+    #expect(PlaylistFile.Kind(fileExtension: "vgz") == nil)
+    var noise = Array(text.utf8)
+    for cut in 0 ... noise.count { _ = PlaylistFile(Array(noise[..<cut]), kind: .m3u) }
+    for value in 0 ... 255 {
+        noise[30 + value % 20] = UInt8(value)
+        _ = PlaylistFile(noise, kind: .m3u)
+    }
+}
+
+@Test func aNameTurnedIntoOtherCharactersIsFoundLoosely() {
+    // What a VGM pack's list calls "Mêlée", and its file, named in the PC's characters read as Windows'.
+    #expect(PlaylistFile.loose("05 Mêlée Island.vgz") == PlaylistFile.loose("05 Mˆl‚e Island.vgz"))
+    // An accent written after its letter is set aside with the letter, as one written with it is.
+    #expect(PlaylistFile.loose("Me\u{0302}le\u{0301}e.vgz") == PlaylistFile.loose("Mêlée.vgz"))
+    #expect(PlaylistFile.loose("Treulich geführt.VGZ") == PlaylistFile.loose("treulich gef\u{FFFD}hrt.vgz"))
+    let finder = PlaylistFile.Finder([
+        "VGM/Monkey/05 Mˆl‚e Island.vgz",
+        "VGM/Monkey/06 Melee Island.vgz",
+        "VGM/Quest/14 Wedding (Treulich gef\u{FFFD}hrt).vgz",
+        "VGM/Twice/A\u{2591}.vgz",
+        "VGM/Twice/A\u{2592}.vgz",
+    ])
+    #expect(finder.place(of: PlaylistFile.Entry(path: ["05 Mêlée Island.vgz"]), besideList: "VGM/Monkey/Monkey.m3u") == 0)
+    #expect(finder.place(of: PlaylistFile.Entry(path: ["06 Melee Island.vgz"]), besideList: "VGM/Monkey/Monkey.m3u") == 1)
+    #expect(finder.place(of: PlaylistFile.Entry(path: ["14 Wedding (Treulich geführt).vgz"])) == 2)
+    #expect(finder.place(of: PlaylistFile.Entry(path: ["05 Mêlée Island.vgz"]), besideList: "VGM/Quest/Quest.m3u") == nil)
+    // Two files it could be, and it is neither.
+    #expect(finder.place(of: PlaylistFile.Entry(path: ["Aé.vgz"]), besideList: "VGM/Twice/Twice.m3u") == nil)
+}
