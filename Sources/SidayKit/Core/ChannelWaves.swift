@@ -104,7 +104,9 @@ public final class ChannelWaves {
     /// - Parameters:
     ///   - pitch: the voice's pitch, as `ChannelPitch` gives it; 0 for none.
     ///   - periodic: true if that pitch is the pitch of its wave.
-    public func take(_ voice: Int, pitch: Float, periodic: Bool, behind: Int, into scope: UnsafeMutablePointer<UInt8>) {
+    ///   - loudness: what the sound is turned down by as it is heard, as at a tune's fade, by which the
+    ///     scope is made smaller as its light is made dimmer.
+    public func take(_ voice: Int, pitch: Float, periodic: Bool, behind: Int, loudness: Float = 1, into scope: UnsafeMutablePointer<UInt8>) {
         let flat = { (scope: UnsafeMutablePointer<UInt8>) in
             scope.update(repeating: 128, count: Self.points)
             self.shown[voice] = false
@@ -132,14 +134,18 @@ public final class ChannelWaves {
         // What is wanted has to be what is still kept (and has been kept at all).
         guard first > written - Self.capacity, first >= 0 else { return flat(scope) }
 
+        // How far the wave goes over the latest of it, as much as the scope shows: that decides how
+        // tall the scope is, and whether it is flat at all, so that a note that ended before then is
+        // not shown, as its light is out. (The scope may begin a little earlier than that, to stand
+        // still; what it shows from there is held to its height.)
         var low = Float.greatestFiniteMagnitude, high = -Float.greatestFiniteMagnitude
-        for place in first ..< end {
+        for place in end - Int(length.rounded(.up)) ..< end {
             let value = base[place & (Self.capacity - 1)]
             low = min(low, value)
             high = max(high, value)
         }
         let half = (high - low) / 2
-        guard half > fullSwing * 0.002 else { return flat(scope) }
+        guard half * loudness > fullSwing * 0.002 else { return flat(scope) }
         let middle = (low + high) / 2
         let step = length / Double(Self.points)
 
@@ -170,7 +176,7 @@ public final class ChannelWaves {
             start -= 1
         }
 
-        let size = Float(min(1, half / fullSwing)).squareRoot()
+        let size = Float(min(1, half * loudness / fullSwing)).squareRoot()
         let was = previous + voice * Self.points
         for point in 0 ..< Self.points {
             let value = max(-1, min(1, (sample(base, at: Double(best) + Double(point) * step, before: end) - middle) / half))

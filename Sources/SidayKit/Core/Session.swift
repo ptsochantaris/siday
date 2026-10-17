@@ -239,6 +239,9 @@ public final class TuneSession {
 
     /// What each voice's sound is kept in for its scope, once asked for (`keepChannelWaves`).
     private var waves: ChannelWaves?
+    /// What the sound last rendered was turned down by at a fade: the lights are dimmed by it, and
+    /// the scopes made smaller.
+    private var heardGain: Float = 1
 
     /// Starts keeping what each voice sounds like, for its scope, if the player can. Returns
     /// false if it cannot.
@@ -264,7 +267,7 @@ public final class TuneSession {
         for voice in 0 ..< count {
             let pitch = voice < channelPitches.count ? channelPitches[voice] : 0
             let periodic = voice != speaker && !(voice < channelsSampled.count && channelsSampled[voice])
-            waves.take(voice, pitch: pitch, periodic: periodic, behind: behind + unheard, into: scopes + voice * ChannelWaves.points)
+            waves.take(voice, pitch: pitch, periodic: periodic, behind: behind + unheard, loudness: heardGain, into: scopes + voice * ChannelWaves.points)
         }
     }
 
@@ -336,6 +339,7 @@ public final class TuneSession {
             if framesRendered >= script.fadeStart {
                 let gain = max(0, 1 - Float(framesRendered - script.fadeStart) / Float(max(1, script.fadeFrames)))
                 for voice in channelLevels.indices { channelLevels[voice] *= gain }
+                heardGain = gain
             }
         }
         framesRendered += produced
@@ -344,6 +348,7 @@ public final class TuneSession {
     }
 
     public func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) -> Int {
+        heardGain = 1
         guard !finished else { return 0 }
         if let script { return follow(script, into: buffer, frames: frames) }
         next(into: buffer, frames: frames)
@@ -408,9 +413,10 @@ public final class TuneSession {
                 buffer[i * 2] *= gain
                 buffer[i * 2 + 1] *= gain
             }
-            // The lights fade with the sound.
+            // The lights fade with the sound, and the scopes with them.
             let gain = max(0, 1 - Float(framesRendered - fadeStart) / Float(fadeFrames))
             for voice in channelLevels.indices { channelLevels[voice] *= gain }
+            heardGain = gain
         }
         framesRendered += produced
         if endsAfterBlock, !finished { end = .completed }

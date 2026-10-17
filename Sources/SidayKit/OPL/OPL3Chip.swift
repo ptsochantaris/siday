@@ -669,8 +669,8 @@ struct OPL3Chip: ~Copyable {
             mix1 += Int32(Int16(bitPattern: accm & channel.pointee.chc))
             let level = Int16(bitPattern: accm)
             heard[unchecked: ii] = level
-            if level < lows[unchecked: ii] { lows[unchecked: ii] = level }
-            if level > highs[unchecked: ii] { highs[unchecked: ii] = level }
+            lows[unchecked: ii] = min(lows[unchecked: ii], level)
+            highs[unchecked: ii] = max(highs[unchecked: ii], level)
         }
         if muted != 0 { // MUTE
             let unheard = mutedPart(of: channels, second: false)

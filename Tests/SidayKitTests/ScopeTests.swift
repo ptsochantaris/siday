@@ -174,3 +174,27 @@ private final class HeldOpen: AYFrameSource {
     scopes.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
     #expect(scopes[0 ..< 64].allSatisfy { $0 == 128 })
 }
+
+@Test func aScopeIsSmallerAsTheSoundFades() {
+    let waves = ChannelWaves(voices: 1, rate: 48000, fullSwing: 1)
+    for offset in 0 ..< 4000 { waves.store(0, at: offset, offset % 100 < 50 ? 1 : -1) }
+    waves.advance(by: 4000)
+    var scope = [UInt8](repeating: 0, count: ChannelWaves.points)
+    let note = ChannelPitch.note(ofHz: 480)
+    // A quarter as loud, as a fade has it, is half as tall, as the light is dimmed.
+    scope.withUnsafeMutableBufferPointer { waves.take(0, pitch: note, periodic: true, behind: 0, loudness: 0.25, into: $0.baseAddress!) }
+    #expect(abs(height(scope[...]) - 64) <= 1)
+    scope.withUnsafeMutableBufferPointer { waves.take(0, pitch: note, periodic: true, behind: 0, loudness: 0, into: $0.baseAddress!) }
+    #expect(scope.allSatisfy { $0 == 128 })
+}
+
+@Test func aNoteThatHasEndedIsNotShown() {
+    // A sample voice (shown as the last fiftieth of a second, 960 samples) that stopped 1,000
+    // samples ago: the scope could have begun before then, but what it would show is over.
+    let waves = ChannelWaves(voices: 1, rate: 48000, fullSwing: 1)
+    for offset in 0 ..< 4000 { waves.store(0, at: offset, offset < 3000 ? (offset % 100 < 50 ? 1 : -1) : 0) }
+    waves.advance(by: 4000)
+    var scope = [UInt8](repeating: 0, count: ChannelWaves.points)
+    scope.withUnsafeMutableBufferPointer { waves.take(0, pitch: 0, periodic: false, behind: 0, into: $0.baseAddress!) }
+    #expect(scope.allSatisfy { $0 == 128 })
+}
