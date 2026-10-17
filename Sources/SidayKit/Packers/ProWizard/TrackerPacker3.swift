@@ -54,7 +54,7 @@ enum TrackerPacker3 {
     /// Unpacks a file of Tracker Packer 3's. (`depack_tp3` and `depack_tp23`)
     static func depack(_ input: inout PackedReader, _ output: inout ModuleWriter) throws(TuneError) {
         // The title, as it is.
-        input.seekForgettingTheEnd(input.position + 8)
+        input.seek(input.position + 8)
         output.move(20, from: &input)
 
         // The samples, which have no names. (The C keeps their number in a byte.)
@@ -112,7 +112,7 @@ enum TrackerPacker3 {
             var unpacked = [UInt8](repeating: 0, count: 1024)
             for voice in 0 ..< 4 {
                 // (A seek forgets a read past the end of the file, and so does each one here.)
-                input.seekForgettingTheEnd(tracksAt + tracks[pattern * 4 + voice])
+                input.seek(tracksAt + tracks[pattern * 4 + voice])
                 var line = 0
                 while line >= 0 && line < 64 {
                     let at = line * 16 + voice * 4
@@ -166,7 +166,7 @@ enum TrackerPacker3 {
 
         // The samples, after the furthest of those, on an even byte.
         if furthest & 0x01 != 0 { furthest += 1 }
-        input.seekForgettingTheEnd(furthest)
+        input.seek(furthest)
         output.move(sampleBytes, from: &input)
     }
 
@@ -175,14 +175,5 @@ enum TrackerPacker3 {
     private static func slide(_ command: UInt8, _ parameter: UInt8) -> UInt8 {
         guard command == 0x05 || command == 0x06 || command == 0x0A else { return parameter }
         return parameter > 0x80 ? 0 &- parameter : parameter << 4 & 0xF0
-    }
-}
-
-fileprivate extension PackedReader {
-    /// Goes to a place in the file, and forgets that the file was read past its end, as libxmp's
-    /// seek does on success. (`hio_seek`)
-    mutating func seekForgettingTheEnd(_ place: Int) {
-        self = PackedReader(data)
-        seek(place)
     }
 }

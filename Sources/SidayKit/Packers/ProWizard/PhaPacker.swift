@@ -134,7 +134,7 @@ enum PhaPacker {
         // The patterns' notes, read for as many patterns as there are; which is more than the file
         // has if the last of them is short, and the C forgets that it read past the end.
         let samplesAt = input.position
-        input.seekForgettingTheEnd(patternsAt)
+        input.seek(patternsAt)
         let packed = input.read(patterns * 1024)
         let packedCount = packed.count
         let unpackedCount = patterns * 1024
@@ -184,16 +184,7 @@ enum PhaPacker {
         output.write(unpacked)
 
         // The samples, as they are.
-        input.seekForgettingTheEnd(samplesAt)
+        input.seek(samplesAt)
         output.move(sampleBytes, from: &input)
-    }
-}
-
-fileprivate extension PackedReader {
-    /// Goes to a place in the file, and forgets that the file was read past its end, as libxmp's
-    /// seek does on success. (`hio_seek`)
-    mutating func seekForgettingTheEnd(_ place: Int) {
-        self = PackedReader(data)
-        seek(place)
     }
 }

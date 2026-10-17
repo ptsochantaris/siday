@@ -48,7 +48,7 @@ enum ProRunner {
 
         // The patterns: each note is the instrument's number, the note's number in ProTracker's
         // table, the command, and its parameter.
-        input.seekForgettingTheEnd(1084)
+        input.seek(1084)
         for _ in 0 ... Int(highest) {
             for _ in 0 ..< 256 {
                 let instrument = input.read8()
@@ -87,7 +87,7 @@ enum ProRunner {
     static func depack2(_ input: inout PackedReader, _ output: inout ModuleWriter) throws(TuneError) {
         // No title, and the samples have no names.
         output.writeZero(20)
-        input.seekForgettingTheEnd(8)
+        input.seek(8)
         var sampleBytes = 0
         for _ in 0 ..< 31 {
             output.writeZero(22)
@@ -114,7 +114,7 @@ enum ProRunner {
         // or three bytes: the note's number in ProTracker's table times two, with the lowest bit of
         // the instrument's number; the rest of the instrument and the command; and the parameter.
         var last = [UInt8](repeating: 0, count: 16)
-        input.seekForgettingTheEnd(770)
+        input.seek(770)
         for _ in 0 ... Int(highest) {
             for line in 0 ..< 256 {
                 let voice = line & 3
@@ -149,14 +149,5 @@ enum ProRunner {
     /// buffer cleared beforehand leaves it.
     private static func padded(_ bytes: [UInt8], to count: Int) -> [UInt8] {
         bytes.count < count ? bytes + [UInt8](repeating: 0, count: count - bytes.count) : bytes
-    }
-}
-
-fileprivate extension PackedReader {
-    /// Goes to a place in the file, and forgets that the file was read past its end, as libxmp's
-    /// seek does on success. (`hio_seek`)
-    mutating func seekForgettingTheEnd(_ place: Int) {
-        self = PackedReader(data)
-        seek(place)
     }
 }

@@ -95,7 +95,7 @@ enum GameMusicCreator {
             output.write(empty)
         }
 
-        input.seekForgettingTheEnd(0xF3)
+        input.seek(0xF3)
         output.write8(input.read8()) // the length of the order
         output.write8(0x7F) // NoiseTracker's restart
 
@@ -110,7 +110,7 @@ enum GameMusicCreator {
 
         // The patterns, with the commands numbered as ProTracker numbers them: 3 to C, 4 to D, 5 to
         // B, 6 and 7 to E, whose parameter of nought or one then sets the filter, and 8 to F.
-        input.seekForgettingTheEnd(444)
+        input.seek(444)
         for _ in 0 ... Int(highest) {
             var pattern = input.read(1024)
             if pattern.count < 1024 { pattern += [UInt8](repeating: 0, count: 1024 - pattern.count) }
@@ -129,14 +129,5 @@ enum GameMusicCreator {
 
         // The samples, as they are.
         output.move(sampleBytes, from: &input)
-    }
-}
-
-fileprivate extension PackedReader {
-    /// Goes to a place in the file, and forgets that the file was read past its end, as libxmp's
-    /// seek does on success. (`hio_seek`)
-    mutating func seekForgettingTheEnd(_ place: Int) {
-        self = PackedReader(data)
-        seek(place)
     }
 }
