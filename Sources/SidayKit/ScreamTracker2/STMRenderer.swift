@@ -28,7 +28,6 @@ public final class STMRenderer: Renderer, ReferenceComparable {
     private var fraction: UInt64 = 0
     private static let step = UInt64((4_294_967_296.0 * Double(ST2Player.mixRate) / Double(outputSampleRate)).rounded())
     private var ticksSeen = 0
-    private var levels = TickLevels(voices: ST2Module.channels)
     private var notes = TickNotes(voices: ST2Module.channels)
 
     /// A tune that has not come round after this many ticks is taken not to.
@@ -120,7 +119,6 @@ public final class STMRenderer: Renderer, ReferenceComparable {
         for i in 0 ..< 16 { recent[i] = 0 }
         fraction = 0
         ticksSeen = 0
-        levels.clear()
         notes.clear()
     }
 
@@ -133,8 +131,6 @@ public final class STMRenderer: Renderer, ReferenceComparable {
                 recent[15] = Float(Int(player.renderSample()) - 128) * (Self.gain / 128)
                 if player.ticks != ticksSeen {
                     ticksSeen = player.ticks
-                    player.takeLevels(into: &levels.now)
-                    levels.tickMade()
                     player.takeNotes(into: &notes)
                 }
             }
@@ -163,8 +159,10 @@ public final class STMRenderer: Renderer, ReferenceComparable {
 
     public var channelCount: Int { ST2Module.channels }
 
+    /// What the channels have put out since this was last asked, sample by sample as the player
+    /// makes them: what has been heard.
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
-        self.levels.take(into: levels)
+        player.takeLevels(into: levels)
     }
 
     public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {

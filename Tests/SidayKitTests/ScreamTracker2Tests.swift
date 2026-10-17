@@ -354,3 +354,27 @@ private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0)
     #expect(kept.keepChannelWaves() != nil)
     #expect(kept.renderRaw(frames: 12000) == (try #require(try TuneLoader.load(file, format: .stm) as? STMRenderer)).renderRaw(frames: 12000))
 }
+
+/// A tune played a little at a time: for each of so many calls for sound, whether anything was
+/// heard in it, and whether the first voice's light was lit for it.
+private func heardAndLit(_ file: [UInt8], format: TuneFormat, calls: Int = 60, frames: Int = 200) throws -> [(heard: Bool, lit: Bool)] {
+    let renderer = try TuneLoader.load(file, format: format, options: LoadOptions())
+    var buffer = [Float](repeating: 0, count: frames * 2), levels = [Float](repeating: 0, count: renderer.channelCount)
+    return (0 ..< calls).map { _ in
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        let swing = (buffer.max() ?? 0) - (buffer.min() ?? 0)
+        return (swing > 0.002, ChannelLight.brightness(of: levels[0]) > 0)
+    }
+}
+
+@Test func stmLightIsOfWhatIsHeard() throws {
+    // A note, cut four rows on: the light is lit for what gives out its sound, from the first of
+    // it, and for nothing after.
+    let calls = try heardAndLit(stm([[(0, 0, .note()), (4, 0, Cell(note: 0xFE))]]), format: .stm, calls: 150)
+    #expect(calls.contains { $0.heard } && calls.last.map { !$0.heard } == true)
+    #expect(calls.allSatisfy { $0.heard == $0.lit })
+    // A sample that holds one level is silent, and so is its light, once the step to it is past.
+    let held = try heardAndLit(stm([[(0, 0, .note())]], sounds: [Sound(frames: [Int8](repeating: 100, count: 32))]), format: .stm, calls: 20)
+    #expect(held.count { $0.lit } <= 1 && held.dropFirst(6).allSatisfy { !$0.lit })
+}

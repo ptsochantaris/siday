@@ -133,13 +133,16 @@ final class FT2Player {
     private var voiceTarget: UnsafeMutablePointer<Int32>?
     /// A channel's sound in the tick being made, its note and the one dying away under it together.
     private var channelWave: UnsafeMutablePointer<Float>?
-    /// For the lights: how loud each channel was in the tick last made.
-    var levels: TickLevels
+    /// For the lights: how loud each channel is in the tick last made, which is told as it is heard.
+    var levels: HeardLevels
     /// And what each is playing.
     var notes: TickNotes
     /// The lowest and highest the voice being mixed has had its sample, and the most its volume has been.
     private var swing = Swing<Int32>(from: -65536, to: 65536)
     private var loudest: Float = 0
+    /// And how many of the tick's frames it sounded for: all of them, unless its sample ran out or
+    /// it was on its way to silence.
+    private var sounded: Int32 = 0
 
     /// The song's plug-ins, for a song that has OpenMPT's and is to be heard: see `playsPlugIns`.
     private var plugIns: OpenMPTPlugIns?
@@ -217,7 +220,7 @@ final class FT2Player {
         let channels = max(1, Int(module.song.antChn))
         stm = (0 ..< channels).map { FT2Channel(nr: $0, instrument: placeholder) }
         chnReloc = (0 ..< channels).map { $0 + $0 }
-        levels = TickLevels(voices: channels)
+        levels = HeardLevels(voices: channels)
         notes = TickNotes(voices: channels)
 
         let rate = Double(Self.rate)
@@ -654,8 +657,9 @@ final class FT2Player {
             // A channel is the louder of its two voices: the note, and the one before it dying away.
             let level = swing.moved ? min(1, Float(swing.high - swing.low) * (0.5 / 32768.0) * loudest / full) : 0
             if i & 1 == 0 || level > levels.now[i >> 1] { levels.now[i >> 1] = level }
+            if i & 1 == 0 { levels.until[i >> 1] = 0 }
+            if level > 0 { levels.until[i >> 1] = max(levels.until[i >> 1], Int(sounded)) }
         }
-        levels.tickMade()
         waves?.advance(by: count)
         if reverb != nil { addReverb(count) }
         if plugIns != nil { sendThroughPlugIns(count) }
@@ -760,6 +764,8 @@ final class FT2Player {
     }
 
     private func mix(_ v: UnsafeMutablePointer<FT2Voice>, _ numSamples: Int32) {
+        // (A voice on its way to silence is heard only for as long as it takes to get there.)
+        sounded = v.pointee.SLVol1 | v.pointee.SRVol1 == 0 ? min(numSamples, v.pointee.SVolIPLen) : numSamples
         if v.pointee.tailL | v.pointee.tailR != 0 { dieAway(v, into: target(of: v), frames: numSamples, from: (v.pointee.tailL, v.pointee.tailR), carried: true) }
         if v.pointee.SType & SType_Off != 0 { return }
         guard let base = v.pointee.SBase else { return }
@@ -993,6 +999,7 @@ final class FT2Player {
             mixBuffPos = UInt16(truncatingIfNeeded: pos)
             pos &= 0xFFFF_0000
             if realPos >= v.pointee.SLen, !wrap(v, &realPos) {
+                sounded = min(sounded, numSamples - bytesLeft)
                 if endsDieAway { dieAway(v, into: audioMix, frames: bytesLeft, from: (lastL, lastR), carried: false) }
                 return
             }

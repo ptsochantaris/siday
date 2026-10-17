@@ -150,9 +150,9 @@ final class IT2Mixer {
     /// `fMixBuffer` has. There is none until a channel is left out.
     private var fMutedBuffer: UnsafeMutablePointer<Float>?
     private var fLastClickRemovalLeft: Float = 0, fLastClickRemovalRight: Float = 0, fPrngStateL: Float = 0, fPrngStateR: Float = 0
-    /// For the lights: how loud each of the 64 channels was in the tick last mixed, and the lowest
-    /// and highest the voice being mixed has had its sample.
-    var levels = TickLevels(voices: 64)
+    /// For the lights: how loud each of the 64 channels is in the tick last mixed, which is told as
+    /// it is heard; and the lowest and highest the voice being mixed has had its sample.
+    var levels = HeardLevels(voices: 64)
     /// And what each is playing.
     var notes = TickNotes(voices: 64)
     /// And where each channel's note lies between the two sides, from -1 on the left to 1 on the
@@ -689,6 +689,7 @@ final class IT2Mixer {
         if !silent {
             for channel in 0 ..< 64 {
                 levels.now[channel] = 0
+                levels.until[channel] = 0
                 notes.pitches[channel] = 0
             }
             plugIns?.begin(frames: Int(RealBytesToMix))
@@ -701,10 +702,7 @@ final class IT2Mixer {
         }
         let waves = silent ? nil : waves
         if waves != nil { channelWaves?.update(repeating: 0, count: Int(RealBytesToMix) * 64) }
-        defer {
-            if !silent { levels.tickMade() }
-            musicTempoChanged = false
-        }
+        defer { musicTempoChanged = false }
 
         for i in 0 ..< MAX_SLAVE_CHANNELS {
             let sc = sChn + i
@@ -728,12 +726,16 @@ final class IT2Mixer {
                     }
                 }
             }
+            // How many of the tick's frames the voice sounded for: all of them, unless its sample ends
+            // or it is on its way to silence, which its volume comes within a hundredth of in 300.
+            var sounded = Int(RealBytesToMix)
             // A channel is the loudest of its voices: its note, and those before it still dying away.
             defer {
                 if swing.moved {
                     let channel = Int(sc.pointee.HostChnNum & 63)
                     let level = min(1, (swing.high - swing.low) * 0.5 * Float(sc.pointee.FinalVol32768) * (1.0 / 32768.0))
                     if level > levels.now[channel] { levels.now[channel] = level }
+                    if level > 0 { levels.until[channel] = max(levels.until[channel], sounded) }
                 }
             }
 
@@ -886,6 +888,7 @@ final class IT2Mixer {
                 }
             } else {
                 let Surround = sc.pointee.FinalPan == PAN_SURROUND
+                if sc.pointee.fLeftVolume == 0, sc.pointee.fRightVolume == 0 { sounded = min(sounded, 300) }
                 // A voice of a channel that is left out is added to nothing that is heard: see `setMuted`.
                 let muted = (mutedChannels >> UInt64(sc.pointee.HostChnNum & 63)) & 1 != 0
                 // Where its sound is added: to the tick, or for a song with plug-ins to what is
@@ -968,6 +971,7 @@ final class IT2Mixer {
                                             sc.pointee.HostChnPtr?.pointee.Flags &= ~HF_CHAN_ON
                                         }
 
+                                        sounded = min(sounded, Int(RealBytesToMix) - Int(MixBlockSize))
                                         var left = fLastLeftValue, right = fLastRightValue
                                         while MixBlockSize > 0 {
                                             fMixBufferPtr[0] += left
@@ -1067,6 +1071,7 @@ final class IT2Mixer {
                                 }
 
                                 // The sample has ended: the last it put out dies away over what is left of the tick,
+                                sounded = min(sounded, Int(RealBytesToMix) - Int(MixBlockSize))
                                 var left = fLastLeftValue, right = fLastRightValue
                                 while MixBlockSize > 0 {
                                     fMixBufferPtr[0] += left
@@ -1164,7 +1169,9 @@ final class IT2Mixer {
                 adLib.takeLevels(into: swings)
                 for voice in 0 ..< OpenMPTAdLib.voiceCount {
                     let channel = adLib.channel(ofVoice: voice, sChn)
-                    if channel >= 0, swings[voice] > levels.now[channel] { levels.now[channel] = swings[voice] }
+                    guard channel >= 0, swings[voice] > 0 else { continue }
+                    if swings[voice] > levels.now[channel] { levels.now[channel] = swings[voice] }
+                    levels.until[channel] = frames
                 }
             }
         }

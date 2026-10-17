@@ -27,7 +27,7 @@ public final class Composer669Renderer: Renderer {
     private var tickFrames = 0, tickPosition = 0
     /// The part of a sample that ticks are over by, carried from tick to tick.
     private var remainder = 0
-    private var levels = TickLevels(voices: Composer669Module.channels)
+    private var levels = HeardLevels(voices: Composer669Module.channels)
     private var notes = TickNotes(voices: Composer669Module.channels)
 
     /// A tune that has not come round after this many ticks is taken not to.
@@ -127,8 +127,7 @@ public final class Composer669Renderer: Renderer {
         tickFrames = Self.tickLength(&remainder)
         tickPosition = 0
         player.mixer.render(left: left, right: right, count: tickFrames)
-        player.mixer.takeLevels(into: &levels.now)
-        levels.tickMade()
+        player.mixer.takeLevels(into: &levels)
         player.takeNotes(into: &notes)
     }
 
@@ -144,6 +143,8 @@ public final class Composer669Renderer: Renderer {
             }
             tickPosition += count
             done += count
+            // (The lights are of what has just been given out of the tick.)
+            levels.heard(from: tickPosition - count, to: tickPosition)
         }
         waves?.ahead = tickFrames - tickPosition
     }

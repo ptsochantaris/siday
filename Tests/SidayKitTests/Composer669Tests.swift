@@ -340,3 +340,29 @@ private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0)
     let without = try scopes(file, format: .composer669, muted: [true])
     #expect(without.same && height(without.now[0]) > 115 && height(without.again[0]) > 115)
 }
+
+/// A tune played a little at a time: for each of so many calls for sound, whether anything was
+/// heard in it, and whether the first voice's light was lit for it.
+private func heardAndLit(_ file: [UInt8], format: TuneFormat, calls: Int = 60, frames: Int = 200) throws -> [(heard: Bool, lit: Bool)] {
+    let renderer = try TuneLoader.load(file, format: format, options: LoadOptions())
+    var buffer = [Float](repeating: 0, count: frames * 2), levels = [Float](repeating: 0, count: renderer.channelCount)
+    return (0 ..< calls).map { _ in
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        let swing = (buffer.max() ?? 0) - (buffer.min() ?? 0)
+        return (swing > 0.002, ChannelLight.brightness(of: levels[0]) > 0)
+    }
+}
+
+@Test func composer669LightIsOfWhatIsHeard() throws {
+    // A note of a sample that does not go round: the light is lit for what gives out its sound,
+    // and for nothing after.
+    let once: [(sound: [UInt8], loops: Bool)] = [((0 ..< 320).map { $0 % 32 < 16 ? 0xFF : 0x01 } + [0x80, 0x80], false)]
+    let calls = try heardAndLit(file669([[(0, 0, .note())]], samples: once), format: .composer669, calls: 30, frames: 100)
+    #expect(calls.contains { $0.heard } && calls.contains { !$0.heard })
+    #expect(calls.allSatisfy { $0.heard == $0.lit })
+    // A sample that holds one level is silent, and so is its light once its first tick, in which
+    // it is brought in, is past.
+    let held: [(sound: [UInt8], loops: Bool)] = [([UInt8](repeating: 0xC0, count: 4000), false)]
+    #expect(try heardAndLit(file669([[(0, 0, .note())]], samples: held), format: .composer669, calls: 20).dropFirst(10).allSatisfy { !$0.lit })
+}

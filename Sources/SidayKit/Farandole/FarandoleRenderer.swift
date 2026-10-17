@@ -27,7 +27,7 @@ public final class FarandoleRenderer: Renderer {
     /// The part of a sample that ticks are over by, carried from tick to tick: in counts of the
     /// PC's timer times the samples a second that are being made.
     private var remainder: Int64 = 0
-    private var levels = TickLevels(voices: FarandoleModule.channels)
+    private var levels = HeardLevels(voices: FarandoleModule.channels)
     private var notes = TickNotes(voices: FarandoleModule.channels)
 
     /// A tune that has not come round after this many ticks is taken not to.
@@ -130,8 +130,7 @@ public final class FarandoleRenderer: Renderer {
         tickFrames = Self.frames(ofTick: player.tickLength, &remainder)
         tickPosition = 0
         player.mixer.render(left: left, right: right, count: tickFrames)
-        player.mixer.takeLevels(into: &levels.now)
-        levels.tickMade()
+        player.mixer.takeLevels(into: &levels)
         player.takeNotes(into: &notes)
     }
 
@@ -147,6 +146,8 @@ public final class FarandoleRenderer: Renderer {
             }
             tickPosition += count
             done += count
+            // (The lights are of what has just been given out of the tick.)
+            levels.heard(from: tickPosition - count, to: tickPosition)
         }
         waves?.ahead = tickFrames - tickPosition
     }

@@ -83,7 +83,10 @@ struct SampleMixer: ~Copyable {
     /// A channel's voice, and after them all, for each, the voice of the note it had before.
     private var voices: [Voice]
     private var volumes: [Float], sides: [Float], rates: [Double]
-    private var peaks: [Float]
+    /// The lowest and the highest each channel has been, as loud as it was, since its level was last taken.
+    private var lows: [Float], highs: [Float]
+    /// And for how many samples of output each has sounded, of what has been made since then.
+    private var sounded: [Int]
     /// The channels that are left out of the sound: they play on, and are not added in.
     private var muted: [Bool]
     /// Where each channel's sound is kept for its scope, as loud as it is and before it is put to
@@ -104,7 +107,9 @@ struct SampleMixer: ~Copyable {
         volumes = [Float](repeating: 0, count: channels)
         sides = [Float](repeating: 0, count: channels)
         rates = [Double](repeating: 0, count: channels)
-        peaks = [Float](repeating: 0, count: channels)
+        lows = [Float](repeating: .greatestFiniteMagnitude, count: channels)
+        highs = [Float](repeating: -.greatestFiniteMagnitude, count: channels)
+        sounded = [Int](repeating: 0, count: channels)
         muted = [Bool](repeating: false, count: channels)
     }
 
@@ -176,11 +181,16 @@ struct SampleMixer: ~Copyable {
     func rate(of channel: Int) -> Double { rates[channel] }
     func volume(of channel: Int) -> Float { volumes[channel] }
 
-    /// How far each channel has swung, as loud as it was, since this was last asked: from 0 to 1.
-    mutating func takeLevels(into levels: inout [Float]) {
-        for channel in 0 ..< min(channels, levels.count) {
-            levels[channel] = min(1, peaks[channel])
-            peaks[channel] = 0
+    /// How far each channel has swung either side of its middle, as loud as it was, since this was
+    /// last asked: from 0 to 1. A channel held at one level has not swung, and is silent to the ear.
+    /// And for how many samples of what was made since then it sounded, from the first.
+    mutating func takeLevels(into levels: inout HeardLevels) {
+        for channel in 0 ..< min(channels, levels.now.count) {
+            levels.now[channel] = lows[channel] < highs[channel] ? min(1, (highs[channel] - lows[channel]) * 0.5) : 0
+            levels.until[channel] = sounded[channel]
+            lows[channel] = .greatestFiniteMagnitude
+            highs[channel] = -.greatestFiniteMagnitude
+            sounded[channel] = 0
         }
     }
 
@@ -210,10 +220,12 @@ struct SampleMixer: ~Copyable {
     {
         guard let sound = voices[index].sound else { return }
         var voice = voices[index]
-        var peak: Float = 0
+        var low = Float.greatestFiniteMagnitude, high = -Float.greatestFiniteMagnitude
         let scale: Float = 1 / 32768
         // (A channel's two voices are both its own: the note, and the one before it dying away.)
         let heard = !muted[index < channels ? index : index - channels]
+        // (A voice on its way to silence is heard only for as long as it takes to get there.)
+        var made = voice.left == 0 && voice.right == 0 ? min(count, Int((max(voice.nowLeft, voice.nowRight) / Self.ramp).rounded(.up))) : count
         for i in 0 ..< count {
             if voice.nowLeft != voice.left { voice.nowLeft += max(-Self.ramp, min(Self.ramp, voice.left - voice.nowLeft)) }
             if voice.nowRight != voice.right { voice.nowRight += max(-Self.ramp, min(Self.ramp, voice.right - voice.nowRight)) }
@@ -230,9 +242,10 @@ struct SampleMixer: ~Copyable {
                 left[i] += value * voice.nowLeft
                 right[i] += value * voice.nowRight
             }
-            let swing = abs(value) * (voice.nowLeft + voice.nowRight)
-            if swing > peak { peak = swing }
-            if let wave { wave[i] += value * (voice.nowLeft + voice.nowRight) }
+            let loud = value * (voice.nowLeft + voice.nowRight)
+            if loud < low { low = loud }
+            if loud > high { high = loud }
+            if let wave { wave[i] += loud }
 
             // On, or back, and round or about at the end.
             if voice.backwards {
@@ -258,11 +271,16 @@ struct SampleMixer: ~Copyable {
                 }
             } else if voice.position >= Int64(sound.length) << 32 {
                 voice.sound = nil
+                made = min(made, i + 1)
                 break
             }
         }
         voices[index] = voice
-        if index < channels, peak > peaks[index] { peaks[index] = peak }
+        if index < channels, low <= high {
+            lows[index] = min(lows[index], low)
+            highs[index] = max(highs[index], high)
+            sounded[index] = max(sounded[index], made)
+        }
     }
 
     /// Makes so many samples of the sound of all the channels together, in place of what is there.

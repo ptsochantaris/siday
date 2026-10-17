@@ -156,6 +156,8 @@ public final class XMRenderer: Renderer, ReferenceComparable {
             }
             tickPosition += count
             done += count
+            // (The lights are of what has just been given out of the tick.)
+            player.levels.heard(from: tickPosition - count, to: tickPosition)
         }
         waves?.ahead = tickFrames - tickPosition
     }

@@ -65,8 +65,9 @@ final class ST2Player {
         var smpLoopEnd: UInt16 = 0, smpLoopStart: UInt16 = 0xFFFF, smpC2spd: UInt16 = 0
         var smpPosition: UInt32 = 0, smpStep: UInt32 = 0
         var volumeInitial: UInt16 = 0, volumeCurrent: UInt16 = 0, volumeMix: UInt16 = 0
-        /// For the lights: the least and the most it has put into the mix of late.
-        var low = 0, high = 0
+        /// For the lights: the least and the most it has put into the mix of late, nothing when it
+        /// is not sounding.
+        var low = Int.max, high = Int.min
         var struck = false
         /// True for a channel that is left out of the sound: it plays on, and is not added in.
         var muted = false
@@ -75,6 +76,12 @@ final class ST2Player {
     private let module: ST2Module
     private let sampleRate: Int
     private var channels = [Channel](repeating: Channel(), count: ST2Module.channels)
+    /// What each channel put out for the last `lightsLag` samples, for the lights, which are of each
+    /// sample once it is heard: the player's samples reach the output through a filter, whose middle
+    /// is that many of them behind the newest (see `STMRenderer`).
+    private var lately = [Int](repeating: 0, count: ST2Module.channels * ST2Player.lightsLag)
+    private var latelyAt = 0
+    static let lightsLag = 8
     private var changePatternNext = false
     private var currentTick: UInt16 = 0, ticksPerRow: UInt16 = 0
     private var currentFrame: UInt16 = 0
@@ -392,7 +399,13 @@ final class ST2Player {
         let waves = waves
         for i in 0 ..< ST2Module.channels {
             var level = 0
-            defer { waves?.store(i, at: 0, Float(level)) }
+            defer {
+                let heard = lately[i * Self.lightsLag + latelyAt]
+                lately[i * Self.lightsLag + latelyAt] = level
+                if heard < channels[i].low { channels[i].low = heard }
+                if heard > channels[i].high { channels[i].high = heard }
+                waves?.store(i, at: 0, Float(level))
+            }
             channels[i].smpPosition &+= channels[i].smpStep
             var at = Int(channels[i].smpPosition >> 16)
             var sounding = at < Int(channels[i].smpLoopEnd)
@@ -408,8 +421,6 @@ final class ST2Player {
                     // (The high half of the product, which for a sample below the middle rounds away from it.)
                     level = (Int(channels[i].volumeMix) * byte) >> 8
                     if !channels[i].muted { mix += level }
-                    if level < channels[i].low { channels[i].low = level }
-                    if level > channels[i].high { channels[i].high = level }
                 }
             } else {
                 channels[i].smpPosition = UInt32(channels[i].smpLoopEnd) << 16 | (channels[i].smpPosition & 0xFFFF)
@@ -417,6 +428,7 @@ final class ST2Player {
         }
 
         waves?.advance(by: 1)
+        latelyAt = latelyAt == Self.lightsLag - 1 ? 0 : latelyAt + 1
 
         if currentFrame == 1 {
             currentFrame = framesPerTick
@@ -444,11 +456,12 @@ final class ST2Player {
     // MARK: For the lights and the pictures
 
     /// How far each channel has swung since this was last asked, of the most it can: from 0 to 1.
-    func takeLevels(into levels: inout [Float]) {
+    /// A channel held at one level has not swung, and is silent to the ear.
+    func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         for i in 0 ..< ST2Module.channels {
-            levels[i] = min(1, Float(channels[i].high - channels[i].low) / 63)
-            channels[i].low = 0
-            channels[i].high = 0
+            levels[i] = channels[i].low < channels[i].high ? min(1, Float(channels[i].high - channels[i].low) / 63) : 0
+            channels[i].low = Int.max
+            channels[i].high = Int.min
         }
     }
 

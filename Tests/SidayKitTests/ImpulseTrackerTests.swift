@@ -582,3 +582,29 @@ private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0)
     scope.withUnsafeMutableBufferPointer { waves.take(0, pitch: 0, periodic: false, behind: 0, into: $0.baseAddress!) }
     #expect(height(scope[...]) > 115)
 }
+
+/// A tune played a little at a time: for each of so many calls for sound, whether anything was
+/// heard in it, and whether the first voice's light was lit for it.
+private func heardAndLit(_ file: [UInt8], format: TuneFormat, calls: Int = 60, frames: Int = 200) throws -> [(heard: Bool, lit: Bool)] {
+    let renderer = try TuneLoader.load(file, format: format, options: LoadOptions())
+    var buffer = [Float](repeating: 0, count: frames * 2), levels = [Float](repeating: 0, count: renderer.channelCount)
+    return (0 ..< calls).map { _ in
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        let swing = (buffer.max() ?? 0) - (buffer.min() ?? 0)
+        return (swing > 0.002, ChannelLight.brightness(of: levels[0]) > 0)
+    }
+}
+
+@Test func itLightIsOfWhatIsHeard() throws {
+    // A note of a sample that does not go round, and ends at nought, a fraction of the way into
+    // its first tick: the light is lit for what gives out its sound, and for nothing after.
+    var file = it()
+    let header = file.count - 32 - 68 - 8 - 0x50
+    #expect(Array(file[header ..< header + 4]) == Array("IMPS".utf8))
+    file[header + 0x12] = 0x01
+    for i in file.count - 6 ..< file.count { file[i] = 0 }
+    let calls = try heardAndLit(file, format: .it, calls: 12, frames: 50)
+    #expect(calls.contains { $0.heard } && calls.contains { !$0.heard })
+    #expect(calls.allSatisfy { $0.heard == $0.lit })
+}
