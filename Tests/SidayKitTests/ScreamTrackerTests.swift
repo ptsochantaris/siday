@@ -587,3 +587,86 @@ private func sessionLength(_ renderer: any Renderer, song: Int) -> Double {
     let swept = try sides(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 25, 0x8F], stereo: true)))
     #expect(swept.right != left.right)
 }
+
+/// Each voice's scope, from a session that keeps them, after so many more frames of it.
+private func scopes(_ session: TuneSession, after frames: Int) -> [[UInt8]] {
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: frames) }
+    let count = session.renderer.channelCount
+    var all = [UInt8](repeating: 0, count: count * ChannelWaves.points)
+    all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return (0 ..< count).map { Array(all[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points]) }
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func s3mChannelsHaveScopesOnEitherCard() throws {
+    // A note on the first channel, at its loudest or at a quarter of it, and the second given a
+    // note at no volume, on each card.
+    for card in [ST3Card.gus, .sb] {
+        var options = LoadOptions()
+        options.s3mCard = card
+        func session(_ row: [UInt8]) throws -> TuneSession {
+            let session = TuneSession(renderer: try TuneLoader.load(s3m(row: row, stereo: true), format: .s3m, options: options), policy: PlaybackPolicy())
+            #expect(session.keepChannelWaves())
+            return session
+        }
+        let loud = try session([0x20, 0x40, 1, 0x61, 0x40, 1, 0])
+        _ = scopes(loud, after: 4800)
+        let shown = scopes(loud, after: 2000)
+        #expect(height(shown[0]) > 110)
+        #expect(shown[1].allSatisfy { $0 == 128 })
+
+        // A quieter note is a smaller scope, as small as its light is dim.
+        let quiet = try session([0x60, 0x40, 1, 16, 0x61, 0x40, 1, 0])
+        _ = scopes(quiet, after: 4800)
+        let small = scopes(quiet, after: 2000)
+        let level = quiet.channelLevels[0]
+        #expect(height(small[0]) < height(shown[0]) && height(small[0]) > 20)
+        #expect(abs(pow(Float(height(small[0])) / 127, 2) - level) < 0.1)
+
+        // A channel left out still has its scope.
+        loud.renderer.setMuted([true, false])
+        _ = scopes(loud, after: 4800)
+        #expect(height(scopes(loud, after: 2000)[0]) > 110)
+    }
+}
+
+@Test func s3mAdLibChannelsHaveScopes() throws {
+    // A sample at no volume on the first channel, and a note of the AdLib card's first voice.
+    let session = TuneSession(renderer: try TuneLoader.load(s3m(row: [0x60, 0x40, 1, 0, 0x21, 0x40, 2], fm: true), format: .s3m), policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    _ = scopes(session, after: 4800)
+    var shown = scopes(session, after: 2000)
+    #expect(shown[0].allSatisfy { $0 == 128 })
+    #expect(height(shown[1]) > 100)
+    session.renderer.setMuted([false, true])
+    _ = scopes(session, after: 4800)
+    shown = scopes(session, after: 2000)
+    #expect(height(shown[1]) > 100)
+    // And started again, it still keeps them.
+    session.renderer.select(subsong: 0)
+    _ = scopes(session, after: 4800)
+    #expect(height(scopes(session, after: 2000)[1]) > 100)
+
+    // Where the card's voice is given a sample, which it cannot play, the card is not played at
+    // all, and its scope is flat.
+    let unplayed = TuneSession(renderer: try TuneLoader.load(s3m(row: [0x20, 0x40, 1, 0x21, 0x40, 1], fm: true), format: .s3m), policy: PlaybackPolicy())
+    #expect(unplayed.keepChannelWaves())
+    _ = scopes(unplayed, after: 4800)
+    shown = scopes(unplayed, after: 2000)
+    #expect(height(shown[0]) > 100 && shown[1].allSatisfy { $0 == 128 })
+}
+
+@Test func s3mSoundsTheSameWhetherItsScopesAreKeptOrNot() throws {
+    for (card, fm) in [(ST3Card.gus, false), (.sb, false), (.gus, true), (.sb, true)] {
+        var options = LoadOptions()
+        options.s3mCard = card
+        let file = s3m(row: [0x20, 0x40, 1, 0x21, 0x40, 2, 0, 0, 0, 0x20, 0x50, 1, 0x21, 254, 0], stereo: true, fm: fm)
+        let plain = try TuneLoader.load(file, format: .s3m, options: options)
+        let kept = try TuneLoader.load(file, format: .s3m, options: options)
+        #expect(kept.keepChannelWaves() != nil)
+        #expect(stereoSound(plain, seconds: 1) == stereoSound(kept, seconds: 1))
+    }
+}

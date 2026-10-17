@@ -125,6 +125,16 @@ final class ST3Cards {
     /// The channels left out of the sound, a bit for each, by its number in the player.
     private var muted: UInt64 = 0
 
+    /// Where each channel's sound is kept for its scope, at the card's rate, once asked: for each of
+    /// the player's channels, which of those kept it is (-1 for one that is not kept); the voice each
+    /// of those is, and room for what each comes to in one of the card's samples; and how many of
+    /// the card's samples have been kept since the voices were last moved on past them.
+    private var waves: ChannelWaves?
+    private let waveVoice: UnsafeMutablePointer<Int>
+    private let keptVoices: UnsafeMutablePointer<Int>
+    private let keptSums: UnsafeMutablePointer<Float>
+    private var keptCount = 0, keptMade = 0
+
     init(card: ST3Card, module: ST3Module, stereo: Bool, extraChannels: Int = 0) {
         self.card = card
         self.stereo = stereo
@@ -152,6 +162,12 @@ final class ST3Cards {
         sbFilters.initialize(repeating: Filter(), count: 16)
         postTable = .allocate(capacity: 2048)
         postTable.initialize(repeating: 0, count: 2048)
+        waveVoice = .allocate(capacity: 64)
+        waveVoice.initialize(repeating: -1, count: 64)
+        keptVoices = .allocate(capacity: 64)
+        keptVoices.initialize(repeating: 0, count: 64)
+        keptSums = .allocate(capacity: 64)
+        keptSums.initialize(repeating: 0, count: 64)
 
         let output = Double(outputSampleRate)
         let cardRate: Double
@@ -220,6 +236,9 @@ final class ST3Cards {
         sbVoices.deallocate()
         sbFilters.deallocate()
         postTable.deallocate()
+        waveVoice.deallocate()
+        keptVoices.deallocate()
+        keptSums.deallocate()
     }
 
     /// Gives a voice its channel's filter (see `ST3Player.playsFilter`): two poles, closing at 110 Hz
@@ -673,6 +692,105 @@ final class ST3Cards {
         return (Float(postTable[Int(left & 2047)]) * (1.0 / 128.0), Float(postTable[Int(right & 2047)]) * (1.0 / 128.0))
     }
 
+    // MARK: Scopes
+
+    /// The card's channels' sound is kept for their scopes from now on, in `waves`: `voices` says
+    /// which voice each channel kept is, by its number in the player.
+    func keepWaves(in waves: ChannelWaves, voices: [(channel: Int, voice: Int)]) {
+        self.waves = waves
+        waveVoice.update(repeating: -1, count: 64)
+        keptCount = 0
+        keptMade = 0
+        for (channel, voice) in voices where channel >= 0 && channel < 64 && waveVoice[channel] < 0 {
+            waveVoice[channel] = keptCount
+            keptVoices[keptCount] = voice
+            keptCount += 1
+            waves.setVoice(voice, rate: Double(cardRate), fullSwing: card == .gus ? Self.gusFullSwing : 128)
+        }
+    }
+
+    /// Moves the voices kept on past the card's samples kept since they were last.
+    private func moveWavesOn(_ waves: ChannelWaves) {
+        for index in 0 ..< keptCount { waves.advance(keptVoices[index], by: keptMade) }
+        keptMade = 0
+    }
+
+    /// How much of a sample a GUS's voice gives at its volume, as a part of the sample: its volume
+    /// is a logarithm, of which the top four bits double and the rest scale.
+    @inline(__always) private static func gusGain(_ volume: Int32) -> Float {
+        Float(256 + (volume & 0xFF)) * Float(1 << Int(volume >> 8)) * (1.0 / 16_777_216.0)
+    }
+
+    /// How far a GUS's voice at the loudest Scream Tracker gives a channel swings either side of
+    /// nought, as `keepGUSWaves` keeps it: a sample at its loudest, at the top of the card's ramp to
+    /// that volume.
+    private static let gusFullSwing = 32768 * gusGain(Int32(((gusVolTable[63] >> 8) << 7) >> 3))
+
+    /// Keeps what each channel's voices on a GUS are about to add to its next sample, as `gusSample`
+    /// will make it, worked out before it does and without moving anything on, as `sbMutedPart`
+    /// does: so that the mixing itself does nothing more. A channel is the sum of its voices (the
+    /// note, and the one before it sliding away), at their volumes and before they are put on a
+    /// side; one left out of the sound or put in ModPlug's reverb is kept too.
+    @inline(never)
+    private func keepGUSWaves(_ waves: ChannelWaves) {
+        keptSums.update(repeating: 0, count: keptCount)
+        for i in 0 ..< mixedVoices {
+            let v = voices + i
+            let owner = v.pointee.owner
+            guard owner >= 0, owner < 64, waveVoice[owner] >= 0 else { continue }
+            // (A voice told to stop is stopped before it is mixed.)
+            guard v.pointee.SACI & 3 == 0, v.pointee.SA >= 0, v.pointee.SAE >= 0 else { continue }
+            var at = v.pointee.SA
+            if at >= v.pointee.SAE {
+                guard v.pointee.SACI & 8 != 0, v.pointee.SAS >= 0 else { continue }
+                let over = at - v.pointee.SAE, loopLength = v.pointee.SAE - v.pointee.SAS
+                at = loopLength <= 0 ? v.pointee.SAS : v.pointee.SAS + over % loopLength
+            }
+            func read(_ samples: UnsafePointer<Int16>) -> Int32 {
+                let first = at >= 0 && at < samplesCount ? Int32(samples[at]) : 0
+                let second = at + 1 >= 0 && at + 1 < samplesCount ? Int32(samples[at + 1]) : 0
+                return Int32(Int16(truncatingIfNeeded: first &+ (((second &- first) &* Int32(Int16(bitPattern: v.pointee.SA_frac))) >> 9)))
+            }
+            var smp = read(samples)
+            var smpR = smp
+            if v.pointee.stereo, let samplesRight { smpR = read(samplesRight) }
+            if v.pointee.filter.on {
+                smp = Int32(Self.through(v.pointee.filter, Float(smp)))
+                if v.pointee.stereo {
+                    var right = v.pointee.filter
+                    right.y1 = right.y1R
+                    right.y2 = right.y2R
+                    smpR = Int32(Self.through(right, Float(smpR)))
+                } else {
+                    smpR = smp
+                }
+            }
+            // (A sample in stereo is both its sides together.)
+            let value = v.pointee.stereo ? Float(smp + smpR) * 0.5 : Float(smp)
+            keptSums[waveVoice[owner]] += value * Self.gusGain(Int32(v.pointee.SVLI >> 3))
+        }
+        for index in 0 ..< keptCount { waves.store(keptVoices[index], at: keptMade, keptSums[index]) }
+        keptMade += 1
+    }
+
+    /// Keeps what each of a Sound Blaster's channels is about to add to its next sample, as
+    /// `sbSample` will make it, worked out before it does: as `keepGUSWaves` does for a GUS.
+    @inline(never)
+    private func keepSBWaves(_ waves: ChannelWaves) {
+        for i in 0 ..< 16 where waveVoice[i] >= 0 {
+            let ch = sbVoices + i
+            var level = 0
+            if ch.pointee.speed != 0, ch.pointee.pos != 0xFFFF_FFFF, ch.pointee.base >= 0, ch.pointee.pos < ch.pointee.end {
+                let at = ch.pointee.base &+ Int(truncatingIfNeeded: ch.pointee.pos)
+                let value = at >= 0 && at < samplesCount ? samples[at] : 0
+                let byte = sbFilters[i].on ? Int(Int16(max(-32768, min(32767, Self.through(sbFilters[i], Float(value)))))) >> 8 : Int(value >> 8)
+                level = (byte * Int(Self.xvol[min(64, Int(ch.pointee.vol))])) >> 8
+            }
+            waves.store(keptVoices[waveVoice[i]], at: keptMade, Float(level))
+        }
+        keptMade += 1
+    }
+
     /// The card's sound as OpenMPT's mix has it, for its reverb: 27 bits for a sample at its loudest,
     /// which the card's loudest is a little over half of, set by measure beside libopenmpt.
     private static let reverbScale = 0.57 * Double(1 << 27)
@@ -686,6 +804,7 @@ final class ST3Cards {
         withUnsafeTemporaryAllocation(of: Float.self, capacity: count * 2) { sent in
             guard let sent = sent.baseAddress else { return }
             var sentAny: Int32 = 0
+            let waves = waves
             for n in 0 ..< count {
                 frac &+= delta
                 while frac >= 1 << 32 {
@@ -696,6 +815,7 @@ final class ST3Cards {
                         sendL[i] = sendL[i + 1]
                         sendR[i] = sendR[i + 1]
                     }
+                    if let waves { keepGUSWaves(waves) }
                     let (l, r) = gusSample()
                     bufferL[15] = l
                     bufferR[15] = r
@@ -744,6 +864,7 @@ final class ST3Cards {
             }
         }
         resamplingFrac = frac
+        if let waves { moveWavesOn(waves) }
     }
 
     /// How loud each of the card's sixteen channels was in the samples made since this was last asked.
@@ -794,6 +915,7 @@ final class ST3Cards {
         if let reverb { return renderWithReverb(left: left, right: right, count: count, reverb) }
         var frac = resamplingFrac
         let delta = resamplingDelta
+        let waves = waves
         for n in 0 ..< count {
             frac &+= delta
             while frac >= 1 << 32 {
@@ -801,6 +923,9 @@ final class ST3Cards {
                 for i in 0 ..< 15 {
                     bufferL[i] = bufferL[i + 1]
                     bufferR[i] = bufferR[i + 1]
+                }
+                if let waves {
+                    if card == .gus { keepGUSWaves(waves) } else { keepSBWaves(waves) }
                 }
                 let (l, r) = card == .gus ? gusSample() : sbSample()
                 bufferL[15] = l
@@ -821,6 +946,7 @@ final class ST3Cards {
             right[n] = sumR
         }
         resamplingFrac = frac
+        if let waves { moveWavesOn(waves) }
         if card == .sb {
             for i in 0 ..< 16 {
                 channels[i].m_pos = sbVoices[i].pos

@@ -384,6 +384,22 @@ struct SAA1099Chip {
         }
     }
 
+    /// What a channel puts out now on the louder of its two sides, as `step` works it out, from -240
+    /// to 240 at its loudest: for the channel's scope, read once one of the player's samples is
+    /// made, so that the chip itself does nothing more. A channel left out of the sound is told too.
+    func channelOutput(_ channel: Int) -> Int {
+        guard enabled, !sync else { return 0 }
+        let amp = amps[channel], level = amp.intermediate
+        let left = amp.left >= amp.right
+        if channel == 2 || channel == 5, envelopes[channel / 3].enabled {
+            let envelope = envelopes[channel / 3]
+            let volume = left ? amp.left : amp.right
+            return saaPulses[volume >> 1][left ? envelope.left : envelope.right] * 4 * (2 - level) - saaPulses[volume >> 1][15] * 4
+        }
+        guard amp.tone || amp.noise else { return 0 }
+        return (left ? amp.left : amp.right) * (level - 1) * 16
+    }
+
     /// Each channel's pitch, by its oscillator, if its tone is heard; and whether its volume has
     /// jumped up.
     mutating func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>, clock: Double) {

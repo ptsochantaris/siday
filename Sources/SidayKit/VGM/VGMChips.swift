@@ -26,12 +26,19 @@ protocol VGMSoundChip: AnyObject {
     var sampled: Bool { get }
     /// A sound has been started on it by the file: a note, for what is shown of the voices.
     func soundStarted()
+    /// Keeps each of its voices' sound for its scope from now on, in `waves` as the voices from
+    /// `first` on, a sample for each it makes.
+    func keepWaves(in waves: ChannelWaves, first: Int)
+    /// How many samples of each of its voices are kept in a second.
+    var wavesRate: Double { get }
 }
 
 extension VGMSoundChip {
     var card: OPLCard? { nil }
     var sampled: Bool { false }
     func soundStarted() {}
+    /// One for each of the player's frames.
+    var wavesRate: Double { Double(outputSampleRate) }
 }
 
 /// An FM chip, on the card that played it.
@@ -77,6 +84,10 @@ final class VGMOPL: VGMSoundChip {
     }
 
     func setMuted(_ muted: [Bool]) { opl.setMuted(muted) }
+
+    /// The card keeps them, at the chip's rate.
+    func keepWaves(in waves: ChannelWaves, first: Int) { opl.keepWaves(in: waves, first: first, channels: voices) }
+    var wavesRate: Double { rate }
 }
 
 /// An AY-3-8910, or one like it, on the chip siday plays every AY tune on. Its writes are timed to
@@ -89,6 +100,9 @@ final class VGMAY: VGMSoundChip {
     /// True for one heard as a ZX Spectrum's are; otherwise its three channels are all in the middle,
     /// as they were on the machines whose music a VGM file has.
     private let apart: Bool
+    /// Where each channel's output is kept for its scope, once asked, and which voice the first is.
+    private var waves: ChannelWaves?
+    private var wavesFrom = 0
 
     init(type: UInt8, flags: UInt8, clock: Double) {
         apart = flags & 0x80 != 0
@@ -112,17 +126,38 @@ final class VGMAY: VGMSoundChip {
 
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
         var made = 0
+        let keeping = waves != nil
         while made < frames, samplesLeft > 0 {
             samplesLeft -= 1
             guard chip.pointee.innerStep() else { continue }
             let (left, right) = chip.pointee.finishSample()
+            if keeping { keepWaves(at: made) }
             let remaining = samplesLeft + after
             let level = remaining < fade ? gain * Float(remaining) / Float(fade) : gain
             buffer[made * 2] = Float(left) * level
             buffer[made * 2 + 1] = Float(right) * level
             made += 1
         }
+        if let waves { for voice in wavesFrom ..< wavesFrom + 3 { waves.advance(voice, by: made) } }
         return made
+    }
+
+    func keepWaves(in waves: ChannelWaves, first: Int) {
+        self.waves = waves
+        wavesFrom = first
+        // A channel at its loudest goes between the bottom and the top of the DAC's table.
+        for voice in first ..< first + 3 { waves.setVoice(voice, rate: Double(outputSampleRate), fullSwing: 0.5) }
+    }
+
+    /// Keeps what each channel puts out now, so many samples on from the last made before. (Out of
+    /// the way of the chip's own steps, which are quicker for it.)
+    @inline(never)
+    private func keepWaves(at offset: Int) {
+        guard let waves else { return }
+        let (a, b, c) = chip.pointee.channelOutputs()
+        waves.store(wavesFrom, at: offset, a)
+        waves.store(wavesFrom + 1, at: offset, b)
+        waves.store(wavesFrom + 2, at: offset, c)
     }
 
     func takeLevels(into levels: UnsafeMutablePointer<Float>) { chip.pointee.takeLevels(into: levels) }
@@ -162,6 +197,9 @@ final class VGMDAC: VGMSoundChip {
     // The filter: 3.18 Hz, at the rate of the player.
     private static let b1 = exp(-2.0 * Double.pi * 3.18309886184 / Double(outputSampleRate))
     private var steadyLeft = 0.0, steadyRight = 0.0
+    /// Where its output is kept for its scope, once asked, and which voice it is.
+    private var waves: ChannelWaves?
+    private var wavesFrom = 0
 
     init() {
         output = .allocate(capacity: 1)
@@ -205,10 +243,14 @@ final class VGMDAC: VGMSoundChip {
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
         let level = on && !muted ? Double(value - 0x80) / 128 : 0
         let both = (left ? level : 0, right ? level : 0)
+        // (For its scope: what it puts out before it is put on a side, as it is if it is muted too.)
+        let out = on ? Float(value - 0x80) / 128 : 0
         var made = 0
+        let waves = waves, wavesFrom = wavesFrom
         while made < frames, samplesLeft > 0 {
             samplesLeft -= 1
             guard output.pointee.innerStep({ both }) else { continue }
+            waves?.store(wavesFrom, at: made, out)
             var (l, r) = output.pointee.finishSample()
             steadyLeft = l * (1 - Self.b1) + steadyLeft * Self.b1
             steadyRight = r * (1 - Self.b1) + steadyRight * Self.b1
@@ -220,6 +262,7 @@ final class VGMDAC: VGMSoundChip {
             buffer[made * 2 + 1] = Float(r) * scale
             made += 1
         }
+        waves?.advance(wavesFrom, by: made)
         return made
     }
 
@@ -241,6 +284,13 @@ final class VGMDAC: VGMSoundChip {
     func setMuted(_ muted: [Bool]) { self.muted = muted.first ?? false }
 
     func soundStarted() { started = true }
+
+    func keepWaves(in waves: ChannelWaves, first: Int) {
+        self.waves = waves
+        wavesFrom = first
+        // Its eight bits go from the bottom to the top.
+        waves.setVoice(first, rate: Double(outputSampleRate), fullSwing: 1)
+    }
 }
 
 /// An SN76489, or one of the chips made like it, as the file says. Its writes are timed to the
@@ -254,6 +304,9 @@ final class VGMSN: VGMSoundChip {
     var voices: Int { 4 }
     private static let b1 = exp(-2.0 * Double.pi * 3.18309886184 / Double(outputSampleRate))
     private var steadyLeft = 0.0, steadyRight = 0.0
+    /// Where each channel's output is kept for its scope, once asked, and which voice the first is.
+    private var waves: ChannelWaves?
+    private var wavesFrom = 0
 
     init(_ variant: SN76489Variant, clock: Double) {
         chip = SN76489Chip(variant)
@@ -284,9 +337,11 @@ final class VGMSN: VGMSoundChip {
 
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
         var made = 0
+        let keeping = waves != nil
         while made < frames, samplesLeft > 0 {
             samplesLeft -= 1
             guard output.pointee.innerStep({ chip.step() }) else { continue }
+            if keeping { keepWaves(at: made) }
             var (l, r) = output.pointee.finishSample()
             // (What is steady is taken out, as on the card's board: what a channel playing samples
             // on its volume is left at.)
@@ -300,6 +355,7 @@ final class VGMSN: VGMSoundChip {
             buffer[made * 2 + 1] = Float(r) * scale
             made += 1
         }
+        if let waves { for voice in wavesFrom ..< wavesFrom + 4 { waves.advance(voice, by: made) } }
         return made
     }
 
@@ -312,6 +368,21 @@ final class VGMSN: VGMSoundChip {
 
     func setMuted(_ muted: [Bool]) {
         for channel in 0 ..< 4 { chip.muted[channel] = channel < muted.count && muted[channel] }
+    }
+
+    func keepWaves(in waves: ChannelWaves, first: Int) {
+        self.waves = waves
+        wavesFrom = first
+        // A channel at its loudest swings a whole either side of nought, before the chip halves it.
+        for voice in first ..< first + 4 { waves.setVoice(voice, rate: Double(outputSampleRate), fullSwing: 1) }
+    }
+
+    /// Keeps what each channel puts out now, so many samples on from the last made before. (Out of
+    /// the way of the chip's own steps, which are quicker for it.)
+    @inline(never)
+    private func keepWaves(at offset: Int) {
+        guard let waves else { return }
+        for channel in 0 ..< 4 { waves.store(wavesFrom + channel, at: offset, Float(chip.channelOutput(channel))) }
     }
 }
 
@@ -327,6 +398,9 @@ final class VGMSAA: VGMSoundChip {
     var voices: Int { 6 }
     private static let b1 = exp(-2.0 * Double.pi * 3.18309886184 / Double(outputSampleRate))
     private var steadyLeft = 0.0, steadyRight = 0.0
+    /// Where each channel's output is kept for its scope, once asked, and which voice the first is.
+    private var waves: ChannelWaves?
+    private var wavesFrom = 0
 
     init(clock: Double) {
         self.clock = clock
@@ -357,9 +431,11 @@ final class VGMSAA: VGMSoundChip {
 
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, gain: Float, fade: Int, after: Int) -> Int {
         var made = 0
+        let keeping = waves != nil
         while made < frames, samplesLeft > 0 {
             samplesLeft -= 1
             guard output.pointee.innerStep({ chip.step() }) else { continue }
+            if keeping { keepWaves(at: made) }
             var (l, r) = output.pointee.finishSample()
             // (What is steady is taken out, as on the card's board: the chip's levels are all above nought.)
             steadyLeft = l * (1 - Self.b1) + steadyLeft * Self.b1
@@ -372,6 +448,7 @@ final class VGMSAA: VGMSoundChip {
             buffer[made * 2 + 1] = Float(r) * scale
             made += 1
         }
+        if let waves { for voice in wavesFrom ..< wavesFrom + 6 { waves.advance(voice, by: made) } }
         return made
     }
 
@@ -384,5 +461,20 @@ final class VGMSAA: VGMSoundChip {
 
     func setMuted(_ muted: [Bool]) {
         for channel in 0 ..< 6 { chip.muted[channel] = channel < muted.count && muted[channel] }
+    }
+
+    func keepWaves(in waves: ChannelWaves, first: Int) {
+        self.waves = waves
+        wavesFrom = first
+        // A channel at its loudest swings 240 either side of nought.
+        for voice in first ..< first + 6 { waves.setVoice(voice, rate: Double(outputSampleRate), fullSwing: 240) }
+    }
+
+    /// Keeps what each channel puts out now, so many samples on from the last made before. (Out of
+    /// the way of the chip's own steps, which are quicker for it.)
+    @inline(never)
+    private func keepWaves(at offset: Int) {
+        guard let waves else { return }
+        for channel in 0 ..< 6 { waves.store(wavesFrom + channel, at: offset, Float(chip.channelOutput(channel))) }
     }
 }

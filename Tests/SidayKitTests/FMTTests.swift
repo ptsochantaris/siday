@@ -288,3 +288,22 @@ private let ticksASecond = 1_193_181.8181 / 65536
     #expect(mono(renderer, seconds: 1).allSatisfy { $0 == 0 })
     #expect(levels(renderer) == lit)
 }
+
+@Test func fmtVoicesHaveScopes() throws {
+    // The two notes above, on the first voice and the fifth: their scopes move, and the others' do not,
+    // nor does the sound, kept or not.
+    let two = fmt(rows: 40, patterns: [(0, [[49, 0x80 | 38], empty(40), empty(40), empty(40), [37, 0x80 | 38]])])
+    let session = TuneSession(renderer: try TuneLoader.load(two, format: .fmt), policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    var buffer = [Float](repeating: 0, count: 4800 * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 4800) }
+    var scopes = [UInt8](repeating: 0, count: 8 * ChannelWaves.points)
+    scopes.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    let heights = (0 ..< 8).map { voice in scopes[voice * 64 ..< voice * 64 + 64].map { abs(Int($0) - 128) }.max()! }
+    #expect(heights.map { $0 > 100 } == [true, false, false, false, true, false, false, false])
+    #expect(heights.filter { $0 > 0 }.count == 2)
+
+    let kept = try TuneLoader.load(two, format: .fmt)
+    #expect(kept.keepChannelWaves() != nil)
+    #expect(mono(kept, seconds: 1) == mono(try TuneLoader.load(two, format: .fmt), seconds: 1))
+}

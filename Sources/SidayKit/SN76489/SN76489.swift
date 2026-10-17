@@ -150,6 +150,14 @@ struct SN76489Chip {
         }
     }
 
+    /// What a channel puts out now, as `step` adds it in, from -1 to 1 at its loudest: for the
+    /// channel's scope, read once one of the player's samples is made, so that the chip itself does
+    /// nothing more. A channel left out of the sound is told too.
+    func channelOutput(_ channel: Int) -> Double {
+        let volume = volumes[channel]
+        return channel == 3 || periods[channel] > 1 ? (outputs[channel] ? volume : -volume) : volume
+    }
+
     /// Each channel's pitch, a tone's by its period; and whether its volume has jumped up.
     mutating func takeNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>, clock: Double) {
         for channel in 0 ..< 4 {

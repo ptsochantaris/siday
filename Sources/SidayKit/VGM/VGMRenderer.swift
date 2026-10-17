@@ -489,6 +489,44 @@ final class VGMRenderer: Renderer, ReferenceComparable {
             done += count
         }
         (buffer + done * 2).update(repeating: 0, count: (frames - done) * 2)
+        if let waves {
+            if done < frames { keepSilence(frames: frames - done, in: waves) }
+            // (Each chip has made a little more than has been given out, about as much as the others.)
+            waves.ahead = madeFrames.min() ?? 0
+        }
+    }
+
+    // MARK: Scopes
+
+    /// Where each voice's sound is kept for its scope, once asked: each chip keeps its own, as it
+    /// makes them. And the part of a sample of each chip's that the silence after the end has come to.
+    private var waves: ChannelWaves?
+    private var silenceParts: [Double] = []
+
+    func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            let waves = ChannelWaves(voices: channelCount, rate: Double(outputSampleRate), fullSwing: 1)
+            eachChip { chip, from in chip.keepWaves(in: waves, first: from) }
+            silenceParts = Array(repeating: 0, count: chips.count)
+            self.waves = waves
+        }
+        return waves
+    }
+
+    /// Keeps silence for every voice for so many of the player's frames, at each chip's rate: for
+    /// what is given out once the music is over, so that its voices' scopes are flat.
+    private func keepSilence(frames: Int, in waves: ChannelWaves) {
+        var index = 0
+        eachChip { chip, from in
+            silenceParts[index] += Double(frames) * chip.wavesRate / Double(outputSampleRate)
+            let count = Int(silenceParts[index])
+            silenceParts[index] -= Double(count)
+            for voice in from ..< from + chip.voices {
+                waves.silence(voice, count: count)
+                waves.advance(voice, by: count)
+            }
+            index += 1
+        }
     }
 
     // MARK: Voices

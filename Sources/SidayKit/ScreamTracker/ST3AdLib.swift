@@ -31,6 +31,12 @@ final class ST3AdLib {
     // The filter that takes out what is steady: 3.18 Hz, from the parts on a Sound Blaster's board.
     private let b1: Float, a0: Float
     private var lastL: Float = 0, lastR: Float = 0
+    /// Where each voice's sound is kept for its scope, at the chip's rate, once asked: which voice
+    /// each of the nine is kept as, and those kept; and for a tune that does not play the card,
+    /// the part of one of the chip's samples that its silence has come to.
+    private var waves: ChannelWaves?
+    private var kept: [(channel: Int, voice: Int)] = []
+    private var silencePart = 0.0
 
     init(module: ST3Module) {
         self.module = module
@@ -193,11 +199,35 @@ final class ST3AdLib {
         }
     }
 
+    /// The card's voices' sound is kept for their scopes from now on, in `waves`, at the chip's rate:
+    /// `voices` says which voice each of the nine kept is, by its number on the card.
+    func keepWaves(in waves: ChannelWaves, voices: [(channel: Int, voice: Int)]) {
+        self.waves = waves
+        kept = voices.filter { $0.channel >= 0 && $0.channel < 9 }
+        for (_, voice) in kept { waves.setVoice(voice, rate: OPL3Chip.rate, fullSwing: 4000) }
+    }
+
+    /// Keeps silence for the voices for so many of the player's samples, as the chip would have made
+    /// them: for a tune that has no need of the card, which is then not made to play at all.
+    func keepSilence(count: Int) {
+        guard let waves, !kept.isEmpty else { return }
+        silencePart += Double(count) * OPL3Chip.rate / Double(outputSampleRate)
+        let samples = Int(silencePart)
+        silencePart -= Double(samples)
+        for (_, voice) in kept {
+            waves.silence(voice, count: samples)
+            waves.advance(voice, by: samples)
+        }
+    }
+
     /// Adds `count` samples of the card to what the sound card has made, which is first made quieter
     /// to leave room for it.
     func render(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int, sinc: UnsafePointer<Float>) {
         var frac = resamplingFrac
         let delta = resamplingDelta
+        // (How many of the chip's samples have been kept for the voices' scopes.)
+        let waves = waves, kept = kept
+        var generated = 0
         for n in 0 ..< count {
             frac &+= delta
             while frac >= 1 << 32 {
@@ -207,6 +237,10 @@ final class ST3AdLib {
                     bufferR[i] = bufferR[i + 1]
                 }
                 let made = chip.pointee.OPL3_Generate()
+                if let waves {
+                    for (channel, voice) in kept { waves.store(voice, at: generated, Float(chip.pointee.channelOutput(channel))) }
+                    generated += 1
+                }
                 var l = Float(made.left) * (1.0 / 32768.0), r = Float(made.right) * (1.0 / 32768.0)
                 lastL = (l * a0) + (lastL * b1)
                 l -= lastL
@@ -230,5 +264,6 @@ final class ST3AdLib {
             right[n] = right[n] * (2.0 / 3.0) + sumR
         }
         resamplingFrac = frac
+        if let waves { for (_, voice) in kept { waves.advance(voice, by: generated) } }
     }
 }

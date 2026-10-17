@@ -459,3 +459,89 @@ private func saa(_ writes: [(UInt8, UInt8)], second: Bool = false) -> [UInt8] {
     #expect(levels[0] == 0)
     #expect(levels[6] > 0.1)
 }
+
+/// Each voice's scope, from a session that keeps them, after so many more frames of it.
+private func scopes(_ session: TuneSession, after frames: Int) -> [[UInt8]] {
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: frames) }
+    let count = session.renderer.channelCount
+    var all = [UInt8](repeating: 0, count: count * ChannelWaves.points)
+    all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return (0 ..< count).map { Array(all[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points]) }
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+private func keeping(_ file: [UInt8]) throws -> TuneSession {
+    let session = TuneSession(renderer: try TuneLoader.load(file, format: .vgm, options: stereoOptions), policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    return session
+}
+
+/// The files of the tests below: an FM chip and an AY chip, an SN76489, an SAA1099 and a DAC.
+private let scopeFiles: [[UInt8]] = [
+    vgm(note() + ayNote(period: 127) + [0x61] + word(44100), ticks: 44100, more: [(0x74, long(ayClock))]),
+    snFile(snTone(0, period: 254, volume: 0) + snTone(1, period: 300, volume: 6) + [0x61] + word(44100), ticks: 44100),
+    saaFile(saa([(0x00, 0x0F), (0x08, 11), (0x10, 6), (0x14, 0x01), (0x1C, 0x01)]) + [0x61] + word(44100), ticks: 44100),
+    vgm(squareBlock(periods: 200) + dacStream + [0x95, 0] + word(0) + [0] + [0x61] + word(44100), ticks: 44100, clockAt: 0x2C, clock: 7_670_453),
+]
+
+@Test func vgmOfAnFMChipAndAnAYChipHasScopesForBoth() throws {
+    // The sine on the FM chip's first voice and the tone on the AY chip's first channel, each at its loudest.
+    let session = try keeping(scopeFiles[0])
+    _ = scopes(session, after: 4800)
+    var shown = scopes(session, after: 2000)
+    #expect(height(shown[0]) > 100 && height(shown[9]) > 100)
+    for voice in [1, 2, 3, 4, 5, 6, 7, 8, 10, 11] { #expect(shown[voice].allSatisfy { $0 == 128 }, "voice \(voice)") }
+    // Voices left out still have theirs.
+    session.renderer.setMuted([true, false, false, false, false, false, false, false, false, true])
+    shown = scopes(session, after: 2000)
+    #expect(height(shown[0]) > 100 && height(shown[9]) > 100)
+    // Once the music is over, every scope is flat.
+    _ = scopes(session, after: 96000)
+    #expect(scopes(session, after: 2000).allSatisfy { $0.allSatisfy { $0 == 128 } })
+}
+
+@Test func vgmOfAnSN76489HasScopesAsLoudAsItsChannels() throws {
+    // The first channel at its loudest, the second 12 dB under it, the others silent.
+    let session = try keeping(scopeFiles[1])
+    _ = scopes(session, after: 4800)
+    let shown = scopes(session, after: 2000)
+    #expect(height(shown[0]) > 120)
+    #expect(abs(height(shown[1]) - 64) <= 3)
+    #expect(shown[2].allSatisfy { $0 == 128 } && shown[3].allSatisfy { $0 == 128 })
+}
+
+@Test func vgmOfAnSAA1099AndADACHaveScopes() throws {
+    let saa = try keeping(scopeFiles[2])
+    _ = scopes(saa, after: 4800)
+    let tones = scopes(saa, after: 2000)
+    #expect(height(tones[0]) > 120)
+    #expect(tones[1...].allSatisfy { $0.allSatisfy { $0 == 128 } })
+
+    // The DAC's square, half as high as its eight bits go.
+    let dac = try keeping(scopeFiles[3])
+    _ = scopes(dac, after: 4800)
+    #expect(abs(height(scopes(dac, after: 2000)[0]) - 90) <= 3)
+}
+
+@Test func vgmScopesAreOfWhatIsHeard() throws {
+    // A sine on the FM chip throughout, and a tone on the AY chip after half a second: the chips
+    // make some of what is to be heard before it is, and a scope is still of what is heard.
+    let writes: [UInt8] = note() + [0x61] + word(22050) + ayNote(period: 127) + [0x61] + word(22050)
+    let session = try keeping(vgm(writes, ticks: 44100, more: [(0x74, long(ayClock))]))
+    let before = scopes(session, after: 23950)
+    #expect(height(before[0]) > 100 && before[9].allSatisfy { $0 == 128 })
+    let after = scopes(session, after: 1500)
+    #expect(height(after[0]) > 100 && height(after[9]) > 100)
+}
+
+@Test func vgmSoundsTheSameWhetherItsScopesAreKeptOrNot() throws {
+    for file in scopeFiles {
+        let plain = try TuneLoader.load(file, format: .vgm, options: stereoOptions)
+        let kept = try TuneLoader.load(file, format: .vgm, options: stereoOptions)
+        #expect(kept.keepChannelWaves() != nil)
+        #expect(stereo(plain, seconds: 2.5) == stereo(kept, seconds: 2.5))
+    }
+}

@@ -192,12 +192,41 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         player.adlib.setMuted(UInt32((channels >> 16) & 0x1FF))
     }
 
+    /// Where the two cards keep each voice's sound for its scope, once asked: the sound card's at its
+    /// own rate and the AdLib's at its chip's. A song started afresh keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            // (Each voice is given its own rate and loudness by the card it is on.)
+            waves = ChannelWaves(voices: lights.count, rate: Double(outputSampleRate), fullSwing: 1)
+            tellCardsOfWaves()
+        }
+        return waves
+    }
+
+    /// Tells the two cards where to keep their voices' sound, and which voice each of their channels is.
+    private func tellCardsOfWaves() {
+        guard let waves else { return }
+        var sampled: [(channel: Int, voice: Int)] = [], fm: [(channel: Int, voice: Int)] = []
+        for light in lights.indices {
+            if Self.isSampled(lights[light]) {
+                sampled.append((lights[light], light))
+            } else {
+                fm.append((lights[light] - 16, light))
+            }
+        }
+        player.cards.keepWaves(in: waves, voices: sampled)
+        player.adlib.keepWaves(in: waves, voices: fm)
+    }
+
     /// - Parameter asScreamTracker: as the player this is ported from plays the file, for `renderRaw`.
     private func restart(asScreamTracker: Bool = false) {
         let song = songList[currentSubsong]
         player = ST3Player(module, card: card, order: song.start, adlib: song.adLib && !ST3Player.repeatsReferenceSlips,
                            firstPlayedBy: firstPlayedBy, songNumber: song.number, asScreamTracker: asScreamTracker)
         tellCardsOfMuted()
+        if !asScreamTracker { tellCardsOfWaves() }
         tickFrames = 0
         tickPosition = 0
         levels.clear()
@@ -228,7 +257,11 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         tickFrames = Self.tickLength(player, &remainder)
         tickPosition = 0
         player.cards.render(left: left, right: right, count: tickFrames, channels: player.zchn)
-        if player.adlibused { player.adlib.render(left: left, right: right, count: tickFrames, sinc: player.cards.sinc) }
+        if player.adlibused {
+            player.adlib.render(left: left, right: right, count: tickFrames, sinc: player.cards.sinc)
+        } else if waves != nil {
+            player.adlib.keepSilence(count: tickFrames)
+        }
         player.cards.takeLevels(into: &channelLevels)
         player.adlib.takeLevels(into: &channelLevels)
         for light in lights.indices { levels.now[light] = channelLevels[lights[light]] }
@@ -291,6 +324,8 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+        // (A tick is made whole, and given out as it is asked for.)
+        waves?.ahead = tickFrames - tickPosition
     }
 
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and

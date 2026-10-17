@@ -107,6 +107,7 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
             advance()
             if hasEnded {
                 (buffer + done * 2).update(repeating: 0, count: (frames - done) * 2)
+                keepSilence(frames: frames - done)
                 return
             }
             done += card.render(into: buffer + done * 2, frames: frames - done, gain: Tune.gain, fade: tail == nil ? 0 : Self.fadeLength)
@@ -115,6 +116,33 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
 
     /// The chip's voices: nine, for most kinds of tune. Where a tune has drums, they are the last three.
     var channelCount: Int { Tune.voices }
+
+    /// Where the card keeps each voice's sound for its scope, at the chip's rate, once asked; and the
+    /// part of one of the chip's samples that the silence after the end has come to, for keeping it.
+    private var waves: ChannelWaves?
+    private var silencePart = 0.0
+
+    func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            let waves = ChannelWaves(voices: Tune.voices, rate: card.rate, fullSwing: 4000)
+            card.keepWaves(in: waves, first: 0, channels: Tune.voices)
+            self.waves = waves
+        }
+        return waves
+    }
+
+    /// Keeps silence for every voice for so many of the player's frames, as the chip would have made
+    /// them: for what is given out once the tune is over, so that its voices' scopes are flat.
+    private func keepSilence(frames: Int) {
+        guard let waves else { return }
+        silencePart += Double(frames) * card.rate / Double(outputSampleRate)
+        let count = Int(silencePart)
+        silencePart -= Double(count)
+        for voice in 0 ..< Tune.voices {
+            waves.silence(voice, count: count)
+            waves.advance(voice, by: count)
+        }
+    }
 
     func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         card.takeLevels(into: levels, voices: Tune.voices)

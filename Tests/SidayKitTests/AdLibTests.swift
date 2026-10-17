@@ -314,3 +314,56 @@ private func apart(_ a: [Float], _ b: [Float]) -> Float { a.count == b.count ? z
         #expect(lights(drum.renderer).lit == [0, light], "voice \(voice)")
     }
 }
+
+/// Each voice's scope, from a session that keeps them, after so many more frames of it.
+private func scopes(_ session: TuneSession, after frames: Int) -> [[UInt8]] {
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: frames) }
+    let count = session.renderer.channelCount
+    var all = [UInt8](repeating: 0, count: count * ChannelWaves.points)
+    all.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return (0 ..< count).map { Array(all[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points]) }
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func cmfVoicesHaveScopes() throws {
+    // The G and middle C, on the chip's first two voices, at full level; the other seven silent.
+    let session = TuneSession(renderer: try TuneLoader.load(cmf(before: [0x00, 0x91, 67, 127]), format: .cmf), policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    _ = scopes(session, after: 4800)
+    var shown = scopes(session, after: 2000)
+    #expect(height(shown[0]) > 100 && height(shown[1]) > 100)
+    #expect(shown[2...].allSatisfy { $0.allSatisfy { $0 == 128 } })
+    // A held sine stands still.
+    let later = scopes(session, after: 1234)
+    #expect(zip(shown[0], later[0]).allSatisfy { abs(Int($0) - Int($1)) <= 3 })
+    // A voice left out still has its scope.
+    session.renderer.setMuted([false, true])
+    shown = scopes(session, after: 2000)
+    #expect(height(shown[1]) > 100)
+    // Once the tune is over, every scope is flat.
+    _ = scopes(session, after: 96000)
+    #expect(scopes(session, after: 2000).allSatisfy { $0.allSatisfy { $0 == 128 } })
+}
+
+@Test func rolDrumsHaveScopes() throws {
+    // With the drums on, the bass drum struck: its scope moves, and those of the other drums do not.
+    var loud = bank([("SINE", 0)])
+    loud[62] = 0
+    var options = LoadOptions()
+    options.adLibBanks = [AdLibBank(loud)]
+    let session = TuneSession(renderer: try TuneLoader.load(rol(drums: true, also: 6), format: .rol, options: options), policy: PlaybackPolicy())
+    #expect(session.keepChannelWaves())
+    let shown = scopes(session, after: 2400)
+    #expect(height(shown[0]) > 100 && height(shown[6]) > 20)
+    #expect(height(shown[7]) < 3 && height(shown[8]) < 3)
+}
+
+@Test func fmTunesSoundTheSameWhetherTheirScopesAreKeptOrNot() throws {
+    let plain = try TuneLoader.load(cmf(before: [0x00, 0x91, 67, 127]), format: .cmf)
+    let kept = try TuneLoader.load(cmf(before: [0x00, 0x91, 67, 127]), format: .cmf)
+    #expect(kept.keepChannelWaves() != nil)
+    #expect(mono(plain, seconds: 2.5) == mono(kept, seconds: 2.5))
+}
