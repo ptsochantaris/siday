@@ -70,6 +70,10 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
     public func select(subsong: Int) {
         currentSubsong = min(max(0, subsong), subsongCount - 1)
         playing = (try? machine.start(song: currentSubsong)) ?? false
+        lightMoves = 0
+        noteMoves = 0
+        framesOfMoves = 0
+        speakerWasSounding = false
     }
 
     private func make(_ frames: Int) {
@@ -87,6 +91,7 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
             return
         }
         make(frames)
+        framesOfMoves += frames
         if file.stereo, mono {
             for i in 0 ..< frames {
                 let sample = (Float(made[i * 2]) + Float(made[i * 2 + 1])) * 0.5 * gain
@@ -122,38 +127,66 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
 
     // MARK: Voices
 
-    /// A POKEY's four channels, or two POKEYs' eight.
-    public var channelCount: Int { file.stereo ? 8 : 4 }
+    /// A POKEY's four channels, or two POKEYs' eight; and the console's one-bit loudspeaker, which
+    /// some tunes play on beside them or, as a ZX Spectrum's beeper is played, alone. That is shown
+    /// once it is heard.
+    public var channelCount: Int { speaker + 1 }
+    public var channelsAlwaysShown: Int { speaker }
+    private var speaker: Int { file.stereo ? 8 : 4 }
+
+    /// How often the loudspeaker has gone in or out, for its light and its pitch, and over how long.
+    private var lightMoves = 0, noteMoves = 0, framesOfMoves = 0
+    private var speakerWasSounding = false
+
+    private func takeSpeakerMoves() {
+        lightMoves += machine.speakerMoves
+        noteMoves += machine.speakerMoves
+        machine.speakerMoves = 0
+    }
 
     public func takeChannelLevels(into levels: UnsafeMutablePointer<Float>) {
         machine.pokeys.base.takeLevels(into: levels)
         if file.stereo { machine.pokeys.extra.takeLevels(into: levels + 4) }
+        // The loudspeaker is in or out, with nothing between: it is sounding if it is moving.
+        takeSpeakerMoves()
+        levels[speaker] = lightMoves > 1 ? 1 : lightMoves == 1 ? 0.5 : 0
+        lightMoves = 0
     }
 
     public func takeChannelNotes(pitches: UnsafeMutablePointer<Float>, struck: UnsafeMutablePointer<Bool>) {
         machine.pokeys.base.takeStruck(into: struck)
         if file.stereo { machine.pokeys.extra.takeStruck(into: struck + 4) }
-        for voice in 0 ..< channelCount {
+        for voice in 0 ..< speaker {
             let pokey = voice < 4 ? machine.pokeys.base : machine.pokeys.extra
             pitches[voice] = ChannelPitch.note(ofHz: pokey.pitch(of: voice & 3, clock: machine.clock))
         }
+        // A loudspeaker that goes in and out so many times a second is a tone of half as many cycles.
+        takeSpeakerMoves()
+        let sounding = noteMoves >= 4 && framesOfMoves > 0
+        pitches[speaker] = sounding ? ChannelPitch.note(ofHz: Double(noteMoves) * 0.5 * Double(outputSampleRate) / Double(framesOfMoves)) : 0
+        struck[speaker] = sounding && !speakerWasSounding
+        speakerWasSounding = sounding
+        noteMoves = 0
+        framesOfMoves = 0
     }
 
     /// A stereo tune's POKEYs are each on its own side, however near they are brought to one another.
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
-        for voice in 0 ..< channelCount { sides[voice] = file.stereo ? voice < 4 ? -1 : 1 : 0 }
+        for voice in 0 ..< channelCount { sides[voice] = file.stereo && voice < speaker ? voice < 4 ? -1 : 1 : 0 }
     }
 
     public func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
-        for voice in 0 ..< channelCount {
+        for voice in 0 ..< speaker {
             sampled[voice] = (voice < 4 ? machine.pokeys.base : machine.pokeys.extra).isSampled(voice & 3)
         }
+        sampled[speaker] = false
     }
 
     public func setMuted(_ muted: [Bool]) {
         var mask = 0
-        for (voice, out) in muted.enumerated() where out && voice < 8 { mask |= 1 << voice }
+        for (voice, out) in muted.enumerated() where out && voice < speaker { mask |= 1 << voice }
         machine.pokeys.base.leaveOut(mask & 0xF)
         machine.pokeys.extra.leaveOut(mask >> 4)
+        machine.speakerLeftOut = speaker < muted.count && muted[speaker]
     }
 }

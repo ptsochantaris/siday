@@ -68,7 +68,7 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     #expect(renderer.subsongCount == 2)
     #expect(renderer.defaultSubsong == 1)
     #expect(renderer.songs.map(\.length) == [83.456, 5])
-    #expect(renderer.channelCount == 4)
+    #expect(renderer.channelCount == 5 && renderer.channelsAlwaysShown == 4)
 }
 
 @Test func sapUnknownNamesAreMadePlain() {
@@ -94,13 +94,13 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     let renderer = try SAPRenderer(sap(typeB, [(0x2000, tone()), player, table]))
     renderer.select(subsong: 0)
     _ = render(renderer, seconds: 0.2)
-    var levels = [Float](repeating: 0, count: 4)
+    var levels = [Float](repeating: 0, count: 5)
     renderer.takeChannelLevels(into: &levels)
-    #expect(levels == [1, 0, 0, 0])
-    var pitches = [Float](repeating: 0, count: 4), struck = [Bool](repeating: false, count: 4)
+    #expect(levels == [1, 0, 0, 0, 0])
+    var pitches = [Float](repeating: 0, count: 5), struck = [Bool](repeating: false, count: 5)
     renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
     #expect(abs(pitches[0] - ChannelPitch.note(ofHz: 1_773_447.0 / (28 * 81 * 2))) < 0.01)
-    #expect(pitches[1 ... 3].allSatisfy { $0 == 0 })
+    #expect(pitches[1 ... 4].allSatisfy { $0 == 0 })
     #expect(struck[0])
 }
 
@@ -121,14 +121,14 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     options.stereo = .abc
     options.sbProSeparation = 1
     let renderer = try SAPRenderer(file, options: options)
-    #expect(renderer.channelCount == 8)
+    #expect(renderer.channelCount == 9 && renderer.channelsAlwaysShown == 8)
     #expect(renderer.info.detail == "Atari 8-bit, two POKEYs")
     let samples = render(renderer, seconds: 0.5)
     let left = swing(samples, from: 4800), right = swing(samples, from: 4800, side: 1)
     #expect(right > 0.001 && left > right * 2)
-    var sides = [Float](repeating: 0, count: 8)
+    var sides = [Float](repeating: 0, count: 9)
     renderer.takeChannelSides(into: &sides)
-    #expect(sides == [-1, -1, -1, -1, 1, 1, 1, 1])
+    #expect(sides == [-1, -1, -1, -1, 1, 1, 1, 1, 0])
     // Brought together, a fifth of the difference between the sides is kept.
     options.sbProSeparation = 0.2
     let near = render(try SAPRenderer(file, options: options), seconds: 0.5)
@@ -171,8 +171,29 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
                           0x58, 0x4C, 0x14, 0x20] // CLI, JMP to itself
     let renderer = try SAPRenderer(sap(["TYPE D", "INIT 2000"], [(0x2000, start), (0x2100, interrupt), (0xFFFE, [0x00, 0x21])]))
     _ = render(renderer, seconds: 0.5)
-    var levels = [Float](repeating: 0, count: 4)
+    var levels = [Float](repeating: 0, count: 5)
     renderer.takeChannelLevels(into: &levels)
     // (So many interrupts a second: the clock divided by 28 and by 256.)
     #expect(levels[0] > 0)
+}
+
+@Test func sapConsoleLoudspeakerIsAVoice() throws {
+    // A square wave on the console's loudspeaker alone, as a beeper is played: in for four lines of
+    // the screen, held by WSYNC, and out for four.
+    let wait: [UInt8] = [0x8D, 0x0A, 0xD4] // STA WSYNC
+    let code: [UInt8] = [0xA9, 0x00, 0x8D, 0x1F, 0xD0] + wait + wait + wait + wait
+        + [0xA9, 0x08, 0x8D, 0x1F, 0xD0] + wait + wait + wait + wait + [0x4C, 0x00, 0x20]
+    let renderer = try SAPRenderer(sap(["TYPE D", "INIT 2000"], [(0x2000, code)]))
+    let samples = render(renderer, seconds: 0.5)
+    #expect(swing(samples, from: 4800) > 0.01)
+    var levels = [Float](repeating: 0, count: 5)
+    renderer.takeChannelLevels(into: &levels)
+    #expect(levels == [0, 0, 0, 0, 1])
+    var pitches = [Float](repeating: 0, count: 5), struck = [Bool](repeating: false, count: 5)
+    renderer.takeChannelNotes(pitches: &pitches, struck: &struck)
+    #expect(abs(pitches[4] - ChannelPitch.note(ofHz: 1_773_447.0 / (114 * 8))) < 0.5)
+    #expect(struck[4])
+    renderer.setMuted([false, false, false, false, true])
+    _ = render(renderer, seconds: 0.2)
+    #expect(swing(render(renderer, seconds: 0.5), from: 4800) < 0.0001)
 }

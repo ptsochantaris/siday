@@ -183,7 +183,9 @@ its cycles before it, and its tunes are heard as they are because of where in it
 to the POKEY falls. Of the rest of the machine there are the screen's lines, which tunes count, the
 nine cycles of each that ANTIC, the chip that draws it, takes from the processor to refresh the
 memory, the WSYNC register that holds the
-processor until a line ends, and the console's one-bit loudspeaker. The POKEY is not stepped cycle
+processor until a line ends, and the console's one-bit loudspeaker, the one that clicked the keys.
+Some tunes play on that beside the POKEY, and some, as a ZX Spectrum's beeper is played, on it alone;
+it has a light of its own, which shows once it is heard. The POKEY is not stepped cycle
 by cycle: ASAP works out when each channel's output next changes, and puts each change into the
 sound where it falls between two samples, as a step band-limited by a windowed sinc, so that the
 chip's highest tones come out without the false notes a plain sampling would add. The four channels

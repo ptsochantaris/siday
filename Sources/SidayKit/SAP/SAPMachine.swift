@@ -31,6 +31,12 @@ final class SAPMachine {
     private enum NMIStatus { case reset, onVBlank, wasVBlank }
     private var nmist = NMIStatus.onVBlank
     private var consol = 8
+    /// The console's loudspeaker as it is heard: as `consol`, unless it is left out.
+    private var heardConsol = 8
+    /// True if the console's loudspeaker is left out of the sound.
+    var speakerLeftOut = false
+    /// How many times the loudspeaker has gone in or out since this was last taken.
+    var speakerMoves = 0
     private var covox = InlineArray<4, Int>(repeating: 0x80)
     private var nextPlayerCycle = pokeyNever
     private(set) var gtiaOrCovoxPlayedThisFrame = false
@@ -102,11 +108,17 @@ final class SAPMachine {
             }
         } else if addr & 0xFF1F == 0xD01F {
             // The console's loudspeaker: the opposite of what is written, against the POKEY's sound.
-            let delta = ((consol & 8) - (data & 8)) << 20
-            if delta != 0 {
-                pokeys.base.addExternalDelta(cycle, delta)
-                pokeys.extra.addExternalDelta(cycle, delta)
+            if (consol ^ data) & 8 != 0 {
+                speakerMoves += 1
                 gtiaOrCovoxPlayedThisFrame = true
+            }
+            if !speakerLeftOut {
+                let delta = ((heardConsol & 8) - (data & 8)) << 20
+                if delta != 0 {
+                    pokeys.base.addExternalDelta(cycle, delta)
+                    pokeys.extra.addExternalDelta(cycle, delta)
+                }
+                heardConsol = data
             }
             consol = data
         } else {
@@ -235,6 +247,8 @@ final class SAPMachine {
         vdi = 0
         nmist = .onVBlank
         consol = 8
+        heardConsol = 8
+        speakerMoves = 0
         for i in 0 ..< 4 { covox[i] = 0x80 }
         pokeys.initialize(ntsc: file.ntsc, stereo: file.stereo, sampleRate: sampleRate)
         pokeys.base.mute(0xFF)
