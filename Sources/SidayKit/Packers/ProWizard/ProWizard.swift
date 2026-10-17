@@ -179,12 +179,16 @@ enum ProWizard {
 
 /// A packed file, read as libxmp reads a file: in the Amiga's order, high byte first, and a read past
 /// the end gives what a read of a file past its end gives there (every bit set), and marks the reading
-/// as failed. (`HIO_HANDLE` and `hio_read8` and the rest)
+/// as failed, until the next seek, which clears the mark as libxmp's does, or until the mark is taken.
+/// (`HIO_HANDLE` and `hio_read8` and the rest)
 struct PackedReader {
     let data: [UInt8]
     private(set) var position = 0
-    /// Set once something has been read past the end.
+    /// Set once something has been read past the end, since the last seek or the last time it was taken.
     private(set) var failed = false
+    /// Set by a seek to before the start, which no later seek clears. (fseek fails there, and libxmp
+    /// clears only the error of having come to the end.)
+    private var lost = false
 
     init(_ data: [UInt8]) {
         self.data = data
@@ -192,12 +196,28 @@ struct PackedReader {
 
     var size: Int { data.count }
 
+    /// (`hio_seek` from the start)
     mutating func seek(_ place: Int) {
-        position = max(0, place)
+        guard place >= 0 else {
+            lost = true
+            failed = true
+            return
+        }
+        position = place
+        failed = lost
     }
 
+    /// (`hio_seek` from where the reading is)
     mutating func skip(_ count: Int) {
-        position = max(0, position + count)
+        seek(position + count)
+    }
+
+    /// Whether the reading has failed, as `failed` says, and the mark cleared but for a seek to before
+    /// the start. (`hio_error`)
+    mutating func takeError() -> Bool {
+        let was = failed
+        failed = lost
+        return was
     }
 
     mutating func read8() -> UInt8 {
