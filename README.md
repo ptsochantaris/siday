@@ -55,7 +55,11 @@ it. Or drop the folder that holds both.
 
 Beside the player and its list there is a spectrum analyser, a light for each voice of the tune
 (red for a voice whose sound a chip makes of itself, blue for one that plays a sample, pink for a
-beeper, the loudspeaker a computer's own code clicks), a
+beeper, the loudspeaker a computer's own code clicks), and under each light, once switched on, a
+scope of that voice's own wave, as FastTracker 2 drew one for each channel: a chip's note held
+still as two of its cycles, a sample as the last fiftieth of a second. Each voice is shown as it
+leaves its chip or its mixer, before anything the voices go through together, such as a SID's
+filter or an Amiga's. Then there is a
 picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain or rain,
 each made from what the tune's voices are doing), and the command-line player's options as
 settings. A song is rendered to its end as soon as it starts, far faster than it plays, so any
