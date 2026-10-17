@@ -125,6 +125,14 @@ final class FT2Player {
     /// A tick that is not heard, for the voices of channels that are left out of the sound to be
     /// mixed into as ever: it is there once a channel has been left out. See `setMuted`.
     private var unheard: UnsafeMutablePointer<Int32>?
+    /// Where each channel's sound is kept for its scope, if it is wanted (see `keepWaves`).
+    private var waves: ChannelWaves?
+    /// While a voice is being mixed for its scope: the tick it is mixed into in place of its own,
+    /// which it is then added to; and that tick of its own, once the voice has asked for it.
+    private var voiceTick: UnsafeMutablePointer<Int32>?
+    private var voiceTarget: UnsafeMutablePointer<Int32>?
+    /// A channel's sound in the tick being made, its note and the one dying away under it together.
+    private var channelWave: UnsafeMutablePointer<Float>?
     /// For the lights: how loud each channel was in the tick last made.
     var levels: TickLevels
     /// And what each is playing.
@@ -257,7 +265,53 @@ final class FT2Player {
         for tick in placeTicks { tick?.deallocate() }
         plugInTick?.deallocate()
         reverbTick?.deallocate()
+        voiceTick?.deallocate()
+        channelWave?.deallocate()
     }
+
+    /// Keeps each channel's sound for its scope in `waves`, at the output's rate, from the next tick
+    /// on: as loud as it is, and as it is before it is put to one side or the other (see `keepWave`).
+    func keepWaves(in waves: ChannelWaves?) {
+        self.waves = waves
+        guard waves != nil, voiceTick == nil else { return }
+        voiceTick = .allocate(capacity: (Self.mostSamplesPerTick + 1) * 2)
+        channelWave = .allocate(capacity: Self.mostSamplesPerTick + 1)
+    }
+
+    /// How far a channel at its loudest swings either side of nothing in its scope: in the mixer's
+    /// numbers, a sample at its loudest at the most a voice's volume can be.
+    var fullWaveSwing: Float { Float(255 * CDA_Amp) * 4096 / 32 }
+
+    /// Mixes a voice, for a channel whose sound is kept for its scope: into a tick of its own, which
+    /// is then added to the tick it would have been mixed into, so that the sound is the same to the
+    /// last bit; and that voice's sound is added to its channel's, the two sides together as one.
+    private func keepWave(_ v: UnsafeMutablePointer<FT2Voice>, _ index: Int, _ waves: ChannelWaves) {
+        guard let voiceTick, let channelWave else { return }
+        let count = Int(speedVal)
+        voiceTick.update(repeating: 0, count: count * 2)
+        voiceTarget = nil
+        keepingWave = true
+        mix(v, speedVal)
+        keepingWave = false
+        // A voice of a channel is heard on both sides, each by how far it is to that side: the
+        // larger the two make together (as the voice's volume does), with the sign of the larger.
+        if index & 1 == 0 { channelWave.update(repeating: 0, count: count) }
+        if let to = voiceTarget {
+            for i in 0 ..< count * 2 { to[i] &+= voiceTick[i] }
+            for i in 0 ..< count {
+                let l = Float(voiceTick[i * 2]), r = Float(voiceTick[i * 2 + 1])
+                let both = (l * l + r * r).squareRoot()
+                channelWave[i] += abs(l) >= abs(r) ? (l < 0 ? -both : both) : (r < 0 ? -both : both)
+            }
+        }
+        if index & 1 == 1 {
+            let channel = index >> 1
+            for i in 0 ..< count { waves.store(channel, at: i, channelWave[i]) }
+        }
+    }
+
+    /// True while a voice is being mixed into a tick of its own, for its scope (see `keepWave`).
+    private var keepingWave = false
 
     /// Makes the song's plug-ins, for a player whose sound is to be heard: one that only finds how
     /// long a tune is, or plays as FastTracker would, has no use for them.
@@ -592,15 +646,17 @@ final class FT2Player {
         reverbUsed = false
         // A voice at its loudest, in the mixer's numbers, whichever side it is on.
         let full = Float(255 * CDA_Amp) * 4096
+        let waves = waves
         for i in 0 ..< Int(song.antChn) * 2 {
             swing.clear()
             loudest = 0
-            mix(CI + i, speedVal)
+            if let waves { keepWave(CI + i, i, waves) } else { mix(CI + i, speedVal) }
             // A channel is the louder of its two voices: the note, and the one before it dying away.
             let level = swing.moved ? min(1, Float(swing.high - swing.low) * (0.5 / 32768.0) * loudest / full) : 0
             if i & 1 == 0 || level > levels.now[i >> 1] { levels.now[i >> 1] = level }
         }
         levels.tickMade()
+        waves?.advance(by: count)
         if reverb != nil { addReverb(count) }
         if plugIns != nil { sendThroughPlugIns(count) }
         for i in 0 ..< Int(song.antChn) {
@@ -667,7 +723,15 @@ final class FT2Player {
 
     /// The tick a voice is mixed into: the song's, or the one for the plug-in it is sent to, or that
     /// for ModPlug's reverb, or for a voice of a channel left out of the sound, one that is not heard.
+    /// While a voice is mixed for its scope, it is the voice's own tick that is given, and the one
+    /// it would have been is kept to add that to.
     @inline(__always) private func target(of v: UnsafeMutablePointer<FT2Voice>) -> UnsafeMutablePointer<Int32> {
+        guard keepingWave, let voiceTick else { return ownTarget(of: v) }
+        voiceTarget = ownTarget(of: v)
+        return voiceTick
+    }
+
+    @inline(__always) private func ownTarget(of v: UnsafeMutablePointer<FT2Voice>) -> UnsafeMutablePointer<Int32> {
         if v.pointee.muted, let unheard { return unheard }
         let place = v.pointee.place
         guard place >= 0, plugIns != nil, place < placeTicks.count else {

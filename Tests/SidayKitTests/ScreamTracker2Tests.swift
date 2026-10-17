@@ -297,3 +297,60 @@ private let row = 6.0 * 477 / 23863
     #expect(session.finished)
     #expect(session.elapsed < length * 2 + 1)
 }
+
+/// A tune played through a session that keeps its voices' scopes, with `muted` voices left out:
+/// each voice's scope after a quarter of a second, and again after the song is started afresh; and
+/// whether what was heard was the same, to the bit, as from a session that keeps none.
+private func scopes(_ file: [UInt8], format: TuneFormat, muted: [Bool] = []) throws
+    -> (now: [ArraySlice<UInt8>], again: [ArraySlice<UInt8>], same: Bool)
+{
+    func session() throws -> TuneSession {
+        let renderer = try TuneLoader.load(file, format: format, options: LoadOptions())
+        renderer.setMuted(muted)
+        return TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    }
+    let kept = try session(), plain = try session()
+    #expect(kept.keepChannelWaves())
+    var same = true
+    func play() -> [ArraySlice<UInt8>] {
+        var with = [Float](repeating: 0, count: 1000 * 2), without = with
+        for _ in 0 ..< 12 {
+            _ = with.withUnsafeMutableBufferPointer { kept.render(into: $0.baseAddress!, frames: 1000) }
+            _ = without.withUnsafeMutableBufferPointer { plain.render(into: $0.baseAddress!, frames: 1000) }
+            if with != without { same = false }
+        }
+        let voices = kept.renderer.channelCount
+        var scopes = [UInt8](repeating: 0, count: voices * ChannelWaves.points)
+        scopes.withUnsafeMutableBufferPointer { kept.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+        return (0 ..< voices).map { scopes[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points] }
+    }
+    let now = play()
+    kept.renderer.select(subsong: 0)
+    plain.renderer.select(subsong: 0)
+    return (now, play(), same)
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func stmChannelsHaveScopes() throws {
+    // A note at full volume on the first channel and one at a quarter of it on the second, of a
+    // square wave as loud as a sample can be; the others silent.
+    let loud = Sound(frames: (0 ..< 32).map { $0 < 16 ? 127 : -128 })
+    let file = stm([[(0, 0, .note()), (0, 1, .note(0x30, volume: 16))]], sounds: [loud])
+    let heard = try scopes(file, format: .stm)
+    #expect(heard.same)
+    for scopes in [heard.now, heard.again] {
+        #expect(height(scopes[0]) > 115)
+        // (A quarter of the swing is half the height.)
+        #expect(height(scopes[1]) > 50 && height(scopes[1]) < 80)
+        #expect(scopes[2...].allSatisfy { $0.allSatisfy { $0 == 128 } })
+    }
+    // A channel left out is still seen to play.
+    let without = try scopes(file, format: .stm, muted: [true])
+    #expect(without.same && height(without.now[0]) > 115 && height(without.again[0]) > 115)
+    // And what Scream Tracker made is made as it was.
+    let kept = try #require(try TuneLoader.load(file, format: .stm) as? STMRenderer)
+    #expect(kept.keepChannelWaves() != nil)
+    #expect(kept.renderRaw(frames: 12000) == (try #require(try TuneLoader.load(file, format: .stm) as? STMRenderer)).renderRaw(frames: 12000))
+}

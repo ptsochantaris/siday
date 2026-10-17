@@ -163,6 +163,17 @@ final class IT2Mixer {
     private(set) var sampled = [Bool?](repeating: nil, count: 64)
     private var swing = Swing<Float>(from: -4, to: 4)
 
+    /// Where each channel's sound is kept for its scope, if it is wanted (see `keepWaves`): which of
+    /// the waves' voices each of the 64 channels is, less than nought for one not shown.
+    private var waves: ChannelWaves?
+    private var waveOfChannel = [Int](repeating: -1, count: 64)
+    /// While a tick is mixed for the scopes: what one voice adds to the tick, mixed here first and
+    /// then added where it goes; each channel's sound in the tick, of all its voices together, one
+    /// channel after another; and the FM chip's voices, as each frame of the tick has them.
+    private var voiceWave: UnsafeMutablePointer<Float>?
+    private var channelWaves: UnsafeMutablePointer<Float>?
+    private var chipWaves: UnsafeMutablePointer<Float>?
+
     // The filter's tables.
     private let QualityFactorTable: UnsafeMutablePointer<Float>
     private let FreqParameterMultiplier: Float, FreqMultiplier: Float
@@ -324,6 +335,65 @@ final class IT2Mixer {
         SamplesPerTickFrac.deallocate()
         QualityFactorTable.deallocate()
         fSincLUT.deallocate()
+        voiceWave?.deallocate()
+        channelWaves?.deallocate()
+        chipWaves?.deallocate()
+    }
+
+    /// Keeps the sound of the channels in `channels` for their scopes, as the voices of `waves` in
+    /// that order, from the next tick on: at the output's rate, each as it is before it is put to
+    /// one side or the other, its samples' voices and its notes on the FM chip together, and each
+    /// at 1 either side of nothing at its loudest. Nil keeps none.
+    func keepWaves(in waves: ChannelWaves?, channels: [Int]) {
+        self.waves = waves
+        waveOfChannel = [Int](repeating: -1, count: 64)
+        for (voice, channel) in channels.enumerated() where channel >= 0 && channel < 64 { waveOfChannel[channel] = voice }
+        guard waves != nil, voiceWave == nil else { return }
+        let frames = mixCapacity / 2
+        voiceWave = .allocate(capacity: mixCapacity)
+        channelWaves = .allocate(capacity: frames * 64)
+        chipWaves = .allocate(capacity: frames * OpenMPTAdLib.voiceCount)
+    }
+
+    /// What a voice mixed in `voiceWave` adds to the tick, added where it goes; and what it sounds
+    /// like, both sides together as one, as loud as the voice is, added to its channel's scope. The
+    /// sides are put together by how the voice was put on them: in the middle in a file that is not
+    /// in stereo, upside down on one side in surround, the nearer side as loud as the middle with
+    /// soft panning, and otherwise shared between the two.
+    private func keepWave(_ sc: IT2SlavePointer, into target: UnsafeMutablePointer<Float>, surround: Bool) {
+        guard let voiceWave, let channelWaves else { return }
+        let frames = Int(RealBytesToMix)
+        for i in 0 ..< frames * 2 { target[i] += voiceWave[i] }
+        let channel = Int(sc.pointee.HostChnNum & 63)
+        guard waveOfChannel[channel] >= 0 else { return }
+        let wave = channelWaves + channel * frames
+        // (As loud as the voice is without the song's mixing volume, which the lights leave out too.)
+        let back = MixVolume > 0 ? 128 / Float(MixVolume) : 0
+        for i in 0 ..< frames {
+            let l = voiceWave[i * 2], r = voiceWave[i * 2 + 1]
+            let both: Float
+            if !stereoOutput {
+                both = l
+            } else if surround {
+                both = l - r
+            } else if softPanning {
+                both = 2 * (abs(l) >= abs(r) ? l : r)
+            } else {
+                both = l + r
+            }
+            wave[i] += both * back
+        }
+    }
+
+    /// Keeps the tick's scopes, once its voices and the FM chip have been mixed.
+    private func storeWaves(_ waves: ChannelWaves) {
+        guard let channelWaves else { return }
+        let frames = Int(RealBytesToMix)
+        for channel in 0 ..< 64 where waveOfChannel[channel] >= 0 {
+            let voice = waveOfChannel[channel], wave = channelWaves + channel * frames
+            for i in 0 ..< frames { waves.store(voice, at: i, wave[i]) }
+        }
+        waves.advance(by: frames)
     }
 
     /// setHQDriverMixGain: a module that came from ModPlug Tracker is turned down by its count of
@@ -629,6 +699,8 @@ final class IT2Mixer {
             // (What the voices that are left out add up to is thrown away tick by tick.)
             if mutedChannels != 0 { fMutedBuffer?.update(repeating: 0, count: Int(RealBytesToMix) * 2) }
         }
+        let waves = silent ? nil : waves
+        if waves != nil { channelWaves?.update(repeating: 0, count: Int(RealBytesToMix) * 64) }
         defer {
             if !silent { levels.tickMade() }
             musicTempoChanged = false
@@ -843,6 +915,15 @@ final class IT2Mixer {
                     if place >= 0, let plugIns { fMixBufferPtr = plugIns.buffer(ofPlace: place) }
                     if reverbed, let reverbSend { fMixBufferPtr = reverbSend }
                     if muted, let fMutedBuffer { fMixBufferPtr = fMutedBuffer }
+                    // For the scopes, the voice is mixed on its own first, and then added where it
+                    // goes. (Into nothing less than nought, which anything added to leaves as it is,
+                    // so that what is added there afterwards is the same to the last bit.)
+                    let target = fMixBufferPtr
+                    if waves != nil, let voiceWave {
+                        voiceWave.update(repeating: -0.0, count: Int(RealBytesToMix) * 2)
+                        fMixBufferPtr = voiceWave
+                    }
+                    defer { if waves != nil { keepWave(sc, into: target, surround: Surround) } }
                     if sc.pointee.LoopMode == LOOP_PINGPONG {
                         while MixBlockSize > 0 {
                             // How many frames until the end of the loop it is heading for.
@@ -1024,6 +1105,7 @@ final class IT2Mixer {
         }
 
         if !silent, adLib != nil || plugIns != nil || reverb != nil { finishTick(fMixBuffer, Int(RealBytesToMix)) }
+        if let waves { storeWaves(waves) }
     }
 
     /// What is left of a voice in the reverb when it ends, which the reverb lets die away, as OpenMPT
@@ -1065,7 +1147,17 @@ final class IT2Mixer {
     private func finishTick(_ fMixBuffer: UnsafeMutablePointer<Float>, _ frames: Int) {
         if let adLib {
             adLib.leaveOut(mutedChannels, sChn)
-            adLib.render(into: fMixBuffer, frames: frames, level: adLibLevel)
+            let chipWaves = waves != nil ? chipWaves : nil
+            adLib.render(into: fMixBuffer, frames: frames, level: adLibLevel, waves: chipWaves)
+            // For the scopes, each of the chip's voices is the sound of the channel whose note it last had.
+            if let chipWaves, let channelWaves {
+                for voice in 0 ..< OpenMPTAdLib.voiceCount {
+                    let channel = adLib.lastChannel(ofVoice: voice)
+                    guard channel >= 0, waveOfChannel[channel] >= 0 else { continue }
+                    let from = chipWaves + voice * frames, to = channelWaves + channel * frames
+                    for i in 0 ..< frames { to[i] += from[i] }
+                }
+            }
             // A channel with a note on the chip is as loud as the chip's voice is.
             withUnsafeTemporaryAllocation(of: Float.self, capacity: OpenMPTAdLib.voiceCount) { swings in
                 guard let swings = swings.baseAddress else { return }

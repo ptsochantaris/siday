@@ -96,6 +96,18 @@ public final class STMRenderer: Renderer, ReferenceComparable {
     /// The channels left out of the sound, which a song started afresh is started without.
     private var muted: [Bool] = []
 
+    /// Where the player keeps each channel's sound for its scope, at its own rate, once asked; a
+    /// song started afresh keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            waves = ChannelWaves(voices: ST2Module.channels, rate: Double(ST2Player.mixRate), fullSwing: 32)
+            player.waves = waves
+        }
+        return waves
+    }
+
     public func setMuted(_ muted: [Bool]) {
         self.muted = muted
         player.setMuted(muted)
@@ -104,6 +116,7 @@ public final class STMRenderer: Renderer, ReferenceComparable {
     private func restart() {
         player = ST2Player(module, order: songList[currentSubsong].start)
         player.setMuted(muted)
+        player.waves = waves
         for i in 0 ..< 16 { recent[i] = 0 }
         fraction = 0
         ticksSeen = 0

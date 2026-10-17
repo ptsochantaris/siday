@@ -146,6 +146,18 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         player.mixer.setMuted(channels: mutedChannels)
     }
 
+    /// Where the mixer keeps each voice's sound for its scope, once asked; a song started afresh
+    /// keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            waves = ChannelWaves(voices: lights.count, rate: Double(outputSampleRate), fullSwing: 1)
+            player.mixer.keepWaves(in: waves, channels: lights)
+        }
+        return waves
+    }
+
     /// Those voices as the mixer knows them: a bit for each of the 64 channels, of which the
     /// voices that are shown are the ones some pattern uses.
     private var mutedChannels: UInt64 {
@@ -159,6 +171,8 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         let song = songList[currentSubsong]
         player = IT2Player(module, order: song.start, firstPlayedBy: firstPlayedBy, songNumber: song.number, asImpulseTracker: asImpulseTracker, forSound: true)
         player.mixer.setMuted(channels: mutedChannels)
+        // (What is made to be set beside the player this is ported from is not shown.)
+        if !asImpulseTracker, let waves { player.mixer.keepWaves(in: waves, channels: lights) }
         tickFrames = 0
         tickPosition = 0
         loopCount = 0
@@ -225,6 +239,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+        waves?.ahead = tickFrames - tickPosition
     }
 
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and

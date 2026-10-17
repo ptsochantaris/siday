@@ -86,6 +86,14 @@ struct SampleMixer: ~Copyable {
     private var peaks: [Float]
     /// The channels that are left out of the sound: they play on, and are not added in.
     private var muted: [Bool]
+    /// Where each channel's sound is kept for its scope, as loud as it is and before it is put to
+    /// one side or the other, if it is wanted: a channel's note and the one dying away under it
+    /// together, at the output's rate, at most 1 either side of nothing.
+    var waves: ChannelWaves?
+    /// Each channel's sound for its scope, as it is made, one after another, each as long as the
+    /// longest render yet.
+    private var wave: UnsafeMutablePointer<Float>?
+    private var waveLength = 0
     /// How far a voice's loudness moves in one sample of output, at most: all the way in two
     /// thousandths of a second.
     private static let ramp: Float = 1 / (0.002 * Float(outputSampleRate))
@@ -98,6 +106,10 @@ struct SampleMixer: ~Copyable {
         rates = [Double](repeating: 0, count: channels)
         peaks = [Float](repeating: 0, count: channels)
         muted = [Bool](repeating: false, count: channels)
+    }
+
+    deinit {
+        wave?.deallocate()
     }
 
     // MARK: What a player tells it
@@ -191,8 +203,11 @@ struct SampleMixer: ~Copyable {
         return at < 0 ? 0 : Float(sound.data[at])
     }
 
-    /// Adds a voice to the sound, and moves it on.
-    private mutating func mix(_ index: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
+    /// Adds a voice to the sound, and moves it on; and adds it to `wave` too, if it is given, as
+    /// loud as it is on both sides together.
+    private mutating func mix(_ index: Int, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int,
+                              wave: UnsafeMutablePointer<Float>? = nil)
+    {
         guard let sound = voices[index].sound else { return }
         var voice = voices[index]
         var peak: Float = 0
@@ -217,6 +232,7 @@ struct SampleMixer: ~Copyable {
             }
             let swing = abs(value) * (voice.nowLeft + voice.nowRight)
             if swing > peak { peak = swing }
+            if let wave { wave[i] += value * (voice.nowLeft + voice.nowRight) }
 
             // On, or back, and round or about at the end.
             if voice.backwards {
@@ -255,6 +271,25 @@ struct SampleMixer: ~Copyable {
             left[i] = 0
             right[i] = 0
         }
-        for index in voices.indices { mix(index, left: left, right: right, count: count) }
+        guard let waves else {
+            for index in voices.indices { mix(index, left: left, right: right, count: count) }
+            return
+        }
+        // (The voices are added to the sound in the same order as when no scope is kept, so that
+        // the sound is the same to the last bit.)
+        if waveLength < count {
+            wave?.deallocate()
+            wave = .allocate(capacity: count * channels)
+            waveLength = count
+        }
+        let wave = wave!
+        wave.update(repeating: 0, count: count * channels)
+        for index in voices.indices {
+            mix(index, left: left, right: right, count: count, wave: wave + (index < channels ? index : index - channels) * count)
+        }
+        for channel in 0 ..< channels {
+            for i in 0 ..< count { waves.store(channel, at: i, wave[channel * count + i]) }
+        }
+        waves.advance(by: count)
     }
 }

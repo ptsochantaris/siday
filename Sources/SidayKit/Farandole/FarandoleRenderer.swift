@@ -86,6 +86,18 @@ public final class FarandoleRenderer: Renderer {
     /// The channels left out of the sound, which a song started afresh is started without.
     private var muted: [Bool] = []
 
+    /// Where the mixer keeps each channel's sound for its scope, once asked; a song started afresh
+    /// keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            waves = ChannelWaves(voices: FarandoleModule.channels, rate: Double(outputSampleRate), fullSwing: 1)
+            player.mixer.waves = waves
+        }
+        return waves
+    }
+
     public func setMuted(_ muted: [Bool]) {
         self.muted = muted
         player.mixer.setMuted(muted)
@@ -94,6 +106,7 @@ public final class FarandoleRenderer: Renderer {
     private func restart() {
         player = FarandolePlayer(module, order: songList[currentSubsong].start)
         player.mixer.setMuted(muted)
+        player.mixer.waves = waves
         tickFrames = 0
         tickPosition = 0
         remainder = 0
@@ -135,6 +148,7 @@ public final class FarandoleRenderer: Renderer {
             tickPosition += count
             done += count
         }
+        waves?.ahead = tickFrames - tickPosition
     }
 
     public var channelCount: Int { FarandoleModule.channels }

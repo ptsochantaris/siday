@@ -95,6 +95,18 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     /// The channels left out of the sound, which a song started afresh is started without.
     private var muted: [Bool] = []
 
+    /// Where the player keeps each channel's sound for its scope, once asked; a song started afresh
+    /// keeps it there too.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil {
+            waves = ChannelWaves(voices: channelCount, rate: Double(outputSampleRate), fullSwing: player.fullWaveSwing)
+            player.keepWaves(in: waves)
+        }
+        return waves
+    }
+
     public func setMuted(_ muted: [Bool]) {
         self.muted = muted
         player.setMuted(muted)
@@ -107,6 +119,8 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         player.stereoOutput = !mono
         if !asFastTracker { player.playsPlugIns() }
         player.setMuted(muted)
+        // (What is made to be set beside the player this is ported from is not shown.)
+        player.keepWaves(in: asFastTracker ? nil : waves)
         tickFrames = 0
         tickPosition = 0
         loopCount = 0
@@ -143,6 +157,7 @@ public final class XMRenderer: Renderer, ReferenceComparable {
             tickPosition += count
             done += count
         }
+        waves?.ahead = tickFrames - tickPosition
     }
 
     public var channelCount: Int { Int(module.song.antChn) }

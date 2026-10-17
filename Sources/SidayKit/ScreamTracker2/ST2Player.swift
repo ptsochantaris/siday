@@ -23,6 +23,10 @@ final class ST2Player {
     /// timer divided by 50.
     static let mixRate = 23863
 
+    /// Where each channel's sound is kept for its scope, as loud as it is, at the rate it is mixed
+    /// at, if it is wanted. A channel at its loudest swings 32 either side of nothing.
+    var waves: ChannelWaves?
+
     private enum FX {
         static let speed: UInt16 = 0x01, positionJump: UInt16 = 0x02, patternBreak: UInt16 = 0x03, volumeSlide: UInt16 = 0x04
         static let portamentoDown: UInt16 = 0x05, portamentoUp: UInt16 = 0x06, tonePortamento: UInt16 = 0x07, vibrato: UInt16 = 0x08
@@ -385,7 +389,10 @@ final class ST2Player {
     /// bits, with silence at 128.
     func renderSample() -> UInt8 {
         var mix = 0
+        let waves = waves
         for i in 0 ..< ST2Module.channels {
+            var level = 0
+            defer { waves?.store(i, at: 0, Float(level)) }
             channels[i].smpPosition &+= channels[i].smpStep
             var at = Int(channels[i].smpPosition >> 16)
             var sounding = at < Int(channels[i].smpLoopEnd)
@@ -399,7 +406,7 @@ final class ST2Player {
                 if channels[i].smpBase >= 0, channels[i].volumeMix < 65 {
                     let byte = at < channels[i].smpCount ? Int(Int8(bitPattern: module.sound[channels[i].smpBase + at])) : 0
                     // (The high half of the product, which for a sample below the middle rounds away from it.)
-                    let level = (Int(channels[i].volumeMix) * byte) >> 8
+                    level = (Int(channels[i].volumeMix) * byte) >> 8
                     if !channels[i].muted { mix += level }
                     if level < channels[i].low { channels[i].low = level }
                     if level > channels[i].high { channels[i].high = level }
@@ -408,6 +415,8 @@ final class ST2Player {
                 channels[i].smpPosition = UInt32(channels[i].smpLoopEnd) << 16 | (channels[i].smpPosition & 0xFFFF)
             }
         }
+
+        waves?.advance(by: 1)
 
         if currentFrame == 1 {
             currentFrame = framesPerTick

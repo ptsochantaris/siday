@@ -432,6 +432,10 @@ final class OpenMPTAdLib {
         chip.pointee.muted = voices
     }
 
+    /// The channel that last had a note on one of the chip's voices, whose sound it is: less than
+    /// nought for none yet. As `leaveOut` last found it.
+    func lastChannel(ofVoice voice: Int) -> Int { lastChannel[voice] }
+
     /// How far each of the chip's eighteen voices has swung since this was last asked.
     func takeLevels(into levels: UnsafeMutablePointer<Float>) {
         chip.pointee.takeLevels(into: levels, count: Self.voiceCount)
@@ -439,7 +443,10 @@ final class OpenMPTAdLib {
 
     /// Adds `frames` frames of the chip to a buffer of left and right in turn, at `level`. What the
     /// replayer has set since the last frames were made is set first.
-    func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, level: Float) {
+    /// - Parameter waves: for the scopes, if given: what each of the chip's voices puts out at each
+    ///   of the frames, the chip's latest sample, at 1 either side of nothing at its loudest; one
+    ///   voice's frames after another's.
+    func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, level: Float, waves: UnsafeMutablePointer<Float>? = nil) {
         for write in pending { chip.pointee.OPL3_WriteRegBuffered(UInt16(write >> 8), UInt8(truncatingIfNeeded: write)) }
         pending.removeAll(keepingCapacity: true)
 
@@ -472,6 +479,9 @@ final class OpenMPTAdLib {
             }
             buffer[n * 2] += sumL * scale
             buffer[n * 2 + 1] += sumR * scale
+            if let waves {
+                for voice in 0 ..< Self.voiceCount { waves[voice * frames + n] = Float(chip.pointee.channelOutput(voice)) * (1.0 / 4000.0) }
+            }
         }
         position = frac
     }

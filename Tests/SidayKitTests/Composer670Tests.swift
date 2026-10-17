@@ -190,3 +190,53 @@ private let row = 6 * 2.5 / 143
     let neither = try played([sample, chip], muted: [true, true])
     #expect(neither.left.allSatisfy { $0 == 0 } && neither.right.allSatisfy { $0 == 0 } && neither.levels == whole.levels)
 }
+
+/// A tune played through a session that keeps its voices' scopes, with `muted` voices left out:
+/// each voice's scope after a quarter of a second, and again after the song is started afresh; and
+/// whether what was heard was the same, to the bit, as from a session that keeps none.
+private func scopes(_ file: [UInt8], format: TuneFormat, muted: [Bool] = []) throws
+    -> (now: [ArraySlice<UInt8>], again: [ArraySlice<UInt8>], same: Bool)
+{
+    func session() throws -> TuneSession {
+        let renderer = try TuneLoader.load(file, format: format, options: LoadOptions())
+        renderer.setMuted(muted)
+        return TuneSession(renderer: renderer, policy: PlaybackPolicy())
+    }
+    let kept = try session(), plain = try session()
+    #expect(kept.keepChannelWaves())
+    var same = true
+    func play() -> [ArraySlice<UInt8>] {
+        var with = [Float](repeating: 0, count: 1000 * 2), without = with
+        for _ in 0 ..< 12 {
+            _ = with.withUnsafeMutableBufferPointer { kept.render(into: $0.baseAddress!, frames: 1000) }
+            _ = without.withUnsafeMutableBufferPointer { plain.render(into: $0.baseAddress!, frames: 1000) }
+            if with != without { same = false }
+        }
+        let voices = kept.renderer.channelCount
+        var scopes = [UInt8](repeating: 0, count: voices * ChannelWaves.points)
+        scopes.withUnsafeMutableBufferPointer { kept.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+        return (0 ..< voices).map { scopes[$0 * ChannelWaves.points ..< ($0 + 1) * ChannelWaves.points] }
+    }
+    let now = play()
+    kept.renderer.select(subsong: 0)
+    plain.renderer.select(subsong: 0)
+    return (now, play(), same)
+}
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+@Test func c67ChannelsHaveScopesWhicheverKindTheyAre() throws {
+    // A sample on the first channel, and the FM chip at full volume on the fifth and at less on the sixth.
+    let file = c67([[.note(channel: 0), .note(channel: 4, octave: 3), .note(channel: 5, octave: 4, volume: 9), .rows(64)]])
+    let heard = try scopes(file, format: .c67)
+    #expect(heard.now.count == 3 && heard.same)
+    for scopes in [heard.now, heard.again] {
+        #expect(height(scopes[0]) > 60)
+        #expect(height(scopes[1]) > 115)
+        #expect(height(scopes[2]) > 20 && height(scopes[2]) < height(scopes[1]) - 20)
+    }
+    // A voice of the chip left out is still seen to play.
+    let without = try scopes(file, format: .c67, muted: [false, true])
+    #expect(without.same && height(without.now[1]) > 115 && height(without.again[1]) > 115)
+}
