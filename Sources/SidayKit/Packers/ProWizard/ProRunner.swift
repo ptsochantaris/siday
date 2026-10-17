@@ -17,8 +17,10 @@ enum ProRunner {
     /// Whether a file is ProRunner 1.0's. (`test_pru1`)
     static func test1(_ data: [UInt8], _ size: Int) -> Int {
         if let more = ProWizard.request(size, 1084) { return more }
-        // "SNT." where ProTracker has "M.K.",
-        if ProWizard.long(data, 1080) != 0x534E_542E { return -1 }
+        // "SNT." where ProTracker has "M.K.", or "KURT", which Ultimate Pinball Quest's modules have in
+        // its place (the player's own, not ProWizard's: unpacked as if they said "SNT.", they are as
+        // UADE plays them),
+        if ProWizard.long(data, 1080) != 0x534E_542E, ProWizard.long(data, 1080) != 0x4B55_5254 { return -1 }
         // NoiseTracker's restart where ProTracker has 127,
         if ProWizard.byte(data, 951) != 0x7F { return -1 }
         // and no more than 127 patterns in the order.

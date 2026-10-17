@@ -139,7 +139,13 @@ enum ProWizard {
             return nil
         }
         guard !input.failed else { return nil }
-        return (packer.name, output.bytes)
+        var module = output.bytes
+        // A Pha Packer file does not say how long its song is, and ProWizard counts it to the last place
+        // in the order that plays a pattern other than the first: so one whose every place plays that
+        // one pattern, a jingle, comes out as a song of no length. It is a song of that pattern once.
+        // (This is the player's own, not ProWizard's; UADE plays such a file for as long.)
+        if packer == .pha, module.count > 950, module[950] == 0 { module[950] = 1 }
+        return (packer.name, module)
     }
 
     /// The byte at a place in a file, for a test; nought past its end. (A test looks no further than
