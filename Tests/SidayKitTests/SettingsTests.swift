@@ -59,7 +59,7 @@ import Testing
     #expect(options.sbProSeparation == 1)
     // (Brought together as an Amiga's are, until changed; and only a VGM file is played again for it.)
     #expect(Setting.sbProSeparation.standard == Setting.amigaSeparation.standard && Setting.sbProSeparation.group == .ay)
-    #expect(Setting.sbProSeparation.changes(.vgm) && !Setting.sbProSeparation.changes(.mod) && !Setting.amigaSeparation.changes(.vgm))
+    #expect(Setting.sbProSeparation.changes(.vgm) && Setting.sbProSeparation.changes(.sap) && !Setting.sbProSeparation.changes(.mod) && !Setting.amigaSeparation.changes(.vgm))
     // Nonsense is made sense of, and a short list leaves the rest as they come.
     Setting.apply([99, -4, .nan], to: &options, &policy)
     #expect(!policy.allSubsongs && policy.shortestSong == 0 && policy.loops == 1 && policy.loopFade == 20)

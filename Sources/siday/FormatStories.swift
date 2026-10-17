@@ -178,7 +178,11 @@ as often as the header asks, once a frame or several times; C, music made in Cha
 whose player is called at places of its own; D, whose start is run as the machine's program and never
 returns, its player called as the vertical blank interrupt would have called it; and S, the same
 with a counter counted down in place of a player, for SoftSynth's music. A tune for two POKEYs, one on each side, is
-marked as stereo, and one for the American machines' 60 frames a second as NTSC.
+marked as stereo, and one for the American machines' 60 frames a second as NTSC. The two sides of a
+stereo tune are brought most of the way together, as a Sound Blaster Pro's are, because each POKEY
+all on its own side is harsh in headphones: a fifth of the difference between them is kept, unless
+the listener asks for more (`--sb-pro-separation`, or the setting in the browser; 100 is the
+machine's own).
 
 The player here is a port of ASAP, Piotr Fusik's Another Slight Atari Player: its POKEY, its 6502,
 and as much of the machine as a tune needs. The 6502 is not the C64's of this project, which makes

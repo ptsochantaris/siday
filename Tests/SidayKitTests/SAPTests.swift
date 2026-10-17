@@ -119,6 +119,7 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     let file = sap(["STEREO", "TYPE B", "INIT 2000", "PLAYER 2080"], [(0x2000, code), player, table])
     var options = LoadOptions()
     options.stereo = .abc
+    options.sbProSeparation = 1
     let renderer = try SAPRenderer(file, options: options)
     #expect(renderer.channelCount == 8)
     #expect(renderer.info.detail == "Atari 8-bit, two POKEYs")
@@ -128,6 +129,12 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     var sides = [Float](repeating: 0, count: 8)
     renderer.takeChannelSides(into: &sides)
     #expect(sides == [-1, -1, -1, -1, 1, 1, 1, 1])
+    // Brought together, a fifth of the difference between the sides is kept.
+    options.sbProSeparation = 0.2
+    let near = render(try SAPRenderer(file, options: options), seconds: 0.5)
+    let nearLeft = swing(near, from: 4800), nearRight = swing(near, from: 4800, side: 1)
+    #expect(nearLeft > nearRight && nearLeft < left && nearRight > right)
+    #expect(abs((nearLeft - nearRight) - 0.2 * (left - right)) < 0.01)
     // Heard in mono, the two are heard together, on both sides.
     let mono = render(try SAPRenderer(file), seconds: 0.5)
     #expect(abs(swing(mono, from: 4800) - (left + right) / 2) < 0.01)

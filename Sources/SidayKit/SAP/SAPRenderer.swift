@@ -34,10 +34,14 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
 
     /// True if the two POKEYs of a stereo tune are to be heard together.
     private let mono: Bool
+    /// How much of the difference between the two sides of a stereo tune is kept: from 0, none, to
+    /// 1/2, all of it, each POKEY on its own side as the stereo upgrade had them.
+    private let side: Float
 
     public init(_ data: [UInt8], options: LoadOptions = LoadOptions()) throws {
         file = try SAPFile(data)
         mono = options.stereo == .mono
+        side = Float(max(0, min(1, options.sbProSeparation))) * 0.5
         machine = SAPMachine(file, sampleRate: outputSampleRate)
         madeCapacity = 4096
         made = .allocate(capacity: madeCapacity * 2)
@@ -90,7 +94,13 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
                 buffer[i * 2 + 1] = sample
             }
         } else if file.stereo {
-            for i in 0 ..< frames * 2 { buffer[i] = Float(made[i]) * gain }
+            // (Brought nearer together, as far as the listener asks.)
+            for i in 0 ..< frames {
+                let l = Float(made[i * 2]) * gain, r = Float(made[i * 2 + 1]) * gain
+                let middle = (l + r) * 0.5, apart = (l - r) * side
+                buffer[i * 2] = middle + apart
+                buffer[i * 2 + 1] = middle - apart
+            }
         } else {
             for i in 0 ..< frames {
                 let sample = Float(made[i]) * gain
@@ -129,6 +139,7 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
         }
     }
 
+    /// A stereo tune's POKEYs are each on its own side, however near they are brought to one another.
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         for voice in 0 ..< channelCount { sides[voice] = file.stereo ? voice < 4 ? -1 : 1 : 0 }
     }

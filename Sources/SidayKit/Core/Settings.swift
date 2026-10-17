@@ -104,7 +104,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .amiga: "Amiga"
         case .amigaSeparation: "Amiga left and right"
         case .s3mCard: "S3M sound card"
-        case .sbProSeparation: "Sound Blaster Pro and CMS left and right"
+        case .sbProSeparation: "Sound Blaster Pro, CMS and stereo POKEY left and right"
         case .levelling: "Loudness"
         }
     }
@@ -145,7 +145,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .s3mCard:
             "The sound card an S3M file is played on: a Gravis Ultrasound, or a Sound Blaster Pro with its eight bits at 22 kHz. A file says which it was saved with; one that does not is given the Ultrasound."
         case .sbProSeparation:
-            "How far apart the left and right of a recording from the first Sound Blaster Pro or the Creative Music System are kept: a VGM file of their chips. The Sound Blaster Pro had one FM chip on each side and nothing of either on the other, and the Creative Music System's music puts most of its voices on one side or the other: that is harsh in headphones. It makes no difference in mono or through a television."
+            "How far apart the left and right of a recording from the first Sound Blaster Pro or the Creative Music System are kept (a VGM file of their chips), and of an 8-bit Atari tune for two POKEYs. The Sound Blaster Pro had one FM chip on each side and nothing of either on the other, the Atari's stereo upgrade one POKEY on each side, and the Creative Music System's music puts most of its voices on one side or the other: that is harsh in headphones. It makes no difference in mono or through a television."
         case .levelling:
             "A tune is heard as loud as its file has it, so one written quiet is heard quiet. Levelled, each song is turned up or down to be as loud as the rest; halfway, it is moved half as far, and a quiet tune is still quieter than a loud one, but not by as much. No song is turned up by more than 6 dB. A song is measured the first time it is played: it waits up to a second to be, starts at about its level by what has been measured of it if that is not enough, and glides to its level once the whole of it has been. Its level is kept in this browser for the next time."
         }
@@ -267,7 +267,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .sidModel, .sidEngine, .sidFilter: format == .sid
         case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt)
         case .s3mCard: format == .s3m
-        case .sbProSeparation: format == .vgm
+        case .sbProSeparation: format == .vgm || format == .sap
         }
     }
 
