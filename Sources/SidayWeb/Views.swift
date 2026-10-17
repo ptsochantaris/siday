@@ -338,11 +338,22 @@ struct Analyser {
 /// glows, and the wider. And each is a button: pressed, it mutes its voice or brings it back; with
 /// a right click, or held, it has its voice heard alone. (The presses are seen to in `Web/siday.js`,
 /// which knows a held press from a short one; here a light is only shown as it stands.)
+/// What a voice plays, as its light shows it.
+enum VoiceKind: Equatable {
+    /// A sound a chip makes of itself: a square wave, an FM voice, a waveform drawn in a tracker.
+    case chip
+    /// A recording of a sound.
+    case sample
+    /// The clicks of a loudspeaker that the computer's own code moves in and out: a beeper.
+    case speaker
+}
+
 @View
 struct Lights {
     var levels: [Double]
-    /// Which of the voices are playing samples: their lights are blue, and the others' red.
-    var sampled: [Bool]
+    /// What each voice is playing: a sample's light is blue, the computer's own loudspeaker's
+    /// pink, and a chip's red.
+    var sampled: [VoiceKind]
     /// Which the listener has muted: their lights are dimmed and have most of their colour taken
     /// out, and still flicker with what the voice is playing.
     var muted: [Bool]
@@ -362,7 +373,8 @@ struct Lights {
     private func isMuted(_ index: Int) -> Bool { index < muted.count && muted[index] }
 
     private func name(_ index: Int) -> String {
-        "light" + (index < sampled.count && sampled[index] ? " sampled" : "") + (isMuted(index) ? " muted" : "")
+        let kind = index < sampled.count ? sampled[index] : .chip
+        return "light" + (kind == .sample ? " sampled" : kind == .speaker ? " speaker" : "") + (isMuted(index) ? " muted" : "")
     }
 
     /// A lamp at half its level is well under half as bright, so that a loud voice stands out from a

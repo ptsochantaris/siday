@@ -68,7 +68,7 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     #expect(renderer.subsongCount == 2)
     #expect(renderer.defaultSubsong == 1)
     #expect(renderer.songs.map(\.length) == [83.456, 5])
-    #expect(renderer.channelCount == 5 && renderer.channelsAlwaysShown == 4)
+    #expect(renderer.channelCount == 5 && renderer.channelsAlwaysShown == 4 && renderer.speakerChannel == 4)
 }
 
 @Test func sapUnknownNamesAreMadePlain() {
@@ -121,7 +121,7 @@ private let typeB = ["AUTHOR \"Someone\"", "NAME \"A Tune\"", "DATE \"1987\"", "
     options.stereo = .abc
     options.sbProSeparation = 1
     let renderer = try SAPRenderer(file, options: options)
-    #expect(renderer.channelCount == 9 && renderer.channelsAlwaysShown == 8)
+    #expect(renderer.channelCount == 9 && renderer.channelsAlwaysShown == 8 && renderer.speakerChannel == 8)
     #expect(renderer.info.detail == "Atari 8-bit, two POKEYs")
     let samples = render(renderer, seconds: 0.5)
     let left = swing(samples, from: 4800), right = swing(samples, from: 4800, side: 1)

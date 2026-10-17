@@ -57,12 +57,15 @@ final class WebPlayer {
     /// for none; 1 if a note was started on it; and the side it is heard from, from 1 for the left
     /// through 128 for the middle to 255 for the right. And what was handed over the last time they
     /// were taken: all the lights, then all the pitches, then all the marks, then all the sides,
-    /// then for each voice whether it is playing a sample.
+    /// then for each voice what it is: 1 if it is playing a sample, 2 if it is the computer's own
+    /// loudspeaker, and 0 for a chip's voice.
     private var lights: [UInt8] = []
     private var pitches: [UInt8] = []
     private var struck: [UInt8] = []
     private var sides: [UInt8] = []
     private var sampled: [UInt8] = []
+    /// The voice that is the computer's own loudspeaker, if one is (`Renderer.speakerChannel`).
+    private var speaker: Int?
     private(set) var voicesTaken: [UInt8] = []
     var voiceCount: Int { lights.count }
     /// The voices the listener has left out of the sound: a mark for each, true for one not to be
@@ -166,6 +169,7 @@ final class WebPlayer {
         struck = lights
         sides = [UInt8](repeating: 128, count: lights.count)
         sampled = lights
+        speaker = renderer.speakerChannel
         voicesTaken = lights + lights + lights + sides + lights
         settle()
         blockLength = 0
@@ -278,7 +282,7 @@ final class WebPlayer {
                     if pitch > 0 { pitches[voice] = UInt8(max(1, min(255, (pitch * 2).rounded()))) }
                     if session.channelStruck[voice] { struck[voice] = 1 }
                     sides[voice] = UInt8(max(1, min(255, (128 + session.channelSides[voice] * 127).rounded())))
-                    sampled[voice] = session.channelsSampled[voice] ? 1 : 0
+                    sampled[voice] = voice == speaker ? 2 : session.channelsSampled[voice] ? 1 : 0
                 }
                 // A song heard whole has just said how it ends.
                 if session.finished, !following, ending == nil {

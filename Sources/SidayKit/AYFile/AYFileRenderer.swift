@@ -559,6 +559,7 @@ public final class AYFileRenderer: Renderer {
     /// only known from its playing, so each is shown once it is heard.
     public var channelCount: Int { 4 }
     public var channelsAlwaysShown: Int { 0 }
+    public var speakerChannel: Int? { 3 }
 
     public func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
         chip.pointee.sides(into: sides)

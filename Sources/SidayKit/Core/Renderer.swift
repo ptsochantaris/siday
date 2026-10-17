@@ -94,6 +94,10 @@ public protocol Renderer: AnyObject {
     /// True if the tune's voices play samples: what `takeChannelsSampled` says of every one of
     /// them, for a player that does not say it voice by voice.
     var channelsAreSampled: Bool { get }
+    /// The voice that is no chip's, nor a sample's, but a loudspeaker that the computer's own code
+    /// moves in and out, a click at a time: the ZX Spectrum's beeper, the 8-bit Atari's console
+    /// speaker. Nil if the tune has none.
+    var speakerChannel: Int? { get }
     /// Leaves voices out of the sound: a mark for each of the `channelCount`, true for one that is
     /// not to be heard, and none at all for every voice heard. A voice left out goes on playing: the
     /// tune is the same tune, note for note and to the same end, and what is said of the voice here
@@ -128,6 +132,7 @@ public extension Renderer {
         for voice in 0 ..< channelCount { sides[voice] = 0 }
     }
     var channelsAreSampled: Bool { false }
+    var speakerChannel: Int? { nil }
     func setMuted(_: [Bool]) {}
     func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
         let all = channelsAreSampled

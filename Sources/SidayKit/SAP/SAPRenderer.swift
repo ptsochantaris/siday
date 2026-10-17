@@ -132,6 +132,7 @@ public final class SAPRenderer: Renderer, ReferenceComparable {
     /// once it is heard.
     public var channelCount: Int { speaker + 1 }
     public var channelsAlwaysShown: Int { speaker }
+    public var speakerChannel: Int? { speaker }
     private var speaker: Int { file.stereo ? 8 : 4 }
 
     /// How often the loudspeaker has gone in or out, for its light and its pitch, and over how long.

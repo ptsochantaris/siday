@@ -54,7 +54,8 @@ folder its tunes are in, which is then only looked in, and stays known for the l
 it. Or drop the folder that holds both.
 
 Beside the player and its list there is a spectrum analyser, a light for each voice of the tune
-(red for a voice whose sound a chip makes of itself, blue for one that plays a sample), a
+(red for a voice whose sound a chip makes of itself, blue for one that plays a sample, pink for a
+beeper, the loudspeaker a computer's own code clicks), a
 picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain or rain,
 each made from what the tune's voices are doing), and the command-line player's options as
 settings. A song is rendered to its end as soon as it starts, far faster than it plays, so any

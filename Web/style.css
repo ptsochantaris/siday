@@ -585,7 +585,8 @@ button:disabled {
 }
 
 /* A muted voice: its lamp dimmed, and most of its colour gone, so that it is not taken for a quiet
-   voice; enough is left to tell a red lamp from a blue one. It still flickers with what it plays. */
+   voice; enough is left to tell a red lamp from a blue or a pink one. It still flickers with what
+   it plays. */
 .light.muted {
   filter: saturate(0.22) brightness(0.8);
   opacity: 0.45;
@@ -628,6 +629,22 @@ button:disabled {
     #58a6ff 0%, #2b82ff 20%, #1266f2 32%,
     rgb(34 120 255 / 0.62) 37%, rgb(34 120 255 / 0.38) 42%, rgb(34 120 255 / 0.22) 48%,
     rgb(34 120 255 / 0.12) 54%, rgb(34 120 255 / 0.05) 61%, rgb(34 120 255 / 0) 70%
+  );
+}
+
+/* The computer's own loudspeaker, clicked in and out by its code, a beeper, has a pink lamp: it is
+   neither a chip's voice nor a sample, and somewhere between the two, a sound made by the program
+   that can play a sample too. */
+.light.speaker::before {
+  background: radial-gradient(circle at 38% 32%, #6a1c55, #410f34 55%, #25081e);
+}
+
+.light.speaker .glow {
+  background: radial-gradient(
+    circle,
+    #ff8ae6 0%, #ff45d2 20%, #f01cbc 32%,
+    rgb(255 60 210 / 0.62) 37%, rgb(255 60 210 / 0.38) 42%, rgb(255 60 210 / 0.22) 48%,
+    rgb(255 60 210 / 0.12) 54%, rgb(255 60 210 / 0.05) 61%, rgb(255 60 210 / 0) 70%
   );
 }
 

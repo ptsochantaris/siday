@@ -123,9 +123,9 @@ final class Player {
     /// goes out over a moment, as a lamp does. (As many as the audio side sends: none, for a tune
     /// whose voices cannot be told apart.)
     private(set) var lights: [Double] = []
-    /// For each of those voices, whether it is playing a sample and not a sound a chip makes of
-    /// itself: the first has a blue light, and the second a red one.
-    private(set) var sampled: [Bool] = []
+    /// For each of those voices, what it is playing: a sound a chip makes of itself, which has a red
+    /// light, a sample, which has a blue one, or clicks of the computer's own loudspeaker, a pink one.
+    private(set) var sampled: [VoiceKind] = []
     /// And whether the listener has muted it: a press on a light mutes its voice or brings it
     /// back, and a right click or a long press has it heard alone. The engine keeps count of that
     /// (`Web/siday.js` tells it of the presses) and says with the sound it sends how things stand.
@@ -215,9 +215,9 @@ final class Player {
                 caps = numbers[count ..< count * 2].map { $0 / 255 }
                 let levels = numbers[(count * 2) ..< (count * 2 + voices)].map { $0 / 255 }
                 lights = levels.count == lights.count ? levels.indices.map { max(levels[$0], lights[$0] - fall) } : levels
-                // Whether each voice is playing a sample, which is told by its light's colour. (Told
-                // to the page only when it changes, which is seldom.)
-                let kinds = numbers[(count * 2 + voices * 4) ..< (count * 2 + voices * 5)].map { $0 != 0 }
+                // What each voice is playing, which is told by its light's colour. (Told to the page
+                // only when it changes, which is seldom.)
+                let kinds = numbers[(count * 2 + voices * 4) ..< (count * 2 + voices * 5)].map { $0 == 2 ? VoiceKind.speaker : $0 != 0 ? .sample : .chip }
                 if kinds != sampled { sampled = kinds }
                 let silenced = numbers[(count * 2 + voices * 5) ..< (count * 2 + voices * 6)].map { $0 != 0 }
                 if silenced != muted { muted = silenced }
