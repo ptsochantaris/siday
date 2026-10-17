@@ -537,11 +537,10 @@ public final class AYFileRenderer: Renderer {
             let (left, right) = chip.pointee.finishSample()
             if let waves {
                 let (a, b, c) = chip.pointee.channelOutputs()
-                waves.store(0, at: 0, a)
-                waves.store(1, at: 0, b)
-                waves.store(2, at: 0, c)
-                waves.store(3, at: 0, beeperUp ? 1 : 0)
-                waves.advance(by: 1)
+                waves.store(0, at: i, a)
+                waves.store(1, at: i, b)
+                waves.store(2, at: i, c)
+                waves.store(3, at: i, beeperUp ? 1 : 0)
             }
             buffer[i * 2] = Float(left) * gain
             buffer[i * 2 + 1] = Float(right) * gain
@@ -549,6 +548,7 @@ public final class AYFileRenderer: Renderer {
         self.position = position
         eventIndex = next
         beeperLevel = beeper
+        waves?.advance(by: frames)
         beeperMoves += moves
         beeperEdges += moves
         framesOfEdges += frames

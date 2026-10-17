@@ -33,7 +33,7 @@ public final class ChannelWaves {
 
     private let ring: UnsafeMutablePointer<Float>
     /// How many samples of each voice have been kept.
-    private var written: [Int]
+    private let written: UnsafeMutablePointer<Int>
     /// The last scope shown of each voice, at full height; and whether there is one.
     private let previous: UnsafeMutablePointer<Float>
     private var shown: [Bool]
@@ -44,7 +44,8 @@ public final class ChannelWaves {
         self.voices = voices
         rates = Array(repeating: rate, count: voices)
         fullSwings = Array(repeating: fullSwing, count: voices)
-        written = Array(repeating: 0, count: voices)
+        written = .allocate(capacity: max(1, voices))
+        written.initialize(repeating: 0, count: max(1, voices))
         ring = .allocate(capacity: max(1, voices) * Self.capacity)
         ring.initialize(repeating: 0, count: max(1, voices) * Self.capacity)
         previous = .allocate(capacity: max(1, voices) * Self.points)
@@ -56,6 +57,7 @@ public final class ChannelWaves {
 
     deinit {
         ring.deallocate()
+        written.deallocate()
         previous.deallocate()
         candidate.deallocate()
     }
@@ -112,8 +114,11 @@ public final class ChannelWaves {
         let rate = rates[voice], fullSwing = fullSwings[voice], written = written[voice]
         let end = written - Int((Double(behind + ahead) * rate / Double(outputSampleRate)).rounded())
         var length: Double, span: Int
-        if periodic, pitch > 0 {
-            let period = rate / (440 * pow(2, (Double(pitch) - 69) / 12))
+        // (A pitch under 20 Hz is no note but what a voice is left with, as when a game sets the
+        // frequency to nearly nothing once a note is let go: the voice is shown as one with no pitch.)
+        let hz = pitch > 0 ? 440 * pow(2, (Double(pitch) - 69) / 12) : 0
+        if periodic, hz >= 20 {
+            let period = rate / hz
             length = period * 2
             span = Int(period) + 1
         } else {

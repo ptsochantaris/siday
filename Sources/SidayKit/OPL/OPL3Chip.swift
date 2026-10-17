@@ -99,6 +99,8 @@ struct OPL3Chip: ~Copyable {
     private var newm: UInt8 = 0, nts: UInt8 = 0, rhy: UInt8 = 0
     /// For the lights: the lowest and highest each channel has been, of late.
     private var lows = InlineArray<18, Int16>(repeating: .max), highs = InlineArray<18, Int16>(repeating: .min)
+    /// Each channel's sum as the side that is heard first took it, for its scope (`channelOutput`).
+    private var heard = InlineArray<18, Int16>(repeating: 0)
     /// The channels whose keys are down, a bit for each, and those whose keys have gone down (or, in
     /// the rhythm mode, whose drums have been struck) since the notes were last asked for.
     private var keysDown: UInt32 = 0, keysStruck: UInt32 = 0
@@ -637,13 +639,14 @@ struct OPL3Chip: ~Copyable {
         return (mix0, mix1)
     }
 
-    /// What a channel puts out now, as the chip adds up its operators: for the channel's scope
-    /// (`ChannelWaves`), read after a sample has been made, so that the chip itself does nothing more.
-    /// A channel left out of the sound is told too. Its operators at their loudest swing about 4,000
-    /// either side of nothing.
+    /// What a channel put out in the sample last made, as the chip added up its operators for the
+    /// side heard first: for the channel's scope (`ChannelWaves`). It is the sum the lights measure,
+    /// taken where the chip takes it: read after the sample, from the channel's operators, the last
+    /// three channels would be a sample out, and in rhythm mode one drum would be paired with the
+    /// next one's other half. A channel left out of the sound is told too. Its operators at their
+    /// loudest swing about 4,000 either side of nothing.
     func channelOutput(_ ii: Int) -> Int16 {
-        let out = (channel + ii).pointee.out
-        return Int16(bitPattern: UInt16(truncatingIfNeeded: Int32(out.0.pointee) + Int32(out.1.pointee) + Int32(out.2.pointee) + Int32(out.3.pointee)))
+        heard[ii]
     }
 
     /// One sample from each of the chip's four outputs. An OPL2's music comes out of the first two
@@ -665,6 +668,7 @@ struct OPL3Chip: ~Copyable {
             mix0 += Int32(Int16(bitPattern: accm & channel.pointee.cha))
             mix1 += Int32(Int16(bitPattern: accm & channel.pointee.chc))
             let level = Int16(bitPattern: accm)
+            heard[unchecked: ii] = level
             if level < lows[unchecked: ii] { lows[unchecked: ii] = level }
             if level > highs[unchecked: ii] { highs[unchecked: ii] = level }
         }

@@ -40,12 +40,20 @@ final class OPLCard {
         for voice in first ..< first + channels { waves.setVoice(voice, rate: rate, fullSwing: 4000) }
     }
 
+    /// How many of the chip's samples have been kept since the voices were last moved on past them.
+    private var wavesMade = 0
+
     @inline(__always) private func keepWaves() {
         guard let waves else { return }
-        for ii in 0 ..< wavesChannels {
-            waves.store(wavesFrom + ii, at: 0, Float(chip.pointee.channelOutput(ii)))
-            waves.advance(wavesFrom + ii, by: 1)
-        }
+        for ii in 0 ..< wavesChannels { waves.store(wavesFrom + ii, at: wavesMade, Float(chip.pointee.channelOutput(ii))) }
+        wavesMade += 1
+    }
+
+    /// Moves the voices on past what has been kept of them, once a render is done.
+    private func moveWavesOn() {
+        guard let waves, wavesMade > 0 else { return }
+        for ii in 0 ..< wavesChannels { waves.advance(wavesFrom + ii, by: wavesMade) }
+        wavesMade = 0
     }
     /// The chip's channels left out of the sound, a bit for each: kept here, since a reset makes the
     /// chip anew.
@@ -138,6 +146,7 @@ final class OPLCard {
             position += step
         }
         self.position = position
+        moveWavesOn()
         return made
     }
 
@@ -187,6 +196,7 @@ final class OPLCard {
             position += step
         }
         self.position = position
+        moveWavesOn()
         return made
     }
 

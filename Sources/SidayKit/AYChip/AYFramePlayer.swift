@@ -191,16 +191,16 @@ public final class AYFramePlayer<Source: AYFrameSource>: Renderer, AYRegisterDum
             if let waves {
                 for chip in 0 ..< chipCount {
                     let (a, b, c) = chips[chip].channelOutputs()
-                    waves.store(chip * 3, at: 0, a)
-                    waves.store(chip * 3 + 1, at: 0, b)
-                    waves.store(chip * 3 + 2, at: 0, c)
+                    waves.store(chip * 3, at: i, a)
+                    waves.store(chip * 3 + 1, at: i, b)
+                    waves.store(chip * 3 + 2, at: i, c)
                 }
-                waves.advance(by: 1)
             }
             buffer[i * 2] = Float(l) * gain
             buffer[i * 2 + 1] = Float(r) * gain
         }
         untilNextFrame = countdown
+        waves?.advance(by: frames)
     }
 
     public var channelCount: Int { chipCount * 3 }
