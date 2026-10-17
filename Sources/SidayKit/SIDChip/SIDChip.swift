@@ -912,7 +912,12 @@ public struct SIDChip: ~Copyable {
     /// reSID's clock(delta_t, buf, n): advances by up to `cycles` CPU cycles, writing mono 16-bit samples.
     /// On return `cycles` holds the cycles not yet consumed (non-zero only when the buffer filled up);
     /// the result is the number of samples written.
-    public mutating func clock(_ cycles: inout Int, into buffer: UnsafeMutablePointer<Int16>, maxSamples: Int) -> Int {
+    ///
+    /// Given `voices`, it also puts there what each of the three voices is putting out as each sample is
+    /// made, three to a sample (see `voiceOutputs`), for the voices' scopes. The sound is the same.
+    public mutating func clock(_ cycles: inout Int, into buffer: UnsafeMutablePointer<Int16>, maxSamples: Int,
+                               voices: UnsafeMutablePointer<Float>? = nil) -> Int
+    {
         if cycles <= 0 { return 0 }
         let wanted = Int32(clamping: cycles)
         var delta_t = wanted
@@ -920,16 +925,38 @@ public struct SIDChip: ~Copyable {
         let s: Int32
         switch sampling {
         case .fast:
-            s = clock_fast(&delta_t, buffer, n)
+            s = clock_fast(&delta_t, buffer, n, voices)
         case .interpolate:
-            s = clock_interpolate(&delta_t, buffer, n)
+            s = clock_interpolate(&delta_t, buffer, n, voices)
         case .resample:
-            s = clock_resample(&delta_t, buffer, n)
+            s = clock_resample(&delta_t, buffer, n, voices)
         case .resampleFastMem:
-            s = clock_resample_fastmem(&delta_t, buffer, n)
+            s = clock_resample_fastmem(&delta_t, buffer, n, voices)
         }
         cycles -= Int(wanted - delta_t)
         return Int(s)
+    }
+
+    /// What each of the three voices is putting out now, its wave as its envelope makes it, before the
+    /// filter and the volume: `Voice.output`, whether or not the voice is heard (see `setMuted`), and
+    /// nought for one that goes neither through the filter nor past it, as the third voice does when it
+    /// is switched off. For the voices' scopes, so asked for only as a sample is made. A voice whose
+    /// envelope is shut is nought too: the DAC lets a little of the wave through even then (a hundredth
+    /// or so), which is heard, faintly, but is not the voice playing, and its lights say it is not.
+    func voiceOutputs(into kept: UnsafeMutablePointer<Float>) {
+        let routed = filter.sum | filter.mix
+        func output(_ voice: Voice, _ bit: UInt32) -> Float {
+            routed & bit != 0 && voice.envelope.envelope_counter & 0xFF != 0 ? Float(voice.output(voice_dac, envelope_dac)) : 0
+        }
+        kept[0] = output(voice0, 1)
+        kept[1] = output(voice1, 2)
+        kept[2] = output(voice2, 4)
+    }
+
+    /// How far either side of its middle a voice's output (`voiceOutputs`) swings at its loudest: a
+    /// sawtooth, from the bottom of the wave's DAC to its top, with the envelope at its top.
+    var voiceFullSwing: Float {
+        Float(voice_dac[4095] - voice_dac[0]) / 2 * Float(envelope_dac[255])
     }
 
     @inline(__always)
@@ -952,7 +979,7 @@ public struct SIDChip: ~Copyable {
     // ----------------------------------------------------------------------------
     // SID clocking with audio sampling - delta clocking picking nearest sample.
     // ----------------------------------------------------------------------------
-    mutating func clock_fast(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32) -> Int32 {
+    mutating func clock_fast(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32, _ voices: UnsafeMutablePointer<Float>?) -> Int32 {
         var s: Int32 = 0
 
         while s < n {
@@ -972,6 +999,7 @@ public struct SIDChip: ~Copyable {
             }
 
             sample_offset = (next_sample_offset & Self.FIXP_MASK) &- (1 << (Self.FIXP_SHIFT - 1))
+            if let voices { voiceOutputs(into: voices + Int(s) * 3) }
             buf[Int(s)] = Self.amplify(extfilt.output(), scaleFactor)
             s += 1
         }
@@ -988,7 +1016,7 @@ public struct SIDChip: ~Copyable {
     // external filter attenuates frequencies above 16kHz, thus reducing
     // sampling noise.
     // ----------------------------------------------------------------------------
-    mutating func clock_interpolate(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32) -> Int32 {
+    mutating func clock_interpolate(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32, _ voices: UnsafeMutablePointer<Float>?) -> Int32 {
         var s: Int32 = 0
 
         while s < n {
@@ -1009,6 +1037,7 @@ public struct SIDChip: ~Copyable {
 
             sample_offset = next_sample_offset & Self.FIXP_MASK
 
+            if let voices { voiceOutputs(into: voices + Int(s) * 3) }
             buf[Int(s)] = Self.amplify(
                 sample_prev &+ ((sample_offset &* (sample_now &- sample_prev)) >> Self.FIXP_SHIFT),
                 scaleFactor
@@ -1055,7 +1084,7 @@ public struct SIDChip: ~Copyable {
     // NB! the result of right shifting negative numbers is really
     // implementation dependent in the C++ standard.
     // ----------------------------------------------------------------------------
-    mutating func clock_resample(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32) -> Int32 {
+    mutating func clock_resample(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32, _ voices: UnsafeMutablePointer<Float>?) -> Int32 {
         guard let sample, let fir else { return 0 }
         let fir_N = Int(self.fir_N), fir_stride = Int(self.fir_stride)
         var s: Int32 = 0
@@ -1105,6 +1134,7 @@ public struct SIDChip: ~Copyable {
 
             v >>= Self.FIR_SHIFT
 
+            if let voices { voiceOutputs(into: voices + Int(s) * 3) }
             buf[Int(s)] = Self.amplify(v, scaleFactor)
             s += 1
         }
@@ -1128,7 +1158,7 @@ public struct SIDChip: ~Copyable {
     // ----------------------------------------------------------------------------
     // SID clocking with audio sampling - cycle based with audio resampling.
     // ----------------------------------------------------------------------------
-    mutating func clock_resample_fastmem(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32) -> Int32 {
+    mutating func clock_resample_fastmem(_ delta_t: inout Int32, _ buf: UnsafeMutablePointer<Int16>, _ n: Int32, _ voices: UnsafeMutablePointer<Float>?) -> Int32 {
         guard let sample, let fir else { return 0 }
         let fir_N = Int(self.fir_N), fir_stride = Int(self.fir_stride)
         var s: Int32 = 0
@@ -1160,6 +1190,7 @@ public struct SIDChip: ~Copyable {
 
             v >>= Self.FIR_SHIFT
 
+            if let voices { voiceOutputs(into: voices + Int(s) * 3) }
             buf[Int(s)] = Self.amplify(v, scaleFactor)
             s += 1
         }

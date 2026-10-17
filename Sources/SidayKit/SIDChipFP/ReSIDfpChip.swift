@@ -374,6 +374,34 @@ public struct ReSIDfpChip: ~Copyable {
         volumeHeld ? modeVolWritten | 0x0F : modeVolWritten
     }
 
+    /// What each of the three voices is putting out now, its wave as its envelope makes it, before the
+    /// filter and the volume: `Voice.output`, but through the envelope's own DAC whether or not the
+    /// voice is heard (see `setMuted`), and nought for a third voice switched out of the sound. For the
+    /// voices' scopes, so asked for only as a sample is made. The wave is the one last put out, which
+    /// outside a quiet stretch is this cycle's (`clockQuietCycles` keeps its own).
+    func voiceOutputs(into kept: UnsafeMutablePointer<Float>) {
+        let envDAC = ModelTables.tables(for: chipModel).envDAC
+        let wavDAC = voice0.wavDAC
+        kept[0] = wavDAC[Int(voice0.waveformGenerator.waveform_output)] * Self.keptEnvelope(envDAC, voice0.envelopeGenerator.output())
+        kept[1] = wavDAC[Int(voice1.waveformGenerator.waveform_output)] * Self.keptEnvelope(envDAC, voice1.envelopeGenerator.output())
+        kept[2] = filter.filt3 || !filter.voice3off
+            ? wavDAC[Int(voice2.waveformGenerator.waveform_output)] * Self.keptEnvelope(envDAC, voice2.envelopeGenerator.output()) : 0
+    }
+
+    /// An envelope's DAC as a voice's scope has it: the same, but for an envelope that is shut. The
+    /// DAC lets a little of the wave through even then (a hundredth or so), which is heard, faintly,
+    /// but is not the voice playing, and its lights say it is not.
+    @inline(__always) static func keptEnvelope(_ envDAC: UnsafePointer<Float>, _ envelope: UInt32) -> Float {
+        envelope == 0 ? 0 : envDAC[Int(envelope)]
+    }
+
+    /// How far either side of its middle a voice's output (`voiceOutputs`) swings at its loudest: a
+    /// sawtooth, from the bottom of the wave's DAC to its top, with the envelope at its top.
+    var voiceFullSwing: Float {
+        let tables = ModelTables.tables(for: chipModel)
+        return (tables.oscDAC[4095] - tables.oscDAC[0]) / 2 * tables.envDAC[255]
+    }
+
     /// Mute or unmute a voice the way libsidplayfp does (sidemu::voice): voices 0...2 by keeping the
     /// waveform and gate bits out of later writes to their control registers, 3 (samples) by forcing
     /// the volume nibble of later writes to register $18 to 15. Nothing changes until the next such write.
@@ -733,9 +761,12 @@ public struct ReSIDfpChip: ~Copyable {
     /// long that will last is known in advance (Voice.quietCycles), except for the oscillators' noise clock,
     /// which is watched for. All but the last cycle of such a stretch are run by clockQuietCycles(); every
     /// other cycle is clockCycle().
+    ///
+    /// With `keep`, each voice's output as each sample is made is put in `voices`, three to a sample (see
+    /// `clock`); without it, the loop is as it was before there were any.
     @inline(always)
     static func clockCycles(_ chip: inout ReSIDfpChip, _ count: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
-                            is6581: Bool, resample: Bool) -> Int
+                            is6581: Bool, resample: Bool, keep: Bool = false, _ voices: UnsafeMutablePointer<Float>? = nil) -> Int
     {
         if s >= maxSamples { return 0 }
 
@@ -757,7 +788,15 @@ public struct ReSIDfpChip: ~Copyable {
 
             if stretch >= 4 {
                 // A function of its own for each model and sampling method.
-                if is6581 {
+                if keep {
+                    if is6581 {
+                        i &+= resample ? clockQuietCycles6581ResampleKeeping(&chip, stretch, buf, &produced, maxSamples, voices)
+                            : clockQuietCycles6581DecimateKeeping(&chip, stretch, buf, &produced, maxSamples, voices)
+                    } else {
+                        i &+= resample ? clockQuietCycles8580ResampleKeeping(&chip, stretch, buf, &produced, maxSamples, voices)
+                            : clockQuietCycles8580DecimateKeeping(&chip, stretch, buf, &produced, maxSamples, voices)
+                    }
+                } else if is6581 {
                     i &+= resample ? clockQuietCycles6581Resample(&chip, stretch, buf, &produced, maxSamples)
                         : clockQuietCycles6581Decimate(&chip, stretch, buf, &produced, maxSamples)
                 } else {
@@ -775,11 +814,13 @@ public struct ReSIDfpChip: ~Copyable {
 
             if resample {
                 if _slowPath(chip.twoPassSincResampler.input(c64Output)) {
+                    if keep { chip.voiceOutputs(into: voices.unsafelyUnwrapped + produced &* 3) }
                     buf[produced] = Resampler.getOutput(chip.twoPassSincResampler.output(), chip.scaleFactor)
                     produced &+= 1
                 }
             } else {
                 if _slowPath(chip.zeroOrderResampler.input(c64Output)) {
+                    if keep { chip.voiceOutputs(into: voices.unsafelyUnwrapped + produced &* 3) }
                     buf[produced] = Resampler.getOutput(chip.zeroOrderResampler.output(), chip.scaleFactor)
                     produced &+= 1
                 }
@@ -806,9 +847,11 @@ public struct ReSIDfpChip: ~Copyable {
     /// - The oscillators run one cycle ahead of the filter. The voices' outputs feed the filter's chain; with
     ///   the voices for cycle n+1 computed alongside the filter for cycle n, the two overlap in the processor
     ///   instead of following each other. Neither depends on the other, so the result is the same.
+    ///
+    /// With `keep`, each voice's output as each sample is made is put in `voices`, as `clockCycles` does.
     @inline(always)
     static func clockQuietCycles(_ chip: inout ReSIDfpChip, _ stretch: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
-                                 is6581: Bool, resample: Bool) -> Int
+                                 is6581: Bool, resample: Bool, keep: Bool = false, _ voices: UnsafeMutablePointer<Float>? = nil) -> Int
     {
         var wave0 = WaveformGenerator.Quiet(chip.voice0.waveformGenerator)
         var wave1 = WaveformGenerator.Quiet(chip.voice1.waveformGenerator)
@@ -820,6 +863,10 @@ public struct ReSIDfpChip: ~Copyable {
         let env2 = Int(chip.voice2.envelopeGenerator.output())
         let envDAC0 = chip.voice0.envDAC[env0], envDAC1 = chip.voice1.envDAC[env1], envDAC2 = chip.voice2.envDAC[env2]
         let wavDAC = chip.voice0.wavDAC
+        // What each envelope makes of its voice's wave whether or not the voice is heard, for `voices`.
+        let fullEnvDAC = keep ? UnsafePointer(ModelTables.tables(for: chip.chipModel).envDAC) : chip.voice0.envDAC
+        let kept0 = keep ? keptEnvelope(fullEnvDAC, UInt32(env0)) : 0, kept1 = keep ? keptEnvelope(fullEnvDAC, UInt32(env1)) : 0
+        let kept2 = keep ? keptEnvelope(fullEnvDAC, UInt32(env2)) : 0
 
         // Filter::getNormalizedVoice()
         let voiceDC = chip.filter.voiceDC
@@ -873,15 +920,17 @@ public struct ReSIDfpChip: ~Copyable {
         let scaleFactor = chip.scaleFactor
         var produced = s
 
-        // The voices' normalized outputs for the cycle the filter has not done yet.
+        // The voices' normalized outputs for the cycle the filter has not done yet, and their waves.
         var V1: Int32 = 0, V2: Int32 = 0, V3: Int32 = 0
+        var wav1: Float = 0, wav2: Float = 0, wav3: Float = 0
         var pending = false
         // The number of cycles the oscillators have done, and whether they may do more.
         var done = 0
         var more = true
         while true {
             var next1: Int32 = 0, next2: Int32 = 0, next3: Int32 = 0
-            var voices = false
+            var nextWav1: Float = 0, nextWav2: Float = 0, nextWav3: Float = 0
+            var stepped = false
             if more {
                 // clock waveform generators
                 let accumulator0 = wave0.nextAccumulator()
@@ -896,14 +945,17 @@ public struct ReSIDfpChip: ~Copyable {
                     wave0.accumulator = accumulator0
                     wave1.accumulator = accumulator1
                     wave2.accumulator = accumulator2
-                    voices = true
+                    stepped = true
                     done &+= 1
                     if done == stretch { more = false }
 
                     // Voice::output() and Filter::getNormalizedVoice(), with the dither in reSIDfp's order.
-                    let out1 = wavDAC[Int(wave0.output(wave2.accumulator))] * envDAC0
-                    let out2 = wavDAC[Int(wave1.output(wave0.accumulator))] * envDAC1
-                    let out3 = wavDAC[Int(wave2.output(wave1.accumulator))] * envDAC2
+                    nextWav1 = wavDAC[Int(wave0.output(wave2.accumulator))]
+                    nextWav2 = wavDAC[Int(wave1.output(wave0.accumulator))]
+                    nextWav3 = wavDAC[Int(wave2.output(wave1.accumulator))]
+                    let out1 = nextWav1 * envDAC0
+                    let out2 = nextWav2 * envDAC1
+                    let out3 = nextWav3 * envDAC2
                     next1 = Int32(FilterModelConfig.to_ushort_dither(N16 * (Double(out1) * voice_voltage_range + dc0 - vmin), FilterModelConfig.getNoise(&rnd_index, rnd_buffer)))
                     next2 = Int32(FilterModelConfig.to_ushort_dither(N16 * (Double(out2) * voice_voltage_range + dc1 - vmin), FilterModelConfig.getNoise(&rnd_index, rnd_buffer)))
                     if !voice3silent {
@@ -944,21 +996,38 @@ public struct ReSIDfpChip: ~Copyable {
 
                 if resample {
                     if _slowPath(twoPassSincResampler.input(c64Output)), produced < maxSamples {
+                        if keep {
+                            let kept = voices.unsafelyUnwrapped + produced &* 3
+                            kept[0] = wav1 * kept0
+                            kept[1] = wav2 * kept1
+                            kept[2] = voice3silent ? 0 : wav3 * kept2
+                        }
                         buf[produced] = Resampler.getOutput(twoPassSincResampler.output(), scaleFactor)
                         produced &+= 1
                     }
                 } else {
                     if _slowPath(zeroOrderResampler.input(c64Output)), produced < maxSamples {
+                        if keep {
+                            let kept = voices.unsafelyUnwrapped + produced &* 3
+                            kept[0] = wav1 * kept0
+                            kept[1] = wav2 * kept1
+                            kept[2] = voice3silent ? 0 : wav3 * kept2
+                        }
                         buf[produced] = Resampler.getOutput(zeroOrderResampler.output(), scaleFactor)
                         produced &+= 1
                     }
                 }
             }
 
-            if !voices { break }
+            if !stepped { break }
             V1 = next1
             V2 = next2
             V3 = next3
+            if keep {
+                wav1 = nextWav1
+                wav2 = nextWav2
+                wav3 = nextWav3
+            }
             pending = true
         }
 
@@ -1040,6 +1109,65 @@ public struct ReSIDfpChip: ~Copyable {
         clockCycles(&chip, count, buf, &s, maxSamples, is6581: false, resample: false)
     }
 
+    // The same again for when the voices' outputs are kept, so that the functions above are compiled as
+    // they were without them.
+
+    @inline(never)
+    static func clockQuietCycles6581ResampleKeeping(_ chip: inout ReSIDfpChip, _ stretch: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockQuietCycles(&chip, stretch, buf, &s, maxSamples, is6581: true, resample: true, keep: true, voices)
+    }
+
+    @inline(never)
+    static func clockQuietCycles6581DecimateKeeping(_ chip: inout ReSIDfpChip, _ stretch: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockQuietCycles(&chip, stretch, buf, &s, maxSamples, is6581: true, resample: false, keep: true, voices)
+    }
+
+    @inline(never)
+    static func clockQuietCycles8580ResampleKeeping(_ chip: inout ReSIDfpChip, _ stretch: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockQuietCycles(&chip, stretch, buf, &s, maxSamples, is6581: false, resample: true, keep: true, voices)
+    }
+
+    @inline(never)
+    static func clockQuietCycles8580DecimateKeeping(_ chip: inout ReSIDfpChip, _ stretch: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockQuietCycles(&chip, stretch, buf, &s, maxSamples, is6581: false, resample: false, keep: true, voices)
+    }
+
+    @inline(never)
+    static func clockCycles6581ResampleKeeping(_ chip: inout ReSIDfpChip, _ count: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockCycles(&chip, count, buf, &s, maxSamples, is6581: true, resample: true, keep: true, voices)
+    }
+
+    @inline(never)
+    static func clockCycles6581DecimateKeeping(_ chip: inout ReSIDfpChip, _ count: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockCycles(&chip, count, buf, &s, maxSamples, is6581: true, resample: false, keep: true, voices)
+    }
+
+    @inline(never)
+    static func clockCycles8580ResampleKeeping(_ chip: inout ReSIDfpChip, _ count: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockCycles(&chip, count, buf, &s, maxSamples, is6581: false, resample: true, keep: true, voices)
+    }
+
+    @inline(never)
+    static func clockCycles8580DecimateKeeping(_ chip: inout ReSIDfpChip, _ count: Int, _ buf: UnsafeMutablePointer<Int16>, _ s: inout Int, _ maxSamples: Int,
+                                          _ voices: UnsafeMutablePointer<Float>?) -> Int
+    {
+        clockCycles(&chip, count, buf, &s, maxSamples, is6581: false, resample: false, keep: true, voices)
+    }
+
     // ----------------------------------------------------------------------------
     // Clock SID forward using chosen output sampling algorithm.
     //
@@ -1051,7 +1179,12 @@ public struct ReSIDfpChip: ~Copyable {
     /// Advances by up to `cycles` CPU cycles, writing mono 16-bit samples to `buffer`. It stops early
     /// when `maxSamples` have been written; on return `cycles` holds what was not consumed.
     /// Returns the number of samples written.
-    public mutating func clock(_ cycles: inout Int, into buffer: UnsafeMutablePointer<Int16>, maxSamples: Int) -> Int {
+    ///
+    /// Given `voices`, it also puts there what each of the three voices is putting out as each sample is
+    /// made, three to a sample (see `voiceOutputs`), for the voices' scopes. The sound is the same.
+    public mutating func clock(_ cycles: inout Int, into buffer: UnsafeMutablePointer<Int16>, maxSamples: Int,
+                               voices: UnsafeMutablePointer<Float>? = nil) -> Int
+    {
         if cycles <= 0 || maxSamples <= 0 { return 0 }
 
         let is6581 = chipModel == .mos6581
@@ -1063,7 +1196,15 @@ public struct ReSIDfpChip: ~Copyable {
             let delta_t = min(Int(nextVoiceSync), remaining)
 
             if _fastPath(delta_t > 0) {
-                let ran: Int = if is6581 {
+                let ran: Int = if let voices {
+                    if is6581 {
+                        resample ? ReSIDfpChip.clockCycles6581ResampleKeeping(&self, delta_t, buffer, &s, maxSamples, voices)
+                            : ReSIDfpChip.clockCycles6581DecimateKeeping(&self, delta_t, buffer, &s, maxSamples, voices)
+                    } else {
+                        resample ? ReSIDfpChip.clockCycles8580ResampleKeeping(&self, delta_t, buffer, &s, maxSamples, voices)
+                            : ReSIDfpChip.clockCycles8580DecimateKeeping(&self, delta_t, buffer, &s, maxSamples, voices)
+                    }
+                } else if is6581 {
                     resample ? ReSIDfpChip.clockCycles6581Resample(&self, delta_t, buffer, &s, maxSamples)
                         : ReSIDfpChip.clockCycles6581Decimate(&self, delta_t, buffer, &s, maxSamples)
                 } else {

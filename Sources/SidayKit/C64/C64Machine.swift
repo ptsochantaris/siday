@@ -73,6 +73,10 @@ final class C64Machine: MOS6510Bus {
     private let samples: UnsafeMutablePointer<Int16>
     private let sampleCapacity = 16384
     private(set) var sampleCount = 0
+    /// Where each voice's sound is kept for its scope, once asked (`keepWaves`), and where the chip puts
+    /// what its three voices are putting out as it makes each sample, three to a sample.
+    private var waves: ChannelWaves?
+    private var voiceOutputs: UnsafeMutablePointer<Float>?
 
     /// Optional log of SID writes as (cycle, register, value), for comparison against reference players.
     var writeLog: [(Int, UInt8, UInt8)]?
@@ -122,6 +126,7 @@ final class C64Machine: MOS6510Bus {
         colorRAM.deallocate()
         vicRegisters.deallocate()
         samples.deallocate()
+        voiceOutputs?.deallocate()
     }
 
     /// A minimal KERNAL: the interrupt entry and exit paths tunes rely on, and RTS everywhere else.
@@ -293,15 +298,55 @@ final class C64Machine: MOS6510Bus {
         while pending > 0, sampleCount < sampleCapacity {
             let before = pending
             let room = sampleCapacity - sampleCount
+            var made = 0
             if let residfp {
-                sampleCount += residfp.pointee.clock(&pending, into: samples + sampleCount, maxSamples: room)
+                made = residfp.pointee.clock(&pending, into: samples + sampleCount, maxSamples: room, voices: voiceOutputs)
             } else if let resid {
-                sampleCount += resid.pointee.clock(&pending, into: samples + sampleCount, maxSamples: room)
+                made = resid.pointee.clock(&pending, into: samples + sampleCount, maxSamples: room, voices: voiceOutputs)
             }
+            if let waves, let voiceOutputs, made > 0 { keep(made, from: voiceOutputs, in: waves) }
+            sampleCount += made
             if pending == before { break }
         }
         sidClock = clock - pending
         noteVoices()
+    }
+
+    /// Starts keeping each voice's sound for its scope, at the output's rate: the three voices as the
+    /// chip has them before its filter, and fourth the volume, which is what a tune that plays samples
+    /// on it moves. A voice's scope is full for a sawtooth at the top of its envelope, and the
+    /// volume's for its whole range. The machine is the same from one song to the next, and so is this.
+    func keepWaves() -> ChannelWaves {
+        if let waves { return waves }
+        let swing = residfp?.pointee.voiceFullSwing ?? resid?.pointee.voiceFullSwing ?? 1
+        let waves = ChannelWaves(voices: 4, rate: Double(outputSampleRate), fullSwing: swing)
+        waves.setVoice(3, rate: Double(outputSampleRate), fullSwing: 7.5)
+        let outputs = UnsafeMutablePointer<Float>.allocate(capacity: sampleCapacity * 3)
+        outputs.initialize(repeating: 0, count: sampleCapacity * 3)
+        voiceOutputs = outputs
+        self.waves = waves
+        return waves
+    }
+
+    /// Keeps what the chip said its voices put out as it made so many samples, and the volume, which
+    /// cannot have moved while it made them: a write to the chip brings it up to date first.
+    ///
+    /// A voice that is not making a sound by the measure its light has (`sounds`) is kept as nought.
+    /// It may still be putting out something: a level that its envelope moves up and down, with no
+    /// waveform, or one held by the test bit, or a pulse of no width. That is heard, if at all, as a
+    /// thump, and is not the voice playing; and nor is an oscillator too slow to hear. Likewise the
+    /// volume is kept only in a song that has been found to play samples on it (see `setMuted`), and
+    /// is nought in any other: one that only sets it, fades it, or drops it for a moment to make a click.
+    private func keep(_ made: Int, from outputs: UnsafeMutablePointer<Float>, in waves: ChannelWaves) {
+        let volume = samplesFound ? Float(sidWritten[0x18] & 0x0F) : 0
+        let first: Float = sounds(0) ? 1 : 0, second: Float = sounds(1) ? 1 : 0, third: Float = sounds(2) ? 1 : 0
+        for i in 0 ..< made {
+            waves.store(0, at: i, outputs[i * 3] * first)
+            waves.store(1, at: i, outputs[i * 3 + 1] * second)
+            waves.store(2, at: i, outputs[i * 3 + 2] * third)
+            waves.store(3, at: i, volume)
+        }
+        waves.advance(by: made)
     }
 
     /// Leaves voices out of the sound, or brings them back, from this moment: see `Renderer.setMuted`.

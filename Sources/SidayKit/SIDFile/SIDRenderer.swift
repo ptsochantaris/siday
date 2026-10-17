@@ -160,6 +160,16 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
             if machine.sampleCount == 0 { runSlice(5000) }
             done += machine.drain(into: buffer + done * 2, count: frames - done, gain: gain)
         }
+        // The chip runs ahead of what is handed out, by as much as it has made and not been asked for.
+        waves?.ahead = machine.sampleCount
+    }
+
+    /// Where each voice's sound is kept for its scope, once asked: the machine keeps it, as it makes it.
+    private var waves: ChannelWaves?
+
+    public func keepChannelWaves() -> ChannelWaves? {
+        if waves == nil { waves = machine.keepWaves() }
+        return waves
     }
 
     /// The SID's three voices, and the samples some tunes play on its volume.

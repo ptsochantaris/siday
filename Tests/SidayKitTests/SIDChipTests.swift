@@ -515,3 +515,88 @@ private func settled(_ sound: [Float]) -> [Float] { Array(sound[9600...]) }
         #expect(abs(strength(settled(alone.sound), at: note) / strength(settled(whole.sound), at: note) - 1) < 0.02, "\(engine)")
     }
 }
+
+// MARK: Scopes
+
+/// A scope's distance from the middle at its highest.
+private func height(_ scope: ArraySlice<UInt8>) -> Int { scope.map { abs(Int($0) - 128) }.max() ?? 0 }
+
+/// Each voice's scope, a point a byte, after a session has played for so long, in pieces as the web
+/// player plays it.
+private func scopes(_ session: TuneSession, seconds: Double = 0.3) -> [UInt8] {
+    var buffer = [Float](repeating: 0, count: 1024 * 2)
+    for _ in 0 ..< max(1, Int(seconds * Double(outputSampleRate) / 1024)) {
+        _ = buffer.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 1024) }
+    }
+    var scopes = [UInt8](repeating: 0, count: ChannelWaves.points * session.renderer.channelCount)
+    scopes.withUnsafeMutableBufferPointer { session.takeChannelWaves(into: $0.baseAddress!, behind: 0) }
+    return scopes
+}
+
+/// What a player makes of a tune, for so many samples, in pieces.
+private func sound(_ renderer: SIDRenderer, frames: Int = 24000) -> [Float] {
+    var buffer = [Float](repeating: 0, count: frames * 2)
+    var done = 0
+    while done < frames {
+        let count = min(1000, frames - done)
+        buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress! + done * 2, frames: count) }
+        done += count
+    }
+    return buffer
+}
+
+/// Samples played on the volume, as in `sidSamplesOnTheVolumeAreLeftOut`: twenty times between full
+/// and nothing at the start of every fiftieth of a second.
+private let volumeBurst: [UInt8] = [
+    0xA2, 0x14, 0xA9, 0x0F, 0x8D, 0x18, 0xD4, 0xA0, 0x50, 0x88, 0xD0, 0xFD,
+    0xA9, 0x00, 0x8D, 0x18, 0xD4, 0xA0, 0x50, 0x88, 0xD0, 0xFD, 0xCA, 0xD0, 0xE9, 0x60,
+]
+
+@Test func sidVoicesHaveScopes() throws {
+    // A pulse of half its width at the top of its envelope on the first voice, a triangle held at a
+    // quarter of it on the second, nothing on the third (its gate is shut), and the volume left where
+    // it was set.
+    let quarter = voice(1, hz: 330, control: 0x11).map { $0.register == 13 ? (register: $0.register, value: UInt8(0x40)) : $0 }
+    let file = psid([(0x18, 0x0F), (0x02, 0x00), (0x03, 0x08)] + voice(0, hz: 220, control: 0x41) + quarter + voice(2, hz: 440, control: 0x20))
+    for engine in [SIDEngineChoice.residfp, .resid] {
+        for model in [SIDModelChoice.mos6581, .mos8580] {
+            let session = TuneSession(renderer: try player(file, engine, model), policy: PlaybackPolicy())
+            #expect(session.keepChannelWaves())
+            let shown = scopes(session)
+            #expect(height(shown[0 ..< 64]) > 110, "\(engine) \(model)")
+            #expect(height(shown[64 ..< 128]) > 30 && height(shown[64 ..< 128]) < 100, "\(engine) \(model) \(height(shown[64 ..< 128]))")
+            #expect(shown[128 ..< 192].allSatisfy { $0 == 128 }, "\(engine) \(model) \(height(shown[128 ..< 192]))")
+            #expect(shown[192 ..< 256].allSatisfy { $0 == 128 }, "\(engine) \(model)")
+
+            // A voice left out is not heard, and its scope moves as it did.
+            let muted = TuneSession(renderer: try player(file, engine, model), policy: PlaybackPolicy())
+            muted.renderer.setMuted([true, false, false, false])
+            #expect(muted.keepChannelWaves())
+            #expect(height(scopes(muted)[0 ..< 64]) > 110, "\(engine) \(model)")
+        }
+    }
+}
+
+@Test func sidSamplesOnTheVolumeHaveAScope() throws {
+    for engine in [SIDEngineChoice.residfp, .resid] {
+        let session = TuneSession(renderer: try player(psid([(0x18, 0x0F)], play: volumeBurst), engine), policy: PlaybackPolicy())
+        #expect(session.keepChannelWaves())
+        // (Taken as often as the web player takes them, as the burst comes and goes.)
+        var tallest = 0
+        for _ in 0 ..< 12 { tallest = max(tallest, height(scopes(session, seconds: 0.02)[192 ..< 256])) }
+        #expect(tallest > 110, "\(engine)")
+    }
+}
+
+@Test func sidSoundIsTheSameWithScopesKept() throws {
+    // Notes on all three voices, one of them through the filter, and samples on the volume.
+    let file = psid([(0x18, 0x1F), (0x17, 0xF2), (0x16, 0x40)] + voice(0, hz: 220, control: 0x21) + voice(1, hz: 330, control: 0x41)
+        + [(0x0A, 0x08)] + voice(2, hz: 97, control: 0x81), play: volumeBurst)
+    for engine in [SIDEngineChoice.residfp, .resid] {
+        for model in [SIDModelChoice.mos6581, .mos8580] {
+            let plain = try player(file, engine, model), kept = try player(file, engine, model)
+            #expect(kept.keepChannelWaves() != nil)
+            #expect(sound(plain) == sound(kept), "\(engine) \(model)")
+        }
+    }
+}
