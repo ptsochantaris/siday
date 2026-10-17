@@ -42,12 +42,16 @@ public struct Companion: Sendable, Equatable {
 ///   songs share them, `KidChaos Level 1-3.mfp` in `KidChaos Level 1_set.smp`; on the Amiga's own
 ///   disks, where the kind of a file was put before its name, `mfp.title` has them in `smp.title`.
 ///   Failing those, the one file ending `.smp` beside the song, if there is only one.
+/// - a TFMX module, `title.mdat`, has its samples in `title.smpl` (`title.sam` for `title.tfx`); on
+///   the Amiga's own disks `mdat.title` in `smpl.title`; where the songs of a folder share them,
+///   `smpl.set` or `set.smpl`; failing those, the one file ending `.smpl` beside it, if there is only
+///   one. A TFMX module of one file has its samples in it, and needs none.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
     /// The endings of the names of companion files, of every kind: a file with one of these is part of
     /// a tune, not a tune.
-    public static let endings: Set<String> = ["smp", "bnk"]
+    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam"]
 
     /// True if a file of this extension, in any case, is a companion of a tune.
     public static func are(fileExtension: String) -> Bool {
@@ -68,6 +72,16 @@ public enum Companions {
             // The Amiga's way, with the kind before the name.
             if fileName.lowercased().hasPrefix("mfp.") { names.append("smp." + fileName.dropFirst(4)) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .tfmx:
+            // Not needed by a module that keeps its samples in its own file, which is known only once
+            // it is read: so not required here, and the loader says when it is.
+            let lowered = fileName.lowercased()
+            var names = lowered.hasSuffix(".tfx") || lowered.hasSuffix(".tfm") ? ["\(stem).sam", "\(stem).smpl"] : ["\(stem).smpl", "\(stem).sam"]
+            if lowered.hasPrefix("mdat.") { names.append("smpl." + fileName.dropFirst(5)) }
+            // Samples shared by the songs of a folder, as libtfmxaudiodecoder looks for them, and as
+            // they are named in one game's folder (Einmal Kanzler sein).
+            names += ["smpl.set", "set.smpl"]
+            return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
         case .rol:
             let own = Companion(part: .instruments, names: ["\(stem).bnk"], required: false)
             let standard = Companion(part: .instruments, names: ["standard.bnk"], required: false)

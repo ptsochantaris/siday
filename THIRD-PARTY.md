@@ -170,6 +170,24 @@ V1.2", 2007, carried by UADE as `ChipTracker`; it says of itself "(c) 1991 by Kr
 adapted by Wanted Team"). Its 68000 code was read for that, and nothing of it is carried here but its
 table of periods.
 
+## libtfmxaudiodecoder — TFMX
+
+`Sources/SidayKit/TFMX` plays Chris Hülsbeck's TFMX with a Swift port of the player of it in
+libtfmxaudiodecoder (`src/Chris/`, with what it uses of the library's checksum, byte order and
+buffer code), at its commit dcec102 of 2026-09-26.
+
+- Copyright (C) Michael Schwendt
+- GNU General Public License, version 2 or later
+- Source: https://github.com/mschwendt/libtfmxaudiodecoder
+
+How long the player's ticks are (`TFMXTiming`) and how TFMX 7V's voices are mixed
+(`TFMXSevenVoices`) are as Chris Hülsbeck's players have them, read in Wanted Team's players of the
+files for EaglePlayer, carried by UADE as `TFMX`, `TFMX-Pro` and `TFMX-7V` ("TFMX player module
+V1.3", "TFMX Pro player module V1.3" and "TFMX 7V player module V1.1", 2002; they say of themselves
+"(c) 1988-90", "(c) 1990-94" and "(c) 1991-94 by Chris H"). Their 68000 code
+was read for that, and nothing of it is carried here but its constants: the timer's dividends, the
+rate, buffer and period of the mixing, and its table of volumes.
+
 ## Magnetic Fields Packer
 
 `Sources/SidayKit/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as

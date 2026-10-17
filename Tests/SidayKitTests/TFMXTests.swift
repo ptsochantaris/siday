@@ -200,3 +200,97 @@ private func play(_ player: inout TFMXPlayer, ticks: Int) -> Recorder {
         }
     }
 }
+
+@Test func tfmxTicksAreAsLongAsChrisHuelsbecksPlayersMadeThem() {
+    // TFMX Professional's timer for 125 beats a minute, and the first player's, in its upper byte.
+    #expect(TFMXTiming.timerAtStart(speed: 125, old: false) == 14323) // $1B51F8 / 125
+    #expect(TFMXTiming.timerAtStart(speed: 125, old: true) == 57 << 8)
+    #expect(TFMXTiming.timerAtStart(speed: 5, old: false) == nil && TFMXTiming.timerAtStart(speed: 20, old: true) == nil)
+    // Too few beats for a word: the 68000 leaves what was to be divided.
+    #expect(TFMXTiming.timerAtStart(speed: 16, old: false) == 0x51F8)
+    // The Speed command: below nought or nought leaves the timer; the first player keeps its lower byte.
+    #expect(TFMXTiming.timer(afterSpeed: 0xFF00, was: 1234, old: false) == 1234)
+    #expect(TFMXTiming.timer(afterSpeed: 100, was: nil, old: false) == 17904)
+    #expect(TFMXTiming.timer(afterSpeed: 100, was: 0x1234, old: true) == 0x4734) // $1C00 / 100 is 71
+    var timing = TFMXTiming()
+    #expect(timing.fourVoiceTick(rate: 50 << 8, timer: 14323) == 14323 * 5)
+    // At fifty a second, the library's rate: 70,937.9 clocks, the part over carried.
+    let ticks = (0 ..< 10).map { _ in timing.fourVoiceTick(rate: 50 << 8, timer: nil) }
+    #expect(ticks.reduce(0, +) == 709_379)
+    // TFMX 7V: 320 bytes a tick at a period of 224, longer or shorter by its tempo.
+    #expect(TFMXTiming.sevenVoiceBytes(tempo: 0) == 320 && TFMXTiming.sevenVoiceBytes(tempo: -50) == 218)
+    #expect(TFMXTiming.sevenVoiceBytes(tempo: 10) == 352)
+    #expect(timing.sevenVoiceTick(tempo: 0) == 320 * 224)
+}
+
+@Test func tfmxSevenVoicesAreMixedAsTheirPlayerMixedThem() {
+    // A sample of 64 bytes at the start of memory, and silence after it.
+    let memory = UnsafeMutablePointer<Int8>.allocate(capacity: 4096)
+    defer { memory.deallocate() }
+    memory.initialize(repeating: 0, count: 4096)
+    for i in 0 ..< 64 { memory[i] = Int8(truncatingIfNeeded: i * 4 - 128) }
+    var mixer = TFMXSevenVoices(silence: 2048)
+    mixer.voices[0].start = 0
+    mixer.voices[0].length = 32
+    mixer.voices[0].period = 224
+    mixer.voices[0].volume = 64
+    mixer.voices[0].on = true
+    let out = UnsafeMutablePointer<Int8>.allocate(capacity: 80)
+    let parts = UnsafeMutablePointer<Float>.allocate(capacity: 320)
+    defer { out.deallocate(); parts.deallocate() }
+    mixer.mix(memory, size: 4096, into: out, count: 80, parts: parts)
+    // At the mixing's own period, a sample a byte; a volume of 64 taken as 63; round again after 64,
+    // a byte on: the fraction a voice starts with is $FFFF, and its carry comes as it goes round.
+    #expect(out[1] == Int8((-124 * 63) >> 6) && out[32] == 0 && out[63] == Int8((124 * 63) >> 6))
+    #expect(out[64] == out[1] && out[65] == out[2] && mixer.voices[0].loops == 1)
+    // Four voices at full, added, are clipped to a byte.
+    for v in 1 ..< 4 { mixer.voices[v] = mixer.voices[0] }
+    mixer.voices[0].restart = true
+    for v in 1 ..< 4 { mixer.voices[v].restart = true }
+    mixer.mix(memory, size: 4096, into: out, count: 80, parts: parts)
+    #expect(out[0] == -128 && out[63] == 127)
+    // A sample of fewer than 32 words is silence in its place.
+    var short = TFMXSevenVoices(silence: 2048)
+    short.voices[0] = TFMXSevenVoices.Voice(start: 0, length: 31, period: 224, volume: 64, on: true)
+    short.mix(memory, size: 4096, into: out, count: 80, parts: parts)
+    #expect((0 ..< 80).allSatisfy { out[$0] == 0 })
+}
+
+@Test func tfmxIsPlayedAsAnAmigaTuneWithItsSamples() throws {
+    let renderer = try TuneLoader.load(module(speed: 0), format: .tfmx, path: "games/test.mdat", companions: [samples])
+    #expect(renderer.info.format == "TFMX" && renderer.info.detail == "TFMX Pro")
+    #expect(renderer.isPlayedOnAnAmiga && renderer.endsByLooping && renderer.channelCount == 4)
+    var buffer = [Float](repeating: 0, count: 9600)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 4800) }
+    #expect(buffer.contains { $0 != 0 })
+    // Without them, the names they were looked for by.
+    #expect {
+        try TuneLoader.load(module(), format: .tfmx, path: "games/test.mdat")
+    } throws: { error in
+        guard case let .missingCompanion(why) = error as? TuneError else { return false }
+        return why.hasPrefix("its samples are kept in a file of their own, test.smpl, test.sam, smpl.set or set.smpl")
+    }
+    #expect(Companions.wanted(for: .tfmx, fileName: "mdat.title")[0].names == ["mdat.smpl", "mdat.sam", "smpl.title", "smpl.set", "set.smpl"])
+    #expect(Companions.wanted(for: .tfmx, fileName: "song.tfx")[0].names.first == "song.sam")
+    #expect(TuneFormat(fileExtension: "MDAT") == .tfmx && TuneFormat(fileExtension: "tfx") == .tfmx)
+    // A TFMX 7V module has seven voices to show.
+    let seven = try TuneLoader.load(module(sevenVoices: true), format: .tfmx, companions: [samples])
+    #expect(seven.info.detail == "TFMX 7V" && seven.channelCount == 7)
+    buffer.withUnsafeMutableBufferPointer { seven.render(into: $0.baseAddress!, frames: 4800) }
+}
+
+@Test func tfmxSongWhoseTracksAllStopPlaysOn() throws {
+    // The pattern ends with Stop, and no track has anything more to play.
+    var stopping = module()
+    put(&stopping, 0x908, [0xF4, 0, 0, 0])
+    var player = try TFMXPlayer(stopping, samples: samples)
+    player.loops = true
+    var recorder = Recorder()
+    for _ in 0 ..< 200 { _ = player.run(&recorder) }
+    #expect(player.stops >= 1)
+    var playingOn = try TFMXPlayer(stopping, samples: samples)
+    playingOn.loops = true
+    playingOn.playsOnInEndlessPatterns = true
+    for _ in 0 ..< 200 { _ = playingOn.run(&recorder) }
+    #expect(playingOn.stops == 0 && playingOn.endings == 1 && !playingOn.songEnded)
+}

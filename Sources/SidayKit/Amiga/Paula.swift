@@ -57,6 +57,9 @@ struct Paula: ~Copyable {
         var struck = false
         /// True for a voice that is left out of the sound: it plays on, and is not added in.
         var muted = false
+        /// How many times the voice has come to the end of what it was playing and gone on from where
+        /// it was last pointed, since it was started: what a player that waits for that counts.
+        var loops: UInt16 = 0
 
         /// Paula takes up a new period only as she finishes counting the old one.
         @inline(__always) mutating func refetchPeriod() {
@@ -75,6 +78,7 @@ struct Paula: ~Copyable {
                     if lengthCounter == 0 {
                         lengthCounter = storedLength
                         location = storedLocation
+                        loops &+= 1
                     }
                 }
                 justStarted = false
@@ -289,7 +293,19 @@ struct Paula: ~Copyable {
             voices[voice].phase = 0
             voices[voice].active = true
             voices[voice].struck = true
+            voices[voice].loops = 0
         }
+    }
+
+    /// True while a voice is fetching samples, from when it is started until it is stopped.
+    func isPlaying(_ voice: Int) -> Bool {
+        voices[voice].active
+    }
+
+    /// How many times a voice has come to the end of what it was playing and gone round again since it
+    /// was started; nothing, for one that is stopped.
+    func loopCount(_ voice: Int) -> UInt16 {
+        voices[voice].active ? voices[voice].loops : 0
     }
 
     /// Marks a voice as having begun a note, for one that begins it without being started: a voice

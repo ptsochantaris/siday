@@ -65,6 +65,14 @@ struct TFMXPlayer: ~Copyable {
     /// a length after that plays on past them, out of the memory, as that mixer's does: what is read
     /// beyond `memorySize + 4` is best taken to be silence.)
     var silenceAt: Int { decoder.size }
+    /// Where, after the module, the buffers are that TFMX 7V's four voices are mixed into for Paula's
+    /// fourth (`TFMXSevenVoices`): far enough after it that no voice told a start in the module and a
+    /// length, however long, reads into them, only silence (which is what is there).
+    var mixingAt: Int { decoder.size + 4 + 0x20000 }
+    /// How many bytes Paula may read of `memory`: the module, the silence after it and the mixing.
+    var memoryCapacity: Int { mixingAt + Self.mixingSpace }
+    /// Room for TFMX 7V's two buffers, the longest it mixes being 726 bytes.
+    static let mixingSpace = 2048
 
     private var decoder: TFMXDecoder
     private let file: [UInt8]
@@ -79,8 +87,8 @@ struct TFMXPlayer: ~Copyable {
     /// in its own file has no need of them (and is not given them: they would be left unread).
     init(_ file: [UInt8], samples: [UInt8]?, song: Int = 0) throws(TuneError) {
         let size = file.count + (samples?.count ?? 0)
-        memory = .allocate(capacity: size + 4)
-        memory.initialize(repeating: 0, count: size + 4)
+        memory = .allocate(capacity: size + 4 + 0x20000 + Self.mixingSpace)
+        memory.initialize(repeating: 0, count: size + 4 + 0x20000 + Self.mixingSpace)
         self.file = file
         self.samples = samples
         decoder = TFMXDecoder(memory: memory)
@@ -93,9 +101,10 @@ struct TFMXPlayer: ~Copyable {
     /// (Whether a module is played does not hang on which of its songs is asked for, so one that was
     /// read once is read again.)
     mutating func select(song: Int) throws(TuneError) {
-        memory.update(repeating: 0, count: file.count + (samples?.count ?? 0) + 4)
+        memory.update(repeating: 0, count: file.count + (samples?.count ?? 0) + 4 + 0x20000 + Self.mixingSpace)
         decoder = TFMXDecoder(memory: memory)
         try decoder.setUp(file, samples: samples, song: song)
+        decoder.playsOnInEndlessPatterns = playsOnInEndlessPatterns
     }
 
     /// Runs the player for one tick, telling `output` what Paula is to do. Returns the tick's length in
@@ -117,6 +126,11 @@ struct TFMXPlayer: ~Copyable {
     /// True once the song has come to its end, after which the player does nothing more. (A song that
     /// is looped goes back to its beginning instead, and does not end.)
     var songEnded: Bool { decoder.songEnd }
+    /// Whether a song that comes to patterns that go round for ever plays on (see
+    /// `TFMXDecoder.playsOnInEndlessPatterns`). Off unless set; kept from song to song.
+    var playsOnInEndlessPatterns = false {
+        didSet { decoder.playsOnInEndlessPatterns = playsOnInEndlessPatterns }
+    }
     /// Whether the song goes back to its beginning when it ends. Off unless set.
     var loops: Bool {
         get { decoder.loopMode }
@@ -125,6 +139,20 @@ struct TFMXPlayer: ~Copyable {
     /// How long the song plays before it ends, in milliseconds, as the player found by playing it
     /// through once before it began (up to 59 minutes, for a song that does not end).
     var duration: UInt32 { decoder.duration }
+    /// How long the song plays before it ends, as `duration` is found, in Paula's clocks, by the
+    /// timing of its player (`TFMXTiming`); nil for one that did not end in 59 minutes.
+    var lengthClocks: UInt64? {
+        guard decoder.duration < 1000 * 60 * 59 else { return nil }
+        return format == .sevenVoices ? decoder.lengthClocks.seven : decoder.lengthClocks.four
+    }
+    /// How many times the song has come to its end since it was started, when it loops (`loops`); and
+    /// of those, how many times it stopped, rather than going round again.
+    var endings: Int { decoder.endings }
+    var stops: Int { decoder.stops }
+    /// The change to TFMX 7V's tempo the song last asked for, in hundredths (see `TFMXTiming`).
+    var sevenVoiceTempo: Int { decoder.sevenVoiceTempo }
+    /// The CIA timer the song's tempo has set, if it has set one (see `TFMXTiming`).
+    var ciaTimer: UInt16? { decoder.ciaTimer }
     /// Paula's period for the voice, as the player last set it.
     func period(_ voice: Int) -> UInt16 { decoder.paula[voice].period }
     /// Paula's volume for the voice, as the player last set it: 0 to 64 for any sensible module, though

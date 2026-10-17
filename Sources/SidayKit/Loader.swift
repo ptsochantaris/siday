@@ -25,6 +25,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case sap
     case agi
     case mfp
+    case tfmx
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -39,6 +40,10 @@ public enum TuneFormat: String, CaseIterable, Sendable {
             // (A module packed by one of the packers games and demos used, named for the packer; or
             // one of ChipTracker's, which is read into a module.)
             self = .mod
+        } else if name == "mdat" || name == "tfx" || name == "tfm" {
+            // (TFMX's notes, named for its file of them, which the samples are beside; or a module
+            // of one file.)
+            self = .tfmx
         } else if name == "snd" {
             // (As SNDH files were named before the format had a name of its own.)
             self = .sndh
@@ -102,6 +107,14 @@ public enum TuneLoader {
             return try SNDHRenderer(data, options: options)
         case .sap:
             return try SAPRenderer(data, options: options)
+        case .tfmx:
+            // Chris Hülsbeck's TFMX: its samples in a file of their own, unless the file is one of
+            // the forms that keep them in it.
+            do {
+                return try TFMXRenderer(data, samples: companions.first ?? nil, options: options)
+            } catch TuneError.missingCompanion {
+                throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+            }
         case .mfp:
             // A ProTracker module packed with its samples in a file of their own.
             guard let samples = companions.first ?? nil else {

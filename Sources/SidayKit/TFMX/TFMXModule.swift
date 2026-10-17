@@ -126,8 +126,12 @@ extension TFMXDecoder {
         duration = 0
         let loopModeBefore = loopMode
         loopMode = false
+        var four = TFMXTiming(), seven = TFMXTiming()
+        lengthClocks = (0, 0)
         repeat {
             duration &+= UInt32(truncatingIfNeeded: run(&silent))
+            lengthClocks.four &+= UInt64(four.fourVoiceTick(rate: rate, timer: ciaTimer))
+            lengthClocks.seven &+= UInt64(seven.sevenVoiceTick(tempo: sevenVoiceTempo))
         } while !songEnd && duration < 1000 * 60 * 59
         loopMode = loopModeBefore
 

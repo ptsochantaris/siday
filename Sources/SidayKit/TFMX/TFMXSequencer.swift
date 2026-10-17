@@ -116,6 +116,7 @@ extension TFMXDecoder {
     mutating func trackCmdSpeed(_ stepOffset: UInt32) {
         admin.count = Int16(bitPattern: word(stepOffset))
         admin.speed = admin.count
+        ciaTimer = TFMXTiming.timer(afterSpeed: word(stepOffset &+ 2), was: ciaTimer, old: format == .tfmx)
         // Beats a minute, if any: values like $FF00 that would be below nought are left alone.
         var arg2 = 0x81FF & word(stepOffset &+ 2)
         if arg2 != 0, arg2 < 0x200 {
@@ -139,6 +140,7 @@ extension TFMXDecoder {
         if arg2 >= 0 {
             var x = Int8(bitPattern: byte(stepOffset &+ 3))
             if x < -0x20 { x = -0x20 }
+            sevenVoiceTempo = Int(x)
             setBPM(UInt16((125 * 100) / (100 + Int(x))))
         }
         sequencer.current += 1

@@ -29,7 +29,7 @@ kept, on the computer or in the browser.
 
 Some files are not all of a tune, or not a tune at all. A playlist names tunes in other files; a
 ROL tune takes its instruments from a bank in a file beside it; a song packed with the Magnetic
-Fields Packer keeps its samples in a file of their own. They are all found in one way, by
+Fields Packer, or with TFMX, keeps its samples in a file of their own. They are all found in one way, by
 `FileFinder`: by the names they are known to have, beside the file that wants them first, and as
 Windows would, to which a capital and a small letter are one. On the command line that is the
 folder on the disk. In a browser it is the files the page has been given, since a page can read no
@@ -731,6 +731,71 @@ whole tune or none, and so they are nearer each other than either is to DigiBoos
 the first minute of each file the spectrum agrees with libopenmpt to 0.955 for the middle file and
 with libxmp to 0.967, where the two agree with each other to 0.968, and the loudness over time to
 0.939 and 0.935, where they agree to 0.971.
+
+## TFMX — Chris Hülsbeck's music system
+
+TFMX, "The Final Musicsystem eXtended", was Chris Hülsbeck's music system for the Amiga, and the
+sound of Turrican and its sequels, of Apidya, X-Out and Mad TV, and of many more German games of
+the years around 1990. It was his own, and then a product: an editor sold as Chris Hülsbeck's
+Workstation, and a player for each version, which composers who used it put in their games. The
+players, as Wanted Team keep them for EaglePlayer, say of themselves "(c) 1988-90" for the first, "(c) 1990-94" for TFMX Professional, which
+most of the music is in, and "(c) 1991-94" for TFMX 7V, which plays seven voices on the Amiga's
+four: three as they are, and four mixed by the processor into a stream that the fourth plays.
+Jochen Hippel made seven voices first, for a TFMX of his own, and gave the idea to Chris Hülsbeck's.
+
+A module is two files: its notes and instruments in one, `title.mdat`, and its samples in another,
+`title.smpl`, which siday finds beside it (and in a browser, among the files it has been given),
+as it finds the files that come with any tune; where a folder's songs share one file of samples,
+it is `set.smpl` or `smpl.set`. A module holds several songs, often a game's in-game tunes and its
+jingles together. A song is a table of steps, each giving each of eight tracks a pattern to play
+and the voice to play it on; a pattern's notes each start a macro, the instrument, a little
+program run on every tick that tells the sound chip where a sample is and how long, sets the note's
+period and its volume, waits, loops, and turns the sound into something else as it plays: a
+vibrato, a slide, an envelope, a sample's start moved along, and in the later players a sample made
+afresh from others as it plays.
+
+The player here is Michael Schwendt's, from his library libtfmxaudiodecoder, the core of which
+he wrote in assembly language around 1991, with the editor's handbook and files to go by, and which
+he keeps today; it tells the TFMX of the first players from TFMX Professional by the module's header and by
+checksums of modules that need it, and plays each as it was played. It is ported here line for
+line, and what it tells the Amiga's sound chip, tick by tick, is the same as what that library tells
+it, for every song of every one of the 322 modules of UnExoticA's collection (915 songs, two
+modules having none the library will play), looping or not, and for some 45,000 copies of them cut
+short or changed at random. Two of Masterblazer's modules play some of their sounds at random; the library takes
+its chances from the C library's, and here they come from the same sequence on every playing.
+
+Four things here are not the library's, each taken from Chris Hülsbeck's own players, which Wanted
+Team keep in their players of the files for EaglePlayer and UADE runs:
+
+1. How often the player runs. The library has fifty ticks a second, or two fifths of a song's beats
+   a minute. TFMX Professional's player sets the computer's timer to $1B51F8 over the beats, which
+   is slower than that by nearly one part in a hundred, and the first player to $1C00 over them in
+   the timer's upper byte. A song with a tempo of its own was more than half a second ahead of
+   Chris Hülsbeck's player by the end of a minute; it is not now.
+2. How TFMX 7V's four voices are mixed. Its player mixes at 16 kHz, a buffer of 320 bytes for each
+   tick, longer or shorter by the song's tempo, and plays it on the fourth voice at a period of 224;
+   the tick is when the fourth voice comes to the end of a buffer. A voice steps through its sample
+   at its own period's rate against the mixing's, with nothing between one sample and the next; its
+   volume comes from a table in which 64 is 63; the four are added and clipped to a byte; and a sample
+   or loop of fewer than 32 words plays silence in its place. A buffer is mixed from what the voices
+   were told the tick before, and heard the tick after, as it was on the Amiga. All of that is done
+   here, into buffers that the Amiga's sound chip as siday has it plays as the fourth voice, so the
+   seven are filtered and placed as the Amiga had them.
+3. When a song ends. The library takes a song whose tracks have all come to an end, or to patterns
+   that go round for ever, to have finished, and stops it, to know how long it is. Chris Hülsbeck's
+   players play on: the patterns go on round, or the notes that were sounding go on as their macros
+   have them. So they do here, and that is where the song is counted as having come round. (A song
+   that says Stop, stops.)
+4. How loud it is: as loud as a module played on the same chip, as every format here is. The middle
+   of the collection's modules was 5 dB quieter than modules are, and is turned up by that.
+
+Set beside UADE playing Chris Hülsbeck's players, over the first minute of the first song of each
+module, by how loud each side is from moment to moment, the 320 that play are 0.945 alike on
+average; the library itself is 0.937, the difference being the timing and the seven voices. Some 35
+modules agree less well, and the library agrees no better on them: these are where its reading of a
+module is not that of the player the module was made for, as in a module of Mean Ugly Dirty Sport
+in which UADE finds six songs and the library five, none of them the one UADE plays first. Three
+modules are silent, one of them a game's sound effects, and two are refused, having no songs.
 
 ## XM — FastTracker 2
 

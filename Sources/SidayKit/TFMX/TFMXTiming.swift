@@ -1,0 +1,71 @@
+// Copyright (C) 2026 Paul Tsochantaris
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/// How long a TFMX player's ticks are, in Paula's clocks.
+///
+/// A player of four voices runs as often as the song's tempo says: fifty times a second unless it
+/// says otherwise, or two fifths of its beats a minute. (libtfmxaudiodecoder keeps that as a rate in
+/// 256ths of a tick a second, `TFMXDecoder.rate`, and so is it kept here.)
+///
+/// The player of TFMX 7V runs as often as Paula's fourth voice comes to the end of the buffer it mixes
+/// the four voices of that one into: as Chris Hülsbeck's player of it, kept in Wanted Team's player for
+/// EaglePlayer ("TFMX 7V player module V1.1", carried by UADE as `TFMX-7V`), has it, a buffer of
+/// 320 bytes at its rate of mixing of 16 kHz, made longer or shorter by the song's 7VOICE command, and
+/// played at a period of 224, from its table of periods for each thousand mixed a second (3,580
+/// divided by the thousands).
+struct TFMXTiming {
+    /// The part of a clock over from the ticks before, in 256ths of a tick a second.
+    private var carry: UInt64 = 0
+
+    /// The period Paula's fourth voice plays the mixed buffers at in TFMX 7V.
+    static let sevenVoicePeriod = 224
+
+    /// The length of a tick of a player of four voices: the CIA's timer counts down from `timer` at a
+    /// fifth of Paula's clock; with none, at the rate the library has (in 256ths of a tick a second).
+    mutating func fourVoiceTick(rate: UInt32, timer: UInt16?) -> Int {
+        if let timer { return Int(max(timer, 1)) * 5 }
+        let whole = UInt64(Paula.clockHz) * 256 + carry
+        let rate = UInt64(max(rate, 1))
+        carry = whole % rate
+        return Int(whole / rate)
+    }
+
+    /// The timer a song's tempo sets as it starts: a tempo of 16 or more is beats a minute, which TFMX
+    /// Professional's player takes as $1B51F8 over them, and the first player, from 32, as $1C00 over
+    /// them, in its timer's upper byte. (The 68000's division, when it would come to more than a word,
+    /// leaves what was to be divided, of which the lower word is taken.)
+    static func timerAtStart(speed: Int, old: Bool) -> UInt16? {
+        if old {
+            guard speed > 31 else { return nil }
+            return UInt16(truncatingIfNeeded: (0x1C00 / speed) << 8)
+        }
+        guard speed >= 0x10 else { return nil }
+        return proTimer(speed)
+    }
+
+    /// The timer after the song's Speed command: its second word, unless it is below nought or nought,
+    /// as beats a minute (of its lower nine bits). The first player puts its division into the upper
+    /// byte only, leaving the lower as it was (the player's own fifty ticks a second being 14,187).
+    static func timer(afterSpeed word: UInt16, was: UInt16?, old: Bool) -> UInt16? {
+        guard word & 0x8000 == 0, word & 0x1FF != 0 else { return was }
+        let bpm = Int(word & 0x1FF)
+        if old { return UInt16(truncatingIfNeeded: (0x1C00 / bpm) & 0xFF) << 8 | (was ?? 14187) & 0xFF }
+        return proTimer(bpm)
+    }
+
+    private static func proTimer(_ bpm: Int) -> UInt16 {
+        let quotient = 0x1B51F8 / bpm
+        return UInt16(truncatingIfNeeded: quotient > 0xFFFF ? 0x1B51F8 : quotient)
+    }
+
+    /// The length of a tick of TFMX 7V's player, with the change to its tempo the song asks for.
+    mutating func sevenVoiceTick(tempo: Int) -> Int {
+        Self.sevenVoiceBytes(tempo: tempo) * Self.sevenVoicePeriod
+    }
+
+    /// How many bytes TFMX 7V's player mixes for each tick: twenty for each thousand a second it mixes
+    /// at, times the tempo in hundredths, and one more, made even. (A tempo is never below -32.)
+    static func sevenVoiceBytes(tempo: Int) -> Int {
+        (16 * 100 / 5 * (100 + max(-32, tempo)) / 100 + 1) & ~1
+    }
+}

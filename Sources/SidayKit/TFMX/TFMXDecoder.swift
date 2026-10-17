@@ -47,6 +47,28 @@ struct TFMXDecoder {
     var duration: UInt32 = 0
     var songPosCurrent: UInt32 = 0
     var triggerRestart = false
+    /// How many times the song has come to its end since it was started, in loop mode; and of those,
+    /// how many were the song stopping, and not going round again. (For whoever plays it, which has
+    /// to know when a song loops: the library itself does not say.)
+    var endings = 0, stops = 0
+    /// The change to TFMX 7V's tempo that its 7VOICE command last made, in hundredths, which its
+    /// player keeps in the length of the buffer it mixes the four voices of Paula's fourth into: see
+    /// `TFMXTiming`.
+    var sevenVoiceTempo = 0
+    /// The value the song's tempo puts in the CIA's timer, as Chris Hülsbeck's players set it, when it
+    /// sets one; nil at the player's own fifty ticks a second. (libtfmxaudiodecoder keeps a rate of its
+    /// own instead, `rate`, which is near it, and which is kept as it has it: see `TFMXTiming`.)
+    var ciaTimer: UInt16?
+    /// siday's own, and off unless asked for: a song whose tracks have all either finished or come
+    /// to a pattern that goes round for ever plays on, as Chris Hülsbeck's players play it, in place of
+    /// being taken to have ended (which libtfmxaudiodecoder does, to find where to stop): its patterns
+    /// go on round, or with none left, the notes it was playing go on sounding as their macros have
+    /// them. Coming to that is counted as the song's end once (`endings`). (A song that says Stop, stops.)
+    var playsOnInEndlessPatterns = false
+    var inEndlessPatterns = false
+    /// How long the song played for, through to its end, in the dry run that found its length: in
+    /// Paula's clocks, by the timing of a player of four voices and of one of seven.
+    var lengthClocks: (four: UInt64, seven: UInt64) = (0, 0)
     var admin = Admin()
     var sequencer = Sequencer()
     var tracks = InlineArray<8, Track>(repeating: Track())
@@ -325,6 +347,11 @@ struct TFMXDecoder {
     /// Starts the chosen song from its beginning.
     mutating func restart<Output: TFMXOutput>(_ out: inout Output) {
         reset(&out)
+        sevenVoiceTempo = 0
+        ciaTimer = TFMXTiming.timerAtStart(speed: Int(Int16(bitPattern: word(offsets.header &+ 0x180 &+ (UInt32(songs[admin.startSong]) << 1)))),
+                                          old: format == .tfmx)
+        endings = 0
+        stops = 0
         let so = UInt32(songs[admin.startSong]) << 1
         sequencer.first = Int(word(offsets.header &+ 0x100 &+ so))
         sequencer.current = sequencer.first
@@ -468,10 +495,20 @@ struct TFMXDecoder {
             }
             // The states in which the sequencer cannot go on.
             if !sequencer.next, countInactive == 8 || countInactive + countInfinite == 8 {
-                songEnd = true
-                triggerRestart = true
+                if playsOnInEndlessPatterns {
+                    if !inEndlessPatterns {
+                        inEndlessPatterns = true
+                        endings += 1
+                    }
+                } else {
+                    songEnd = true
+                    triggerRestart = true
+                }
             }
+            if sequencer.next { inEndlessPatterns = false }
             if songEnd, loopMode {
+                endings += 1
+                if triggerRestart { stops += 1 }
                 songEnd = false
                 if triggerRestart {
                     softRestart()
