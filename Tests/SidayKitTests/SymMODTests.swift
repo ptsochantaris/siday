@@ -117,8 +117,25 @@ private func ticks(_ file: [UInt8], _ count: Int) throws -> [(rate: Int, at: Int
     #expect(t[7].at == t[6].at && t[17].at == t[6].at && t[18].at == t[17].at && t[19].at != t[18].at)
     let sound = stereo(try load(file), seconds: 1.2)
     let tick = Int(2.5 / 124 * Double(outputSampleRate))
-    #expect(loudness(sound.left[(7 * tick)...(17 * tick)]) < 0.0001)
+    // (Once what it last put out has died away.)
+    #expect(loudness(sound.left[(9 * tick)...(17 * tick)]) < 0.0001)
     #expect(loudness(sound.left[(19 * tick)...(23 * tick)]) > 0.01)
+}
+
+/// A triangle wave of eight bits, 256 points long, whose sound changes little from frame to frame.
+private let triangle: [UInt8] = (0 ..< 256).map { UInt8(bitPattern: Int8(100 - abs($0 - 128) * 200 / 128)) }
+
+@Test func symmodSampleStopsAndGoesOnWithoutAClick() throws {
+    // As OpenMPT plays it: what the voice last put out when its sample is stopped dies away, and
+    // when it goes on it is ramped in from silence. Neither is a step in the sound.
+    let file = symmod(cells: [(0, 0, .key()), (1, 0, .stop), (3, 0, .go)], samples: [triangle])
+    let left = stereo(try load(file), seconds: 1.2).left
+    let tick = Int(2.5 / 124 * Double(outputSampleRate))
+    let peak = left.map { abs($0) }.max() ?? 0
+    let step = zip(left.dropFirst(), left).map { abs($0 - $1) }.max() ?? 0
+    #expect(peak > 0.1 && step < peak / 20)
+    // (It was sounding when it was stopped, and when it went on.)
+    #expect(loudness(left[(5 * tick)...(6 * tick - 50)]) > peak / 4 && loudness(left[(19 * tick)...(20 * tick)]) > peak / 4)
 }
 
 @Test func symmodVirtualInstrumentIsMadeOfAnother() throws {

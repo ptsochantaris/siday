@@ -197,6 +197,9 @@ final class IT2Mixer {
     /// as the "WAV writer" driver has it, and for an MT2 or an MPTM file, which are played as OpenMPT
     /// plays them, and an IT file of ModPlug Tracker's or OpenMPT's, a 256th as their mixer has it.
     private let endDecay: Float
+    /// True for a module of Symphonie's, whose voices that end on their way to a plug-in die away
+    /// there as OpenMPT lets them (see `OpenMPTPlugIns.clickDecay`).
+    private let symphonie: Bool
 
     /// Sets a voice's filter as OpenMPT sets its own (`SetupChannelFilter`, where a file does not
     /// ask for Impulse Tracker's): the same kind of filter, of two poles, with half the ring to it
@@ -300,6 +303,7 @@ final class IT2Mixer {
         ownFilterStep = Float(filterStep)
         ownFilterRate = Float(mixingFrequency)
         endDecay = quickEnds ?? (module.madTracker || module.openMPT != nil) ? 1.0 / 256.0 : 1.0 / 4096.0
+        symphonie = module.playsAsSymphonie
 
         // and the gain.
         MixGain = Self.mixGain(of: module)
@@ -517,7 +521,10 @@ final class IT2Mixer {
     /// Makes the song's plug-ins, for a mixer whose sound is to be heard: one that only finds how
     /// long a tune is has no use for them.
     func playsPlugIns() {
-        if plugIns == nil, let sound { plugIns = OpenMPTPlugIns(sound) }
+        if plugIns == nil, let sound {
+            plugIns = OpenMPTPlugIns(sound)
+            if symphonie { plugIns?.clickDecay = 1.0 / 256.0 }
+        }
         if reverb == nil, reverbSend != nil { reverb = ModPlugReverb(sampleRate: outputSampleRate) }
     }
 
@@ -873,9 +880,18 @@ final class IT2Mixer {
             // Just in case: it should not happen. (The voice's flags are left as they are.)
             if sc.pointee.Delta64 == 0 { continue }
             // A voice whose sample is stopped where it is is not mixed, and does not move on; and if
-            // it is cut meanwhile, it ends there. (Only a module of Symphonie's stops one.)
+            // it is cut meanwhile, it ends there. (Only a module of Symphonie's stops one.) What it
+            // last put out dies away; and when it goes on again it is ramped in from silence, as
+            // OpenMPT's is, whose volume for a stopped voice is nothing from the next row on.
             if sc.pointee.Paused {
                 sounded = 0
+                if !silent { dieAway(sc) }
+                sc.pointee.LastOutLeft = 0
+                sc.pointee.LastOutRight = 0
+                sc.pointee.fCurrVolL = 0
+                sc.pointee.fCurrVolR = 0
+                sc.pointee.fOldLeftVolume = 0
+                sc.pointee.fOldRightVolume = 0
                 sc.pointee.Flags &= ~(SF_RECALC_PAN | SF_RECALC_VOL | SF_FREQ_CHANGE | SF_UPDATE_MIXERVOL | SF_NEW_NOTE | SF_NOTE_STOP | SF_LOOP_CHANGED | SF_PAN_CHANGED)
                 continue
             }
@@ -886,6 +902,8 @@ final class IT2Mixer {
 
             // (A sample the file gives a length but no sound, which the original would read from nowhere, is silent.)
             let s = sc.pointee.SmpPtr
+            sc.pointee.LastOutLeft = 0
+            sc.pointee.LastOutRight = 0
             if silent || s?.Data == nil || (sc.pointee.fLeftVolume == 0 && sc.pointee.fRightVolume == 0
                 && sc.pointee.fOldLeftVolume <= 0.000001 && sc.pointee.fOldRightVolume <= 0.000001 && !FilterActive) {
                 // Silent, and with no filter to keep going: only its place in the sample is moved on.
@@ -1112,6 +1130,12 @@ final class IT2Mixer {
                             }
                         }
                     }
+
+                    // (What it put out last, unless its sample has ended and that is dying away already.)
+                    if sc.pointee.Flags & SF_CHAN_ON != 0 {
+                        sc.pointee.LastOutLeft = fLastLeftValue
+                        sc.pointee.LastOutRight = fLastRightValue
+                    }
                 }
 
                 sc.pointee.fOldLeftVolume = sc.pointee.fCurrVolL
@@ -1123,6 +1147,46 @@ final class IT2Mixer {
 
         if !silent, adLib != nil || plugIns != nil || reverb != nil { finishTick(fMixBuffer, Int(RealBytesToMix)) }
         if let waves { storeWaves(waves) }
+    }
+
+    /// A voice whose sample has just been stopped where it is (only a module of Symphonie's stops one):
+    /// what it last put out is not cut off, which would click, but dies away over the tick and the
+    /// ticks after as a sample's end does, as OpenMPT lets it die away when it stops mixing a channel.
+    private func dieAway(_ sc: IT2SlavePointer) {
+        var left = sc.pointee.LastOutLeft, right = sc.pointee.LastOutRight
+        guard left != 0 || right != 0 else { return }
+        // (Nothing of a voice that is left out goes on.)
+        guard (mutedChannels >> UInt64(sc.pointee.HostChnNum & 63)) & 1 == 0 else { return }
+        // Where it dies away is where the voice was going: see `HQ_MixSamples`.
+        var place = -1
+        if let plugIns {
+            let ofInstrument = sc.pointee.Ins != 0xFF ? Int(sc.pointee.InsPtr?.MixPlug ?? 0) : 0
+            place = plugIns.place(instrumentPlugIn: ofInstrument, channel: Int(sc.pointee.HostChnNum & 63))
+            plugIns.voiceMixed()
+        }
+        let reverbed = place < 0 && sc.pointee.Reverb && reverb != nil
+        var target = fMixBuffer
+        if place >= 0, let plugIns { target = plugIns.buffer(ofPlace: place) }
+        if reverbed, let reverbSend {
+            target = reverbSend
+            reverbSent = true
+        }
+        // (OpenMPT takes its share away before it adds what is left.)
+        for _ in 0 ..< Int(RealBytesToMix) {
+            left -= left * endDecay
+            right -= right * endDecay
+            target[0] += left
+            target[1] += right
+            target += 2
+        }
+        if reverbed {
+            reverbOffset(left, right)
+        } else if place >= 0 {
+            plugIns?.addClick(toPlace: place, left: left, right: right)
+        } else {
+            fLastClickRemovalLeft += left
+            fLastClickRemovalRight += right
+        }
     }
 
     /// What is left of a voice in the reverb when it ends, which the reverb lets die away, as OpenMPT

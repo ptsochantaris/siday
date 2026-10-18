@@ -93,6 +93,10 @@ final class OpenMPTPlugIns {
     private let wetL: UnsafeMutablePointer<Float>, wetR: UnsafeMutablePointer<Float>
     /// True once a voice has been mixed in the tick being made.
     private var voicesMixed = false
+    /// How much of what is left of the voices that ended on their way to a plug-in is lost on each
+    /// frame of the ticks after (see `begin`): a 4096th; and for a module of Symphonie's, a 256th,
+    /// as OpenMPT's mixer loses it in what it sends to a plug-in as in all else.
+    var clickDecay: Float = 1.0 / 4096.0
 
     /// Nil if none of the file's plug-ins is one that is played.
     init?(_ sound: ModPlugSound) {
@@ -173,6 +177,7 @@ final class OpenMPTPlugIns {
             }
         }
         voicesMixed = false
+        let clickDecay = clickDecay
         for place in played {
             guard let slot = slots[place] else { continue }
             slot.effect.tickFrames = frames
@@ -185,8 +190,8 @@ final class OpenMPTPlugIns {
                     p[0] = left
                     p[1] = right
                     p += 2
-                    left -= left * (1.0 / 4096.0)
-                    right -= right * (1.0 / 4096.0)
+                    left -= left * clickDecay
+                    right -= right * clickDecay
                 }
                 // (And at last it is nothing.)
                 if abs(left) < 1e-9 { left = 0 }

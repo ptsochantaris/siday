@@ -2122,11 +2122,13 @@ row by row and gives them as the nearest of Impulse Tracker's slides of a channe
 pitch, and they are those here. Its echo and filter are set by Zxx macros that OpenMPT makes for the
 song. OpenMPT gives these files a few things that no file of its own has, and the replayer has
 been taught them, for these files alone: a channel's sample stopped where it is and let go on from
-there (which 31 of the 35 files do, 93,672 times in all); a note started so many 256ths of the
-way into its sample, also beside a slide to it, when the playing sound jumps there and slides on;
-a slide to a note in no time; a vibrato and a tremolo that go on by themselves from row to row,
-under whatever else a row says, until one of no depth or a note stops them; and a macro that turns
-the filter about, to let the high through and not the low. (OpenMPT also has an LFO of Symphonie's
+there (which 31 of the 35 files do, 93,672 times in all), what it last put out dying away rather
+than stopping with a click, and the sound ramped in from silence when it goes on, as OpenMPT's
+mixer has them; a note started so many 256ths of the way into its sample, also beside a slide to
+it, when the playing sound jumps there and slides on; a slide to a note in no time; a vibrato and a
+tremolo that go on by themselves from row to row, under whatever else a row says, until one of no
+depth or a note stops them; and a macro that turns the filter about, to let the high through and
+not the low. (OpenMPT also has an LFO of Symphonie's
 among its plug-ins, which moves other plug-ins' settings; its loader of these files never asks for
 it, so it is not here.)
 
@@ -2148,8 +2150,13 @@ libopenmpt's on every tick of the first three minutes of each: they agree on 307
 the hertz on 94 voices' ticks in a hundred, and are a hertz apart on the rest: the replayer keeps a
 pitch in whole hertz, and OpenMPT's rounding is now and then the other way. What is heard was set
 beside libopenmpt's sound too, for the first minute of each: the spectrum agrees to 1.000 for the
-middle file and to 0.996 for the worst, the loudness over time to 1.000 and 0.990. (In the worst, a
-low note held through the echo is a hertz apart, and its echo meets it a little otherwise.) The
+middle file and to 0.996 for the worst, the loudness over time to 1.000 and 0.996. (In the worst, a
+low note held through the echo is a hertz apart, and its echo meets it a little otherwise.) And
+millisecond by millisecond, for clicks: in the first minute of each, 59 milliseconds in all have a
+sharper step in the sound than libopenmpt's has there (by three times or more), where there were
+1,763 before what a stopped sample last put out was let die away, and what is left of the voices
+that end on their way to the echo was let die away as quickly as OpenMPT lets it. The notes are
+ramped in and out a little more softly than OpenMPT's, as for every file this replayer plays. The
 files are made about as loud as other modules, by measure, which is 2.3 dB louder than OpenMPT
 plays them.
 
