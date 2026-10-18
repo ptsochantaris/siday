@@ -27,12 +27,46 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Atari 400, 800, XL and XE | SAP, for one POKEY or two | the tune's own program on a 6502, on the POKEY |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
-| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not, or by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions; ChipTracker's; the Magnetic Fields Packer's, with its samples in a file beside it), PumaTracker, Pierre Adane's packed modules (with their samples beside them), Game Music Creator, Images Music System, SoundMon (2.0 and 2.2), SidMon and SidMon II, Digital Mugician (I and II), Delta Music 2.0, Sonic Arranger, MaxTrax (with its instruments beside it where kept apart), TFMX (Chris Hülsbeck's, and TFMX Professional and 7V), Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI; Symphonie and Symphonie Pro (SymMOD) | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays; TFMX as Chris Hülsbeck's own players play it; Hippel's TFMX and Future Composer by Michael Schwendt's player of them, his seven voices mixed as Hippel's own player mixed them; PumaTracker, Pierre Adane's, Game Music Creator, Images Music System, SoundMon, SidMon, Digital Mugician, Delta Music, Sonic Arranger and MaxTrax by their own players (MaxTrax by a port of its driver's released source); Symphonie's read as OpenMPT reads them, into what Impulse Tracker's replayer plays |
+| Amiga | MOD and its many packed forms, and over twenty other trackers and music systems: see [On the Amiga](#on-the-amiga) | each format's own player, or a port or reading of it, on the Amiga's sound chip |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
 | Epic MegaGames' games for DOS | PSM files of MASI, their music system (Epic Pinball, Silverball, Jazz Jackrabbit, Extreme Pinball, Sinaria), told from the ZX Spectrum's by how they begin | read into what Scream Tracker 3's replayer plays |
 | Sierra's adventure games, King's Quest to Manhunter | AGI sounds | Sierra's own routines for the Amiga, either of the two, on the Amiga's sound chip; or the PCjr's and Tandy 1000's chip, as Sierra's interpreter wrote to it |
 | AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip; a recording's own writes, at its own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
+
+### On the Amiga
+
+- **Modules** of four channels, ProTracker's and its relatives', played by ProTracker 2.3D's
+  replayer:
+  - packed whole with PowerPacker or XPK, or not packed;
+  - packed by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer,
+    Tracker Packer, AC1D, Novotrade and Digital Illusions;
+  - ChipTracker's, read as its own replayer reads them;
+  - the Magnetic Fields Packer's, with its samples in a file beside it.
+- **Trackers with players of their own**, each played by its own player:
+  - PumaTracker
+  - Pierre Adane's packed modules, with their samples beside them
+  - Game Music Creator
+  - Images Music System
+  - SoundMon 2.0 and 2.2
+  - SidMon and SidMon II
+  - Digital Mugician and Mugician II (seven voices)
+  - Delta Music 2.0
+  - Sonic Arranger
+- **Music systems**:
+  - TFMX, Chris Hülsbeck's, with TFMX Professional and 7V, as his own players play it;
+  - Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, by Michael Schwendt's player of them,
+    his seven voices mixed as Hippel's own player mixed them;
+  - MaxTrax, by a port of its driver's released source, with its instruments beside it where they
+    are kept apart.
+- **Other trackers**:
+  - MED (MED4, and MMD0 to MMD3), by players written to do as OctaMED's do
+  - AHX and HVL, by their own replayers (HivelyTracker's on its own mixer)
+  - SFX (SoundFX) and OKT (Oktalyzer)
+  - DBM (DigiBooster Pro and 3), by DigiBooster 3's replayer on its own mixer
+  - DIGI (DIGI Booster), read into what FastTracker 2's replayer plays
+  - Symphonie and Symphonie Pro (SymMOD), read as OpenMPT reads them, into what Impulse Tracker's
+    replayer plays
 
 Each of these was set beside a reference player, most of them to the sample:
 [How it is built](#how-it-is-built) says what each is made from and what it was checked against, and
@@ -51,7 +85,8 @@ to WebAssembly. Drop tunes or a whole folder on it and it plays them. Nothing is
 are read where they are and never leave your computer.
 
 A playlist can be dropped too, and so can the files some tunes need beside their own: a ROL tune's
-banks of instruments, the samples of a TFMX module or of a song packed by the Magnetic Fields Packer. A web page can
+banks of instruments, the samples of a TFMX module or of a song packed by the Magnetic Fields Packer
+or by Pierre Adane's, and the instruments of a MaxTrax score kept apart from them. A web page can
 only read the files it is given, so it cannot go from a list to its tunes on the disk, or from a
 tune to its samples. Dropped by itself, a list, or a tune that cannot be played without its samples,
 says so and asks for the folder they are in, which is then only looked in, and stays known for what
@@ -72,12 +107,8 @@ its name: see [Playback caveats](#playback-caveats). And the name of the tune's 
 title, can be pressed: it brings up what [FORMATS.md](FORMATS.md) says of that format, to read
 while the tune plays.
 
-Each light is also a button for its voice. Click one to mute the voice, and again to bring it back;
-right-click it (or hold Control and click, or press and hold on a touch screen) to hear that voice
-alone, and again to bring the others back. A muted light is dimmed and loses most of its colour,
-and goes on flickering with what its voice is playing. The sound follows a moment after the press,
-and the mutes last until the song changes. See [Muting a voice](#muting-a-voice) for what a muted
-voice still shares with the others.
+Each light is also a button that mutes its voice, or plays it alone: see
+[Muting a voice](#muting-a-voice).
 
 To run it from here:
 
@@ -134,10 +165,7 @@ While playing: `space` pause · `n` or `→` next · `p` or `←` previous · `+
 `i` the story of the tune's format, from [FORMATS.md](FORMATS.md) · `q` quit.
 
 Each voice of the tune has a light on the status line, a bar as tall as the voice is loud, four to a
-group. `1` to `9`, and `0` for the tenth, mute a voice and bring it back; `[` and `]` choose one,
-shown the other way round, and `m` mutes it, `s` plays it alone (`s` again brings the others back).
-A muted light is faint. Every tune starts with all its voices. See
-[Muting a voice](#muting-a-voice).
+group, and keys to mute it or play it alone: see [Muting a voice](#muting-a-voice).
 
 A tune that is not played quite as its file asks says what is missing, a line for each thing, under
 its own line as it starts.
@@ -164,7 +192,7 @@ its own line as it starts.
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, bright to dark (default 0.5). Real chips varied this much; reSIDfp only |
 | `--songlengths path` | A copy of HVSC's `Songlengths.md5` to ask before the lengths that are built in; remembered for later runs. A file with no lengths in it is ignored |
-| `--mute 2,4` / `--solo n` | Leave these voices out of every tune, or hear only this one, played or rendered to WAV. Voices are numbered from 1, as the lights are |
+| `--mute 2,4` / `--solo n` | Leave these voices out of every tune, or hear only this one: see [Muting a voice](#muting-a-voice) |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
 | `--list` | Show what would be played, with format, length and title. A `*` after the length marks a tune that is not played quite as its file asks |
 | `--shortfalls` | With `--list`, say under each marked tune what it is that is left out or made do for |
@@ -346,6 +374,9 @@ the command-line player.
 | TFMX modules | libtfmxaudiodecoder by Michael Schwendt (GPL), made to play as Chris Hülsbeck's players do where it does not: their 68000 code read in Wanted Team's players for EaglePlayer, and the player chosen as UADE chooses it | those players, run by UADE: the periods and volumes written, tick for tick, over the first 40 seconds of all 322 modules of UnExoticA's collection (315 the same throughout), and how loud each side is from moment to moment over the first minute; libtfmxaudiodecoder itself, tick by tick, with siday's changes set aside |
 | Jochen Hippel's TFMX and Future Composer | libtfmxaudiodecoder by Michael Schwendt (GPL); TFMX 7V's mixing from Hippel's own player, read in Wanted Team's player for EaglePlayer | libtfmxaudiodecoder itself, tick by tick: every song of all 230 files of UnExoticA's collection, and some 239,000 copies of them cut short or changed; UADE: the first minute of the 190 it plays, by how loud each side is from moment to moment |
 | Magnetic Fields Packer songs | libxmp's reading (MIT), but for its table of patterns, which is read as the format's replayer reads it | that replayer, in Wanted Team's player for EaglePlayer, run by UADE: the first 40 seconds of all 37 songs of UnExoticA's collection, by how loud each side is from moment to moment |
+| Amiga trackers with players of their own: PumaTracker, Pierre Adane's packer, Game Music Creator, Images Music System, SoundMon, SidMon, Digital Mugician, Delta Music, Sonic Arranger | each format's own player, read in its 68000 code as UADE carries it (or, for formats whose files carry it, in the files) | that player, run by UADE: what it tells the sound chip, tick for tick, on every file of UnExoticA's collection |
+| MaxTrax scores | the MaxTrax Music Driver's released source (LGPL), ported | ScummVM's player of it, its departures from the driver put back: 282 of 283 songs tick for tick |
+| Epic MegaGames' MASI files and Symphonie modules | OpenMPT's readings of them (BSD) | libopenmpt |
 | 8-bit Atari machine, its 6502 and its POKEY | ASAP by Piotr Fusik (GPL) | ASAP's `asapconv` itself, sample for sample: the first 30 seconds of every song of the 6,337 files of ASMA, 8,349 of them, and three minutes of 286 songs of 200 of the files |
 
 ### Each format
@@ -359,9 +390,20 @@ format's part when the format's name beside the tune is pressed. On the command 
 
 ### Muting a voice
 
-In the browser a voice can be left out of the sound by pressing its light, and on the command line
-by its key. Each player does that for
-itself, since a voice is a different thing in each: a channel of a chip, a track of a module, a note
+Any voice of a tune can be left out, or heard alone:
+
+- **In the browser**, each light is a button for its voice. Click one to mute the voice, and again to
+  bring it back; right-click it (or hold Control and click, or press and hold on a touch screen) to
+  hear that voice alone, and again to bring the others back. A muted light is dimmed and loses most
+  of its colour, and goes on flickering with what its voice is playing. The sound follows a moment
+  after the press, and the mutes last until the song changes.
+- **On the command line**, while a tune plays, `1` to `9`, and `0` for the tenth, mute a voice and
+  bring it back; `[` and `]` choose one, shown the other way round, and `m` mutes it, `s` plays it
+  alone (`s` again brings the others back). A muted light is faint, and every tune starts with all
+  its voices. `--mute 2,4` and `--solo n` do the same for every tune, played or rendered to WAV;
+  voices are numbered from 1, as the lights are.
+
+Each player does that for itself, since a voice is a different thing in each: a channel of a chip, a track of a module, a note
 left ringing behind a newer one. The rule is the same for them all. A muted voice is left out where
 it joins the others, and goes on playing: the tune keeps its timing and comes to the same end, and
 what is shown of the voice (its light, its pitch, its side) is what would be shown if it were heard.
@@ -388,8 +430,9 @@ can be heard:
   channels, so the bass drum mutes alone, the snare with the hi-hat, and the tom-tom with the cymbal.
 - **Amiga.** Where Oktalyzer or MED split one of the Amiga's voices into two tracks, either can be
   muted, but the pair has one volume between them. DigiBooster's echo belongs to its track and is
-  muted with it. In OctaMED's mixing mode a muted track feeds
-  neither the sound nor the echo.
+  muted with it. In OctaMED's mixing mode a muted track feeds neither the sound nor the echo. The
+  voices that TFMX 7V's, Jochen Hippel's and Mugician II's players mix together onto one of the
+  Amiga's are muted each for itself, and the mix is otherwise as it was, its clipping included.
 - **PC trackers.** In Impulse Tracker's replayer a muted channel takes with it the notes it has left
   ringing, and feeds none of OpenMPT's effects; an echo or a reverb that already holds some of its
   sound rings out. On Scream Tracker's Gravis Ultrasound a muted channel still takes voices from
@@ -418,48 +461,81 @@ GNU General Public License, version 2 or (at your option) any later version; see
 the driver for CMF files and the replayer for STM files, come from work under the Apache License 2.0, which goes with version 3 of
 the GPL and not with version 2: the player as a whole is passed on under version 3 or later.
 
-This project stands on other people's work, most of all Sergey Bulba's Ay_Emul, Dag Lem's reSID,
-libsidplayfp and its reSIDfp (Leandro Nini, Antti Lankila, Simon White, Dag Lem), Peter Sovietov's ayumi
-and Arnaud Carré's AtariAudio.
-`THIRD-PARTY.md` lists what came from where and under which terms.
+This project stands on other people's work: the emulators, players and readings below are ported
+from theirs, or written to do as theirs do and checked against them. `THIRD-PARTY.md` lists what came
+from where and under which terms; [FORMATS.md](FORMATS.md) tells each format's story.
 
-What it is made from:
+### ZX Spectrum and Amstrad CPC
 
 - [Ay_Emul](http://ay.strangled.net/) by Sergey Bulba: the tracker players, the VTX and YM handling
   and the rules of the AY file machine are ported from its source. The `.ay` format is as he and
   Patrik Rak describe it.
+- [ayumi](https://github.com/true-grue/ayumi) by Peter Sovietov: the AY and YM chip.
+- [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.
+- ar002 by Haruhiko Okumura: the unpacking of LH5, which VTX and YM files are packed with.
+- Checked against [ayfly](https://github.com/l29ah/ayfly) and
+  [ay_emul_c11](https://github.com/pdxiv/ay_emul_c11) for the tracker players, and
+  [z80ex](https://github.com/lipro/z80ex) and Frank Cringle's
+  [ZEXDOC and ZEXALL](https://mdfs.net/Software/Z80/Exerciser/) for the Z80 and the AY file machine.
+
+### Commodore 64
+
 - [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) and its reSIDfp, by Leandro Nini, Antti
   Lankila, Simon White and Dag Lem: the SID chip, and the way a C64 is started for a tune.
 - [reSID](https://github.com/libsidplayfp/resid) by Dag Lem: the other SID chip (`--sid-engine resid`).
-- [ayumi](https://github.com/true-grue/ayumi) by Peter Sovietov: the AY and YM chip.
+- The [High Voltage SID Collection](https://www.hvsc.c64.org/): the length of every song of every SID
+  tune, which its team have timed and which are built into the player, and the description of the SID
+  file format.
+- Checked against [SingleStepTests/65x02](https://github.com/SingleStepTests/65x02) for the 6510.
+
+### Atari ST and the 8-bit Ataris
+
 - [AtariAudio](https://github.com/arnaud-carre/AtariAudio) by Arnaud Carré (Leonard of Oxygene): the
   Atari ST as a tune needs it, with its sound chip, its timers and the STE's samples, and the playing
-  of YM files as the ST played them. The YM format is his too. The table of
-  how the ST mixes its chip's three channels was measured on the machine by Paulo Simões. The SNDH
-  format is the work of the [SNDH archive](https://sndh.atari.org/) and those who keep it.
+  of YM files as the ST played them. The YM format is his too. The table of how the ST mixes its
+  chip's three channels was measured on the machine by Paulo Simões. The SNDH format is the work of
+  the [SNDH archive](https://sndh.atari.org/) and those who keep it.
+- The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
+  by Axe of Delight.
 - [ASAP](https://asap.sourceforge.net/) by Piotr Fusik: the 8-bit Atari as a SAP file needs it, its
   6502 and its POKEY, with the POKEY's band-limited steps and the levels of its DAC as Fusik
   measured them. The SAP format is Adam Bienias's, and the music is kept in it by the
   [Atari SAP Music Archive](https://asma.atari.org/).
-- [libtfmxaudiodecoder](https://github.com/mschwendt/libtfmxaudiodecoder) by Michael Schwendt: its
-  players of Chris Hülsbeck's TFMX, of Jochen Hippel's and of Future Composer. TFMX is Chris
-  Hülsbeck's, and its players, which Wanted Team keep for EaglePlayer, are what its timing and its
-  seven voices were taken from; Hippel's TFMX is his, and so is his player of seven voices, which
-  they keep too. Future Composer is The Superions'.
-- ProWizard by Sylvain "Asle" Chipaux, as [libxmp](https://github.com/libxmp/libxmp) keeps it
-  (Claudio Matsuoka and Hipolito Carraro Jr): the unpacking of modules packed by the packers games
-  used.
-- Wanted Team's player of Sierra's AGI sounds for EaglePlayer (2006), which keeps the routines
-  Sierra's interpreter for the Amiga played them with: what those routines do was read in it, and
-  [UADE](https://zakalwe.fi/uade/) ran it to set the player here beside. NewRisingSun's recordings
-  of King's Quest II on the PCjr and the Tandy 1000, at [vgmrips.net](https://vgmrips.net/), show
-  how Sierra's interpreter wrote to their chip. The files are as
-  [UnExoticA](https://www.exotica.org.uk/) keeps them.
+
+### Amiga
+
 - [pt2-clone](https://github.com/8bitbubsy/pt2-clone) by Olav Sørensen (8bitbubsy): the Amiga as a
   module needs it. The replayer is his C port of ProTracker 2.3D's, and Paula, her filters and the
   reading of modules are his too; the band-limited steps in Paula's output are by aciddose. ProTracker
   itself is by Lars Hamre, Anders Hamre, Sven Vahsen and Rune Johnsrud, after Karsten Obarski's
   Ultimate Soundtracker, where the module began.
+- ProWizard by Sylvain "Asle" Chipaux, as [libxmp](https://github.com/libxmp/libxmp) keeps it
+  (Claudio Matsuoka and Hipolito Carraro Jr): the unpacking of modules packed by the packers games
+  used. [ancient](https://github.com/temisu/ancient) by Teemu Suutari: the unpacking of PowerPacker
+  and XPK.
+- [libtfmxaudiodecoder](https://github.com/mschwendt/libtfmxaudiodecoder) by Michael Schwendt: its
+  players of Chris Hülsbeck's TFMX, of Jochen Hippel's and of Future Composer. TFMX is Chris
+  Hülsbeck's, and its players are what its timing and its seven voices were taken from; Hippel's
+  TFMX is his, and so is his player of seven voices. Future Composer is The Superions'.
+- The players of their own formats that Wanted Team, Delirium, Buggs, Defect, Eagleeye, mld and
+  others kept for EaglePlayer and DeliTracker, which [UADE](https://zakalwe.fi/uade/) carries: what
+  each does was read in its 68000 code, and UADE ran it to set the player here beside, tick by
+  tick. They are the players of:
+  - ChipTracker (Krister Wombell) and the Magnetic Fields Packer (Shaun Southern)
+  - PumaTracker (Jean-Charles Meyrignac and Pierre-Eric Loriaux) and Pierre Adane's packer
+  - Game Music Creator (Andreas Tadic) and Images Music System (Images Software)
+  - SoundMon (Brian Postma, who put his replay routines into the public domain)
+  - SidMon (Reinier van Vliet) and SidMon II
+  - Digital Mugician and Mugician II (Reinier van Vliet too)
+  - Delta Music 2.0, and Sonic Arranger (Carsten Schlote, Branko Mikić and Carsten Herbst)
+  - TFMX and Jochen Hippel's seven voices
+  - Sierra's AGI sounds, whose routines Sierra's interpreter for the Amiga played them with.
+    NewRisingSun's recordings of King's Quest II on the PCjr and the Tandy 1000, at
+    [vgmrips.net](https://vgmrips.net/), show how Sierra's interpreter wrote to their chip.
+- The MaxTrax Music Driver by Talin (David Joiner) and Joe Pearce, which The Dreamers Guild licensed
+  to game developers and which was later released under the LGPL, as UADE carries it: ported here.
+  [ScummVM](https://www.scummvm.org/)'s player of it is what it was checked against, and from it are
+  the tempos Legend of Kyrandia gives its scores.
 - MED and OctaMED are by Teijo Kinnunen, and the MED module is as he describes it in the notes on
   the format that came with OctaMED; the MED4 file is as libxmp's authors read it. The players of
   MED modules here, and the mixing, are siday's own: nothing in them is taken from OctaMED's,
@@ -477,69 +553,68 @@ What it is made from:
 - libdigibooster3 by Grzegorz Kraszewski, which APC&TCP published: DigiBooster 3's replayer and
   its reading of DBM files, which play DigiBooster Pro's modules too. DigiBooster Pro is by Tomasz
   and Waldemar Piasta, and DigiBooster 3 by Grzegorz Kraszewski with APC&TCP.
-- [ft2play](https://github.com/8bitbubsy/ft2play), also by Olav Sørensen: FastTracker 2's replayer
-  and mixer, ported by him from the tracker's own assembly and Pascal. FastTracker 2 is by Fredrik
-  Huss and Magnus Högdahl, of Triton.
-- [libxmp](https://github.com/libxmp/libxmp) by Claudio Matsuoka, Hipolito Carraro Jr and those who
-  have kept it since, and [OpenMPT](https://openmpt.org) by Olivier Lapicque and the OpenMPT
-  developers: how an MTM, a DTM and an AMF file are read, and what the trackers that wrote them meant
-  by their commands, version by version. MultiTracker is by Daniel Goldstein of Renaissance, Digital
-  Tracker is Softjee's, and DSMI is by Otto Chrons.
-- [st3play](https://github.com/8bitbubsy/st3play), also by Olav Sørensen: Scream Tracker 3's replayer,
-  its Gravis Ultrasound driver, Sound Blaster mixing and AdLib driver, and the emulation of the GUS's
-  sound chip. Scream Tracker 3 is by Sami Tammilehto (Psi) of Future Crew.
+- The files are as [UnExoticA](https://www.exotica.org.uk/) keeps them. UADE, by Heikki Orsila and
+  Michael Doering, which runs an Amiga's own music players in an emulated Amiga and can write down
+  all they tell the sound chip and all it plays, is what most of the Amiga's players here were held
+  to: OctaMED's three players, SoundFX's routine (as Wanted Team fitted it for DeliTracker) and
+  Oktalyzer's (as Buggs of Defect did) among them.
+
+### PC trackers
+
+- Olav Sørensen's replayers, each ported by him from the tracker's own code:
+  [ft2play](https://github.com/8bitbubsy/ft2play), FastTracker 2's replayer and mixer (FastTracker 2
+  is by Fredrik Huss and Magnus Högdahl, of Triton);
+  [st3play](https://github.com/8bitbubsy/st3play), Scream Tracker 3's replayer, its Gravis Ultrasound
+  driver, Sound Blaster mixing and AdLib driver, and the emulation of the GUS's sound chip (Scream
+  Tracker 3 is by Sami Tammilehto, Psi of Future Crew); and
+  [it2play](https://github.com/8bitbubsy/it2play), Impulse Tracker 2's replayer, the reading of IT
+  files, and a sound driver of his own (Impulse Tracker is by Jeffrey Lim).
 - [st2play](https://github.com/viiri/st2play) by Sergei "x0r" Kolzun: Scream Tracker 2's replayer and
   mixing, which he ported from the program, version by version. Scream Tracker 2 is Sami
   Tammilehto's too.
-- [it2play](https://github.com/8bitbubsy/it2play), also by Olav Sørensen: Impulse Tracker 2's
-  replayer, ported by him from the tracker's own assembly, the reading of IT files, and the sound
-  driver, which is his own. Impulse Tracker is by Jeffrey Lim.
-- OpenMPT once more: an MPTM file is its own, and what is read from one, and what the replayer has
-  been given to play one with, follow its source.
-- libxmp and OpenMPT again: how a GDM and a PTM file are read, which is made after both of theirs,
-  and libxmp the player that the reading and the playing of those files were checked against. The GDM
-  format is as MenTaLguY describes it, and BWSB and its converter are by Edward Schlunder; the PTM
-  format is as JAL of Nostalgia describes it, and PolyTracker is by Lone Ranger of AcmE.
-- And again: what a 669 file and a FAR file mean, which the players written for them were made
-  from. Composer 669 is by Tran of Renaissance, and Farandole Composer by Megan Potter.
-- And again: how a ULT file is read, made after both of theirs and, for what goes where when a note
-  has two commands, after neither; libopenmpt is the player those files were checked against. The
-  format is as FreeJack of The Elven Nation describes it, and UltraTracker is by Marc André
-  Schallehn.
-- And again: how an MT2 file is read, and the few ways in which OpenMPT plays one otherwise than an
-  IT file; libopenmpt is the player those files were checked against. MadTracker is by Yannick
-  Delwiche.
-- And again: how an IMF file is read, which OpenMPT took from Storlek's loader for Schism Tracker,
-  and the few ways in which OpenMPT plays one otherwise than an IT file; libopenmpt is the player
-  those files were checked against. Imago Orpheus is by Lutz Roeder.
-- And again: how an AMS file of either kind is read and its packed samples unpacked, and the few ways in
-  which OpenMPT plays one otherwise than an IT file; libopenmpt is the player those files were checked
-  against. Extreme's Tracker and Velvet Studio are by Extreme, later Velvet Development.
-- And again: how an MDL file is read, and what Digitrakker does otherwise than Impulse Tracker,
-  made after OpenMPT's; and how its samples are unpacked, as the description that came with the
-  program has it, which libxmp quotes. libopenmpt is the player those files were checked against.
-  Digitrakker is by Prodatron.
-- And again: how a Symphonie module is read and its samples made, by Devin Acker and the OpenMPT
-  developers after Patrick Meng's own player and source, and the few things OpenMPT plays for those
-  files alone; libopenmpt is the player those files were checked against. Symphonie is by Patrick Meng.
-- And again: how a DMF file is read, its packed samples among it, and the few ways in which OpenMPT
-  plays one otherwise than an IT file; libopenmpt is the player those files were checked against.
-  X-Tracker is by D-Lusion.
-- And again: how a J2B file is read, made after OpenMPT's (itself after kode54's for his DUMB);
-  libopenmpt is the player those files were checked against. The Galaxy Sound System is by Carlo
-  Vogelsang, and the music is Jazz Jackrabbit 2's. Its zlib packing is unpacked as Teemu Suutari's
-  [ancient](https://github.com/temisu/ancient) does it, and was checked against the system's zlib.
-- And again: how a PLM file is read, and what Disorder Tracker 2 does otherwise than Impulse
-  Tracker, made after OpenMPT's; libopenmpt is the player those files were checked against.
-- And again: how a DSM file of the Digital Sound Interface Kit is read, and what OpenMPT does for
-  one otherwise than for an S3M file; libopenmpt is the player those files were checked against.
-  The Digital Sound Interface Kit is by Carlos Hasan.
-- And again: how a DIGI Booster module is read, and what DIGI Booster does otherwise than
-  FastTracker 2, made after OpenMPT's; libopenmpt is the player those files were checked against.
-  DIGI Booster is by Tomasz Piasta.
+- [OpenMPT](https://openmpt.org) by Olivier Lapicque and the OpenMPT developers, and
+  [libxmp](https://github.com/libxmp/libxmp) by Claudio Matsuoka, Hipolito Carraro Jr and those who
+  have kept it since: how the files of many trackers are read, what those trackers meant by their
+  commands, and the few ways in which OpenMPT plays them otherwise than the replayer they are read
+  into; libopenmpt, and for some libxmp, is the player those files were checked against. They are:
+  - MTM, DTM and AMF (MultiTracker by Daniel Goldstein of Renaissance; Digital Tracker, Softjee's;
+    DSMI by Otto Chrons)
+  - MPTM, OpenMPT's own
+  - GDM (as MenTaLguY describes it; BWSB and its converter by Edward Schlunder) and PTM (as JAL of
+    Nostalgia describes it; PolyTracker by Lone Ranger of AcmE)
+  - 669 and FAR (Composer 669 by Tran of Renaissance; Farandole Composer by Megan Potter), and C67
+  - ULT (as FreeJack of The Elven Nation describes it; UltraTracker by Marc André Schallehn), read
+    after both, and for what goes where when a note has two commands, after neither
+  - MT2 (MadTracker, by Yannick Delwiche)
+  - IMF (Imago Orpheus, by Lutz Roeder), which OpenMPT took from Storlek's loader for Schism Tracker
+  - AMS of either kind (Extreme's Tracker and Velvet Studio, by Extreme, later Velvet Development)
+  - MDL (Digitrakker, by Prodatron), its samples unpacked as the description that came with the
+    program has it, which libxmp quotes
+  - Symphonie and Symphonie Pro (Patrick Meng), read and their samples made as Devin Acker and the
+    OpenMPT developers do after Patrick Meng's own player and source
+  - DMF (X-Tracker, by D-Lusion)
+  - J2B (the Galaxy Sound System, by Carlo Vogelsang, and Jazz Jackrabbit 2's music), after kode54's
+    reading for his DUMB; its zlib packing unpacked as ancient does it, and checked against the
+    system's zlib
+  - PLM (Disorder Tracker 2)
+  - DSM of the Digital Sound Interface Kit (by Carlos Hasan)
+  - DIGI (DIGI Booster, by Tomasz Piasta)
+  - PSM of Epic MegaGames' MASI (Joshua Jensen's sound system, Robert A. Allen's music among others)
+  - FMT, of which all that is written down is OpenMPT's loader (FM Tracker and its format are Davey W
+    Taylor's)
+
+### PC sound cards and chips
+
 - [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) by Nuke.YKT: the Yamaha OPL3, the FM chip of
   the AdLib and Sound Blaster cards, as exact as its author could make it from the chip itself. The
   chip's ROMs were read out by Matthew Gambrell and Olli Niemitalo.
+- [fmdrv](https://github.com/viiri/fmdrv) by Sergei "x0r" Kolzun: SBFMDRV, the driver that played CMF
+  files on a Sound Blaster, ported by him to C from the driver itself. The driver and the CMF format
+  are Creative's.
+- [AdPlug](https://github.com/adplug/adplug) by Simon Peter and others: its player of ROL files, by
+  OPLx, and AdLib's sound driver as OPLx, Stas'M and Jepael have it there from the code AdLib gave
+  programmers. Visual Composer, the ROL format and the first bank of instruments are AdLib's; the
+  instruments built into the player are theirs and those of the many people who added to that bank.
 - [libvgm](https://github.com/ValleyBell/libvgm) by Valley Bell: the player VGM files were set beside,
   and from it how a file's volume and its chips' are read, when a write is made, and how its
   streams of samples are written and its blocks of them unpacked. Nothing of its own code is in the
@@ -551,39 +626,9 @@ What it is made from:
   Salmoria and others, as libvgm has it: the chip of the PCjr and the Tandy 1000. How their noises
   differ was found by Lord Nightmare, Michael Zapf, PlgDavid, Valley Bell and NewRisingSun, among
   others, from the chips themselves.
-- [fmdrv](https://github.com/viiri/fmdrv) by Sergei "x0r" Kolzun: SBFMDRV, the driver that played CMF
-  files on a Sound Blaster, ported by him to C from the driver itself. The driver and the CMF format
-  are Creative's.
-- [AdPlug](https://github.com/adplug/adplug) by Simon Peter and others: its player of ROL files, by
-  OPLx, and AdLib's sound driver as OPLx, Stas'M and Jepael have it there from the code AdLib gave
-  programmers. Visual Composer, the ROL format and the first bank of instruments are AdLib's; the
-  instruments built into the player are theirs and those of the many people who added to that bank.
-- [OpenMPT](https://openmpt.org/) by its developers, after Olivier Lapicque's ModPlug Tracker: all
-  that is written down of FMT files is its loader for them, and how such a song is played here
-  (its pitches, and how a note is stopped) is how OpenMPT plays it. FM Tracker and the FMT format
-  are Davey W Taylor's.
-- The Ice 2.4 unpacker is after the C version Hans Wessels placed in the public domain; Ice itself is
-  by Axe of Delight.
-- [z80](https://github.com/superzazu/z80) by superzazu: the Z80's cycle counts.
-- ar002 by Haruhiko Okumura: the unpacking of LH5, which VTX and YM files are packed with.
-- The [High Voltage SID Collection](https://www.hvsc.c64.org/): the length of every song of every SID
-  tune, which its team have timed and which are built into the player, and the description of the SID
-  file format.
 
-What it was checked against, besides the originals of the above:
+### What it is built with
 
-- [ayfly](https://github.com/l29ah/ayfly) and [ay_emul_c11](https://github.com/pdxiv/ay_emul_c11), for
-  the tracker players.
-- [z80ex](https://github.com/lipro/z80ex), and the
-  [ZEXDOC and ZEXALL](https://mdfs.net/Software/Z80/Exerciser/) instruction exercisers by Frank
-  Cringle, for the Z80 and the AY file machine.
-- [SingleStepTests/65x02](https://github.com/SingleStepTests/65x02), for the 6510.
-- [UADE](https://zakalwe.fi/uade/) by Heikki Orsila and Michael Doering, which runs an Amiga's own
-  music players in an emulated Amiga and can write down all they tell the sound chip and all it
-  plays: OctaMED's three players in it are what the players of MED modules were held to.
-  SoundFX's routine in it (as Wanted Team fitted it for DeliTracker) and Oktalyzer's (as Buggs of
-  Defect did) are what the players of those modules were held to.
-
-What it is built with: [swift-argument-parser](https://github.com/apple/swift-argument-parser) for the
+[swift-argument-parser](https://github.com/apple/swift-argument-parser) for the
 command line, and [ElementaryUI](https://elementary.codes) and
 [JavaScriptKit](https://github.com/swiftwasm/JavaScriptKit) for the page in the browser.
