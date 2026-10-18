@@ -266,7 +266,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .dmf: false
             case .imf, .ams: false
             case .plm: false
-            case .dsm: false
+            case .dsm, .masi: false
             case .digi: false
             case .vgm: false
             case .sap: false

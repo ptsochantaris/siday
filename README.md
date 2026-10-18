@@ -30,6 +30,7 @@ siday ~/Music/chiptunes --shuffle
 | Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not, or by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions; ChipTracker's; the Magnetic Fields Packer's, with its samples in a file beside it), PumaTracker, Pierre Adane's packed modules (with their samples beside them), Game Music Creator, Images Music System, TFMX (Chris Hülsbeck's, and TFMX Professional and 7V), Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays; TFMX as Chris Hülsbeck's own players play it; Hippel's TFMX and Future Composer by Michael Schwendt's player of them, his seven voices mixed as Hippel's own player mixed them; PumaTracker, Pierre Adane's, Game Music Creator and Images Music System by their own players |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
+| Epic MegaGames' games for DOS | PSM files of MASI, their music system (Epic Pinball, Silverball, Jazz Jackrabbit, Extreme Pinball, Sinaria), told from the ZX Spectrum's by how they begin | read into what Scream Tracker 3's replayer plays |
 | Sierra's adventure games, King's Quest to Manhunter | AGI sounds | Sierra's own routines for the Amiga, either of the two, on the Amiga's sound chip; or the PCjr's and Tandy 1000's chip, as Sierra's interpreter wrote to it |
 | AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip; a recording's own writes, at its own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
 
@@ -304,6 +305,9 @@ Played, with a difference:
 - **DSM:** played by Scream Tracker 3's replayer on a Gravis Ultrasound, as OpenMPT plays it by
   Scream Tracker's rules, but at sixteen places between the speakers and with surround in the
   middle; the file's master volume is left out.
+- **MASI:** played by Scream Tracker 3's replayer on a Gravis Ultrasound, as OpenMPT plays these
+  files by Scream Tracker's rules, at sixteen places between the speakers; an older file's master
+  volume, and a channel's own volume where a newer file sets one, are left out.
 - **ROL:** an instrument that no bank has is silent.
 
 ## How it is built

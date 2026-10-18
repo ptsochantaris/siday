@@ -1277,6 +1277,91 @@ on. What is heard was set beside libopenmpt too, for two minutes of each: the sp
 that moves its channels between the speakers all through, to places the Ultrasound has only near.
 The files are made about as loud as other modules are, by measure.
 
+## MASI — Epic MegaGames' music, in PSM files
+
+Epic MegaGames, the shareware publisher of Jill of the Jungle and Jazz Jackrabbit, put the music of
+its games for DOS into files of its own, named PSM, and played them with a music and sound system of
+its own, known as MASI. It was Joshua Jensen's work: Jazz Jackrabbit (1994) credits him with its
+sound system. Robert A. Allen wrote much of the music it played: Epic Pinball's (1993, James
+Schmalz's game, its music Allen's and Jensen's), Jazz Jackrabbit's, and all of Extreme Pinball's
+(1995). The musicians wrote their tunes in the trackers of the day, Scream Tracker among them, and a
+converter of Epic's made each into a PSM file for the games' player; OpenMPT and the ModdingWiki,
+which reverse-engineered the format, call these ProTracker Studio modules, though they have nothing
+of ProTracker's own. Silverball's and the first Epic Pinball's are of an older kind, which begins
+"PSM" and FE; Epic Pinball's later ones, Jazz Jackrabbit's, Extreme Pinball's and others are of a
+newer kind, which begins "PSM ". (Pro Sound Maker's files for the ZX Spectrum are also named PSM; a
+file is taken to be Epic's if it begins as one of these does, and Pro Sound Maker's otherwise, so
+`--formats masi` and `--formats psm` choose between them.)
+
+The older kind is much like an S3M file: a header that says where the rest is, the list of patterns,
+a place between the speakers for each channel from 0 to 15, the samples' headers, and the patterns,
+each packed much as an S3M file packs its own. The newer kind is made of chunks. A game's music is
+often one file of several songs, one for each moment of the game (a main tune, an introduction, a
+fanfare for a bonus, the music of a lost ball), each a little program that says which patterns it
+plays, at what speed and tempo, where each channel is between the speakers or that it is in
+surround, and where it goes back to when it comes to its end. Then come the patterns, each with its
+own count of rows, and the samples, each a chunk. The game Sinaria's files, whose songs are dated
+1994 in them, are a little otherwise: their patterns are named "PATT", their samples' headers are
+laid out differently, and their notes and slides are counted as the older kind's are. Both kinds
+have ProTracker's commands under numbers of their own, and the samples are mostly of eight bits,
+kept as the difference of each byte from the one before.
+
+MASI's player is not to be had apart from the games. OpenMPT plays these files by the rules it plays
+an S3M file by, exactly as it plays a DSM file (see the chapter on DSM): one value remembered for
+most commands together, slides fine and extra fine within the commands, and the rest. So here, as
+DSM files are, they are read into an S3M file, each command under its S3M letter, and played by
+Scream Tracker 3's own replayer on a Gravis Ultrasound, with the three things OpenMPT does otherwise
+for such files than for an S3M file. A newer file's songs follow one another in the S3M file's list
+of patterns, each with the mark for an end after it, and the replayer is told where each song
+begins, where it goes back to at its end (where Scream Tracker would go back to the top of the
+list), and its own speed, tempo and places for its channels, which it starts with. Each is a song of
+its own here, with the name the file gives it; as with any module, one of less than a second (a
+sound effect kept as a song, say) is not counted.
+
+A channel in surround is played as OpenMPT plays it, and as the games did: as loud on each side, the
+right side upside down, so that it seems to come from all round. Heard in mono it is in the middle,
+as it would otherwise be lost. A command that puts the channel somewhere takes it out of surround.
+
+Where a converted command means one thing to Scream Tracker and another to OpenMPT in these files,
+OpenMPT's meaning is played: a note cut on the row's first tick (SC0) silences the note, where
+Scream Tracker passes it over, and an S command of nothing is nothing, where Scream Tracker would
+repeat the last. A newer file's pattern break always goes to the top of the next pattern, as MASI
+has it and OpenMPT plays it. A start further into a sample than 64 KB, which none of the files to
+hand asks for, is played from the nearest place below that, as OpenMPT plays it, and the file says
+so.
+
+Some things are Scream Tracker's and the Ultrasound's and not OpenMPT's, and are left so. The
+loudest volume is 63, where OpenMPT's is 64. The Ultrasound has sixteen places between the speakers,
+at which a side is turned down by its own steps, and a place is played at the nearest: a channel put
+well to one side is heard nearer the middle than OpenMPT puts it. The card holds a voice's pitch to
+a 512th of its own rate, so that a sample is played a little flat, the lower its rate the more (a
+tenth of a semitone at 6 kHz), as it was on a real Ultrasound. Vibrato does not move on a row's
+first tick. A sample with no loop plays on into a little silence after its end. And a tempo is the
+tempo asked for, where libopenmpt makes each tick a whole number of samples, which at 48 kHz is a
+little faster: Extreme Pinball's tempo of 135 is a tenth of a percent faster there. An older file's
+master volume, which OpenMPT takes for how loud the whole is, is left out, as every kind of file
+here is made as loud as the others; so is a channel's own volume, which a newer file can set and
+none of those to hand does, and the file says so. A loop that goes back and forth, which the older
+kind can have, is played forwards, and the file says so. OpenMPT writes the places of a later song's
+channels into its first pattern, where there is room; here the song starts with them.
+
+All sixteen files to hand are played: four of the older kind (the first Epic Pinball's and
+Silverball's) and twelve of the newer (five of Extreme Pinball's and seven of Sinaria's), with 55
+songs among them. Every one of their 174 samples is as libopenmpt reads it, to the last byte of its
+sound, its loop, its rate and its volume. Every song lasts as long as in libopenmpt, but for a
+second song libopenmpt finds in the first Epic Pinball tune, five seconds that lead back into the
+first, which is not counted here. Every channel's pitch, volume and place was set beside
+libopenmpt's on every tick of every song, to its end: the song is at the same row on every tick, and
+the places are the same on every one of over half a million channel-ticks; of 113,299 ticks, 112,458
+are alike (99.3%), counting Scream Tracker's 63 as OpenMPT's 64. Of the 841 others, 790 are a sample
+with no loop that ends a tick later here, 92 are first ticks of rows of vibrato and the ticks after
+them in the one song with much of it, and one is a volume. What is heard was set beside libopenmpt
+too, for every song of ten seconds or more, up to two minutes of each (34 songs), with libopenmpt's
+ticks put in step: the spectrum agrees to 0.988 in the middle of them (0.937 at the least), and the
+loudness over time to 0.988 (0.791 at the least: where channels play together, the Ultrasound's
+pitches and places, a little apart from OpenMPT's, make them add up otherwise). The files are made
+about as loud as other modules are, by measure.
+
 ## IT — Impulse Tracker, and ModPlug Tracker after it
 
 Impulse Tracker is Jeffrey Lim's, from 1995, and was added to until 1999. It looks like Scream

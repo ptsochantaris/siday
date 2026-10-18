@@ -111,10 +111,11 @@ final class WebPlayer {
         // voices left out is the song that was just heard whole, and ends as that did.)
         if !muted.contains(true) { ending = nil }
         let fileExtension = name.split(separator: ".").count > 1 ? String(name.split(separator: ".").last ?? "") : ""
-        guard let format = TuneFormat(fileExtension: fileExtension) else {
+        guard let named = TuneFormat(fileExtension: fileExtension) else {
             text = Array("unknown file type .\(fileExtension)".utf8)
             return false
         }
+        let format = named.refined(byLeading: Array(data.prefix(TuneFormat.leadingBytes)))
         do {
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options, companions: companions)
             renderer = loaded
@@ -133,7 +134,7 @@ final class WebPlayer {
                 || format == .dmf
                 || format == .imf || format == .ams
                 || format == .plm
-                || format == .dsm
+                || format == .dsm || format == .masi
                 || format == .digi
                 || format == .vgm
                 || format == .sap

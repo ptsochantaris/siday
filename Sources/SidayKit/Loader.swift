@@ -32,6 +32,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case pap
     case gmc
     case ims
+    case masi
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -64,10 +65,27 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "snd" {
             // (As SNDH files were named before the format had a name of its own.)
             self = .sndh
+        } else if name == "masi" {
+            // (Epic MegaGames' files are named PSM, and found to be theirs by how they begin.)
+            return nil
         } else {
             self.init(rawValue: name)
         }
     }
+
+    /// The format a file of this kind is, by how it begins, where two formats share a name: Pro Sound
+    /// Maker's files for the ZX Spectrum and Epic MegaGames' MASI files are both PSM files, and the
+    /// second says what it is in its first bytes. (`leading` is the start of the file, as much of it as
+    /// there is up to `leadingBytes`.)
+    public func refined(byLeading leading: [UInt8]) -> TuneFormat {
+        self == .psm && MASIFile.isOne(leading) ? .masi : self
+    }
+
+    /// How much of the start of a file `refined(byLeading:)` looks at.
+    public static let leadingBytes = 64
+
+    /// True if a file of this kind may be found by how it begins to be another (see `refined(byLeading:)`).
+    public var sharesItsName: Bool { self == .psm }
 
     /// The word that begins the heading under which FORMATS.md tells of this format: its own name,
     /// or for a format that shares a part, the first name in that heading.
@@ -99,7 +117,7 @@ public enum TuneLoader {
         // A module packed whole, by any of the packers modules were found packed with, is unpacked
         // first, and is then the module it was.
         let data = try Packed.unpacked(data)
-        switch format {
+        switch format.refined(byLeading: Array(data.prefix(TuneFormat.leadingBytes))) {
         case .vtx:
             return try AYFramePlayer(source: RegisterDumpSource.vtx(data), options: options)
         case .ym:
@@ -255,6 +273,9 @@ public enum TuneLoader {
             // The Digital Sound Interface Kit's, which Scream Tracker 3's replayer plays as OpenMPT
             // plays them: read into an S3M file.
             return try DSMFile.renderer(data, options: options)
+        case .masi:
+            // Epic MegaGames' music, likewise. (A file named PSM that begins as one of these is one.)
+            return try MASIFile.renderer(data, options: options)
         case .it:
             return try ITRenderer(data, options: options)
         case .gdm:

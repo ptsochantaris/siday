@@ -774,6 +774,17 @@ are taken to mean. The lines in `ST3Player.swift` that are there for these files
 what OpenMPT's `soundlib/Snd_fx.cpp` does for a module of that kind and not for an S3M file. They are
 used under OpenMPT's licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
 
+## OpenMPT — MASI files
+
+`Sources/SidayKit/ScreamTracker/MASIFile.swift`, which reads a PSM file of Epic MegaGames' MASI, of
+the older kind and the newer, into an S3M file for Scream Tracker 3's replayer, is made after
+OpenMPT's loader of that format (`soundlib/Load_psm.cpp`): the layout of both kinds of file and of
+Sinaria's, the program each song of a newer file is, how the samples are kept, and what the commands
+are taken to mean. The lines in `ST3Player.swift`, `ST3Cards.swift` and `ST3Effects.swift` that are
+there for these files and say so (the songs, each with its own list, speed, tempo and places, and
+the channels in surround) follow what OpenMPT does for a module of that kind. They are used under
+OpenMPT's licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
+
 ## OpenMPT — DIGI files
 
 `Sources/SidayKit/FastTracker/DIGIFile.swift`, which reads a DIGI Booster module into what

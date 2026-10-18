@@ -11,10 +11,16 @@ import Synchronization
 extension TuneFormat {
     /// (By what follows the last full stop of the name, whatever is before it: there is a tune
     /// called `...pt3`, which to the system is a file of no kind.)
+    /// (And a format that shares its name with another is told from it by how the file begins.)
     init?(url: URL) {
         let name = url.lastPathComponent
-        guard let stop = name.lastIndex(of: ".") else { return nil }
-        self.init(fileExtension: String(name[name.index(after: stop)...]))
+        guard let stop = name.lastIndex(of: "."), let named = TuneFormat(fileExtension: String(name[name.index(after: stop)...])) else { return nil }
+        guard named.sharesItsName, let file = try? FileHandle(forReadingFrom: url) else {
+            self = named
+            return
+        }
+        defer { try? file.close() }
+        self = named.refined(byLeading: [UInt8]((try? file.read(upToCount: TuneFormat.leadingBytes)) ?? Data()))
     }
 }
 
