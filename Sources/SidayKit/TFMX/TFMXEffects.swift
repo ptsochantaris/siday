@@ -26,8 +26,8 @@ extension TFMXDecoder {
     mutating func addBegin<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
         if variant.noAddBeginCount || voices[v].addBeginCount == 0 { return }
         voices[v].sampleStart &+= UInt32(bitPattern: voices[v].addBeginOffset)
-        // (Only one module was found to go before the samples, by $10.)
-        if voices[v].sampleStart < offsets.sampleData { voices[v].sampleStart = offsets.sampleData }
+        // (Only one module was found to go before the samples, by $10. TFMX Pro, $1fe8, lets it.)
+        if voices[v].sampleStart < offsets.sampleData, variant.original == .none { voices[v].sampleStart = offsets.sampleData }
         if voices[v].sid.targetLength != 0 {
             voices[v].sid.sourceOffset = voices[v].sampleStart
         } else {
@@ -93,6 +93,9 @@ extension TFMXDecoder {
         let target = voices[v].period
         let speed = voices[v].portamentoSpeed
         var reached = current == target
+        // TFMX 1.x, $1680: at the note's period, it waits there, and is not stopped; so a note set
+        // after is glided to as well.
+        if reached, variant.original == .tfmx { return }
         if !reached {
             if current < target { // down: the period grows
                 if variant.portaUnscaled {
@@ -224,6 +227,10 @@ extension TFMXDecoder {
                     fade.active = false
                 }
             }
+        }
+        if variant.original != .none {
+            paula[v].volume = originalVolume(v, lockHeeded: true)
+            return
         }
         var volume = voices[v].volume
         if fade.volume < 64 { volume = Int8(truncatingIfNeeded: (4 * Int(voices[v].volume) * Int(fade.volume)) / (4 * 0x40)) }

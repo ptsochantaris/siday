@@ -83,9 +83,14 @@ struct TFMXDecoder {
     /// decoder happens to be. In its place, the C standard's example generator, seeded with one, for
     /// sound that is the same every time.
     var randomState: UInt32 = 1
+    /// siday's own: the module is played as the player of Chris Hülsbeck's that UADE would play it with
+    /// does, where that differs from libtfmxaudiodecoder (see TFMXOriginalPlayers.swift); off, it is played
+    /// as that library plays it, tick for tick.
+    let followsOriginalPlayers: Bool
 
-    init(memory: UnsafeMutablePointer<UInt8>) {
+    init(memory: UnsafeMutablePointer<UInt8>, followsOriginalPlayers: Bool = false) {
         self.memory = memory
+        self.followsOriginalPlayers = followsOriginalPlayers
     }
 
     // MARK: Parts of the state
@@ -122,6 +127,16 @@ struct TFMXDecoder {
         var noDelayedDMAon = false
         var noTrackMute = false
         var execOrder = ExecOrder.seqModMac
+        /// Which of Chris Hülsbeck's players the module is played as, when it follows them
+        /// (`followsOriginalPlayers`); `.none` for libtfmxaudiodecoder's way.
+        var original = OriginalPlayer.none
+    }
+
+    /// The players UADE has for TFMX, Wanted Team's for EaglePlayer of Chris Hülsbeck's own: "TFMX
+    /// player module V1.3" (`TFMX`, of TFMX 1.x), "TFMX Pro player module V1.3" (`TFMX-Pro`) and the
+    /// player of TFMX 7V (`TFMX-7V`).
+    enum OriginalPlayer {
+        case none, tfmx, pro, sevenVoices
     }
 
     struct Input {
@@ -233,6 +248,20 @@ struct TFMXDecoder {
         var rndMask: UInt8 = 0
         var arpOffset: UInt32 = 0
         var arpPos: UInt16 = 0
+
+        /// What the players' Paula would say of the voice's audio interrupt, which it asks for each
+        /// time it begins a block (as it is started, and at each loop after): whether its DMA is on,
+        /// how many loops have been seen since it was started, whether the interrupt is asked for and
+        /// not yet cleared, and whether it is let through (for WaitOnDMA).
+        var dmaOn = false
+        var loopsSeen: UInt16 = 0
+        var interruptAsked = false
+        var interruptEnabled = false
+
+        /// TFMX Pro's lock of a voice ($FC): while its flag is not nought, notes and commands for it are
+        /// left alone; the count goes down by one a tick, and below nought the lock is gone.
+        var lock: UInt8 = 0
+        var lockCount: Int16 = -1
     }
 
     /// The synthesiser some later players have, which makes a voice's sample afresh each tick from
@@ -357,10 +386,17 @@ struct TFMXDecoder {
         sequencer.current = sequencer.first
         sequencer.last = Int(word(offsets.header &+ 0x140 &+ so))
         admin.speed = Int16(bitPattern: word(offsets.header &+ 0x180 &+ so))
-        if admin.speed >= 0x10 {
+        if variant.original == .tfmx, admin.speed >= 0x10, admin.speed < 0x20 {
+            // TFMX 1.x, $1906: from $10 to $1F, a speed of so much less $10 (at the player's own fifty
+            // ticks a second; what else it does then, which no module asks for, is not done here).
+            admin.speed -= 0x10
+        } else if admin.speed >= 0x10 {
             setBPM(UInt16(admin.speed))
             admin.speed = 0
             if variant.bpmSpeed5 { admin.speed = 5 }
+            // Chris Hülsbeck's players play the song at a speed of 5 (TFMX 1.x, $18f0; TFMX Pro, $282a,
+            // keeps the speed it had, which is 5 as it starts a song, $2904).
+            if variant.original != .none { admin.speed = 5 }
         }
         admin.startSpeed = Int(admin.speed)
         admin.count = 0 // a quick start
@@ -400,12 +436,22 @@ struct TFMXDecoder {
 
     // MARK: Telling Paula
 
-    @inline(__always) func on<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
-        if v < voiceCount { out.on(v) }
+    @inline(__always) mutating func on<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
+        guard v < voiceCount else { return }
+        out.on(v)
+        // (A voice started begins its first block, which asks for its interrupt.)
+        if variant.original != .none, !voices[v].dmaOn {
+            voices[v].dmaOn = true
+            voices[v].loopsSeen = 0
+            audioInterrupt(v)
+        }
     }
 
-    @inline(__always) func off<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
-        if v < voiceCount { out.off(v) }
+    @inline(__always) mutating func off<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
+        guard v < voiceCount else { return }
+        out.off(v)
+        voices[v].dmaOn = false
+        voices[v].loopsSeen = 0
     }
 
     @inline(__always) func loopCount<Output: TFMXOutput>(_ v: Int, _ out: inout Output) -> UInt16 {
@@ -444,6 +490,10 @@ struct TFMXDecoder {
 
     /// As if an interrupt handler had counted Paula's "block finished" interrupts in the meantime.
     mutating func handleWaitOnPaulaDone<Output: TFMXOutput>(_ out: inout Output) {
+        if variant.original != .none {
+            audioInterrupts(&out)
+            return
+        }
         for v in 0 ..< voiceCount where voices[v].waitOnDMACount >= 0 {
             let x = Int(loopCount(v, &out))
             let y = Int(voices[v].waitOnDMAPrevLoops)
@@ -539,6 +589,8 @@ struct TFMXDecoder {
         } else if tracks[t].PT == 0xFE { // the track is cleared
             tracks[t].PT = 0xFF
             let v = Int(channelToVoiceMap[Int(UInt8(bitPattern: tracks[t].TR) & 7)])
+            // (TFMX Pro, $25b4: not a voice that is locked.)
+            if voices[v].lock != 0 { return }
             voices[v].macroState = 0
             off(v, &out)
         }
@@ -570,12 +622,17 @@ struct TFMXDecoder {
         case .seqModMac:
             runMain(&out)
             for v in 0 ..< voiceCount {
-                processModulation(v, &out)
+                // (TFMX 1.x, $10c6: a voice whose macro a note has just started has no effects on that
+                // tick, nor its volume set.)
+                if variant.original != .tfmx || voices[v].macroState != 1 { processModulation(v, &out) }
                 processMacroMain(v, &out)
                 paula[v].period = voices[v].outputPeriod
             }
         case .macModSeq:
-            for v in 0 ..< voiceCount {
+            // (The player of TFMX 7V, mixing, runs the three voices of Paula's own and the four it
+            // mixes, $149a: not the fourth of Paula's, which the library's eighth voice is.)
+            for v in 0 ..< voiceCount where variant.original != .sevenVoices || v != 7 {
+                if variant.original != .none { countDownLock(v) }
                 processMacroMain(v, &out)
                 processModulation(v, &out)
                 paula[v].period = voices[v].outputPeriod
@@ -589,9 +646,19 @@ struct TFMXDecoder {
     /// macro, c the volume, d the voice, and ee the detune.
     mutating func noteCmd() {
         let v = Int(channelToVoiceMap[Int(cmd.cd & 7)])
+        if variant.original == .pro || variant.original == .sevenVoices {
+            // TFMX Pro, $2462: $FC locks the voice for a while, against every note and command for it.
+            if cmd.aa == 0xFC {
+                voices[v].lock = cmd.bb
+                voices[v].lockCount = Int16(cmd.ee)
+                return
+            }
+            if voices[v].lock != 0 { return }
+        }
         if cmd.aa == 0xF7 { // envelope
             voices[v].envelopeSpeed = cmd.bb
-            let count = (cmd.cd >> 4) + 1
+            // (TFMX 1.x, $1738, steps it on every other tick, whatever c is.)
+            let count = variant.original == .tfmx ? 1 : (cmd.cd >> 4) + 1
             voices[v].envelopeCount = count
             voices[v].envelopeFlag = count
             voices[v].envelopeTarget = cmd.ee
@@ -604,20 +671,24 @@ struct TFMXDecoder {
             voices[v].vibratoDelta = 0
         } else if cmd.aa == 0xF5 { // key up
             voices[v].keyUp = true
-        } else if cmd.aa < 0xC0 { // a note
+        } else if cmd.aa < (variant.original == .none ? 0xC0 : 0xBF) { // a note (and $BF, in TFMX 1.x, $178e, and Pro, $24e2)
             voices[v].detune = variant.noNoteDetune ? 0 : Int16(Int8(bitPattern: cmd.ee))
             voices[v].noteVolume = cmd.cd >> 4
             voices[v].notePrevious = voices[v].note
-            voices[v].note = cmd.aa
+            // (TFMX 1.x, $1796, is given notes not yet kept below $40.)
+            voices[v].note = variant.original == .tfmx ? cmd.aa & 0x3F : cmd.aa
             voices[v].keyUp = false
             let mo = getMacroOffset(cmd.bb & 0x7F)
             if mo != voices[v].macroOffset { voices[v].branchIfSame = false }
             voices[v].macroOffset = mo
             voices[v].macroState = 1 // the macro is started on the next tick
+            // (TFMX Pro, $2546: the voice's audio interrupt is turned off and cleared.)
+            if variant.original == .pro || variant.original == .sevenVoices { clearAudioInterrupt(v) }
         } else { // from $C0, a portamento to the note
             voices[v].portamentoCount = cmd.bb
             voices[v].portamentoWait = 1
-            if voices[v].portamentoSpeed == 0 { voices[v].portamentoPeriod = voices[v].period }
+            // (TFMX 1.x, $1806, glides from the period it was at, always.)
+            if voices[v].portamentoSpeed == 0 || variant.original == .tfmx { voices[v].portamentoPeriod = voices[v].period }
             voices[v].portamentoSpeed = UInt16(cmd.ee)
             voices[v].note = cmd.aa & 0x3F
             voices[v].period = noteToPeriod(Int(voices[v].note))

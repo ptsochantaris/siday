@@ -52,8 +52,11 @@ enum TFMXFormat: Sendable, Equatable {
 /// This is libtfmxaudiodecoder's player of it, line for line: what it tells Paula, tick by tick, is the
 /// same as that library's for every song of every module of UnExoticA's collection (given the same
 /// chances for random play, which two of Masterblazer's modules use: see `TFMXDecoder.randomState`).
-/// It owns the memory Paula plays from, the module and its samples laid out as that library lays them
-/// out, which a few instruments write sounds of their own making into as they play.
+/// Following Chris Hülsbeck's own players (`followsOriginalPlayers`, as it is heard), it plays each
+/// module as the player of his that UADE would choose for it does, where they differ from the library
+/// (see TFMXOriginalPlayers.swift). It owns the memory Paula plays from, the module and its samples laid
+/// out as that library lays them out, which a few instruments write sounds of their own making into as
+/// they play.
 struct TFMXPlayer: ~Copyable {
     /// The module and its samples, as Paula reads them, and after them four bytes of silence: Paula's
     /// starting place before a song has told her one (`silenceAt`).
@@ -84,14 +87,17 @@ struct TFMXPlayer: ~Copyable {
 
     /// Reads the module and starts its song `song` (counting from nought; a song beyond the last is
     /// the first). `samples` is the samples file's bytes, or nil for none; a module that keeps its samples
-    /// in its own file has no need of them (and is not given them: they would be left unread).
-    init(_ file: [UInt8], samples: [UInt8]?, song: Int = 0) throws(TuneError) {
+    /// in its own file has no need of them (and is not given them: they would be left unread). With
+    /// `followsOriginalPlayers`, it is played as Chris Hülsbeck's players play it, and otherwise as
+    /// libtfmxaudiodecoder does (see `followsOriginalPlayers`).
+    init(_ file: [UInt8], samples: [UInt8]?, song: Int = 0, followsOriginalPlayers: Bool = false) throws(TuneError) {
         let size = file.count + (samples?.count ?? 0)
         memory = .allocate(capacity: size + 4 + 0x20000 + Self.mixingSpace)
         memory.initialize(repeating: 0, count: size + 4 + 0x20000 + Self.mixingSpace)
         self.file = file
         self.samples = samples
-        decoder = TFMXDecoder(memory: memory)
+        self.followsOriginalPlayers = followsOriginalPlayers
+        decoder = TFMXDecoder(memory: memory, followsOriginalPlayers: followsOriginalPlayers)
         try decoder.setUp(file, samples: samples, song: song)
     }
 
@@ -102,9 +108,29 @@ struct TFMXPlayer: ~Copyable {
     /// read once is read again.)
     mutating func select(song: Int) throws(TuneError) {
         memory.update(repeating: 0, count: file.count + (samples?.count ?? 0) + 4 + 0x20000 + Self.mixingSpace)
-        decoder = TFMXDecoder(memory: memory)
+        decoder = TFMXDecoder(memory: memory, followsOriginalPlayers: followsOriginalPlayers)
         try decoder.setUp(file, samples: samples, song: song)
         decoder.playsOnInEndlessPatterns = playsOnInEndlessPatterns
+    }
+
+    /// Whether the module is played as the player of Chris Hülsbeck's that UADE would choose for it
+    /// plays it (see TFMXOriginalPlayers.swift), or, when off, as libtfmxaudiodecoder plays it, tick for
+    /// tick. Changing it reads the module again and starts the song afresh; it is kept from song to
+    /// song.
+    private(set) var followsOriginalPlayers: Bool
+
+    /// Sets `followsOriginalPlayers`, starting the song afresh if it changes. (A module that is not
+    /// read one way, which none is that is read the other, is left as it was.)
+    mutating func follow(originalPlayers: Bool) {
+        guard originalPlayers != followsOriginalPlayers else { return }
+        let playing = song
+        followsOriginalPlayers = originalPlayers
+        do {
+            try select(song: playing)
+        } catch {
+            followsOriginalPlayers = !originalPlayers
+            try? select(song: playing)
+        }
     }
 
     /// Runs the player for one tick, telling `output` what Paula is to do. Returns the tick's length in

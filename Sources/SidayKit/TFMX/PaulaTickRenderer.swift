@@ -85,7 +85,10 @@ extension TFMXPlayer: PaulaTickPlayer {
         return info
     }
 
+    /// To be heard, a module is played as Chris Hülsbeck's own players play it (see
+    /// `followsOriginalPlayers`), going round, and on through patterns that go round for ever.
     mutating func prepareToBeHeard() {
+        follow(originalPlayers: true)
         loops = true
         playsOnInEndlessPatterns = true
     }

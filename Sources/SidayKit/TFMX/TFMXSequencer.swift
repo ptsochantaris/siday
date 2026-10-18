@@ -51,17 +51,32 @@ extension TFMXDecoder {
             if sequencer.current < 512 { sequencer.stepSeenBefore[sequencer.current] = true }
 
             var stepOffset = offsets.trackTable &+ UInt32(truncatingIfNeeded: sequencer.current << 4)
-            if word(stepOffset) == 0xEFFE { // a command
+            // TFMX 1.x, $e5e: $FA00, $FA01 and $FA02 are Stop, Loop and Speed too, their arguments
+            // straight after.
+            let older = variant.original == .tfmx && word(stepOffset) >= 0xFA00 && word(stepOffset) <= 0xFA02
+            if word(stepOffset) == 0xEFFE || older { // a command
+                var command = word(stepOffset) & 3
                 stepOffset &+= 2
-                var command = word(stepOffset)
-                stepOffset &+= 2
+                if !older {
+                    command = word(stepOffset)
+                    stepOffset &+= 2
+                }
                 if command > 4 { command = 0 } // taken to be Stop
                 trackCmdUsed[Int(command)] = true
                 switch command {
                 case 0: trackCmdStop()
                 case 1: trackCmdLoop(stepOffset)
                 case 2: trackCmdSpeed(stepOffset)
-                case 3: trackCmd7V(stepOffset)
+                case 3:
+                    switch variant.original {
+                    // TFMX Pro's table, $1516, has Fade for it; TFMX 1.x, $102e, sets a flag that only
+                    // a speed from $10 to $1F has a use for (see `restart`).
+                    case .pro: trackCmdFade(stepOffset)
+                    case .tfmx:
+                        sequencer.current += 1
+                        sequencer.evalNext = true
+                    default: trackCmd7V(stepOffset)
+                    }
                 default: trackCmdFade(stepOffset)
                 }
             } else {
@@ -91,6 +106,14 @@ extension TFMXDecoder {
     }
 
     mutating func trackCmdLoop(_ stepOffset: UInt32) {
+        if variant.original == .tfmx {
+            // TFMX 1.x, $fd4: on to the step it gives, always (and the song's end is told, as it is
+            // for every loop, to whoever plays it).
+            sequencer.current = Int(word(stepOffset))
+            if sequencer.current < 512, sequencer.stepSeenBefore[sequencer.current] { songEnd = true }
+            sequencer.evalNext = true
+            return
+        }
         if sequencer.loops == 0 { // the loop's end
             sequencer.loops = -1
             sequencer.current += 1
@@ -163,7 +186,18 @@ extension TFMXDecoder {
             cmd.cd = byte(p &+ 2)
             cmd.ee = byte(p &+ 3)
             let aaBefore = cmd.aa
-            if cmd.aa < 0xF0 { // a note
+            if cmd.aa < 0xF0, variant.original == .tfmx {
+                // TFMX 1.x, $c04 to $c46: the note with the track's transposition is not kept below
+                // $40, and it is by that whether the track goes on or waits.
+                if cmd.aa < 0xC0, cmd.aa >= 0x7F {
+                    tracks[t].wait = cmd.ee
+                    cmd.ee = 0
+                }
+                cmd.aa &+= UInt8(bitPattern: tracks[t].TR)
+                if tracks[t].on { noteCmd() }
+                tracks[t].step &+= 1
+                if cmd.aa >= 0xC0 || cmd.aa < 0x7F { tracks[t].evalNext = true }
+            } else if cmd.aa < 0xF0 { // a note
                 if cmd.aa < 0xC0, cmd.aa >= 0x7F { // a note and a wait, in place of the detune
                     tracks[t].wait = cmd.ee
                     cmd.ee = 0
@@ -184,6 +218,11 @@ extension TFMXDecoder {
                 case 8: pattCmdSaveAndGoto(t)
                 case 9: pattCmdReturnFromGoto(t)
                 case 10: pattCmdFade(t)
+                case 11 where variant.original != .none: pattCmdPlayPattern(t)
+                case 12 where variant.original == .tfmx, 13 where variant.original == .tfmx:
+                    // TFMX 1.x, $c46: the track's row ends there.
+                    tracks[t].step &+= 1
+                case 12 where variant.original != .none: pattCmdNote(t) // TFMX Pro's Lock, $133a
                 default: pattCmdNOP(t) // 11, 12 (FXPR, not done), 13 and 15
                 }
             }
@@ -199,6 +238,11 @@ extension TFMXDecoder {
 
     /// The pattern's end: on to the next step of the song.
     mutating func pattCmdEnd(_ t: Int) {
+        // (TFMX 1.x, $c72: but on a track whose step gave it $81, only the track stops.)
+        if variant.original == .tfmx, tracks[t].PT == 0x81 {
+            tracks[t].PT = 0xFF
+            return
+        }
         tracks[t].PT = 0xFF
         nextTrackStep()
     }
@@ -238,7 +282,24 @@ extension TFMXDecoder {
     }
 
     mutating func pattCmdNote(_ t: Int) {
-        noteCmd()
+        // (Chris Hülsbeck's players give it only from a track that is heard: TFMX 1.x, $d18; TFMX
+        // Pro, $13e2.)
+        if tracks[t].on || variant.original == .none { noteCmd() }
+        tracks[t].step &+= 1
+        tracks[t].evalNext = true
+    }
+
+    /// $FB, in Chris Hülsbeck's players (TFMX 1.x, $dc2; TFMX Pro, $149c): track d is given pattern
+    /// bb from its beginning, with transposition ee.
+    mutating func pattCmdPlayPattern(_ t: Int) {
+        let other = Int(cmd.cd & 7)
+        tracks[other].PT = cmd.bb
+        tracks[other].TR = Int8(bitPattern: cmd.ee)
+        tracks[other].offset = getPattOffset(cmd.bb & 0x7F)
+        tracks[other].step = 0
+        tracks[other].wait = 0
+        tracks[other].loops = -1
+        tracks[other].infiniteLoop = false
         tracks[t].step &+= 1
         tracks[t].evalNext = true
     }

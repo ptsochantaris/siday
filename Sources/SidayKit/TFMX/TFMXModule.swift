@@ -100,14 +100,23 @@ extension TFMXDecoder {
         variant.execOrder = .macModSeq
         setMacroTable()
 
-        // TFMX 1.5 and 2.2 cannot be told from the later players but by the header of TFMX before them
-        // ("TFMX " and nought), a TFHD file's word, or a checksum (below).
-        if (long(offsets.header) == 0x5446_4D58 && byte(offsets.header &+ 4) == 0x20) || input.versionHint == 1 {
-            setTFMXv1()
+        if followsOriginalPlayers {
+            // The player UADE would choose, and none of the traits the library gives known modules for
+            // their games' own players, nor its mending of them, but the player's own mending of a
+            // few: only those the library will not play are kept from it.
+            setOriginalPlayer(uadePlayer())
+            blacklisted = isKnownBroken(crc32(offsets.header &+ checkedLong(offsets.patterns), 0x100))
+            mendAsWantedTeam()
         } else {
-            format = .pro
+            // TFMX 1.5 and 2.2 cannot be told from the later players but by the header of TFMX before
+            // them ("TFMX " and nought), a TFHD file's word, or a checksum (below).
+            if (long(offsets.header) == 0x5446_4D58 && byte(offsets.header &+ 4) == 0x20) || input.versionHint == 1 {
+                setTFMXv1()
+            } else {
+                format = .pro
+            }
+            traitsByChecksum()
         }
-        traitsByChecksum()
         guard !blacklisted else { throw .unsupported("a TFMX module known to be broken") }
 
         findSongs()
@@ -179,7 +188,8 @@ extension TFMXDecoder {
     /// The track command 7VOICE, or a TFHD file's saying so, makes the module one of eight voices: the
     /// library's TFMX 7V is Hülsbeck's, of eight, the last four mixed onto Paula's fourth voice.
     mutating func adjustTraitsPost() {
-        guard trackCmdUsed[3] || input.versionHint == 3 else { return }
+        // (As Chris Hülsbeck's players have it, it is the player that is of seven voices or not.)
+        guard followsOriginalPlayers ? variant.original == .sevenVoices : trackCmdUsed[3] || input.versionHint == 3 else { return }
         voiceCount = 8
         format = .sevenVoices
         channelToVoiceMap[3] = 7
@@ -445,6 +455,18 @@ extension TFMXDecoder {
         return table
     }()
 
+    /// Whether the module, told by `crc` (`traitsByChecksum`'s), is a broken copy of one, which the
+    /// library will not play: a copy of Turrican 3's world 5, one of R-Type's that lacks its first
+    /// 192 samples, and a Blade of Destiny title.
+    func isKnownBroken(_ crc: UInt32) -> Bool {
+        switch crc {
+        case 0xC7AE_8DE6: long(4 &+ getMacroOffset(0x4C)) != 0x0200_8C0E
+        case 0x8AC7_0FC8: checkedLong(offsets.sampleData &+ 4) != 0xE8FF_20F9 || checkedLong(offsets.sampleData &+ 0xBC) != 0xE8F7_00FD
+        case 0xC83B_701B: true
+        default: false
+        }
+    }
+
     /// As the header does not say which player a module wants, a few known modules are told by the
     /// checksum of the first 256 bytes of their first pattern, and played as their games' players
     /// played them; and a few broken ones are mended, or not played.
@@ -468,7 +490,7 @@ extension TFMXDecoder {
             macroTable[0x1D] = .splitVolume
         // Turrican 3, world 5: one copy of it is broken.
         case 0xC7AE_8DE6:
-            if long(4 &+ getMacroOffset(0x4C)) != 0x0200_8C0E { blacklisted = true }
+            blacklisted = isKnownBroken(crc)
         // Danger Freak (1989), TFMX 1 without a note's detune.
         case 0x4896_0D8C, 0x5DCD_624F, 0x3F0B_151F:
             setTFMXv1()
@@ -480,9 +502,7 @@ extension TFMXDecoder {
         case 0x8AC7_0FC8:
             setTFMXv1()
             variant.macroLoopExtraWait = true
-            if checkedLong(offsets.sampleData &+ 4) != 0xE8FF_20F9 || checkedLong(offsets.sampleData &+ 0xBC) != 0xE8F7_00FD {
-                blacklisted = true
-            }
+            blacklisted = isKnownBroken(crc)
         // The Adventures of Quik & Silva.
         case 0x04F4_69A6, 0xD37C_9008:
             variant.execOrder = .macModSeq
@@ -530,7 +550,7 @@ extension TFMXDecoder {
             setByte(offsets.trackTable, 0xFF)
         // A broken Blade of Destiny title.
         case 0xC83B_701B:
-            blacklisted = true
+            blacklisted = isKnownBroken(crc)
         // Bundesliga Manager Hattrick, whose second song is a piece of its title without the commands
         // that make it one of seven voices: it is made to begin at $1FF, which is no song.
         case 0x3C2E_B450:

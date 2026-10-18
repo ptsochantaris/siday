@@ -17,6 +17,9 @@ enum MacroCommand {
     case loopKeyUp, addBegin, addLen, stopSample, waitKeyUp, goto, `return`, setPeriod
     case sampleLoop, oneShot, waitOnDMA, randomPlay, splitKey, splitVolume, randomMask, setPrevNote
     case playMacro, sid22, sid23, sid24, sid25, sid26, sid27, sid28, sid29, branchIfSame, keyUp
+    /// On to the next command, after the tick: what Chris Hülsbeck's players do with a command beyond
+    /// their tables.
+    case later
 }
 
 extension TFMXDecoder {
@@ -25,6 +28,8 @@ extension TFMXDecoder {
     }
 
     mutating func initMacro(_ v: Int) {
+        // (TFMX 1.x, $1160: the voice's audio interrupt is turned off, and cleared.)
+        if variant.original == .tfmx { clearAudioInterrupt(v) }
         voices[v].macroStep = 0
         voices[v].macroWait = 0
         voices[v].macroLoop = 0xFF
@@ -39,7 +44,11 @@ extension TFMXDecoder {
             return
         } else if voices[v].macroState == 1 {
             initMacro(v)
-        } else if voices[v].macroWait > 0 {
+            // TFMX 1.x, $1142: a macro a note starts is set going with a wait of a tick (68(a6), which
+            // is one), and so begins on the tick after the note's.
+            if variant.original == .tfmx { voices[v].macroWait = 1 }
+        }
+        if voices[v].macroWait > 0 {
             voices[v].macroWait -= 1
             return
         }
@@ -52,9 +61,19 @@ extension TFMXDecoder {
             cmd.bb = byte(p &+ 1)
             cmd.cd = byte(p &+ 2)
             cmd.ee = byte(p &+ 3)
-            runMacroCommand(macroTable[Int(command & 0x3F)], v, &out)
+            runMacroCommand(originalCommand(command) ?? macroTable[Int(command & 0x3F)], v, &out)
             macroLen += 1
         } while macroEvalAgain && macroLen < 32
+    }
+
+    /// Chris Hülsbeck's players read a macro's command as the whole byte: one beyond their tables goes
+    /// on to the next after the tick (TFMX 1.x, $119a, from $23; TFMX Pro, $1768, from $34).
+    private func originalCommand(_ command: UInt8) -> MacroCommand? {
+        switch variant.original {
+        case .none: nil
+        case .tfmx: command >= 0x23 ? .later : nil
+        case .pro, .sevenVoices: command >= 0x34 ? .later : nil
+        }
     }
 
     private mutating func runMacroCommand<Output: TFMXOutput>(_ command: MacroCommand, _ v: Int, _ out: inout Output) {
@@ -104,6 +123,7 @@ extension TFMXDecoder {
         case .sid29: macroSID29(v)
         case .branchIfSame: macroBranchIfSame(v)
         case .keyUp: macroKeyUp(v)
+        case .later: macroExtraWait(v)
         }
     }
 
@@ -139,6 +159,31 @@ extension TFMXDecoder {
     /// DMAon: the sample is started where it was set to begin, at the end of the tick unless the player
     /// is one that starts it at once.
     private mutating func macroStartSample<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
+        if variant.original != .none {
+            // TFMX Pro, $18f8: the voice's audio interrupt is turned off and cleared, and the first byte
+            // made the voice's flag for its effects ($1fd0): nought has them left out for the rest of
+            // the tick, and a byte below nought until the next note. As UADE runs it (see
+            // `setOriginalPlayer`) the voice is then started at once ($192a), as TFMX 1.x starts it
+            // ($11ec), which does nothing with the byte nor the interrupt.
+            if variant.original != .tfmx {
+                clearAudioInterrupt(v)
+                voices[v].effectsMode = Int8(bitPattern: cmd.bb)
+            }
+            voices[v].macroStep &+= 1
+            if variant.original == .sevenVoices {
+                // The player of TFMX 7V ($1682) starts one of the four it mixes at once, and its macro
+                // goes no further that tick; the others at the end of the tick.
+                if isMixedVoice(v) {
+                    on(v, &out)
+                    return
+                }
+                voices[v].delayedOn = true
+            } else {
+                on(v, &out)
+            }
+            macroEvalAgain = true
+            return
+        }
         if variant.noDelayedDMAon {
             on(v, &out)
         } else {
@@ -216,7 +261,7 @@ extension TFMXDecoder {
 
     private mutating func macroAddNoteSub(_ v: Int, _ noteAdd: UInt8, _ detuneAdd: Int16) {
         let n = Int8(truncatingIfNeeded: Int(noteAdd) + Int(Int8(bitPattern: cmd.bb)))
-        var p = noteToPeriod(Int(n))
+        var p = variant.original == .none ? noteToPeriod(Int(n)) : originalNoteToPeriod(Int(n))
         let finetune = detuneAdd &+ Int16(bitPattern: Self.makeWord(cmd.cd, cmd.ee))
         if variant.finetuneUnscaled {
             p &+= UInt16(bitPattern: finetune)
@@ -239,6 +284,11 @@ extension TFMXDecoder {
         voices[v].envelopeFlag = 0
         voices[v].vibratoTime = 0
         voices[v].portamentoSpeed = 0
+        // TFMX Pro, $1daa: and the synthesiser and random play.
+        if variant.original == .pro || variant.original == .sevenVoices {
+            voices[v].sid.targetLength = 0
+            voices[v].rndFlag = 0
+        }
         next(v)
     }
 
@@ -324,7 +374,8 @@ extension TFMXDecoder {
         let offset = Int32(Int16(bitPattern: Self.makeWord(cmd.cd, cmd.ee)))
         voices[v].addBeginOffset = offset
         var begin = voices[v].sampleStart &+ UInt32(bitPattern: offset)
-        if begin < offsets.sampleData { begin = offsets.sampleData }
+        // (Chris Hülsbeck's players let it go before them: TFMX 1.x, $120e; TFMX Pro, $195c.)
+        if begin < offsets.sampleData, variant.original == .none { begin = offsets.sampleData }
         if voices[v].sid.targetLength == 0 {
             macroSetBeginSub(v, begin, &out)
         } else {
@@ -341,7 +392,8 @@ extension TFMXDecoder {
         if voices[v].sid.targetLength == 0 {
             toPaulaLength(v, voices[v].sampleLength, &out)
         } else {
-            voices[v].sid.sourceLength = UInt16(bitPattern: length)
+            // (TFMX Pro, $19a2, sets it to the sample's length as it now is.)
+            voices[v].sid.sourceLength = variant.original == .none ? UInt16(bitPattern: length) : voices[v].sampleLength
         }
     }
 
@@ -349,6 +401,47 @@ extension TFMXDecoder {
     /// with no wait after); and with a volume, a volume set too.
     private mutating func macroStopSampleSub<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
         voices[v].macroStep &+= 1
+        switch variant.original {
+        case .none: break
+        case .tfmx:
+            // TFMX 1.x, $14bc (and $11c2): the voice is stopped, its interrupt turned off and cleared,
+            // and that is all.
+            clearAudioInterrupt(v)
+            off(v, &out)
+            macroEvalAgain = true
+            return
+        case .sevenVoices:
+            // The player of TFMX 7V ($1640) sets no volume; one of the four it mixes is stopped at once,
+            // and the next command that would end the tick does not; the others as the library's TFMX
+            // Pro does.
+            if isMixedVoice(v) {
+                off(v, &out)
+                voices[v].extraWait = false
+                macroEvalAgain = true
+            } else if cmd.bb != 0 {
+                voices[v].extraWait = false
+                voices[v].delayedOff = true
+            } else {
+                off(v, &out)
+                macroEvalAgain = true
+            }
+            return
+        case .pro:
+            // TFMX Pro, $1890, as UADE runs it (with "DMA" as the player's way of waiting, which UADE's
+            // configuration of it chooses): the voice is stopped at once and the macro goes on; and
+            // the volume is set, with the fade's (but not heeding the voice's lock, as $23fe does).
+            off(v, &out)
+            macroEvalAgain = true
+            if cmd.cd == 0 {
+                if cmd.ee == 0 { return }
+                let volume = voices[v].noteVolume &+ voices[v].noteVolume &+ voices[v].noteVolume
+                voices[v].volume = Int8(truncatingIfNeeded: Int(volume) + Int(Self.makeWord(cmd.cd, cmd.ee)))
+            } else {
+                voices[v].volume = Int8(bitPattern: cmd.ee)
+            }
+            paula[v].volume = originalVolume(v, lockHeeded: false)
+            return
+        }
         if cmd.bb != 0 {
             voices[v].extraWait = false
             voices[v].delayedOff = true
@@ -386,7 +479,10 @@ extension TFMXDecoder {
     private mutating func macroGoto(_ v: Int) {
         voices[v].macroOffsetSaved = voices[v].macroOffset
         voices[v].macroStepSaved = voices[v].macroStep
+        let loop = voices[v].macroLoop
         macroCont(v)
+        // (TFMX 1.x, $150e, leaves the count of the loop as it was.)
+        if variant.original == .tfmx { voices[v].macroLoop = loop }
     }
 
     private mutating func macroReturn(_ v: Int) {
@@ -404,7 +500,8 @@ extension TFMXDecoder {
 
     /// The sample's loop: so many bytes on from where it began, and so much shorter.
     private mutating func macroSampleLoop<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
-        let offset = Self.makeDword(0, cmd.bb, cmd.cd, cmd.ee)
+        // (TFMX 1.x, $1552, takes only the lower word of the offset.)
+        let offset = Self.makeDword(0, variant.original == .tfmx ? 0 : cmd.bb, cmd.cd, cmd.ee)
         voices[v].sampleStart &+= offset
         voices[v].sampleLength &-= UInt16(truncatingIfNeeded: offset >> 1)
         toPaulaStart(v, voices[v].sampleStart, &out)
@@ -424,6 +521,11 @@ extension TFMXDecoder {
 
     /// A wait until the sample has been played through so many times (`handleWaitOnPaulaDone`).
     private mutating func macroWaitOnDMA<Output: TFMXOutput>(_ v: Int, _ out: inout Output) {
+        if variant.original != .none {
+            waitForAudioInterrupts(v, count: variant.original == .tfmx ? 0 : Int16(bitPattern: Self.makeWord(cmd.cd, cmd.ee)))
+            macroExtraWait(v)
+            return
+        }
         voices[v].waitOnDMACount = Int16(bitPattern: Self.makeWord(cmd.cd, cmd.ee))
         voices[v].macroState = 0
         voices[v].waitOnDMAPrevLoops = loopCount(v, &out)
