@@ -182,13 +182,18 @@ dcec102 of 2026-09-26.
 - GNU General Public License, version 2 or later
 - Source: https://github.com/mschwendt/libtfmxaudiodecoder
 
-How long the player's ticks are (`TFMXTiming`) and how TFMX 7V's voices are mixed
-(`TFMXSevenVoices`) are as Chris Hülsbeck's players have them, read in Wanted Team's players of the
+Where Chris Hülsbeck's players did otherwise than the library (`TFMXOriginalPlayers.swift` and the
+branches that follow it), how long the player's ticks are (`TFMXTiming`) and how TFMX 7V's voices
+are mixed (`TFMXSevenVoices`) are as Chris Hülsbeck's players have them, read in Wanted Team's players of the
 files for EaglePlayer, carried by UADE as `TFMX`, `TFMX-Pro` and `TFMX-7V` ("TFMX player module
 V1.3", "TFMX Pro player module V1.3" and "TFMX 7V player module V1.1", 2002; they say of themselves
 "(c) 1988-90", "(c) 1990-94" and "(c) 1991-94 by Chris H"). Their 68000 code
-was read for that, and nothing of it is carried here but its constants: the timer's dividends, the
-rate, buffer and period of the mixing, and its table of volumes. Jochen Hippel's TFMX 7V is mixed as
+was read for that, and nothing of it is carried here but what it does and its constants: the timer's
+dividends, the rate, buffer and period of the mixing, its table of volumes, and the few bytes of a
+few modules that the players mend as they load them. Which player a module is played as is chosen as
+UADE chooses it, by a port of the TFMX test in UADE's `amifilemagic.c` (Copyright (C) 2000-2005 Heikki
+Orsila and Michael Doering; "dual licensed under the GNU GPL and the Public Domain";
+https://gitlab.com/uade-music-player/uade). Jochen Hippel's TFMX 7V is mixed as
 Wanted Team's player of it has it ("Jochen Hippel 7V player module V1.1", 2009, carried by UADE as
 `JochenHippel-7V`; it says of itself "(c) 1990-91 Jochen 'Mad Max' Hippel"), read in the same way
 for the same kinds of constants; the rate it mixes at is the one UADE runs it at.

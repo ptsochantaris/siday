@@ -754,48 +754,64 @@ period and its volume, waits, loops, and turns the sound into something else as 
 vibrato, a slide, an envelope, a sample's start moved along, and in the later players a sample made
 afresh from others as it plays.
 
-The player here is Michael Schwendt's, from his library libtfmxaudiodecoder, the core of which
-he wrote in assembly language around 1991, with the editor's handbook and files to go by, and which
-he keeps today; it tells the TFMX of the first players from TFMX Professional by the module's header and by
-checksums of modules that need it, and plays each as it was played. It is ported here line for
-line, and what it tells the Amiga's sound chip, tick by tick, is the same as what that library tells
-it, for every song of every one of the 322 modules of UnExoticA's collection (915 songs, two
-modules having none the library will play), looping or not, and for some 45,000 copies of them cut
-short or changed at random. Two of Masterblazer's modules play some of their sounds at random; the library takes
-its chances from the C library's, and here they come from the same sequence on every playing.
+The player here began as Michael Schwendt's, from his library libtfmxaudiodecoder, the core of
+which he wrote in assembly language around 1991, with the editor's handbook and files to go by, and
+which he keeps today. It was ported here line for line, and with what is said below set aside it
+still tells the Amiga's sound chip, tick by tick, what that library tells it, for every song of
+every one of the 322 modules of UnExoticA's collection (915 songs, two modules having none that can
+be played), looping or not, and for some 45,000 copies of them cut short or changed at random.
 
-Four things here are not the library's, each taken from Chris Hülsbeck's own players, which Wanted
-Team keep in their players of the files for EaglePlayer and UADE runs:
+That library is not always what Chris Hülsbeck's players did, and what is heard here is his players,
+as Wanted Team keep them in their players of the files for EaglePlayer ("TFMX player module V1.3"
+for TFMX 1.x, "TFMX Pro player module V1.3", and the player of TFMX 7V), whose 68000 code was read
+for what follows, and as UADE runs them, which is what each change was set beside: the registers of
+the sound chip that UADE's players write, tick by tick, against those siday's player writes.
 
-1. How often the player runs. The library has fifty ticks a second, or two fifths of a song's beats
+1. Which player a module is played as. The library tells TFMX 1.x from TFMX Professional by an old
+   mark in the header and by checksums of modules it knows; here the choice is UADE's (its test of a
+   file's contents, ported), which takes 167 of the collection's modules for TFMX 1.x where the
+   library took 35. The load-time mends that Wanted Team's players make to a few modules are made
+   too.
+2. What each player does. Among the many things the library has otherwise: in TFMX 1.x a note's
+   macro starts a tick after the note, and that tick has no effects; SetNote keeps the voice's
+   detune; a slide that reaches its note waits there for the next, where the library ends it (which
+   is why a jingle of Einmal Kanzler sein dropped straight to its last note); the pattern commands
+   $FB to $FD and the track commands that loop, fade and change speed are as the player has them; in
+   TFMX Professional a voice is started and stopped at once, as UADE's settings for the player have
+   it, the second byte of DMAon says whether effects are run on the next tick, $FC locks a voice, and
+   the extra tick a note waits always comes; and in both, a macro that waits for a sample to come to
+   its end waits for the interrupts the sound chip would have raised. Each is in the code, with the
+   place in the player it comes from.
+3. How often the player runs. The library has fifty ticks a second, or two fifths of a song's beats
    a minute. TFMX Professional's player sets the computer's timer to $1B51F8 over the beats, which
    is slower than that by nearly one part in a hundred, and the first player to $1C00 over them in
-   the timer's upper byte. A song with a tempo of its own was more than half a second ahead of
-   Chris Hülsbeck's player by the end of a minute; it is not now.
-2. How TFMX 7V's four voices are mixed. Its player mixes at 16 kHz, a buffer of 320 bytes for each
-   tick, longer or shorter by the song's tempo, and plays it on the fourth voice at a period of 224;
-   the tick is when the fourth voice comes to the end of a buffer. A voice steps through its sample
-   at its own period's rate against the mixing's, with nothing between one sample and the next; its
-   volume comes from a table in which 64 is 63; the four are added and clipped to a byte; and a sample
-   or loop of fewer than 32 words plays silence in its place. A buffer is mixed from what the voices
+   the timer's upper byte.
+4. How TFMX 7V's four voices are mixed. Its player mixes at its own 16 kHz (UADE's settings for it
+   ask for 20 kHz, which makes a tick a hair shorter), a buffer of 320 bytes for each tick, longer or
+   shorter by the song's tempo, and plays it on the fourth voice at a period of 224; the tick is when
+   the fourth voice comes to the end of a buffer. A voice steps through its sample at its own
+   period's rate against the mixing's, with nothing between one sample and the next; its volume
+   comes from a table in which 64 is 63; the four are added and clipped to a byte; and a sample or
+   loop of fewer than 32 words plays silence in its place. A buffer is mixed from what the voices
    were told the tick before, and heard the tick after, as it was on the Amiga. All of that is done
    here, into buffers that the Amiga's sound chip as siday has it plays as the fourth voice, so the
    seven are filtered and placed as the Amiga had them.
-3. When a song ends. The library takes a song whose tracks have all come to an end, or to patterns
+5. When a song ends. The library takes a song whose tracks have all come to an end, or to patterns
    that go round for ever, to have finished, and stops it, to know how long it is. Chris Hülsbeck's
    players play on: the patterns go on round, or the notes that were sounding go on as their macros
    have them. So they do here, and that is where the song is counted as having come round. (A song
    that says Stop, stops.)
-4. How loud it is: as loud as a module played on the same chip, as every format here is. The middle
+6. How loud it is: as loud as a module played on the same chip, as every format here is. The middle
    of the collection's modules was 5 dB quieter than modules are, and is turned up by that.
 
-Set beside UADE playing Chris Hülsbeck's players, over the first minute of the first song of each
-module, by how loud each side is from moment to moment, the 320 that play are 0.945 alike on
-average; the library itself is 0.937, the difference being the timing and the seven voices. Some 35
-modules agree less well, and the library agrees no better on them: these are where its reading of a
-module is not that of the player the module was made for, as in a module of Mean Ugly Dirty Sport
-in which UADE finds six songs and the library five, none of them the one UADE plays first. Three
-modules are silent, one of them a game's sound effects, and two are refused, having no songs.
+Over the first 40 seconds of the first song of each module, 315 of the 320 that play write the same
+periods and volumes as UADE's players, tick for tick. Of the rest, one of Masterblazer's modules
+plays sounds at random, which its player takes from where the screen's beam is and cannot be
+followed; one of Fatal Heritage's gives two voices their new notes a tick early, from 21 seconds on,
+for no reason that has been found; and three differ by a tick or two where a tempo changes or at the
+start. By how loud each side is from moment to moment over the first minute, they are 0.958 alike on
+average, where the library is 0.937. Three modules are silent, one of them a game's sound effects,
+and two are refused, having no songs.
 
 ## HIP and FC — Jochen Hippel's TFMX, and Future Composer
 
