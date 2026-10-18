@@ -523,7 +523,8 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
                 waves?.store(3 + v, at: i, value)
             }
             waves?.advance(3 + v, by: count)
-            mixedLevels[v] = mixer.voices[v].muted ? 0 : min(1, (high - low) * 0.5)
+            // (A muted voice's light is as if it were heard, as every voice's is: see `Renderer.setMuted`.)
+            mixedLevels[v] = min(1, (high - low) * 0.5)
         }
     }
 
