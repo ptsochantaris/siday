@@ -978,6 +978,155 @@ What is siday's own, or the players' own and worth telling:
 5. How loud it is: SoundMon's music is 1.5 dB louder on the Amiga's chip than modules are in the
    middle of the collection, and is turned down by that.
 
+## SIDMON — SidMon and SidMon II
+
+SidMon was a tracker of Reinier van Vliet's for the Amiga ("SID-MON BY R.v.VLIET (c) 1988", its
+player says), named for the Commodore 64's sound chip, and making its sound much as that chip's music
+did: short waveforms shaped as they play, rather than recorded instruments. SidMon II, "the MIDI
+version", followed. Their tunes rewrite their own waveforms as they play: SidMon II's player flips
+the bits of a sample's bytes as it goes, and SidMon's later player mixes two waveforms into a third
+and negates a byte of another on every tick.
+
+UnExoticA's collection has twelve of SidMon II's (Cobra, Cubulus, Ice Runner) and three of SidMon's,
+Venom Wing's, which are named SID like the Commodore 64's files and keep their player's 68000 code
+in front of the music. They are told apart by how they begin: the Commodore's say "PSID" or "RSID",
+and SidMon's begin with its player, which its own check finds; of the 61,000 SID files to hand, it
+takes exactly Venom Wing's three. Their code is one of two versions of the player, an earlier and a
+later, which are told apart by their bytes and played by their own rules; the 68000 is not imitated,
+and a file with a player of another kind is not taken.
+
+Each is played by its own player as UADE runs it (mld's adaptation for SidMon, Defect's for SidMon
+II), and what the player tells the Amiga's sound chip on every tick, and the bytes the chip plays
+from the waveforms it rewrites, are the same as UADE's, for all fifteen files over their whole
+songs. By how loud each side is from moment to moment over the first minute, they are 0.98 to 0.9995
+alike.
+
+What is siday's own, or the players' own and worth telling:
+
+1. When a song has come to its end: when its list of steps comes round. The players say nothing of
+   an end.
+2. Three things about SidMon's players were found only by setting them beside UADE: the chip takes
+   no odd places for a sample, so one that begins at an odd place begins a byte before; the later
+   player's start leaves its tick counter as the file has it; and a sampled instrument goes straight
+   to its note when the value the voice before left behind says so.
+3. How loud they are: SidMon's music is 5.6 dB louder on the Amiga's chip than modules are, and
+   SidMon II's 3.6, in the middle of the collection, and each is turned down by that.
+
+## MUG — Digital Mugician and Mugician II
+
+Digital Mugician was Reinier 'Rhino' van Vliet's tracker after SidMon ("(c) 1990-94", its player
+says; its files begin " MUGICIAN/SOFTEYES 1990"), in which synthesised and sampled instruments are
+played together, the waveforms rewritten by its effects as they play. Mugician II ("(c) 1991-94")
+plays seven voices on the Amiga's four: three as they are, and four mixed by the processor into a
+buffer that the fourth plays, as Chris Hülsbeck's and Jochen Hippel's players of seven voices did.
+
+UnExoticA's collection has 26: 24 of the first (Borobodur, Bump 'n' Burn, Winter Camp, Quest of
+Agravain, and five of Hoi AGA's, named DMU) and two of Mugician II (Clockwiser, Borobodur). A file
+holds several songs, counted as the players count them.
+
+Each is played by its own player as Wanted Team keep it for EaglePlayer and UADE runs it, from their
+source: what the player tells the Amiga's sound chip on every tick, and what it writes into its
+waveforms, are the same as UADE's for every song of every file over its first 40 seconds (but for
+one voice that plays nothing, whose note falls past the player's table). Mugician II's four mixed
+voices are mixed as its player mixes them, byte for byte, at 22 kHz as UADE sets it (the player's
+own default is 16), and heard a tick after they are mixed; they share the fourth voice's lights and
+scope. By how loud each side is from moment to moment over the first minute, the files are 0.986 to
+0.998 alike.
+
+What is siday's own, or the players' own and worth telling:
+
+1. The players change waveforms and turn voices on partway through each tick, which is done here at
+   the tick's start; that is most of what is left between siday and UADE.
+2. How loud it is: Digital Mugician's music is 4.3 dB louder on the Amiga's chip than modules are,
+   in the middle of the collection, and is turned down by that.
+
+## DM2 — Delta Music 2.0
+
+Delta Music 2.0 is a tracker of synthesised and sampled sound whose modules carry their own player
+in front of the music. UnExoticA's collection has eleven, Bent Nielsen's music for Nebulus 2, and
+their players are the same code but for the places it is loaded at. Delta Music 1.3's files, which
+UADE also plays, are not in the collection.
+
+The player is siday's reading of that code, checked against UADE running Eagleeye's adaptation of
+it: what it tells the Amiga's sound chip on every tick is the same as UADE's, for all eleven files
+over their first 40 seconds, and so are the noise it writes over its first waveform on every tick
+and the start of a sample it clears when its loop begins. A module whose player is other code than
+this is not taken, since that code is not run. By how loud each side is from moment to moment over
+the first minute, they are 0.977 to 0.9994 alike.
+
+What is siday's own, or the players' own and worth telling:
+
+1. The player turns a voice off and on again within a tick; on the Amiga, and in UADE, a low note
+   then carries on rather than starting again, about one note in thirty (a third of Hardy Hitech's
+   bass notes). Here every note starts again, which is the least alike file's difference.
+2. When a song has come to its end: when its first voice's list starts again from its loop.
+3. How loud it is: Delta Music's is 7.2 dB louder on the Amiga's chip than modules are, in the
+   middle of the collection, and is turned down by that.
+
+## MXTX — MaxTrax
+
+MaxTrax was a music driver for the Amiga written by Talin (David Joiner) and Joe Pearce and licensed
+to game developers by The Dreamers Guild; its source was later released under the GNU Lesser General
+Public License, and UADE carries it. It is not a tracker: a score is a list of MIDI-like events on
+sixteen channels, played on sampled instruments with envelopes, the driver choosing which of the
+Amiga's four voices plays each note, so that music written for MIDI could be heard on an Amiga. It
+was used for games brought to the Amiga: UnExoticA's collection has 83 files of it, from Dune II and
+Legend of Kyrandia (Westwood), Darkseed, A-Train, Might and Magic III, SimAnt, SimEarth, Contraption
+Zack and the Gold Box games.
+
+A file may hold several scores, each a song here, and the instruments; or the scores alone, whose
+instruments are in a file beside them, `set.smpl` in the collection, found as any companion is
+(A-Train's and two of Kyrandia's). Four files hold instruments and no score, and are not tunes.
+Legend of Kyrandia's tempos are set by the game as it starts each score, and are taken from it as
+ScummVM, which plays the game, has them.
+
+The player is a port of that driver, routine by routine. It was checked against ScummVM's player of
+it, built on its own, which departs from the driver in eight ways (choosing voices, loudness, pitch,
+tempo slides and others); with those put back as the driver has them, what it tells the Amiga's
+sound chip on every tick is the same as siday's for 282 of the 283 songs over their first 40 seconds
+(the other is a score with no end, which ScummVM reads past). Every song with music in it is 0.90
+alike or more by loudness from moment to moment, and 0.983 in the middle.
+
+What is siday's own, or the players' own and worth telling:
+
+1. The driver runs on the Amiga's display, fifty times a second and a little less (49.92 for a PAL
+   frame), and its filter commands are heard.
+2. A falling tempo slide races before it settles, because the driver takes the change as a number
+   without a sign; it is played so, as the source has it, though the games may have had an older
+   driver.
+3. Notes of instruments a file does not have are left out, as the driver leaves them (four files,
+   which say so), and a score that runs off its end without an ending event is ended there (two,
+   which say so). Nine scores are empty.
+
+## SA — Sonic Arranger
+
+Sonic Arranger, by Carsten Schlote, Branko Mikić and Carsten Herbst ("(c) 1991-95", its player
+says), was a tracker of synthesised sound whose instruments are waveforms shaped by a score of
+effects as they play. UnExoticA's collection has 118 files, most of them Matthias Steinwachs' music
+for Ambermoon and Lionheart, with Nils Ruzicka's for Marvin's Marvellous Adventure and Frank
+Lautensack's for Dimo's Quest. They come in three forms: the editor's modules, which say "SOAR"
+(42); games' songs with the parts unnamed (28); and songs with Sonic Arranger's own replay routine
+in front of them (47). One more, of Ambermoon's, is a sample, not a module.
+
+Each is played as UADE plays it: the editor's modules and the games' songs by Wanted Team's player
+of the format, and the songs with a replayer in front by that replayer's rules, which differ from
+Wanted Team's in small ways (the master volume, the instrument number, how a voice is stopped) and
+come in two builds, told apart by their bytes; the 68000 is not imitated. What the player tells the
+Amiga's sound chip on every tick, and what its effects write into each voice's waveform, are the
+same as UADE's for all 240 songs of the 117 modules over their first 40 seconds. By how loud each
+side is from moment to moment over the first minute, the middle of them is 0.9966 alike, and none is
+below 0.98.
+
+What is siday's own, or the players' own and worth telling:
+
+1. Two effects read the position of the display's beam as a random number; it is taken from the
+   tick's time instead, in the three files that use one.
+2. When a song has come to its end: when it goes past its last position, or a jump goes back to one
+   already played.
+3. The filter command is not heard; a song that turns the filter on says so.
+4. How loud it is: Sonic Arranger's music is 5.1 dB louder on the Amiga's chip than modules are, in
+   the middle of the collection, and is turned down by that.
+
 ## XM — FastTracker 2
 
 FastTracker 2 came out in 1994, written by Fredrik Huss and Magnus Högdahl of the group Triton, and

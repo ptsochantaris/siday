@@ -552,7 +552,9 @@ extension DeltaMusicPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Delta Music's is louder on the Amiga's chip than ProTracker's music is, by 7.2 dB in the middle
+    /// of UnExoticA's eleven files, and is turned down by that (2026-10-18).
+    var gain: Float { 0.20 }
 
     mutating func select(song _: Int) throws(TuneError) { start() }
 

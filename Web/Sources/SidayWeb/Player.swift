@@ -83,8 +83,10 @@ final class Player {
         let letters = Array(files[tuneFile].utf8)
         guard let stop = letters.lastIndex(of: 0x2E) else { return nil }
         let named = TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self))
-        // (A file named PSM is Epic MegaGames' if the tune says it is.)
-        return (named == .psm && tune?.format == "MASI" ? .masi : named)?.chapter
+        // (A file named PSM is Epic MegaGames' if the tune says it is, and one named SID SidMon's.)
+        if named == .psm, tune?.format == "MASI" { return TuneFormat.masi.chapter }
+        if named == .sid, tune?.format == "SID1" { return TuneFormat.sid1.chapter }
+        return named?.chapter
     }
 
     /// What there is to say about the playlists last added, that tunes they name were not found, and

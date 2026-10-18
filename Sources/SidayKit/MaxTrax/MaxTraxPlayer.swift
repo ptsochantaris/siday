@@ -563,6 +563,8 @@ extension MaxTraxPlayer: PaulaTickPlayer {
         return info
     }
 
+    /// MaxTrax's music is as loud on the Amiga's chip as ProTracker's is, in the middle of UnExoticA's
+    /// 77 files that play (-24.1 dB against -24.2), and is left as it is (2026-10-18).
     var gain: Float { 0.46 }
 
     mutating func prepareToBeHeard() {}

@@ -51,6 +51,8 @@ public struct Companion: Sendable, Equatable {
 /// - a song packed by Pierre Adane's packer, `title.pap`, has its samples in `title.smp`, or, as the
 ///   songs of a game share them, `set.smp` (or `smp.set`); on the Amiga's own disks `pap.title` in
 ///   `smp.title`. Failing those, the one file ending `.smp` beside it, if there is only one.
+/// - a MaxTrax file of scores alone has its instruments in `set.smpl` beside it (on the Amiga's own
+///   disks, `mxtx.title`'s in `smpl.title`), or the one file ending `.smpl` beside it.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
@@ -97,6 +99,13 @@ public enum Companions {
             var names = ["\(stem).smp", "set.smp", "smp.set"]
             if fileName.lowercased().hasPrefix("pap.") { names.insert("smp." + fileName.dropFirst(4), at: 1) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .mxtx:
+            // Only a file of scores alone needs them (see `MaxTraxPlayer.needsInstruments`): the
+            // instruments of A-Train's and Kyrandia's, in `set.smpl` beside them; on the Amiga's own
+            // disks `mxtx.title` has them in `smpl.title`.
+            var names = ["set.smpl"]
+            if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
+            return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
         case .rol:
             let own = Companion(part: .instruments, names: ["\(stem).bnk"], required: false)
             let standard = Companion(part: .instruments, names: ["standard.bnk"], required: false)

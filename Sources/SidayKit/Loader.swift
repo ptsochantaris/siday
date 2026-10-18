@@ -35,6 +35,11 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case masi
     case symmod
     case bp
+    case sid1, sid2
+    case mug
+    case dm2
+    case mxtx
+    case sa
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -45,6 +50,17 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "vgz" {
             // (A VGM file packed by gzip, which is how they are mostly kept.)
             self = .vgm
+        } else if name == "smn" {
+            // (SidMon's, by the Amiga's name for them; one named SID is found by how it begins.)
+            self = .sid1
+        } else if name == "mug2" || name == "dmu" || name == "dmu2" {
+            // (Digital Mugician's, either of its two.)
+            self = .mug
+        } else if name == "dlm2" {
+            self = .dm2
+        } else if name == "sonic" || name == "sa-p" || name == "lion" || name == "sa_old" {
+            // (Sonic Arranger's, by the names the Amiga's players knew them by.)
+            self = .sa
         } else if name == "bp3" || name == "sndmon" {
             // (SoundMon's, as the Amiga's players named them: bp3 for 2.2's.)
             self = .bp
@@ -80,17 +96,23 @@ public enum TuneFormat: String, CaseIterable, Sendable {
 
     /// The format a file of this kind is, by how it begins, where two formats share a name: Pro Sound
     /// Maker's files for the ZX Spectrum and Epic MegaGames' MASI files are both PSM files, and the
-    /// second says what it is in its first bytes. (`leading` is the start of the file, as much of it as
-    /// there is up to `leadingBytes`.)
+    /// second says what it is in its first bytes; and a SID file is the Commodore 64's, but for one of
+    /// SidMon's for the Amiga, which begins with its player's code. (`leading` is the start of the
+    /// file, as much of it as there is up to `leadingBytes`.)
     public func refined(byLeading leading: [UInt8]) -> TuneFormat {
-        self == .psm && MASIFile.isOne(leading) ? .masi : self
+        switch self {
+        case .psm: MASIFile.isOne(leading) ? .masi : self
+        // (SidMon's own check looks for its code further in too; those found begin with it.)
+        case .sid: SidMon1Player.isOne(leading) ? .sid1 : self
+        default: self
+        }
     }
 
     /// How much of the start of a file `refined(byLeading:)` looks at.
     public static let leadingBytes = 64
 
     /// True if a file of this kind may be found by how it begins to be another (see `refined(byLeading:)`).
-    public var sharesItsName: Bool { self == .psm }
+    public var sharesItsName: Bool { self == .psm || self == .sid }
 
     /// The word that begins the heading under which FORMATS.md tells of this format: its own name,
     /// or for a format that shares a part, the first name in that heading.
@@ -101,6 +123,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .mfp: "MOD"
         case .fc: "HIP"
         case .pap, .gmc, .ims: "PUMA"
+        case .sid1, .sid2: "SIDMON"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -179,6 +202,29 @@ public enum TuneLoader {
         case .gmc:
             // Game Music Creator's, as its own player plays them.
             return try PaulaTickRenderer(GMCPlayer(data), options: options)
+        case .sid1:
+            // SidMon's, its player before it.
+            return try PaulaTickRenderer(SidMon1Player(data), options: options)
+        case .sid2:
+            return try PaulaTickRenderer(SidMon2Player(data), options: options)
+        case .mug:
+            // Digital Mugician's, and Mugician II's of seven voices.
+            return try PaulaTickRenderer(MugicianPlayer(data), options: options)
+        case .dm2:
+            // Delta Music 2.0's, each with its player in it.
+            return try PaulaTickRenderer(DeltaMusicPlayer(data), options: options)
+        case .mxtx:
+            // MaxTrax's scores, with the instruments from the file beside them when they have none.
+            if MaxTraxPlayer.needsInstruments(data) {
+                guard let instruments = companions.first ?? nil else {
+                    throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+                }
+                return try PaulaTickRenderer(MaxTraxPlayer(data, instruments: instruments), options: options)
+            }
+            return try PaulaTickRenderer(MaxTraxPlayer(data), options: options)
+        case .sa:
+            // Sonic Arranger's: the editor's modules, games' songs, and songs with their replayer.
+            return try PaulaTickRenderer(SonicArrangerPlayer(data), options: options)
         case .bp:
             // Brian Postma's SoundMon, 2.0's and 2.2's, as his players play them.
             return try PaulaTickRenderer(SoundMonPlayer(data), options: options)

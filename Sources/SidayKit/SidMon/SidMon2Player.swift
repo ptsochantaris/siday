@@ -734,7 +734,9 @@ extension SidMon2Player: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// SidMon II's music is louder on the Amiga's chip than ProTracker's is, by 3.6 dB in the middle of
+    /// UnExoticA's twelve files, and is turned down by that (2026-10-18).
+    var gain: Float { 0.30 }
 
     mutating func prepareToBeHeard() {}
 

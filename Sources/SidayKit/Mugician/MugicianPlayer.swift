@@ -853,7 +853,9 @@ extension MugicianPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Digital Mugician's music is louder on the Amiga's chip than ProTracker's is, by 4.3 dB in the
+    /// middle of UnExoticA's 26 files, and is turned down by that (2026-10-18).
+    var gain: Float { 0.28 }
 
     mutating func select(song: Int) throws(TuneError) {
         guard songStarts.indices.contains(song) else { throw .unsupported("no song \(song + 1)") }

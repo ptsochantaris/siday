@@ -221,6 +221,32 @@ module" and "SoundMon 2.2 player module", Jul 2004, carried by UADE as `SoundMon
 `SoundMon2.2`, with their source in `amigasrc/players/uade/soundmon`). Their code was read for that,
 and nothing of it is carried here but what it does and its tables of periods and of vibrato.
 
+## SidMon, Digital Mugician, Delta Music and Sonic Arranger
+
+`Sources/SidayKit/SidMon`, `Mugician`, `DeltaMusic` and `SonicArranger` play these formats as their
+own players do, as UADE runs them: "SIDMon 1.0 player module for UADE" (2001, by mld; the player says
+"SID-MON BY R.v.VLIET (c) 1988"), "Sidmon-II Eagleplayer V1.8" (1993, adapted by Defect), Wanted
+Team's "Mugician player module V1.1" and "Mugician II player module V1.7" ("(c) 1990-94" and
+"(c) 1991-94 Reinier 'Rhino' van Vliet", with their source in UADE's `amigasrc/players/wanted_team`),
+"Deltamusic V2.0 player module V1.2" (1993, adapted by Eagleeye), Wanted Team's "Sonic Arranger 2.18
+player module V1.0" ("(c) 1991-95 by Carsten Schlote, Branko Mikić & Carsten Herbst") and
+"SonicArranger(pc)all versions player module V1.0" (1993, by Turbo of Infect). Their code, and the
+replay routines that SidMon's, Delta Music's and some of Sonic Arranger's files carry in front of their
+music, were read for that, and nothing of them is carried here but what they do and their tables.
+
+## MaxTrax
+
+`Sources/SidayKit/MaxTrax` is a Swift port of the MaxTrax Music Driver (`max.asm`, `shared.asm`,
+`driver.i`), as UADE carries its source (`amigasrc/players/other/max_trax`).
+
+- Written by Talin (David Joiner) and Joe Pearce; licensed to game developers by The Dreamers Guild
+- GNU Lesser General Public License, version 2.1 or later
+- Source: https://gitlab.com/uade-music-player/uade
+
+It was checked against ScummVM's player of MaxTrax (`audio/mods/maxtrax.cpp`, GNU General Public
+License, version 2 or later, https://github.com/scummvm/scummvm), from which the tempos Legend of
+Kyrandia's game gives its scores are taken (`engines/kyra/sound/sound_amiga_lok.cpp`).
+
 ## Magnetic Fields Packer
 
 `Sources/SidayKit/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as

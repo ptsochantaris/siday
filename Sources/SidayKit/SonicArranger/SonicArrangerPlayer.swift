@@ -1136,7 +1136,9 @@ extension SonicArrangerPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Sonic Arranger's music is louder on the Amiga's chip than ProTracker's is, by 5.1 dB in the
+    /// middle of UnExoticA's 116 files, and is turned down by that (2026-10-18).
+    var gain: Float { 0.26 }
 
     mutating func prepareToBeHeard() {}
 

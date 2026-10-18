@@ -702,7 +702,9 @@ extension SidMon1Player: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// SidMon's music is louder on the Amiga's chip than ProTracker's is, by 5.6 dB in the middle of
+    /// Venom Wing's three files, and is turned down by that (2026-10-18).
+    var gain: Float { 0.24 }
 
     mutating func prepareToBeHeard() {}
 
