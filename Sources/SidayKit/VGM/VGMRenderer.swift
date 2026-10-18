@@ -16,6 +16,8 @@
 final class VGMRenderer: Renderer, ReferenceComparable {
     let info: TuneInfo
     let knownLength: Double?
+    /// How long the part that goes round is, from where the file says it goes back to.
+    let loopLength: Double?
     let endsByLooping: Bool
     private(set) var loopCount = 0
     private(set) var hasEnded = false
@@ -120,6 +122,7 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         endsByLooping = file.loopStart != nil
         let seconds = Double(file.ticks) / 44100
         knownLength = file.ticks > 0 ? seconds + (endsByLooping ? 0 : Self.tailSeconds) : nil
+        loopLength = endsByLooping && file.loopTicks > 0 ? Double(file.loopTicks) / 44100 : nil
 
         var info = TuneInfo(format: "VGM")
         info.title = file.title

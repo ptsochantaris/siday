@@ -54,6 +54,10 @@ public protocol Renderer: AnyObject {
     var songs: [SongInfo] { get }
     /// Length of the current subsong in seconds when the format knows it (to the loop point for trackers).
     var knownLength: Double? { get }
+    /// For a tune that ends by looping, how long each pass after the first is, in seconds: from the
+    /// place it goes back to, to the place it goes back from. Nil when it goes back to its beginning,
+    /// or it is not known where it goes back to, and a pass is taken to be the whole of `knownLength`.
+    var loopLength: Double? { get }
     /// Seconds of fade-out the file itself asks for, if any.
     var fileFade: Double? { get }
     /// Number of times the tune has wrapped to its loop point, for formats that can tell.
@@ -119,6 +123,7 @@ public extension Renderer {
     func select(subsong _: Int) {}
     var songs: [SongInfo] { Array(repeating: SongInfo(), count: subsongCount) }
     var fileFade: Double? { nil }
+    var loopLength: Double? { nil }
     var hasEnded: Bool { false }
     var loopCount: Int { 0 }
     var endsByLooping: Bool { false }

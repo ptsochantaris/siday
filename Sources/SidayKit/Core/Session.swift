@@ -178,9 +178,26 @@ public final class TuneSession {
     /// the wait that showed it was over, and no part of the tune.
     public var silence: Double { Double(silentFrames) / Double(outputSampleRate) }
 
+    /// How long a tune of a known length plays for: for one that ends by looping, its first pass and
+    /// each pass after it, which may be shorter (a tune that goes back to a place after its beginning).
+    private func playedLength(_ known: Double) -> Double {
+        guard renderer.endsByLooping else { return known }
+        return known + Double(max(1, policy.loops) - 1) * (renderer.loopLength ?? known)
+    }
+
+    /// How long the tune turned out to play for, once it is over and if it ended on its own terms: up
+    /// to where its ending began, the fade after its last time round or its stopping, or to where it
+    /// came to rest. `displayLength` is what that was expected to be, which for a tune that goes back
+    /// to a place after its beginning, or that was taken to go round and did not, may not be it. Nil
+    /// while it plays, and for one that ended by falling silent (whose silence is no part of it).
+    public var playedLength: Double? {
+        guard finished, end != .silent, end != .neverSounded else { return nil }
+        return Double(fadeStart >= 0 ? fadeStart : framesRendered) / Double(outputSampleRate)
+    }
+
     /// Length to show: the tune's own length when known, otherwise the time it will be given.
     public var displayLength: Double {
-        var length = renderer.knownLength.map { renderer.endsByLooping ? $0 * Double(max(1, policy.loops)) : $0 } ?? policy.defaultTime
+        var length = renderer.knownLength.map(playedLength) ?? policy.defaultTime
         if let cap = policy.maxTime { length = min(length, cap) }
         return length
     }
@@ -301,7 +318,7 @@ public final class TuneSession {
     ///   as the tune's next frames.
     private func soundComesBack() -> Bool {
         let rate = Double(outputSampleRate)
-        var over = renderer.knownLength.map { renderer.endsByLooping ? $0 * Double(max(1, policy.loops)) : $0 } ?? policy.defaultTime
+        var over = renderer.knownLength.map(playedLength) ?? policy.defaultTime
         if let cap = policy.maxTime { over = min(over, cap) }
         let block = soundAhead ?? .allocate(capacity: Self.aheadFrames * 2)
         soundAhead = block

@@ -283,6 +283,11 @@ function finish() {
   // known but which fell silent before it: a module with nothing but empty rows before it goes round.
   const length = end - silence;
   found = (core.siday_length_known() === 0 || silence > 0) && length > 0 && length < core.siday_length() ? length : 0;
+  // So it is too for a tune that goes round, whose length was reckoned from its first time round: one
+  // that goes back to a place after its beginning is shorter each time after, and one taken to go
+  // round may simply end. Where its ending began is its length.
+  const played = core.siday_played_length();
+  if (!found && played > 0 && Math.abs(played - core.siday_length()) > 0.5) found = played;
   kept.done = true;
   kept.found = found;
   // And how loud it is, if it was measured as it was rendered, for the page to keep.

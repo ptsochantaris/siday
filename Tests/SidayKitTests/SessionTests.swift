@@ -174,3 +174,49 @@ private func faithful(_ sound: [Float], to tune: Tune, until seconds: Double) ->
     #expect(abs(lit - 31 * 48) <= 6)
     #expect(abs(dark - 8 * 48) <= 6)
 }
+
+/// A tune that plays for `intro` seconds, then goes round a part of `loop` seconds that comes back to
+/// a place after its beginning, as a VGM file or a module with a restart may.
+private final class GoesBackPartway: Renderer {
+    let info = TuneInfo(format: "TEST")
+    let knownLength: Double?
+    let loopLength: Double?
+    let endsByLooping = true
+    private(set) var loopCount = 0
+    private let intro: Int, loop: Int
+    private var frame = 0
+
+    init(intro: Double, loop: Double, saysLoop: Bool) {
+        self.intro = Int(intro * 48000)
+        self.loop = Int(loop * 48000)
+        knownLength = intro + loop
+        loopLength = saysLoop ? loop : nil
+    }
+
+    func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
+        for i in 0 ..< frames {
+            let value: Float = frame / 60 % 2 == 0 ? 0.2 : -0.2
+            buffer[i * 2] = value
+            buffer[i * 2 + 1] = value
+            frame += 1
+            if frame >= intro + loop, (frame - intro) % loop == 0 { loopCount += 1 }
+        }
+    }
+}
+
+@Test func aTuneThatGoesBackPartwayIsAsLongAsItsPasses() {
+    var policy = PlaybackPolicy()
+    policy.loops = 2
+    for saysLoop in [true, false] {
+        let session = TuneSession(renderer: GoesBackPartway(intro: 6, loop: 4, saysLoop: saysLoop), policy: policy)
+        // Its length is its first time round and its second, which is shorter, where it says so.
+        #expect(session.displayLength == (saysLoop ? 14 : 20))
+        #expect(session.playedLength == nil)
+        var block = [Float](repeating: 0, count: 2000)
+        while !session.finished {
+            _ = block.withUnsafeMutableBufferPointer { session.render(into: $0.baseAddress!, frames: 1000) }
+        }
+        // Once over, it is known to have been 14 seconds before its fade, whatever was expected.
+        #expect(abs((session.playedLength ?? 0) - 14) < 0.05)
+    }
+}

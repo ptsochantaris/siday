@@ -380,6 +380,7 @@ final class WebPlayer {
     var length: Double { session?.displayLength ?? 0 }
     /// False when the file does not say how long the song is, and `length` is only the time it is allowed.
     var lengthIsKnown: Bool { renderer?.knownLength != nil }
+    var playedLength: Double { session?.playedLength ?? 0 }
     /// For a song that ended because it had fallen silent, or never made a sound: the seconds of
     /// silence it took to be sure. 0 for a song that is still playing or ended any other way.
     var silenceAtEnd: Double {
@@ -664,6 +665,12 @@ public func sidayLength() -> Double { player.length }
 @_expose(wasm, "siday_length_known")
 @_cdecl("siday_length_known")
 public func sidayLengthKnown() -> Int32 { player.lengthIsKnown ? 1 : 0 }
+
+/// Once a song is over and it ended on its own terms: how long it played for, up to where its ending
+/// began (see `TuneSession.playedLength`); 0 before then, or if it ended by falling silent.
+@_expose(wasm, "siday_played_length")
+@_cdecl("siday_played_length")
+public func sidayPlayedLength() -> Double { player.playedLength }
 
 /// Once a song is over: the seconds of silence at its end that showed it was, if that is how it
 /// ended, and 0 if not. They are no part of the song.
