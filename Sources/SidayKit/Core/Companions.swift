@@ -48,6 +48,9 @@ public struct Companion: Sendable, Equatable {
 ///   one. A TFMX module of one file has its samples in it, and needs none.
 /// - a song of Jochen Hippel's compressed TFMX (COSO) that keeps no samples of its own, as Amberstar's
 ///   do, has them in `set.smp` (in older copies, `samp.hipc`), or the one file ending `.smp` beside it.
+/// - a song packed by Pierre Adane's packer, `title.pap`, has its samples in `title.smp`, or, as the
+///   songs of a game share them, `set.smp` (or `smp.set`); on the Amiga's own disks `pap.title` in
+///   `smp.title`. Failing those, the one file ending `.smp` beside it, if there is only one.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
@@ -88,6 +91,12 @@ public enum Companions {
             // Only a compressed song that keeps none of its own needs them (see
             // `HippelPlayer.keepsSamplesApart`): Amberstar's, which share one file of them.
             return [Companion(part: .samples, names: ["set.smp", "smp.set", "samp.hipc"], kind: "smp", required: false)]
+        case .pap:
+            // Kept as the songs of a game share them, in `set.smp` (UnExoticA's name) beside them;
+            // or as Wanted Team's player looks for them, `smp.set`, or for `pap.title` in `smp.title`.
+            var names = ["\(stem).smp", "set.smp", "smp.set"]
+            if fileName.lowercased().hasPrefix("pap.") { names.insert("smp." + fileName.dropFirst(4), at: 1) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
         case .rol:
             let own = Companion(part: .instruments, names: ["\(stem).bnk"], required: false)
             let standard = Companion(part: .instruments, names: ["standard.bnk"], required: false)

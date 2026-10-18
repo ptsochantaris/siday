@@ -378,7 +378,9 @@ extension PAPPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Pierre Adane's packed modules are louder on the Amiga's chip than ProTracker's are, by 3.1 dB in
+    /// the middle of UnExoticA's 22, and are turned down by that (2026-10-18).
+    var gain: Float { 0.32 }
 
     mutating func select(song _: Int) throws(TuneError) { start() }
 

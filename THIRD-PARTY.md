@@ -198,6 +198,21 @@ Wanted Team's player of it has it ("Jochen Hippel 7V player module V1.1", 2009, 
 `JochenHippel-7V`; it says of itself "(c) 1990-91 Jochen 'Mad Max' Hippel"), read in the same way
 for the same kinds of constants; the rate it mixes at is the one UADE runs it at.
 
+## PumaTracker, Pierre Adane's packer, Game Music Creator and Images Music System
+
+`Sources/SidayKit/Puma`, `PAP`, `GMC` and `IMS` play these four kinds of game music as their own
+players did, as kept for EaglePlayer and DeliTracker and carried by UADE: "PumaTracker player module
+V1.1" (2006, `PumaTracker`; "(c) 1991 by Jean-Charles Meyrignac & Pierre-Eric Loriaux, adapted by
+WT"), "Pierre Adane Packer player module V1.1" (2001, `PierreAdane`; "(c) 1990 by Pierre Adane,
+adapted by Mr.Larmer/Wanted Team"), "Game Music Creator player module V1.6" (1993, `GMC`; Andreas
+Tadic's, "adapted by Delirium & (much more) by Buggs") and "Images Music System player module V1.2"
+(2001, `ImagesMusicSystem`; "(c) 1990 by Images Software, adapted by Wanted Team"). Their 68000 code
+was read for that, and nothing of it is carried here but what it does and its tables: PumaTracker's
+periods and its 42 waveforms (`PumaTables.swift`, taken from the player; the same bytes as OpenMPT's
+`Load_puma.cpp` has, BSD licence, Copyright (c) 2004-2026, OpenMPT Project Developers and
+Contributors), Pierre Adane's and Images Music System's periods, and the list of Beast Busters' songs
+that Wanted Team made.
+
 ## Magnetic Fields Packer
 
 `Sources/SidayKit/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as

@@ -28,6 +28,10 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case tfmx
     case hip
     case fc
+    case puma
+    case pap
+    case gmc
+    case ims
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -38,6 +42,10 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "vgz" {
             // (A VGM file packed by gzip, which is how they are mostly kept.)
             self = .vgm
+        } else if name == "gmc" {
+            // (Game Music Creator's, which ProWizard would make a ProTracker module of, but which
+            // is played by its own player.)
+            self = .gmc
         } else if ProWizard.extensions.contains(name) || name == "kris" {
             // (A module packed by one of the packers games and demos used, named for the packer; or
             // one of ChipTracker's, which is read into a module.)
@@ -69,6 +77,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sfx, .okt: "SFX"
         case .mfp: "MOD"
         case .fc: "HIP"
+        case .pap, .gmc, .ims: "PUMA"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -135,6 +144,21 @@ public enum TuneLoader {
                 return try PaulaTickRenderer(HippelPlayer(data + samples), options: options)
             }
             return try PaulaTickRenderer(HippelPlayer(data), options: options)
+        case .puma:
+            // PumaTracker's, with its waveforms built into the player.
+            return try PaulaTickRenderer(PumaPlayer(data), options: options)
+        case .pap:
+            // Pierre Adane's packed modules, with their samples in a file of their own.
+            guard let samples = companions.first ?? nil else {
+                throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+            }
+            return try PaulaTickRenderer(PAPPlayer(data, samples: samples), options: options)
+        case .gmc:
+            // Game Music Creator's, as its own player plays them.
+            return try PaulaTickRenderer(GMCPlayer(data), options: options)
+        case .ims:
+            // Images Music System's, with a song for each place in the order its player starts one.
+            return try PaulaTickRenderer(IMSPlayer(data), options: options)
         case .mfp:
             // A ProTracker module packed with its samples in a file of their own.
             guard let samples = companions.first ?? nil else {

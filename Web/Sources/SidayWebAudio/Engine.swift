@@ -141,6 +141,7 @@ final class WebPlayer {
                 || format == .mfp
                 || format == .tfmx
                 || format == .hip || format == .fc
+                || format == .puma || format == .pap || format == .gmc || format == .ims
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

@@ -331,7 +331,9 @@ extension GMCPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Game Music Creator's modules are louder on the Amiga's chip than ProTracker's are, by 5 dB in the
+    /// middle of UnExoticA's 50, and are turned down by that (2026-10-18).
+    var gain: Float { 0.26 }
 
     mutating func prepareToBeHeard() {}
 

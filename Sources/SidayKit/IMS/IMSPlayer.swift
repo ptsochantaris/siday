@@ -463,7 +463,9 @@ extension IMSPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Images Music System's modules are louder on the Amiga's chip than ProTracker's are, by 7.8 dB in
+    /// the middle of UnExoticA's 12, and are turned down by that (2026-10-18).
+    var gain: Float { 0.19 }
 
     mutating func prepareToBeHeard() {}
 

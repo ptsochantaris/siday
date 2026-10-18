@@ -596,7 +596,9 @@ extension PumaPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// PumaTracker's modules are louder on the Amiga's chip than ProTracker's are, by 3.5 dB in the
+    /// middle of UnExoticA's 45, and are turned down by that (2026-10-18).
+    var gain: Float { 0.31 }
 
     mutating func select(song _: Int) throws(TuneError) { start() }
 

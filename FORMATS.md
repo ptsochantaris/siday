@@ -29,7 +29,7 @@ kept, on the computer or in the browser.
 
 Some files are not all of a tune, or not a tune at all. A playlist names tunes in other files; a
 ROL tune takes its instruments from a bank in a file beside it; a song packed with the Magnetic
-Fields Packer, or with TFMX, keeps its samples in a file of their own. They are all found in one way, by
+Fields Packer, or with TFMX, or by Pierre Adane's packer, keeps its samples in a file of their own. They are all found in one way, by
 `FileFinder`: by the names they are known to have, beside the file that wants them first, and as
 Windows would, to which a capital and a small letter are one. On the command line that is the
 folder on the disk. In a browser it is the files the page has been given, since a page can read no
@@ -337,7 +337,7 @@ and the music of a game is as often found in one of them as not: The Player, in 
 6.0 and 6.1; NoisePacker, in three versions; ProRunner, in two;
 ProPacker, in two; Pha Packer, Tracker Packer, AC1D Packer, the Novotrade Packer, Digital Illusions'
 packer; and the files of Game Music Creator, a tracker of its own whose songs are near enough to
-ProTracker's to be read as one. What was packed was a ProTracker module, or one in all but name, and
+ProTracker's to be read as one, though a file named for it is played by its own player (see PUMA). What was packed was a ProTracker module, or one in all but name, and
 that is what each is unpacked to again, to be played as ProTracker played it. Sylvain Chipaux's
 ProWizard knew how to unpack them all; libxmp keeps it, and the unpacking here is a port of the part
 of it these packers need. Its tests are asked in the order libxmp asks them, and are given as much
@@ -352,8 +352,7 @@ song of no length, and is played here as that pattern once (fourteen files, of B
 Frankenstein); and the
 modules of Ultimate Pinball Quest, which say "KURT" where ProRunner's say "SNT.", are taken as
 ProRunner's, and so unpacked are as UADE plays them. Not played: the eight of Winter Olympics that say
-"+SNT", which unpacked as ProRunner's are not as UADE plays them; ten of Game Music Creator's, which
-ProWizard refuses or which are cut short; and eight named for packers that none of these packers
+"+SNT", which unpacked as ProRunner's are not as UADE plays them; and eight named for packers that none of these packers
 takes, and that cannot be read as modules either. Two of Brian the Lion's are silent, because
 ProWizard numbers their patterns wrongly, where UADE plays them; and one of Evil's Doom's is silent
 in both. A file whose last sample is cut short (sixteen of The Player 4's, as the games' rippers
@@ -857,6 +856,78 @@ the library itself is 0.962, with 33 below 0.9 (six of the seven files of TFMX 7
 here, and 0.84 to 0.94 in the library). UADE plays the compressed files with a player of its own
 making ("hipc player V0.2 for UADE"), and does not play Amberstar's 39 songs. All 229 files of
 music are played; the one file left over is Amberstar's samples.
+
+## PUMA, PAP, GMC and IMS — four small players of games' music
+
+Not every game's music was made in a tracker anyone could buy. A programmer or a studio often had a
+player of its own, and an editor for its musician, and the music was kept as that player wanted it
+and went no further than the games it was made for. Four such players are here, each with the games
+of UnExoticA's collection that used it, and each played by its own 68000 code, which Wanted Team and
+others kept as players for EaglePlayer and DeliTracker, and which UADE runs today.
+
+PumaTracker was Jean-Charles Meyrignac's and Pierre-Eric Loriaux's ("(c) 1991", its player says),
+and the music of Toki, Liquid Kids, Snow Bros and Elf was made in it, by Loriaux, Jean Baudlot and
+Matthew Cannon (45 files). It is part tracker, part synthesizer: a song is a list of orders, each
+giving each of the four voices a pattern of 32 rows and moving its notes and instruments up or down,
+and an instrument is two little scripts run on every tick, one for the volume and the sound, the
+other for the pitch, which can play one of the module's ten samples or one of 42 short waveforms of
+the player's own, and sweep from one waveform to the next as a note plays.
+
+Pierre Adane packed the music of two more of Loriaux's games, Pang and Ivanhoe (22 files), with a
+packer and player of his own ("(c) 1990 by Pierre Adane"): a tracker's module made small, each voice
+with its own list of patterns, the empty rows after each note left out, and the samples, which the
+tunes of a game share, in a file of their own: `set.smp` beside them in UnExoticA's collection,
+which siday finds as it finds any companion (or `smp.set`, the Amiga's name for it).
+
+Game Music Creator was Andreas Tadic's tracker, and its replayer went into some twenty games of the
+collection (50 files), from Deuteros and Fatal Mission to Manic Miner and Jet Set Willy 2: fifteen
+samples, patterns of 64 rows, and a few commands, much as the first SoundTracker had. Its modules
+are near enough to ProTracker's that ProWizard unpacks them into ProTracker modules, and until
+October 2026 that was how forty of them were played here, and ten not at all, because ProWizard
+refuses them or finds them cut short. Played by its own player, which Delirium and Buggs adapted for
+DeliTracker and EaglePlayer, they are all heard, and as they were made: its slides go on every tick
+until the voice's next note, where ProTracker's stop at the next row; a note starts with its voice
+turned off for a tick; and after a jump in the order, the voices after the one that jumped read
+their notes from where the player has been left pointing, which Deuteros's music depends on. Set
+beside UADE over the first minute, the forty that ProWizard unpacks were 0.979 alike played as
+ProTracker modules, nineteen of them below 0.99, and are 0.992 alike played by Game Music Creator's
+own player. A Game Music Creator file named as a ProTracker module is still unpacked by ProWizard
+(see MOD).
+
+Images Music System was the tracker of Images Software ("(c) 1990"), in which Matthew Simmonds and
+Jolyon Myers wrote the music of the games the company brought to the Amiga: The Hunt for Red
+October, Shadow Dancer and Beast Busters (12 files). Its modules are much like SoundTracker's, but
+for each note being three bytes, a note of the player's own table rather than a period. A module may
+hold several songs, each ending with a jump in the order, and the next beginning after it, which is
+how Wanted Team's player finds them; Beast Busters, which has more songs than its jumps tell, has
+the list of them Wanted Team made for it.
+
+Each of the four players is here as its own code is, tick by tick, and what each tells the Amiga's
+sound chip on every tick, its periods, volumes, and where each sample is and how long, is the same
+as UADE's running of the player tells it, from the first sound, for every file of the collection:
+over the first minute for PumaTracker's and Pierre Adane's, and over five minutes for Game Music
+Creator's and every song of Images Music System's. By how loud each side is from moment to moment
+over the first minute, they are 0.997 and 0.993 alike on average, none below 0.98; what is left over
+is how the chip itself is imitated. All 129 files are played, and none was found to be other than it
+is named.
+
+What is siday's own, or the players' own and worth telling:
+
+1. When a song has come to its end: when its first row is played again, or for Game Music Creator's
+   that loop only by jumping (Deuteros), when the order comes back to a place it has played. The
+   players either say nothing, or say so a row or so before.
+2. Three of PumaTracker's files (two of Toki's, one of Snow Bros') play notes past the end of the
+   player's table of periods, where it reads on into what follows the table: what that is depends on
+   where the game put the module in memory, and is read as it is where UADE puts it.
+3. One of Pang's modules has one sample's length wrong, which Pierre Adane's player mends as it
+   loads it, by a test that only that module meets; it is mended here in the same way.
+4. Images Music System's E command turns the Amiga's filter on or off, which is not heard here; the
+   one file that has it only turns it off. Where the players would read past the module or their own
+   tables, or stop, or never end, what they would read is read, or silence, or the song is ended, as
+   told in the code.
+5. How loud they are: on the Amiga's chip, PumaTracker's music is 3.5 dB louder than modules are in
+   the middle of the collection, Pierre Adane's 3.1, Game Music Creator's 5 and Images Music
+   System's 7.8, and each is turned down by that.
 
 ## XM — FastTracker 2
 
