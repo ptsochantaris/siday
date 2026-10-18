@@ -62,13 +62,30 @@ final class ST3Module {
     /// Scream Tracker 3.20, ModPlug Tracker's and Schism Tracker's, by what they leave as nothing.
     /// (Sound Club, PlayerPRO and Velvet Studio, which also say so, had no such command.)
     let keepsFilterMacros: Bool
-    /// True for a DSM file's module, which is played as OpenMPT plays one where it and Scream Tracker
-    /// differ (see `DSMFile`): a slide to a note that names another sample than the one sounding
+    /// True for a DSM file's module, or a MASI file's, which OpenMPT plays alike, and which are played
+    /// as it plays them where it and Scream Tracker differ (see `DSMFile` and `MASIFile`): a slide to a note that names another sample than the one sounding
     /// goes on with that one, at its rate, where Scream Tracker takes up the other's rate; a slide on
     /// a channel whose sample has ended starts it again, where Scream Tracker slides it in silence;
     /// and a tempo is the tempo asked for, where Scream Tracker's timer on a Gravis Ultrasound goes
     /// by whole ticks a second, so that a tempo of 136 is played as 135 is.
     var playsAsDSIK = false
+    /// For a MASI file's module (see `MASIFile`), which holds songs each with a list of patterns of
+    /// its own, one after another in the module's, each list with an end after it: where each song
+    /// begins, and the place it goes back to at its end, where Scream Tracker would go back to the
+    /// top of the module's list; its speed and tempo; the place between the speakers of each of its
+    /// channels, as the S3M file has the first song's (0x20 and the place), and which of them are in
+    /// surround; and its name. Empty for any other module.
+    struct Song {
+        var start: Int, restart: Int
+        var speed: UInt8, tempo: UInt8
+        var pans: [UInt8]
+        var surround: [Bool]
+        var title: String
+    }
+
+    var songs: [Song] = []
+    /// The song of `songs` that a place in the list of patterns is part of; nil if there are none.
+    func song(at place: Int) -> Song? { songs.last { $0.start <= place } }
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`. An S3M file
     /// from a later tracker may have what Scream Tracker never had.
     private(set) var shortfalls: [String] = []

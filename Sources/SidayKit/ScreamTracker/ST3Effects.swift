@@ -483,6 +483,7 @@ extension ST3Player {
         case 0x4: ch.avibtretype = ((ch.info << 5) & 0xF0) | (ch.avibtretype & 0x0F)
         case 0x8:
             ch.apanpos = 0xF0 | value
+            ch.surround = false
             ch.m_oldpos = 0xFFFF_FFFF // a GUS starts the note again from where it was, with a click
         case 0x9:
             // ModPlug's reverb for the channel's notes, in a file that a later tracker made: S99 on, S98 off.

@@ -44,6 +44,9 @@ final class ST3Cards {
         /// All ones for a voice of a channel put in ModPlug's reverb, which goes there and not to
         /// the card's own output; none for any other.
         var reverb: Int32 = 0
+        /// All ones for a voice of a channel in surround (in a MASI file's: see `ST3Channel.surround`),
+        /// whose right side is upside down; none for any other.
+        var surround: Int32 = 0
     }
 
     /// What of a channel the Sound Blaster's mixer needs, kept apart from the channel while it mixes.
@@ -307,7 +310,10 @@ final class ST3Cards {
     /// them: for a later tracker's commands (see `ST3Player.laterPanning`). Unless it is only moving
     /// for a moment, the channel's next notes start there too.
     func place(_ ch: ST3Channel, balance: UInt8, moving: Bool) {
-        if !moving { ch.apanpos = 0xF0 | balance }
+        if !moving {
+            ch.apanpos = 0xF0 | balance
+            ch.surround = false
+        }
         guard stereo, card == .gus, ch.aguschannel >= 0, Int(ch.aguschannel) < mixedVoices else { return }
         let voice = Int(ch.aguschannel)
         voices[voice].LOff = Self.panOffsTable[Int(balance & 15)]
@@ -404,7 +410,7 @@ final class ST3Cards {
     /// Where a channel of samples lies between the two sides, from -1 on the left to 1 on the right.
     func side(of ch: ST3Channel) -> Float {
         let channel = Int(ch.channelnum)
-        guard stereo, channel < 16 || channel >= ST3Module.firstExtraChannel && card == .gus else { return 0 }
+        guard stereo, channel < 16 || channel >= ST3Module.firstExtraChannel && card == .gus, !ch.surround else { return 0 }
         switch card {
         case .gus:
             let balance = ch.apanpos >= 0xF0 ? ch.apanpos & 0x0F : stchannelpan[channel]
@@ -441,6 +447,7 @@ final class ST3Cards {
                 setVolumeSlide(ch, ch.m_oldvol, ch.m_vol)
                 if ch.filterChanged { tell(ch, &voices[gv].filter, afresh: false) }
                 voices[gv].reverb = ch.reverb ? -1 : 0
+                voices[gv].surround = ch.surround ? -1 : 0
                 return
             }
             // A new note: the old one slides away to nothing on its voice, and the channel takes another.
@@ -476,6 +483,7 @@ final class ST3Cards {
         ch.filterBegun = false
         tell(ch, &voices[gv].filter, afresh: true)
         voices[gv].reverb = ch.reverb ? -1 : 0
+        voices[gv].surround = ch.surround ? -1 : 0
         if ch.m_end == 0 {
             voiceused[Int(ch.aguschannel)] = -1
             ch.aguschannel = -1
@@ -489,6 +497,12 @@ final class ST3Cards {
             setBalance(ch.apanpos & 0x0F)
         } else {
             setBalance(stchannelpan[Int(ch.channelnum)])
+        }
+        if ch.surround {
+            // (A channel in surround is as loud on each side, as the middle of the card's places
+            // nearly is, so that the two sides heard together are nothing of it, as in OpenMPT.)
+            voices[gv].LOff = 128
+            voices[gv].ROff = 128
         }
         voices[gv].SAE = address(ch, ch.m_end)
         voices[gv].SAS = noLoop(ch) ? address(ch, 0) : address(ch, ch.m_loop)
@@ -569,7 +583,7 @@ final class ST3Cards {
                     // (A voice of a channel that is left out of the sound adds nothing to it. One in
                     // ModPlug's reverb is added to what is sent there instead.)
                     let outL = ((smp &* (256 + (volL & 0xFF))) >> (24 - (volL >> 8))) & v.pointee.heard
-                    let outR = ((smpR &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard
+                    let outR = ((((smpR &* (256 + (volR & 0xFF))) >> (24 - (volR >> 8))) & v.pointee.heard) ^ v.pointee.surround) &- v.pointee.surround
                     left &+= outL & ~v.pointee.reverb
                     right &+= outR & ~v.pointee.reverb
                     sentLeft &+= outL & v.pointee.reverb

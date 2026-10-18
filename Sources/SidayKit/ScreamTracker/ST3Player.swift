@@ -41,6 +41,10 @@ final class ST3Channel {
     var filtered = false, filterChanged = false, filterBegun = false
     /// And true while its notes are put in ModPlug's reverb (S99), on a card that has it (see `ST3Cards`).
     var reverb = false
+    /// True for a channel of a MASI file's song that is in surround (see `ST3Module.Song`), until a
+    /// command puts it somewhere between the speakers: on a Gravis Ultrasound, its voices' right side
+    /// is upside down, as OpenMPT has it.
+    var surround = false
     /// And the last tempo it was given (T), which T00 gives again, in a later tracker's file.
     var lastTempo: UInt8 = 0
     var m_pos: UInt32 = 0, m_poslow: UInt32 = 0, m_oldpos: UInt32 = 0, m_end: UInt32 = 0, m_loop: UInt32 = 0, m_speed: UInt32 = 0
@@ -204,6 +208,13 @@ public final class ST3Player {
         // An extra channel of samples is where the file puts it, or in the middle, as OpenMPT has it.
         for place in 0 ..< 32 where module.extraChannels[place] == channelTable[place] {
             zchn[Int(channelTable[place])].apanpos = 0xF0 | (module.defaultpan[place] & 32 != 0 ? module.defaultpan[place] & 0xF : 7)
+        }
+        // A MASI file's song starts at its own speed and tempo, with its channels at its places.
+        if let song = module.song(at: order) {
+            settempo(song.tempo)
+            setspeed(song.speed)
+            for i in 0 ..< 32 where song.pans[i] & 32 != 0 { zchn[i].apanpos = 0xF0 | (song.pans[i] & 0xF) }
+            for i in 0 ..< min(32, song.surround.count) { zchn[i].surround = song.surround[i] }
         }
         np_ord = Int16(max(0, min(ST3Module.mostOrders - 1, order)))
         _ = neworder()
@@ -394,8 +405,9 @@ public final class ST3Player {
             }
             if patt == 255 {
                 offTheEnd = true
-                np_ord = 0
-                if module.order[0] == 255 { return 0 }
+                // (Back to the top; or, for a song of a MASI file's, to the place it goes back to.)
+                np_ord = module.song(at: Int(np_ord) - 1).map { Int16($0.restart) } ?? 0
+                if module.order[Int(np_ord)] == 255 { return 0 }
                 continue
             }
             break

@@ -21,7 +21,7 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     public var subsongCount: Int { songList.count }
     public private(set) var currentSubsong = 0
     public var defaultSubsong: Int { ModuleSongs.first(of: songList.map { $0.empty }) }
-    public var songs: [SongInfo] { songList.map { SongInfo(length: $0.length, empty: $0.empty) } }
+    public var songs: [SongInfo] { songList.map { SongInfo(title: module.song(at: $0.start)?.title ?? "", length: $0.length, empty: $0.empty) } }
     public var knownLength: Double? { songList[currentSubsong].length }
 
     private let module: ST3Module
@@ -90,12 +90,19 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
     ///   - card: the card to play it on; nil for the one the file was saved with, or the one asked for.
     ///   - format: for a module of another tracker's that has been read into an S3M file (see
     ///     `DSMFile`): what kind of file it was, and the tracker or player it was made for, its title,
-    ///     what of it is not played, how loud it is beside an S3M file, and whether it is a DSM file's
-    ///     (see `ST3Module.playsAsDSIK`).
+    ///     what of it is not played, how loud it is beside an S3M file, whether it is played as a DSM
+    ///     file is (see `ST3Module.playsAsDSIK`), and its songs, for a MASI file's (see `ST3Module.songs`).
     init(_ data: [UInt8], options: LoadOptions, card chosen: ST3Card?, format: String = "S3M", tracker: String? = nil, title: String? = nil,
-         shortfalls: [String] = [], loudness: Float = 1, asDSIK: Bool = false) throws {
+         shortfalls: [String] = [], loudness: Float = 1, asDSIK: Bool = false, songs: [ST3Module.Song] = []) throws {
         module = try ST3Module(data)
         module.playsAsDSIK = asDSIK
+        // (A channel in surround is heard in the middle when the two sides are heard as one, as it
+        // would be lost if one of them were upside down.)
+        module.songs = songs.map { song in
+            var song = song
+            if options.stereo == .mono { song.surround = song.surround.map { _ in false } }
+            return song
+        }
         self.loudness = loudness
         card = chosen ?? options.s3mCard ?? (module.savedWithSoundBlaster ? .sb : .gus)
         // Samples in stereo are played so on a Gravis Ultrasound, in a file that is in stereo.
