@@ -213,6 +213,14 @@ periods and its 42 waveforms (`PumaTables.swift`, taken from the player; the sam
 Contributors), Pierre Adane's and Images Music System's periods, and the list of Beast Busters' songs
 that Wanted Team made.
 
+## SoundMon
+
+`Sources/SidayKit/SoundMon` plays Brian Postma's SoundMon as his replay routines of SoundMon 2.0 and
+2.2 do, which he placed into the public domain, as mld adapted them for UADE ("SoundMon 2.0 player
+module" and "SoundMon 2.2 player module", Jul 2004, carried by UADE as `SoundMon2.0` and
+`SoundMon2.2`, with their source in `amigasrc/players/uade/soundmon`). Their code was read for that,
+and nothing of it is carried here but what it does and its tables of periods and of vibrato.
+
 ## Magnetic Fields Packer
 
 `Sources/SidayKit/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as

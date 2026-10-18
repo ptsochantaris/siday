@@ -275,10 +275,11 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .mfp: false
             case .tfmx, .hip, .fc: false
             case .puma, .pap, .gmc, .ims: false
+            case .bp: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid
-        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt || format == .agi || format == .mfp || format == .tfmx || format == .hip || format == .fc || format == .puma || format == .pap || format == .gmc || format == .ims)
+        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt || format == .agi || format == .mfp || format == .tfmx || format == .hip || format == .fc || format == .puma || format == .pap || format == .gmc || format == .ims || format == .bp)
         case .s3mCard: format == .s3m
         case .sbProSeparation: format == .vgm || format == .sap
         case .agiReplay: format == .agi

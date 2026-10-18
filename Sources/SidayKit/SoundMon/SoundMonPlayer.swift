@@ -1,21 +1,22 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Made after Brian Postma's replay routines of SoundMon 2.0 (1990) and 2.2 (1991), which he put into
+// Made after Brian Postma's replay routines of SoundMon 2.0 and 2.2, which he put into
 // the public domain, as mld adapted them for UADE ("SoundMon 2.0 player module (Jul 2004)" and
 // "SoundMon 2.2 player module (Jul 2004)", carried by UADE as players/SoundMon2.0 and
 // players/SoundMon2.2, whose source UADE also carries as amigasrc/players/uade/soundmon/Soundmon2.0.s
 // and Soundmon2.2.s). The addresses given are of those players' code hunks, 2.0's first and 2.2's
 // after it where they differ.
 
-/// Brian Postma's SoundMon, the tracker of synthesised sound in which he, Jason Page, Jeroen Tel and
-/// others wrote the music of many games from 1990 (Alien Breed, Frantic Freddie, Dizzy's): a header of
-/// fifteen instruments, a list of steps each giving each of the four voices a pattern of sixteen rows
-/// and transposes for its notes and instruments, the patterns, then waveform tables of 64 bytes, then
-/// the samples. An instrument is a sample, or a synthesised sound made of one of the tables: played as
-/// Paula's waveform, with an envelope of its volume (ADSR), a vibrato (LFO), and an envelope (EG) that
-/// turns over the first part of the waveform, a byte at a time; in 2.2 also a modulation (MOD) that
-/// rewrites one byte of it, and effects (FX) that smooth it or bend it towards another.
+/// Brian Postma's SoundMon, the tracker of synthesised sound in which Allister Brimble, Christian
+/// Blaha and others wrote the music of games such as Alien Breed, Project-X, Frantic Freddie and
+/// Dizzy's: a header of fifteen instruments, a list of steps each giving each of the four voices a
+/// pattern of sixteen rows and transposes for its notes and instruments, the patterns, then
+/// waveform tables of 64 bytes, then the samples. An instrument is a sample, or a synthesised sound
+/// made of one of the tables: played as Paula's waveform, with an envelope of its volume (ADSR), a
+/// vibrato (LFO), and an envelope (EG) that turns over the first part of the waveform, a byte at a
+/// time; in 2.2 also a modulation (MOD) that rewrites one byte of it, and effects (FX) that smooth
+/// it or bend it towards another.
 ///
 /// A row is a note, an instrument and one of the options: 0 an arpeggio, 1 the volume, 2 the speed,
 /// 3 the filter, 4 and 5 a slide of the period, 6 a count of repeats (2.0) or a vibrato (2.2), 7 a jump
@@ -1067,7 +1068,9 @@ extension SoundMonPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// SoundMon's music is louder on the Amiga's chip than ProTracker's is, by 1.5 dB in the middle of
+    /// UnExoticA's 80 files, and is turned down by that (2026-10-18).
+    var gain: Float { 0.39 }
 
     mutating func prepareToBeHeard() {}
 

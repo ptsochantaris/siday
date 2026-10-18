@@ -937,6 +937,47 @@ What is siday's own, or the players' own and worth telling:
    the middle of the collection, Pierre Adane's 3.1, Game Music Creator's 5 and Images Music
    System's 7.8, and each is turned down by that.
 
+## BP — Brian Postma's SoundMon
+
+Brian Postma's SoundMon was a tracker for the Amiga in which the instruments are made by the player
+as much as they are recorded: an instrument may be a sample, or a waveform of 64 bytes from the
+module's own tables, which the player shapes as it plays, with an envelope of its loudness (ADSR), a
+vibrato (LFO), and an envelope (EG) that turns the first part of the waveform over a byte at a time;
+SoundMon 2.2 added a modulation that rewrites one byte of it, and effects that smooth it or bend it
+towards another. So a whole tune of SoundMon's could be a few kilobytes, and many games' music was
+made in it. Its files name their version where the title ends: "V.2" for SoundMon 2.0's, "V.3" for
+2.2's. Brian Postma put his replay routines into the public domain.
+
+UnExoticA's collection has 80 of them (58 of 2.0, 22 of 2.2), by Allister Brimble above all (Alien
+Breed, Project-X, the Dizzy games and a score more), Christian Blaha (Aztec Challenge, Frantic
+Freddie, Real Popeye) and Ingmar Hansch (Roll or Die). A module is fifteen instruments, a list of
+steps each giving each of the four voices a pattern of sixteen rows and moving its notes and
+instruments up or down, the patterns, the waveform tables and the samples.
+
+Each is played here by the player of its version, as UADE runs it: Brian Postma's replay routines,
+as mld adapted them for UADE, whose source UADE carries. What the player tells the Amiga's sound
+chip on every tick, its periods, volumes, and where each sample or waveform is and how long, is the
+same as UADE's running of it tells it, for all 80 files over their first three minutes; and what it
+writes into the waveforms as they play is the same as what UADE's Paula plays from them. By how loud
+each side is from moment to moment over the first minute, all 80 are 0.983 alike or more, 79 of them
+0.99 (with the same gentle cut of the deepest bass applied to both, since some of these waveforms
+sit far from the middle). The first SoundMon's files, which say "BPSM", are played by neither of
+these players, and are not taken here; there are none in the collection.
+
+What is siday's own, or the players' own and worth telling:
+
+1. When a song has come to its end: when the list of steps comes round, or when a jump goes back to
+   a step it has played and would be taken again the next time (a jump the player is told to take a
+   number of times is not an end until the count is done). The players say nothing of an end.
+2. Many of the games' files hold several of their tunes in one module, each looping on itself. As in
+   UADE, the one that begins at the first step is played; the others are not counted as songs.
+3. The filter command (option 3) turns the Amiga's filter on or off, which is not heard here; one
+   file (CLUMSY) uses it, and says so.
+4. Where a note or an instrument falls past the player's tables, it reads what follows them, as it
+   would where UADE puts the player and the module.
+5. How loud it is: SoundMon's music is 1.5 dB louder on the Amiga's chip than modules are in the
+   middle of the collection, and is turned down by that.
+
 ## XM — FastTracker 2
 
 FastTracker 2 came out in 1994, written by Fredrik Huss and Magnus Högdahl of the group Triton, and

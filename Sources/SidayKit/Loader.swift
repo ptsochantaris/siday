@@ -34,6 +34,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case ims
     case masi
     case symmod
+    case bp
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -44,6 +45,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "vgz" {
             // (A VGM file packed by gzip, which is how they are mostly kept.)
             self = .vgm
+        } else if name == "bp3" || name == "sndmon" {
+            // (SoundMon's, as the Amiga's players named them: bp3 for 2.2's.)
+            self = .bp
         } else if name == "gmc" {
             // (Game Music Creator's, which ProWizard would make a ProTracker module of, but which
             // is played by its own player.)
@@ -175,6 +179,9 @@ public enum TuneLoader {
         case .gmc:
             // Game Music Creator's, as its own player plays them.
             return try PaulaTickRenderer(GMCPlayer(data), options: options)
+        case .bp:
+            // Brian Postma's SoundMon, 2.0's and 2.2's, as his players play them.
+            return try PaulaTickRenderer(SoundMonPlayer(data), options: options)
         case .ims:
             // Images Music System's, with a song for each place in the order its player starts one.
             return try PaulaTickRenderer(IMSPlayer(data), options: options)
