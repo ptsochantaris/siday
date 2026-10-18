@@ -46,6 +46,8 @@ public struct Companion: Sendable, Equatable {
 ///   the Amiga's own disks `mdat.title` in `smpl.title`; where the songs of a folder share them,
 ///   `smpl.set` or `set.smpl`; failing those, the one file ending `.smpl` beside it, if there is only
 ///   one. A TFMX module of one file has its samples in it, and needs none.
+/// - a song of Jochen Hippel's compressed TFMX (COSO) that keeps no samples of its own, as Amberstar's
+///   do, has them in `set.smp` (in older copies, `samp.hipc`), or the one file ending `.smp` beside it.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
@@ -82,6 +84,10 @@ public enum Companions {
             // they are named in one game's folder (Einmal Kanzler sein).
             names += ["smpl.set", "set.smpl"]
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .hip:
+            // Only a compressed song that keeps none of its own needs them (see
+            // `HippelPlayer.keepsSamplesApart`): Amberstar's, which share one file of them.
+            return [Companion(part: .samples, names: ["set.smp", "smp.set", "samp.hipc"], kind: "smp", required: false)]
         case .rol:
             let own = Companion(part: .instruments, names: ["\(stem).bnk"], required: false)
             let standard = Companion(part: .instruments, names: ["standard.bnk"], required: false)

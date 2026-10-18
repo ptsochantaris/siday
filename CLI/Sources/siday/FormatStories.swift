@@ -805,6 +805,51 @@ module is not that of the player the module was made for, as in a module of Mean
 in which UADE finds six songs and the library five, none of them the one UADE plays first. Three
 modules are silent, one of them a game's sound effects, and two are refused, having no songs.
 
+## HIP and FC — Jochen Hippel's TFMX, and Future Composer
+
+Jochen Hippel, "Mad Max", wrote music for the Atari ST and the Amiga from the late 1980s, for games
+such as Amberstar, Dragonflight, Lethal Xcess, Leavin' Teramis and Astaroth. His player was his own, and he called it TFMX too, though it has nothing but the name in
+common with Chris Hülsbeck's (the two knew each other, and Hülsbeck's TFMX 7V took the idea of seven
+voices from Hippel's). A module of it is most often kept with the 68000 player it was made for at
+its beginning (HIP, SOG); later ones were compressed (COSO, kept as HIPC or SOC); and some play
+seven voices on the Amiga's four, three as they are and four mixed by the processor onto the
+fourth (HIP7, S7G). The player changed from game to game, and no one copy of it plays every module.
+
+Future Composer, an editor made public by The Superions in 1989 (1.0 to 1.3, whose files say
+"SMOD") and 1990 (1.4, "FC14"), is Hippel's player with a few changes and an editor of its own,
+which is why the two are played here by one player, and told of in one place.
+
+The player here is Michael Schwendt's, from libtfmxaudiodecoder, which began as a player of Future
+Composer and grew to play Hippel's TFMX in all its kinds, telling them apart by their contents, by
+the player code at their beginning, and by checksums of the modules that need it. It is ported
+here line for line, and what it tells the Amiga's sound chip, tick by tick, is the same as what the
+library tells it, for every song of every one of the 230 files of UnExoticA's collection (444 songs),
+looping or not, and for some 239,000 copies of them cut short or changed at random.
+
+Three things here are not the library's:
+
+1. TFMX 7V's four voices are mixed as Hippel's own player of it mixed them, as Wanted Team keep it in
+   their player for EaglePlayer ("(c) 1990-91 Jochen 'Mad Max' Hippel"): in the same way as Chris
+   Hülsbeck's (see TFMX), but at 24 kHz, as UADE runs it (a period of 149), 480 bytes a tick made
+   longer or shorter by the song's tempo in 256ths; with the player run first and the buffer mixed
+   after, so that what the four are told is heard a tick after the rest; a volume table of the sample
+   times the volume over 63, rounded towards nought; and silence for a sample or loop of 16 words or
+   fewer. The library adds the four at the rate of its output.
+2. Amberstar's songs keep their notes only: their header says that their samples begin where the
+   file ends, and the game had one file of samples for all of them, `set.smp` (`samp.hipc` beside
+   the older copies). That file is found beside a song as any file that comes with a tune is, and
+   put after it, and the songs are heard. Neither the library nor UADE plays them, and so there is
+   nothing to set them beside.
+3. How loud it is: Hippel's music was 4.7 dB louder on the Amiga's chip than modules are, in the
+   middle of the collection, and is turned down by that.
+
+Set beside UADE, over the first minute of the first song of each file, by how loud each side is from
+moment to moment, the 190 files that UADE plays are 0.975 alike on average, and six are below 0.9;
+the library itself is 0.962, with 33 below 0.9 (six of the seven files of TFMX 7V are 0.99 alike
+here, and 0.84 to 0.94 in the library). UADE plays the compressed files with a player of its own
+making ("hipc player V0.2 for UADE"), and does not play Amberstar's 39 songs. All 229 files of
+music are played; the one file left over is Amberstar's samples.
+
 ## XM — FastTracker 2
 
 FastTracker 2 came out in 1994, written by Fredrik Huss and Magnus Högdahl of the group Triton, and

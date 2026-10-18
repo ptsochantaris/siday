@@ -58,10 +58,9 @@ enum CompanionFiles {
         let folder = tune.standardizedFileURL.deletingLastPathComponent()
         let beside = folders.withLock { known -> FileFinder in
             if let listed = known[folder.path] { return listed }
-            let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-            let listed = FileFinder(names.filter { name in
-                name.lastIndex(of: ".").map { Companions.are(fileExtension: String(name[name.index(after: $0)...])) } ?? false
-            })
+            // (Every file, since a companion may have any name: Amberstar's samples are also kept as
+            // `samp.hipc`.)
+            let listed = FileFinder((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
             known[folder.path] = listed
             return listed
         }

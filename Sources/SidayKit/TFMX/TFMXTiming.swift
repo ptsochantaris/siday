@@ -17,8 +17,8 @@ struct TFMXTiming {
     /// The part of a clock over from the ticks before, in 256ths of a tick a second.
     private var carry: UInt64 = 0
 
-    /// The period Paula's fourth voice plays the mixed buffers at in TFMX 7V.
-    static let sevenVoicePeriod = 224
+    /// The period Paula's fourth voice plays the mixed buffers at in Chris Hülsbeck's TFMX 7V.
+    static let sevenVoicePeriod = TFMXSevenVoices.Style.huelsbeck.period
 
     /// The length of a tick of a player of four voices: the CIA's timer counts down from `timer` at a
     /// fifth of Paula's clock; with none, at the rate the library has (in 256ths of a tick a second).
@@ -60,12 +60,12 @@ struct TFMXTiming {
 
     /// The length of a tick of TFMX 7V's player, with the change to its tempo the song asks for.
     mutating func sevenVoiceTick(tempo: Int) -> Int {
-        Self.sevenVoiceBytes(tempo: tempo) * Self.sevenVoicePeriod
+        TFMXSevenVoices.Style.huelsbeck.tickClocks(tempo: tempo)
     }
 
     /// How many bytes TFMX 7V's player mixes for each tick: twenty for each thousand a second it mixes
     /// at, times the tempo in hundredths, and one more, made even. (A tempo is never below -32.)
     static func sevenVoiceBytes(tempo: Int) -> Int {
-        (16 * 100 / 5 * (100 + max(-32, tempo)) / 100 + 1) & ~1
+        TFMXSevenVoices.Style.huelsbeck.mixedBytes(tempo: tempo)
     }
 }

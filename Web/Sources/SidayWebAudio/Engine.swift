@@ -140,6 +140,7 @@ final class WebPlayer {
                 || format == .agi
                 || format == .mfp
                 || format == .tfmx
+                || format == .hip || format == .fc
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

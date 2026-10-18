@@ -53,8 +53,12 @@ extension HippelDecoder {
         duration = 0
         let loopModeBefore = loopMode
         loopMode = false
+        var four = TFMXTiming()
+        lengthClocks = (0, 0)
         repeat {
             duration &+= UInt32(run(&silent))
+            lengthClocks.four &+= UInt64(four.fourVoiceTick(rate: rate, timer: nil))
+            lengthClocks.seven &+= UInt64(TFMXSevenVoices.Style.hippel.tickClocks(tempo: sevenVoiceTempo))
         } while !songEnd && duration < 1000 * 60 * 59
         loopMode = loopModeBefore
 
@@ -297,6 +301,7 @@ extension HippelDecoder {
 
     /// TFMX 7V's rate: fifty ticks a second, made faster or slower by `x` 256ths.
     mutating func sevenVoicesSetRate(_ x: Int8) {
+        sevenVoiceTempo = Int(x)
         setRate(UInt32(((50 << 8) * 256) / (256 + Int(x))))
     }
 

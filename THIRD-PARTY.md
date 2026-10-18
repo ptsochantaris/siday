@@ -174,7 +174,9 @@ table of periods.
 
 `Sources/SidayKit/TFMX` plays Chris Hülsbeck's TFMX with a Swift port of the player of it in
 libtfmxaudiodecoder (`src/Chris/`, with what it uses of the library's checksum, byte order and
-buffer code), at its commit dcec102 of 2026-09-26.
+buffer code), and `Sources/SidayKit/Hippel` Jochen Hippel's TFMX and Future Composer with a port of
+its player of those (`src/Jochen/`, its tables generated from the source), both at its commit
+dcec102 of 2026-09-26.
 
 - Copyright (C) Michael Schwendt
 - GNU General Public License, version 2 or later
@@ -186,7 +188,10 @@ files for EaglePlayer, carried by UADE as `TFMX`, `TFMX-Pro` and `TFMX-7V` ("TFM
 V1.3", "TFMX Pro player module V1.3" and "TFMX 7V player module V1.1", 2002; they say of themselves
 "(c) 1988-90", "(c) 1990-94" and "(c) 1991-94 by Chris H"). Their 68000 code
 was read for that, and nothing of it is carried here but its constants: the timer's dividends, the
-rate, buffer and period of the mixing, and its table of volumes.
+rate, buffer and period of the mixing, and its table of volumes. Jochen Hippel's TFMX 7V is mixed as
+Wanted Team's player of it has it ("Jochen Hippel 7V player module V1.1", 2009, carried by UADE as
+`JochenHippel-7V`; it says of itself "(c) 1990-91 Jochen 'Mad Max' Hippel"), read in the same way
+for the same kinds of constants; the rate it mixes at is the one UADE runs it at.
 
 ## Magnetic Fields Packer
 

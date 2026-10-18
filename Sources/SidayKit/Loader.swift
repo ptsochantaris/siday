@@ -26,6 +26,8 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case agi
     case mfp
     case tfmx
+    case hip
+    case fc
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -44,6 +46,13 @@ public enum TuneFormat: String, CaseIterable, Sendable {
             // (TFMX's notes, named for its file of them, which the samples are beside; or a module
             // of one file.)
             self = .tfmx
+        } else if name == "hipc" || name == "hip7" || name == "sog" || name == "soc" || name == "s7g" || name == "mcmd" {
+            // (Jochen Hippel's, by the names they are kept under: compressed, of seven voices, or
+            // with his player before them.)
+            self = .hip
+        } else if name == "fc13" || name == "fc14" || name == "fc3" || name == "fc4" || name == "smod" {
+            // (Future Composer's, by its versions.)
+            self = .fc
         } else if name == "snd" {
             // (As SNDH files were named before the format had a name of its own.)
             self = .sndh
@@ -59,6 +68,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .pt3, .pt2, .pt1, .stc, .stp, .asc, .sqt, .psc, .ftc, .fxm, .psm, .gtr, .vtx, .ay: "PT3"
         case .sfx, .okt: "SFX"
         case .mfp: "MOD"
+        case .fc: "HIP"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -111,10 +121,20 @@ public enum TuneLoader {
             // Chris Hülsbeck's TFMX: its samples in a file of their own, unless the file is one of
             // the forms that keep them in it.
             do {
-                return try TFMXRenderer(data, samples: companions.first ?? nil, options: options)
+                return try PaulaTickRenderer(TFMXPlayer(data, samples: companions.first ?? nil), options: options)
             } catch TuneError.missingCompanion {
                 throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
             }
+        case .hip, .fc:
+            // Jochen Hippel's TFMX, in its several kinds, and Future Composer; with the samples that a
+            // compressed song may keep in a file of their own after it.
+            if format == .hip, HippelPlayer.keepsSamplesApart(data) {
+                guard let samples = companions.first ?? nil else {
+                    throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+                }
+                return try PaulaTickRenderer(HippelPlayer(data + samples), options: options)
+            }
+            return try PaulaTickRenderer(HippelPlayer(data), options: options)
         case .mfp:
             // A ProTracker module packed with its samples in a file of their own.
             guard let samples = companions.first ?? nil else {

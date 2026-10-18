@@ -27,7 +27,7 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Atari 400, 800, XL and XE | SAP, for one POKEY or two | the tune's own program on a 6502, on the POKEY |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
-| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not, or by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions; Game Music Creator's and ChipTracker's; the Magnetic Fields Packer's, with its samples in a file beside it), TFMX (Chris Hülsbeck's, and TFMX Professional and 7V), MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays; TFMX by Michael Schwendt's player of it, timed and mixed as Chris Hülsbeck's own |
+| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not, or by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions; Game Music Creator's and ChipTracker's; the Magnetic Fields Packer's, with its samples in a file beside it), TFMX (Chris Hülsbeck's, and TFMX Professional and 7V), Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays; TFMX, Hippel's TFMX and Future Composer by Michael Schwendt's players of them, timed and mixed as Chris Hülsbeck's and Jochen Hippel's own |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
 | Sierra's adventure games, King's Quest to Manhunter | AGI sounds | Sierra's own routines for the Amiga, either of the two, on the Amiga's sound chip; or the PCjr's and Tandy 1000's chip, as Sierra's interpreter wrote to it |
@@ -336,6 +336,7 @@ the command-line player.
 | Modules packed by games' packers | ProWizard by Sylvain Chipaux, as libxmp keeps it (MIT) | libxmp's ProWizard itself, byte for byte: all 787 packed files of UnExoticA's collection that it unpacks, and some 28,000 copies of them cut short or changed |
 | ChipTracker modules | ChipTracker's own replayer, read in Wanted Team's player for EaglePlayer | that player, run by UADE: the first minute of all 41 files of UnExoticA's collection, by how loud each side is from moment to moment |
 | TFMX modules | libtfmxaudiodecoder by Michael Schwendt (GPL); its timing and TFMX 7V's mixing from Chris Hülsbeck's players, read in Wanted Team's players for EaglePlayer | libtfmxaudiodecoder itself, tick by tick: every song of all 322 modules of UnExoticA's collection, and some 45,000 copies of them cut short or changed; the players themselves, run by UADE: the first minute of each, by how loud each side is from moment to moment |
+| Jochen Hippel's TFMX and Future Composer | libtfmxaudiodecoder by Michael Schwendt (GPL); TFMX 7V's mixing from Hippel's own player, read in Wanted Team's player for EaglePlayer | libtfmxaudiodecoder itself, tick by tick: every song of all 230 files of UnExoticA's collection, and some 239,000 copies of them cut short or changed; UADE: the first minute of the 190 it plays, by how loud each side is from moment to moment |
 | Magnetic Fields Packer songs | libxmp's reading (MIT), but for its table of patterns, which is read as the format's replayer reads it | that replayer, in Wanted Team's player for EaglePlayer, run by UADE: the first 40 seconds of all 37 songs of UnExoticA's collection, by how loud each side is from moment to moment |
 | 8-bit Atari machine, its 6502 and its POKEY | ASAP by Piotr Fusik (GPL) | ASAP's `asapconv` itself, sample for sample: the first 30 seconds of every song of the 6,337 files of ASMA, 8,349 of them, and three minutes of 286 songs of 200 of the files |
 
@@ -433,8 +434,10 @@ What it is made from:
   measured them. The SAP format is Adam Bienias's, and the music is kept in it by the
   [Atari SAP Music Archive](https://asma.atari.org/).
 - [libtfmxaudiodecoder](https://github.com/mschwendt/libtfmxaudiodecoder) by Michael Schwendt: its
-  player of Chris Hülsbeck's TFMX. TFMX is Chris Hülsbeck's, and its players, which Wanted Team keep
-  for EaglePlayer, are what its timing and its seven voices were taken from.
+  players of Chris Hülsbeck's TFMX, of Jochen Hippel's and of Future Composer. TFMX is Chris
+  Hülsbeck's, and its players, which Wanted Team keep for EaglePlayer, are what its timing and its
+  seven voices were taken from; Hippel's TFMX is his, and so is his player of seven voices, which
+  they keep too. Future Composer is The Superions'.
 - ProWizard by Sylvain "Asle" Chipaux, as [libxmp](https://github.com/libxmp/libxmp) keeps it
   (Claudio Matsuoka and Hipolito Carraro Jr): the unpacking of modules packed by the packers games
   used.

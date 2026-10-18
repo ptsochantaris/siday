@@ -257,3 +257,68 @@ private func play(_ player: inout HippelPlayer, ticks: Int) -> Recorder {
         }
     }
 }
+
+@Test func hippelIsPlayedAsAnAmigaTune() throws {
+    #expect(TuneFormat(fileExtension: "SOG") == .hip && TuneFormat(fileExtension: "hipc") == .hip && TuneFormat(fileExtension: "s7g") == .hip)
+    #expect(TuneFormat(fileExtension: "fc14") == .fc && TuneFormat(fileExtension: "smod") == .fc && TuneFormat.fc.chapter == "HIP")
+    let renderer = try TuneLoader.load(tfmx(), format: .hip)
+    #expect(renderer.info.format == "HIP" && renderer.info.detail == "Jochen Hippel's TFMX")
+    #expect(renderer.isPlayedOnAnAmiga && renderer.channelCount == 4)
+    var buffer = [Float](repeating: 0, count: 9600)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 4800) }
+    #expect(buffer.contains { $0 != 0 })
+    // A voice started in the same tick as its first period is heard: it does not sit on its first sample.
+    var levels = [Float](repeating: 0, count: 4)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 4800) }
+    levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+    #expect(levels.contains { $0 > 0.05 })
+    let fc = try TuneLoader.load(smod(), format: .fc)
+    #expect(fc.info.format == "FC" && fc.info.detail == "Future Composer 1.0 to 1.3")
+    let seven = try TuneLoader.load(tfmx(sevenVoices: true), format: .hip)
+    #expect(seven.channelCount == 7)
+    buffer.withUnsafeMutableBufferPointer { seven.render(into: $0.baseAddress!, frames: 4800) }
+}
+
+@Test func hippelSongWithItsSamplesApartTakesThemFromBeside() throws {
+    // A compressed song's header: its sample headers, and its samples beginning where the file ends.
+    var coso = Array("COSO".utf8) + [UInt8](repeating: 0, count: 0x40)
+    put(&coso, 0x18, long(0x30))
+    put(&coso, 0x1C, long(coso.count))
+    #expect(HippelPlayer.keepsSamplesApart(coso))
+    var own = coso
+    put(&own, 0x1C, long(0x40))
+    #expect(!HippelPlayer.keepsSamplesApart(own) && !HippelPlayer.keepsSamplesApart(tfmx()))
+    #expect(Companions.wanted(for: .hip, fileName: "Dreamcave.soc")[0].names == ["set.smp", "smp.set", "samp.hipc"])
+    // Without them, it says what it wants.
+    #expect {
+        try TuneLoader.load(coso, format: .hip, path: "Amberstar/Dreamcave.soc")
+    } throws: { error in
+        guard case let .missingCompanion(why) = error as? TuneError else { return false }
+        return why.hasPrefix("its samples are kept in a file of their own, set.smp, smp.set or samp.hipc")
+    }
+}
+
+@Test func hippelSevenVoicesAreMixedAsHisPlayerMixedThem() {
+    let style = TFMXSevenVoices.Style.hippel
+    #expect(style.period == 149 && !style.mixesFirst)
+    // 480 bytes a tick at 24 kHz, longer or shorter by the tempo in 256ths.
+    #expect(style.mixedBytes(tempo: 0) == 480 && style.mixedBytes(tempo: -48) == 390 && style.playedBytes(tempo: -48) == 390)
+    #expect(style.tickClocks(tempo: 0) == 480 * 149)
+    let memory = UnsafeMutablePointer<Int8>.allocate(capacity: 4096)
+    defer { memory.deallocate() }
+    memory.initialize(repeating: 0, count: 4096)
+    for i in 0 ..< 64 { memory[i] = Int8(truncatingIfNeeded: i * 4 - 128) }
+    var mixer = TFMXSevenVoices(silence: 2048, style: .hippel)
+    mixer.voices[0] = TFMXSevenVoices.Voice(start: 0, length: 32, period: 149, volume: 63, on: true)
+    let out = UnsafeMutablePointer<Int8>.allocate(capacity: 80)
+    let parts = UnsafeMutablePointer<Float>.allocate(capacity: 320)
+    defer { out.deallocate(); parts.deallocate() }
+    mixer.mix(memory, size: 4096, into: out, count: 80, parts: parts)
+    // The sample times the volume over 63, rounded towards nought: at 63, the sample itself.
+    #expect(out[1] == -124 && out[63] == 124)
+    // A loop of 16 words or fewer is silence, put in the voice's place.
+    var short = TFMXSevenVoices(silence: 2048, style: .hippel)
+    short.voices[0] = TFMXSevenVoices.Voice(start: 0, length: 16, period: 149, volume: 63, on: true)
+    short.mix(memory, size: 4096, into: out, count: 80, parts: parts)
+    #expect((0 ..< 80).allSatisfy { out[$0] == 0 } && short.voices[0].start == 2048 && short.voices[0].length == 0x80)
+}

@@ -18,7 +18,42 @@
 ///   the sample times the volume, over 64, rounded down. The four are added, and what goes beyond a
 ///   byte is clipped.
 /// - A sample or loop of fewer than 32 words is not played: silence is, in its place.
+///
+/// Jochen Hippel's player of his own TFMX 7V, whose idea Chris Hülsbeck's took up, mixes in the same
+/// way but for a few things (`Style.hippel`), as Wanted Team keep it in their player for EaglePlayer
+/// ("Jochen Hippel 7V player module V1.1", carried by UADE as `JochenHippel-7V`), whose 68000 code was
+/// read for it: it mixes at 24 kHz, as UADE has it (a period of 149), 480 bytes a tick made longer or
+/// shorter by the song's tempo in 256ths; it runs the player first and mixes after, so that what the
+/// four are told is heard a tick later than the rest, not two; its table is the sample times the
+/// volume over 63, rounded towards nought; and silence is played for a sample or loop of 16 words or
+/// fewer, put in the voice's place for good.
 struct TFMXSevenVoices {
+    /// Whose player of TFMX 7V the voices are mixed as.
+    enum Style: Sendable {
+        case huelsbeck, hippel
+
+        /// The period Paula's fourth voice plays the mixing at.
+        var period: Int { self == .huelsbeck ? 224 : 149 }
+
+        /// How many bytes are mixed for each tick at a tempo.
+        func mixedBytes(tempo: Int) -> Int {
+            switch self {
+            case .huelsbeck: (16 * 100 / 5 * (100 + max(-32, tempo)) / 100 + 1) & ~1
+            case .hippel: (24 * 100 / 5 * (256 + tempo)) >> 8
+            }
+        }
+
+        /// How many of them Paula's fourth voice plays: as many words as there are whole ones.
+        func playedBytes(tempo: Int) -> Int { mixedBytes(tempo: tempo) & ~1 }
+
+        /// How long a tick is, in Paula's clocks: as long as she takes over a buffer.
+        func tickClocks(tempo: Int) -> Int { playedBytes(tempo: tempo) * period }
+
+        /// True if a buffer is mixed before the player runs, from what the voices were told the tick
+        /// before; false if after.
+        var mixesFirst: Bool { self == .huelsbeck }
+    }
+
     struct Voice {
         /// The registers, as the player last wrote them.
         var start = 0
@@ -45,20 +80,20 @@ struct TFMXSevenVoices {
     }
 
     var voices = InlineArray<4, Voice>(repeating: Voice())
+    let style: Style
     /// Where silence is, played in place of a sample too short to be.
     let silence: Int
-    /// How much silence is played in its place, in words.
-    static let silenceWords: UInt16 = 0x25E
 
-    init(silence: Int) {
+    init(silence: Int, style: Style = .huelsbeck) {
         self.silence = silence
+        self.style = style
         for v in 0 ..< 4 { voices[v].end = silence }
     }
 
     /// What the player does as Paula takes up a voice: a voice that is to be heard starts its new
     /// sample when it has just been started, and goes on from the latest one when it comes to the end.
     private mutating func takeUp(_ v: Int) {
-        let rate = UInt32(TFMXTiming.sevenVoicePeriod) << 11
+        let rate = UInt32(style.period) << 11
         // The period and volume, unless the period is nought, when both are left as they were.
         if voices[v].period != 0 {
             let volume = Int(voices[v].volume & 0xFF)
@@ -74,9 +109,14 @@ struct TFMXSevenVoices {
             voices[v].restart = true
             return
         }
-        let short = voices[v].length < 0x20
+        let short = style == .huelsbeck ? voices[v].length < 0x20 : voices[v].length & 0x3FFF <= 0x10
+        if short, style == .hippel {
+            // (Hippel's player puts the silence in the voice's registers.)
+            voices[v].start = silence
+            voices[v].length = 0x80
+        }
         let start = short ? silence : voices[v].start
-        let bytes = UInt16(((short ? Self.silenceWords : voices[v].length) & 0x3FFF) * 2)
+        let bytes = UInt16(((short ? (style == .huelsbeck ? 0x25E : 0x80) : voices[v].length) & 0x3FFF) * 2)
         voices[v].repeatEnd = start + Int(bytes)
         voices[v].repeatBytes = bytes
         if voices[v].restart {
@@ -98,7 +138,7 @@ struct TFMXSevenVoices {
             for v in 0 ..< 4 {
                 let at = voices[v].end + Int(Int16(truncatingIfNeeded: voices[v].position))
                 let sample = at >= 0 && at < size ? Int(memory[at]) : 0
-                let part = (sample * voices[v].table) >> 6
+                let part = style == .huelsbeck ? (sample * voices[v].table) >> 6 : sample * voices[v].table / 63
                 parts[v * count + i] = Float(part) * (1.0 / 128.0)
                 if !voices[v].muted { sum += part }
             }

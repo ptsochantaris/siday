@@ -77,6 +77,12 @@ struct HippelDecoder {
     /// a command to stop, not the track table running out (in loop mode the song plays on after
     /// either). For whoever plays it: the library itself does not say.
     var endings = 0, stops = 0
+    /// The change to TFMX 7V's tempo that the song last asked for, in 256ths, which its player keeps in
+    /// the length of the buffer it mixes the four voices of Paula's fourth into: see `TFMXTiming`.
+    var sevenVoiceTempo = 0
+    /// How long the song played for, through to its end, in the dry run that found its length: in
+    /// Paula's clocks, by the timing of a player of four voices and of TFMX 7V's.
+    var lengthClocks: (four: UInt64, seven: UInt64) = (0, 0)
     var stopCommanded = false
 
     init(memory: UnsafeMutablePointer<UInt8>, wavesAt: Int) {

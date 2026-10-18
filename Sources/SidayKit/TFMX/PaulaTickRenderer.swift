@@ -40,13 +40,70 @@ struct TFMXTickOutput: TFMXOutput {
     func loopCount(_ voice: Int) -> UInt16 { loops[voice] }
 }
 
-/// A TFMX module played on Paula (see `TFMXPlayer`): its four voices on her four, or for TFMX 7V three
-/// on her first three and four more mixed onto her fourth (`TFMXSevenVoices`).
+/// A player of music for Paula that runs a tick at a time and tells her what to do as
+/// `TFMXOutput` has it: Chris Hülsbeck's TFMX (`TFMXPlayer`) and Jochen Hippel's players
+/// (`HippelPlayer`), which `PaulaTickRenderer` plays.
+protocol PaulaTickPlayer: ~Copyable {
+    /// The memory Paula plays from, how much of it she may read, where a voice with nothing to play
+    /// is pointed, and where TFMX 7V's buffers are mixed into (after a stretch of silence).
+    var memory: UnsafeMutablePointer<UInt8> { get }
+    var memoryCapacity: Int { get }
+    var silenceAt: Int { get }
+    var mixingAt: Int { get }
+    var songCount: Int { get }
+    var song: Int { get }
+    /// How many times the song has come to its end since it was started, and of those how many
+    /// were its stopping (see `TFMXPlayer`); and its length, in Paula's clocks, if it ends.
+    var endings: Int { get }
+    var stops: Int { get }
+    var lengthClocks: UInt64? { get }
+    /// Whose TFMX 7V its fourth voice is mixed as, if it is one; and the change to the tempo its
+    /// song last asked for.
+    var sevenVoiceStyle: TFMXSevenVoices.Style? { get }
+    var sevenVoiceTempo: Int { get }
+    /// What is said of the tune: its format and the rest.
+    var tuneInfo: TuneInfo { get }
+    /// What its sound is turned up or down by to be as loud as any other (see `MODRenderer`).
+    var gain: Float { get }
+    mutating func select(song: Int) throws(TuneError)
+    /// Sets the player to go on round, as it is to be heard. (Called when it is made and with each song.)
+    mutating func prepareToBeHeard()
+    mutating func run<Output: TFMXOutput>(_ output: inout Output) -> Int
+    /// The length of the tick that has just run, for a player of four voices.
+    func fourVoiceTick(_ timing: inout TFMXTiming) -> Int
+    func period(_ voice: Int) -> UInt16
+    func volume(_ voice: Int) -> UInt16
+}
+
+extension TFMXPlayer: PaulaTickPlayer {
+    var sevenVoiceStyle: TFMXSevenVoices.Style? { format == .sevenVoices ? .huelsbeck : nil }
+    var tuneInfo: TuneInfo {
+        var info = TuneInfo(format: "TFMX")
+        info.detail = format.name
+        info.title = title
+        info.author = author
+        return info
+    }
+
+    mutating func prepareToBeHeard() {
+        loops = true
+        playsOnInEndlessPatterns = true
+    }
+
+    func fourVoiceTick(_ timing: inout TFMXTiming) -> Int { timing.fourVoiceTick(rate: rate, timer: ciaTimer) }
+
+    /// TFMX's songs are quieter on the Amiga's chip than modules are, by 5 dB in the middle of
+    /// UnExoticA's 318, and are turned up by that (2026-10-17).
+    var gain: Float { 0.46 }
+}
+
+/// Music for Paula played a tick at a time (see `PaulaTickPlayer`): its four voices on her four, or for
+/// TFMX 7V three on her first three and four more mixed onto her fourth (`TFMXSevenVoices`).
 ///
 /// A song goes round for as long as it is let, and is said to have looped each time it comes back to
 /// its beginning; one that stops, stops. As with any music for the Amiga the two sides are brought
 /// most of the way together (see `MODRenderer`).
-final class TFMXRenderer: Renderer {
+final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
     private(set) var info: TuneInfo
     private(set) var knownLength: Double?
     var isPlayedOnAnAmiga: Bool { true }
@@ -58,8 +115,9 @@ final class TFMXRenderer: Renderer {
     private(set) var songs: [SongInfo] = []
     var channelsAreSampled: Bool { true }
 
-    private var player: TFMXPlayer
+    private var player: Player
     private let sevenVoices: Bool
+    private let style: TFMXSevenVoices.Style
     private let model: AmigaModel
     private var paula: Paula
     private var output = TFMXTickOutput()
@@ -87,40 +145,38 @@ final class TFMXRenderer: Renderer {
     /// sound chip's clock.
     private var remainder = 0
 
-    private static let chipClock = Int(Paula.clockHz)
-    /// As loud as a MOD file, which is played on the same chip (see `MODRenderer`): TFMX's songs are
-    /// quieter on it than modules are, by 5 dB in the middle of UnExoticA's 318, and are turned up by
-    /// that (2026-10-17).
-    private static let gain: Float = 0.46
+    private static var chipClock: Int { Int(Paula.clockHz) }
+    /// As loud as a MOD file, which is played on the same chip (see `MODRenderer`), by the player's own
+    /// measure (`PaulaTickPlayer.gain`).
+    private let gain: Float
 
-    init(_ file: [UInt8], samples: [UInt8]?, options: LoadOptions) throws(TuneError) {
-        player = try TFMXPlayer(file, samples: samples)
-        player.loops = true
-        player.playsOnInEndlessPatterns = true
-        sevenVoices = player.format == .sevenVoices
+    init(_ made: consuming Player, options: LoadOptions) throws(TuneError) {
+        player = made
+        self.player.prepareToBeHeard()
+        style = self.player.sevenVoiceStyle ?? .huelsbeck
+        sevenVoices = self.player.sevenVoiceStyle != nil
         model = options.amigaModel
         side = options.stereo == .mono ? 0 : Float(max(0, min(1, options.amigaSeparation))) * 0.5
-        info = TuneInfo(format: "TFMX")
-        info.detail = player.format.name
-        info.title = player.title
-        info.author = player.author
+        info = self.player.tuneInfo
+        gain = self.player.gain
         let memory = UnsafeRawPointer(player.memory).assumingMemoryBound(to: Int8.self)
         paula = Paula(rate: Double(outputSampleRate * 2), model: model, memory: memory, size: player.memoryCapacity,
                       silence: player.silenceAt)
-        mixer = TFMXSevenVoices(silence: player.silenceAt + 4)
-        parts = .allocate(capacity: 4 * TFMXTiming.sevenVoiceBytes(tempo: 127))
-        heardParts = .allocate(capacity: 4 * TFMXTiming.sevenVoiceBytes(tempo: 127))
+        mixer = TFMXSevenVoices(silence: self.player.mixingAt - 0x10000, style: style)
+        parts = .allocate(capacity: 4 * 1024)
+        heardParts = .allocate(capacity: 4 * 1024)
         levels = TickLevels(voices: sevenVoices ? 7 : 4)
         notes = TickNotes(voices: sevenVoices ? 7 : 4)
         left = .allocate(capacity: 1)
         right = .allocate(capacity: 1)
         // Each song's length, from the player's own playing of it through before it starts.
-        let first = player.song
-        for song in 0 ..< player.songCount {
-            if song != first { try player.select(song: song) }
-            songs.append(SongInfo(length: player.lengthClocks.map { Double($0) / Paula.clockHz }))
+        let first = self.player.song
+        for song in 0 ..< self.player.songCount {
+            if song != first { try self.player.select(song: song) }
+            songs.append(SongInfo(length: self.player.lengthClocks.map { Double($0) / Paula.clockHz }))
         }
-        if player.song != first { try player.select(song: first) }
+        if self.player.song != first { try self.player.select(song: first) }
+        self.player.prepareToBeHeard()
         start()
     }
 
@@ -156,7 +212,7 @@ final class TFMXRenderer: Renderer {
         if waves == nil {
             let made = ChannelWaves(voices: channelCount, rate: Double(outputSampleRate * 2), fullSwing: 1)
             if sevenVoices {
-                for v in 3 ..< 7 { made.setVoice(v, rate: Paula.clockHz / Double(TFMXTiming.sevenVoicePeriod), fullSwing: 1) }
+                for v in 3 ..< 7 { made.setVoice(v, rate: Paula.clockHz / Double(style.period), fullSwing: 1) }
             }
             waves = made
             paula.waves = made
@@ -167,7 +223,7 @@ final class TFMXRenderer: Renderer {
 
     func select(subsong: Int) {
         try? player.select(song: subsong)
-        player.loops = true
+        player.prepareToBeHeard()
         start()
     }
 
@@ -178,7 +234,7 @@ final class TFMXRenderer: Renderer {
                       silence: player.silenceAt)
         paula.waves = waves
         if sevenVoices { paula.waveNumbers = [0, 1, 2, -1] }
-        mixer = TFMXSevenVoices(silence: player.silenceAt + 4)
+        mixer = TFMXSevenVoices(silence: player.mixingAt - 0x10000, style: style)
         applyMutes()
         output = TFMXTickOutput()
         timing = TFMXTiming()
@@ -195,8 +251,8 @@ final class TFMXRenderer: Renderer {
         if sevenVoices {
             // Paula's fourth plays the mixing from the start, a buffer of silence first.
             mixingBuffer = 0
-            playingBytes = TFMXTiming.sevenVoiceBytes(tempo: 0)
-            paula.setPeriod(3, UInt16(TFMXTiming.sevenVoicePeriod))
+            playingBytes = style.playedBytes(tempo: player.sevenVoiceTempo)
+            paula.setPeriod(3, UInt16(style.period))
             paula.setVolume(3, 64)
             paula.setLocation(3, player.mixingAt + 1024)
             paula.setLength(3, UInt16(playingBytes / 2))
@@ -213,26 +269,33 @@ final class TFMXRenderer: Renderer {
         if stopped {
             clocks = 0
         } else if sevenVoices {
-            // The next buffer is mixed from what the four were told before, and the player runs.
-            let bytes = TFMXTiming.sevenVoiceBytes(tempo: player.sevenVoiceTempo)
+            // The next buffer is mixed, from what the four were told before the player runs (Chris
+            // Hülsbeck's) or after (Jochen Hippel's), and set to be played after the one Paula is playing.
             let at = player.mixingAt + mixingBuffer * 1024
             let memory = UnsafeRawPointer(player.memory).assumingMemoryBound(to: Int8.self)
+            let into = UnsafeMutableRawPointer(player.memory + at).assumingMemoryBound(to: Int8.self)
             swap(&parts, &heardParts)
             let heard = heardCount
+            var bytes = style.mixedBytes(tempo: player.sevenVoiceTempo)
+            if style.mixesFirst {
+                mixer.mix(memory, size: player.memoryCapacity, into: into, count: bytes, parts: parts)
+                runPlayer()
+            } else {
+                runPlayer()
+                bytes = style.mixedBytes(tempo: player.sevenVoiceTempo)
+                mixer.mix(memory, size: player.memoryCapacity, into: into, count: bytes, parts: parts)
+            }
             heardCount = bytes
-            mixer.mix(memory, size: player.memoryCapacity, into: UnsafeMutableRawPointer(player.memory + at).assumingMemoryBound(to: Int8.self),
-                      count: bytes, parts: parts)
-            runPlayer()
             paula.setLocation(3, at)
             paula.setLength(3, UInt16(bytes / 2))
             mixingBuffer ^= 1
             // The tick lasts as long as the buffer Paula is playing, which is the one mixed the tick before.
-            clocks = playingBytes * TFMXTiming.sevenVoicePeriod
-            playingBytes = bytes
+            clocks = playingBytes * style.period
+            playingBytes = bytes & ~1
             keepHeardParts(count: heard)
         } else {
             runPlayer()
-            clocks = timing.fourVoiceTick(rate: player.rate, timer: player.ciaTimer)
+            clocks = player.fourVoiceTick(&timing)
         }
         if stopped, clocks == 0 {
             tickFrames = 0
@@ -286,6 +349,10 @@ final class TFMXRenderer: Renderer {
             return
         }
         loopCount += player.endings - endingsBefore
+        // The periods first: a voice started in this tick takes up the period it is given in it, as
+        // Paula's does, whose sound begins a little after the player has written both. (Started before
+        // it, a voice that has had no period would never move on from its first sample.)
+        for v in 0 ..< (sevenVoices ? 3 : 4) { paula.setPeriod(v, player.period(v)) }
         for event in output.events {
             switch event {
             case let .on(v):
@@ -316,7 +383,6 @@ final class TFMXRenderer: Renderer {
         for v in 0 ..< (sevenVoices ? 7 : 4) {
             let volume = min(64, player.volume(v) & 0xFF)
             if v < paulaVoices {
-                paula.setPeriod(v, player.period(v))
                 paula.setVolume(v, volume)
             } else {
                 mixer.voices[v - 3].period = player.period(v)
@@ -372,8 +438,8 @@ final class TFMXRenderer: Renderer {
             for i in 0 ..< count {
                 let l = left[tickPosition + i], r = right[tickPosition + i]
                 let middle = (l + r) * 0.5, apart = (l - r) * side
-                buffer[(done + i) * 2] = (middle + apart) * Self.gain
-                buffer[(done + i) * 2 + 1] = (middle - apart) * Self.gain
+                buffer[(done + i) * 2] = (middle + apart) * gain
+                buffer[(done + i) * 2 + 1] = (middle - apart) * gain
             }
             tickPosition += count
             done += count
