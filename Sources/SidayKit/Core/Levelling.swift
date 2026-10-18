@@ -138,8 +138,9 @@ public extension SongLevel {
     /// a Sound Blaster Pro's two FM chips kept in time with its writes; 4: its two sides brought most
     /// of the way together, as an Amiga's are; 5: the Creative Music System's too; 6: an IT channel in
     /// surround heard in mono, where before it cancelled itself out; 7: TFMX and Jochen Hippel's ticks
-    /// a CIA count longer, as UADE's timer runs.)
-    static let soundVersion = 7
+    /// a CIA count longer, as UADE's timer runs; 8: Digital Mugician's and Delta Music's notes begun
+    /// where in the tick their players turn them on.)
+    static let soundVersion = 8
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {

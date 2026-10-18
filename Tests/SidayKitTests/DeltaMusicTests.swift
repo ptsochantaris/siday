@@ -205,3 +205,17 @@ private func deltaMusic(command: [UInt8] = [0, 0], sample: Bool = false, rise: U
     #expect(loudest > 0.01)
     #expect(renderer.songs.first?.length != nil)
 }
+
+@Test func deltaMusicNotesBeginWhereTheReplayerTurnsThemOn() throws {
+    // The first note is heard from where in the tick the replayer's DMA is turned on, not before.
+    let (module, _) = deltaMusic()
+    let player = try DeltaMusicPlayer(module, checksReplayer: false)
+    let at = player.noteClocks * outputSampleRate / Int(Paula.clockHz)
+    #expect(at > 40)
+    let renderer = try PaulaTickRenderer(player, options: LoadOptions())
+    var sound = [Float](repeating: 0, count: 400 * 2)
+    sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 400) }
+    let first = try #require((0 ..< 400).first { abs(sound[$0 * 2]) > 0.001 || abs(sound[$0 * 2 + 1]) > 0.001 })
+    #expect(first >= at - 4)
+    #expect(first <= at + 40)
+}

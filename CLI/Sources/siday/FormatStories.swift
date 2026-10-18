@@ -1030,14 +1030,19 @@ source: what the player tells the Amiga's sound chip on every tick, and what it 
 waveforms, are the same as UADE's for every song of every file over its first 40 seconds (but for
 one voice that plays nothing, whose note falls past the player's table). Mugician II's four mixed
 voices are mixed as its player mixes them, byte for byte, at 22 kHz as UADE sets it (the player's
-own default is 16), and heard a tick after they are mixed; they share the fourth voice's lights and
-scope. By how loud each side is from moment to moment over the first minute, the files are 0.986 to
-0.998 alike.
+own default is 16), and heard a tick after they are mixed; each of the seven has its own light,
+scope and note, and can be muted or heard alone, the mixed ones left out of the mixing. By how loud
+each side is from moment to moment over the first minute, the files are 0.994 to 0.9998 alike.
 
 What is siday's own, or the players' own and worth telling:
 
-1. The players change waveforms and turn voices on partway through each tick, which is done here at
-   the tick's start; that is most of what is left between siday and UADE.
+1. The players turn a note's voice off as they read its row and on again only at the end of their
+   work, so the note is silent until then: 1.8 ms into the tick for the first player (whose
+   EaglePlayer module waits eight or nine raster lines before it), and 13 ms for Mugician II, after
+   its mixing. Notes begin here where they do in UADE's playing of the collection (its median), and
+   everything else the players write is done at the tick's start. The waveforms they rewrite partway
+   through, and the few tenths of a millisecond that one tick's or one file's work takes more or less
+   than another's, are most of what is left between siday and UADE.
 2. The commands for the Amiga's filter ($45 on, $46 off, $47 the other way) are heard, as the players
    set it, off when a song starts.
 3. How loud it is: Digital Mugician's music is 4.3 dB louder on the Amiga's chip than modules are,
@@ -1055,13 +1060,17 @@ it: what it tells the Amiga's sound chip on every tick is the same as UADE's, fo
 over their first 40 seconds, and so are the noise it writes over its first waveform on every tick
 and the start of a sample it clears when its loop begins. A module whose player is other code than
 this is not taken, since that code is not run. By how loud each side is from moment to moment over
-the first minute, they are 0.977 to 0.9994 alike.
+the first minute, they are 0.983 to 0.9997 alike.
 
 What is siday's own, or the players' own and worth telling:
 
-1. The player turns a voice off and on again within a tick; on the Amiga, and in UADE, a low note
-   then carries on rather than starting again, about one note in thirty (a third of Hardy Hitech's
-   bass notes). Here every note starts again, which is the least alike file's difference.
+1. The player turns a note's voice off as it reads its row and on again at the end of its tick's
+   work, about a millisecond in, which is where its notes begin here (as they do in UADE's playing
+   of the collection, its median). On the Amiga, and in UADE, a low note then sometimes carries on
+   rather than starting again, as Paula stops a voice only at the end of a word: about one note in
+   forty (a third of Hardy Hitech's bass notes). Which notes do depends on where Paula is in a word
+   to within a few of her clocks as each write is made, more closely than the player's timing can be
+   known here, so every note starts again; that is the least alike file's difference.
 2. When a song has come to its end: when its first voice's list starts again from its loop.
 3. The command for the Amiga's filter is heard: on for anything but nought, off when a song starts.
 4. How loud it is: Delta Music's is 7.2 dB louder on the Amiga's chip than modules are, in the

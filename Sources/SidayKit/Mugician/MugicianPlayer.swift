@@ -148,6 +148,13 @@ struct MugicianPlayer: ~Copyable {
     }
 
     private(set) var mixed = InlineArray<4, MixedVoice>(repeating: MixedVoice())
+    /// Each mixed voice's part of the buffer last mixed, as it is heard (for its scope and light), and
+    /// how many bytes that was in the tick just run; which voices are left out of the mixing; and which
+    /// have started a sample since it was last asked.
+    private let parts: UnsafeMutablePointer<Float>
+    private(set) var mixedCount = 0
+    private var mixedMuted = InlineArray<4, Bool>(repeating: false)
+    private var mixedStruck = InlineArray<4, Bool>(repeating: false)
     /// Which of the two buffers is mixed into next (`lbL01097E`), as an offset into `memory`.
     private var nextBuffer = 0
     private var ticks = 0
@@ -198,6 +205,8 @@ struct MugicianPlayer: ~Copyable {
         memoryCapacity = data.count + 0x20000 + Self.mixingSpace + 2 * Self.bufferBytes
         memory = .allocate(capacity: memoryCapacity)
         memory.initialize(repeating: 0, count: memoryCapacity)
+        parts = .allocate(capacity: 4 * Self.bufferBytes)
+        parts.initialize(repeating: 0, count: 4 * Self.bufferBytes)
         for (i, b) in data.enumerated() { memory[i] = b }
         func word(_ at: Int) -> Int { at >= 0 && at + 2 <= data.count ? Int(data[at]) << 8 | Int(data[at + 1]) : 0 }
         func long(_ at: Int) -> Int { word(at) << 16 | word(at + 2) }
@@ -264,7 +273,10 @@ struct MugicianPlayer: ~Copyable {
         start(self.song)
     }
 
-    deinit { memory.deallocate() }
+    deinit {
+        memory.deallocate()
+        parts.deallocate()
+    }
 
     @inline(__always) private func byte(_ at: Int) -> UInt8 { at >= 0 && at < memoryCapacity ? memory[at] : 0 }
     @inline(__always) private func sbyte(_ at: Int) -> Int { Int(Int8(bitPattern: byte(at))) }
@@ -288,6 +300,8 @@ struct MugicianPlayer: ~Copyable {
         voices = InlineArray(repeating: Voice())
         mixed = InlineArray(repeating: MixedVoice())
         for v in 0 ..< 4 { mixed[v].at = silenceAt }
+        mixedCount = 0
+        mixedStruck = InlineArray(repeating: false)
         nextBuffer = buffersAt
         ticks = 0
         // Paula as `Init` leaves her: the first player sets each voice's length to $7C; the second
@@ -364,9 +378,10 @@ struct MugicianPlayer: ~Copyable {
     /// `output` what Paula is to do. Returns the tick's length in Paula's clocks.
     @discardableResult
     mutating func run<Output: TFMXOutput>(_ output: inout Output) -> Int {
+        mixedCount = 0
         if kind == .two, heard {
             // Paula's first voice plays each buffer the tick after it is mixed (see `mix`). On the first
-            // tick she is started on part of a buffer of silence (`leadWords`).
+            // tick she is started on a buffer of silence (`leadWords`).
             if ticks == 0 {
                 tell(0, start: buffersAt + Self.bufferBytes, length: UInt16(Self.leadWords), &output)
                 output.on(0)
@@ -398,6 +413,7 @@ struct MugicianPlayer: ~Copyable {
                 mixed[v - 3].end = started.end
                 mixed[v - 3].loop = started.loop
                 mixed[v - 3].silent = false
+                mixedStruck[v - 3] = true
             }
         }
         var done = InlineArray<8, UInt8>(repeating: 0x80)
@@ -410,13 +426,24 @@ struct MugicianPlayer: ~Copyable {
         return tickClocks
     }
 
-    /// How many words of silence Paula's first voice begins Mugician II's song with, so that its buffers
-    /// begin as long after its other voices' notes as they do in the player's own time. There, a tick
-    /// begins as a buffer does, and its notes as Paula's DMA is turned on at the end of the player, after
-    /// its mixing: 39,500 of her clocks into the tick of 71,720 (as UADE's dumps of her registers show),
-    /// 32,220 before the next buffer. `PaulaTickRenderer` begins the notes as the tick begins: the
-    /// buffers begin 99 words, 32,274 clocks, after.
-    static let leadWords = 99
+    /// How many words of silence Paula's first voice begins Mugician II's song with: a tick begins as a
+    /// buffer does, and the buffer mixed in it is heard from the next, so the first tick's sound is a
+    /// buffer's length of silence. (One word short of it: Paula takes up the next buffer as she fetches
+    /// the word after the last, which falls inside the first tick, before the second tick's buffer is
+    /// set to follow it.)
+    static let leadWords = 219
+
+    /// How far into a tick, in Paula's clocks, the voices started in it begin: when Paula takes them
+    /// up, as the player's DMA-on write at its end (`lbC007252`, `move.w #$800F,$DFF096`; Mugician II's
+    /// `lbC00FC9E`, `$800E`) has turned them on, and plays their first sample, a line (227 clocks)
+    /// later, as UAE's Paula does. The players write the rest of what they tell Paula well before it;
+    /// until then a voice turned off for its note is silent. Where the write falls is measured from
+    /// UADE's playing of the collection: Paula takes a voice up at the first line after it, for the first
+    /// player a median of 6,112 clocks after the tick's first write (over 12,737 notes, half of them within
+    /// 5,428 and 6,640), which takes in EaglePlayer's module's `DMAWait` of eight or nine lines before the
+    /// write; for Mugician II, 45,603 after its tick begins (736 notes, 44,235 to 46,751), after the
+    /// mixing.
+    var noteClocks: Int { (kind == .one ? 6112 : 45603) + 227 }
 
     /// The song moves on ($71C4): after its speed's ticks, a row; after its patterns' length, a position;
     /// after its length, the position it goes back to, as the song ends.
@@ -775,9 +802,15 @@ struct MugicianPlayer: ~Copyable {
         }
         var carried = InlineArray<4, UInt32>(repeating: 0)
         let table = MugicianTables.volumes
-        for n in 0 ..< mixWords * 2 {
+        let count = min(mixWords * 2, Self.bufferBytes)
+        for n in 0 ..< count {
             var sum = 0
-            for i in 0 ..< 4 { sum += Int(table[volumes[i] << 8 | Int(byte(mixed[i].at))]) }
+            for i in 0 ..< 4 {
+                // (A voice left out is taken as one at no volume, whose every byte is $80: nought.)
+                let value = Int(table[volumes[i] << 8 | Int(byte(mixed[i].at))])
+                parts[i * Self.bufferBytes + n] = Float(value - 0x80) * (1.0 / 128.0)
+                sum += mixedMuted[i] ? 0x80 : value
+            }
             memory[into + n] = UInt8(bitPattern: Int8(clamping: sum - 512))
             for i in 0 ..< 4 {
                 carried[i] += fraction[i]
@@ -789,6 +822,7 @@ struct MugicianPlayer: ~Copyable {
         for i in 0 ..< 4 where mixed[i].at >= mixed[i].end {
             if mixed[i].loop != 0 { mixed[i].at -= mixed[i].loop } else { mixed[i].silent = true }
         }
+        mixedCount = count
         tell(0, start: into, length: UInt16(mixWords), &output)
     }
 
@@ -840,6 +874,23 @@ extension MugicianPlayer: PaulaTickPlayer {
 
     var sevenVoiceStyle: TFMXSevenVoices.Style? { nil }
     var sevenVoiceTempo: Int { 0 }
+
+    /// Mugician II's four mixed voices, shown and left out each for itself: mixed onto Paula's first,
+    /// after the silence she begins with (`leadWords`); her fourth, second and third are its first three.
+    var ownMixing: PaulaOwnMixing? {
+        kind == .one ? nil : PaulaOwnMixing(voices: 4, onto: 0, period: Int(mixPeriod), leadBytes: Self.leadWords * 2, shown: [-1, 1, 2, 0])
+    }
+
+    func mixedPart(_ voice: Int, at index: Int) -> Float { parts[voice * Self.bufferBytes + index] }
+
+    func mixedPeriod(_ voice: Int) -> UInt16 { mixed[voice].silent ? 0 : mixed[voice].period }
+
+    mutating func takeMixedStruck(_ voice: Int) -> Bool {
+        defer { mixedStruck[voice] = false }
+        return mixedStruck[voice]
+    }
+
+    mutating func setMixedMuted(_ voice: Int, _ muted: Bool) { mixedMuted[voice] = muted }
 
     var tuneInfo: TuneInfo {
         var info = TuneInfo(format: "MUG")

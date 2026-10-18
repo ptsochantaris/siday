@@ -160,7 +160,7 @@ private func period(_ note: Int, fineTune: Int = 0) -> UInt16 { MugicianTables.p
     var first = Recorder(), second = Recorder()
     player.run(&first)
     // Paula's first voice begins with silence, then the buffer mixed; her fourth plays the first voice.
-    #expect(first.events.first == "buffer 0 \(player.buffersAt + MugicianPlayer.bufferBytes) 99")
+    #expect(first.events.first == "buffer 0 \(player.buffersAt + MugicianPlayer.bufferBytes) 219")
     #expect(first.events.contains("buffer 0 \(player.buffersAt) 220"))
     #expect(first.events.contains("buffer 3 \(layout.samples) 100"))
     #expect(first.events.suffix(3) == ["on 3", "on 1", "on 2"])
@@ -204,4 +204,78 @@ private func period(_ note: Int, fineTune: Int = 0) -> UInt16 { MugicianTables.p
         #expect(loudest > 0.01)
         #expect(renderer.songs.first?.length != nil)
     }
+}
+
+@Test func mugicianNotesBeginWhereThePlayersTurnThemOn() throws {
+    // Each player's first note is heard from where in the tick it turns Paula's DMA on, after the rest
+    // of its work; Mugician II's mixed voice from the second tick, as Paula takes up the buffer mixed in
+    // the first.
+    for two in [false, true] {
+        let module = mugician(two: two, instrument: two ? [0x20, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] : nil).0
+        let player = try MugicianPlayer(module)
+        let at = player.noteClocks * outputSampleRate / Int(Paula.clockHz)
+        let tick = player.tickClocks * outputSampleRate / Int(Paula.clockHz)
+        let renderer = try PaulaTickRenderer(player, options: LoadOptions())
+        if two { renderer.setMuted([false, true, true, true]) }
+        var sound = [Float](repeating: 0, count: 4800 * 2)
+        sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 4800) }
+        let first = try #require((0 ..< 4800).first { abs(sound[$0 * 2]) > 0.001 || abs(sound[$0 * 2 + 1]) > 0.001 })
+        #expect(first >= at - 4)
+    #expect(first <= at + 40)
+        if two {
+            // The mixed voice alone.
+            let mixed = try PaulaTickRenderer(try MugicianPlayer(module), options: LoadOptions())
+            mixed.setMuted([true])
+            sound.withUnsafeMutableBufferPointer { mixed.render(into: $0.baseAddress!, frames: 4800) }
+            let heard = try #require((0 ..< 4800).first { abs(sound[$0 * 2]) > 0.001 || abs(sound[$0 * 2 + 1]) > 0.001 })
+            #expect(heard >= tick - 8)
+            #expect(heard <= tick + 40)
+        }
+    }
+}
+
+@Test func mugicianTwoShowsAndMutesItsMixedVoicesEachForItself() throws {
+    // Mugician II's first voice on Paula's fourth, and the second song's first voice mixed onto her
+    // first: seven voices, the mixed ones after her three, each with its own light, note, scope and mute.
+    let module = mugician(two: true, instrument: [0x20, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).0
+    func render(_ muted: [Bool], frames: Int = 9600) throws -> (sound: [Float], levels: [Float], pitches: [Float], struck: [Bool], renderer: PaulaTickRenderer<MugicianPlayer>) {
+        let renderer = try PaulaTickRenderer(try MugicianPlayer(module), options: LoadOptions())
+        _ = renderer.keepChannelWaves()
+        renderer.setMuted(muted)
+        var sound = [Float](repeating: 0, count: frames * 2)
+        sound.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
+        var levels = [Float](repeating: 0, count: 7), pitches = levels, struck = [Bool](repeating: false, count: 7)
+        levels.withUnsafeMutableBufferPointer { renderer.takeChannelLevels(into: $0.baseAddress!) }
+        pitches.withUnsafeMutableBufferPointer { p in
+            struck.withUnsafeMutableBufferPointer { renderer.takeChannelNotes(pitches: p.baseAddress!, struck: $0.baseAddress!) }
+        }
+        return (sound, levels, pitches, struck, renderer)
+    }
+    let heard = try render([])
+    let levels = heard.levels, renderer = heard.renderer
+    #expect(renderer.channelCount == 7)
+    // Lit: the first voice (Paula's fourth) and the first mixed voice; the rest are dark.
+    #expect(levels[0] > 0.1 && levels[3] > 0.1)
+    #expect(levels[1] == 0 && levels[2] == 0 && levels[4] == 0 && levels[5] == 0 && levels[6] == 0)
+    #expect(heard.pitches[3] == ChannelPitch.note(ofRate: Paula.clockHz / Double(period(24))))
+    #expect(heard.struck[3] && !heard.struck[4])
+    var sides = [Float](repeating: 0, count: 7)
+    sides.withUnsafeMutableBufferPointer { renderer.takeChannelSides(into: $0.baseAddress!) }
+    #expect(sides == [-1, 1, 1, -1, -1, -1, -1])
+    // The mixed voice's scope shows it, and that of one that plays nothing is flat.
+    let waves = try #require(renderer.keepChannelWaves())
+    var scope = [UInt8](repeating: 0, count: ChannelWaves.points)
+    scope.withUnsafeMutableBufferPointer { waves.take(3, pitch: heard.pitches[3], periodic: false, behind: 0, into: $0.baseAddress!) }
+    #expect(scope.contains { $0 != 128 })
+    scope.withUnsafeMutableBufferPointer { waves.take(4, pitch: 0, periodic: false, behind: 0, into: $0.baseAddress!) }
+    #expect(scope.allSatisfy { $0 == 128 })
+    // A silent mixed voice left out changes nothing; the playing one left out is gone from the sound,
+    // and its light still says how loud it is; with both playing voices left out there is silence.
+    #expect(try render([false, false, false, false, true]).sound == heard.sound)
+    let withoutMixed = try render([false, false, false, true])
+    #expect(withoutMixed.sound != heard.sound)
+    #expect(withoutMixed.levels[3] == levels[3])
+    #expect(try render([true, false, false, true]).sound.allSatisfy { $0 == 0 })
+    // Left out, the first voice leaves the mixed one heard.
+    #expect(try render([true]).sound.contains { $0 != 0 })
 }

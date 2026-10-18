@@ -24,8 +24,11 @@
 /// For a note, the replayer turns the voice's DMA off, and on again at the end of the tick, with no
 /// wait between: Paula stops a voice only at the end of a word, so a low note may go on from where the
 /// last left off rather than start afresh (in UADE's playing of the collection, about one note in
-/// thirty, mostly low ones; in Hardy Hitech, a third of the second voice's). Here, as
-/// `PaulaTickRenderer` plays any player, every note starts afresh.
+/// forty, mostly low ones; in Hardy Hitech, a third of the second voice's). Here every note starts
+/// afresh, where the replayer turns DMA on (`noteClocks`): which notes go on depends on where Paula is
+/// in a word as the replayer's code reaches each write, to within a few of her clocks, which a model
+/// of when the writes fall does not tell well enough (one made from UADE's timings of them let 110
+/// notes go on in the collection's first 40 seconds, of which 52 were among UADE's 176).
 ///
 /// The replayer reads what follows its tables and the module where a module takes it there (an
 /// instrument of nought, a note beyond its table); that is read here from the module and the room
@@ -555,4 +558,11 @@ extension DeltaMusicPlayer: PaulaTickPlayer {
     mutating func prepareToBeHeard() {}
 
     func fourVoiceTick(_: inout TFMXTiming) -> Int { Self.tickClocks }
+
+    /// A note begins after the replayer has run its four voices, as their DMA is turned on at its end
+    /// ($490). In UADE's playing of the collection, Paula takes a voice up at the first line after that
+    /// write a median of 3,459 of her clocks after the tick's first write (over its 6,032 notes, half of
+    /// them within 3,168 and 3,780), and plays its first sample a line (227 clocks) later, as UAE's
+    /// Paula does; until then the voice turned off for it is silent.
+    var noteClocks: Int { 3459 + 227 }
 }

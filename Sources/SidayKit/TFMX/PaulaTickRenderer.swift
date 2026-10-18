@@ -75,11 +75,50 @@ protocol PaulaTickPlayer: ~Copyable {
     func volume(_ voice: Int) -> UInt16
     /// True while the player has the Amiga's filter on (the one its power light shows).
     var lightFilter: Bool { get }
+    /// For a player that mixes some of its voices onto one of Paula's itself, by the processor (Mugician
+    /// II): what it says of them, for each to be shown and left out for itself. Nil for one that does not.
+    var ownMixing: PaulaOwnMixing? { get }
+    /// How many bytes the player mixed in the tick just run, and each mixed voice's part of each of them,
+    /// as it is heard: turned down by its volume, in 128ths of a byte's fullest swing.
+    var mixedCount: Int { get }
+    func mixedPart(_ voice: Int, at index: Int) -> Float
+    /// The period a mixed voice is playing its sample at now, nought for one that is silent; and whether
+    /// it has started a sample since this was last asked.
+    func mixedPeriod(_ voice: Int) -> UInt16
+    mutating func takeMixedStruck(_ voice: Int) -> Bool
+    /// Leaves a mixed voice out of the mixing, or brings it back.
+    mutating func setMixedMuted(_ voice: Int, _ muted: Bool)
+    /// How far into its tick, in Paula's clocks, the voices the player starts in it begin: where its
+    /// write that turns their DMA on falls, after the rest of what it does in the tick, which is all done
+    /// at the tick's start. Nought, for a player whose notes begin with the tick.
+    var noteClocks: Int { get }
 }
 
 extension PaulaTickPlayer where Self: ~Copyable {
     /// A player that does not set it leaves it off.
     var lightFilter: Bool { false }
+    /// Most players' notes begin with their tick.
+    var noteClocks: Int { 0 }
+    /// Most players mix nothing themselves.
+    var ownMixing: PaulaOwnMixing? { nil }
+    var mixedCount: Int { 0 }
+    func mixedPart(_: Int, at _: Int) -> Float { 0 }
+    func mixedPeriod(_: Int) -> UInt16 { 0 }
+    mutating func takeMixedStruck(_: Int) -> Bool { false }
+    mutating func setMixedMuted(_: Int, _: Bool) {}
+}
+
+/// What a player that mixes some of its voices onto one of Paula's itself says of them (see
+/// `PaulaTickPlayer.ownMixing`): how many there are, which of her voices plays what is mixed of them,
+/// at what period, and after how many bytes of silence the first that is mixed is heard. Her other
+/// three are shown first, in the order of `shown` (which of them each of her four is shown as, -1 for
+/// the one that plays the mixing), and the mixed voices after them.
+struct PaulaOwnMixing {
+    var voices: Int
+    var onto: Int
+    var period: Int
+    var leadBytes: Int
+    var shown: InlineArray<4, Int>
 }
 
 extension TFMXPlayer: PaulaTickPlayer {
@@ -127,6 +166,23 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
 
     private var player: Player
     private let sevenVoices: Bool
+    /// What the player says of the voices it mixes itself, if it does (see `PaulaOwnMixing`).
+    private let own: PaulaOwnMixing?
+    /// Their parts of what has been mixed and not yet heard, `ownSpace` of each voice's, `ownPending`
+    /// of them kept; the part of a byte of the mixing the ticks so far are over by, in Paula's clocks;
+    /// and how far each swung in the tick just made.
+    private var ownParts: UnsafeMutablePointer<Float>
+    private static var ownSpace: Int { 4096 }
+    private var ownPending = 0
+    private var ownClocks = 0
+    private var ownLevels = InlineArray<4, Float>(repeating: 0)
+    /// What Paula says of her four, before it is shown as the voices they are.
+    private var paulaLevels = [Float](repeating: 0, count: 4)
+    private var paulaNotes = TickNotes(voices: 4)
+    /// How far into a tick the player's notes begin (`PaulaTickPlayer.noteClocks`), and the voices it has
+    /// started in the tick being made, which begin there.
+    private let noteClocks: Int
+    private var startsLater: UInt16 = 0
     private let style: TFMXSevenVoices.Style
     private let model: AmigaModel
     private var paula: Paula
@@ -165,18 +221,30 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         self.player.prepareToBeHeard()
         style = self.player.sevenVoiceStyle ?? .huelsbeck
         sevenVoices = self.player.sevenVoiceStyle != nil
+        own = sevenVoices ? nil : self.player.ownMixing.map { mixing in
+            var mixing = mixing
+            mixing.voices = max(0, min(4, mixing.voices))
+            mixing.onto = max(0, min(3, mixing.onto))
+            mixing.period = max(1, mixing.period)
+            mixing.leadBytes = max(0, min(Self.ownSpace / 2, mixing.leadBytes))
+            for p in 0 ..< 4 where p == mixing.onto || mixing.shown[p] > 2 { mixing.shown[p] = -1 }
+            return mixing
+        }
         model = options.amigaModel
         side = options.stereo == .mono ? 0 : Float(max(0, min(1, options.amigaSeparation))) * 0.5
         info = self.player.tuneInfo
         gain = self.player.gain
+        noteClocks = max(0, self.player.noteClocks)
         let memory = UnsafeRawPointer(player.memory).assumingMemoryBound(to: Int8.self)
         paula = Paula(rate: Double(outputSampleRate * 2), model: model, memory: memory, size: player.memoryCapacity,
                       silence: player.silenceAt)
         mixer = TFMXSevenVoices(silence: self.player.mixingAt - 0x10000, style: style)
         parts = .allocate(capacity: 4 * 1024)
         heardParts = .allocate(capacity: 4 * 1024)
-        levels = TickLevels(voices: sevenVoices ? 7 : 4)
-        notes = TickNotes(voices: sevenVoices ? 7 : 4)
+        ownParts = .allocate(capacity: 4 * Self.ownSpace)
+        let voices = sevenVoices ? 7 : own.map { 3 + $0.voices } ?? 4
+        levels = TickLevels(voices: voices)
+        notes = TickNotes(voices: voices)
         left = .allocate(capacity: 1)
         right = .allocate(capacity: 1)
         // Each song's length, from the player's own playing of it through before it starts.
@@ -195,6 +263,7 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         right.deallocate()
         parts.deallocate()
         heardParts.deallocate()
+        ownParts.deallocate()
     }
 
     /// The voices left out of the sound, which the sound started afresh is started without.
@@ -210,6 +279,11 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
             // Paula's fourth plays the four mixed, which are left out of the mixing each for itself.
             paula.setMuted((0 ..< 4).map { $0 < 3 && $0 < muted.count && muted[$0] })
             for v in 0 ..< 4 { mixer.voices[v].muted = v + 3 < muted.count && muted[v + 3] }
+        } else if let own {
+            // Paula's three as the voices they are shown as; the one that plays the mixing is heard, and
+            // the mixed voices are left out of it by the player, each for itself.
+            paula.setMuted((0 ..< 4).map { own.shown[$0] >= 0 && own.shown[$0] < muted.count && muted[own.shown[$0]] })
+            for v in 0 ..< own.voices { player.setMixedMuted(v, 3 + v < muted.count && muted[3 + v]) }
         } else {
             paula.setMuted(muted)
         }
@@ -224,9 +298,13 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
             if sevenVoices {
                 for v in 3 ..< 7 { made.setVoice(v, rate: Paula.clockHz / Double(style.period), fullSwing: 1) }
             }
+            if let own {
+                for v in 0 ..< own.voices { made.setVoice(3 + v, rate: Paula.clockHz / Double(own.period), fullSwing: 1) }
+            }
             waves = made
             paula.waves = made
             if sevenVoices { paula.waveNumbers = [0, 1, 2, -1] }
+            if let own { paula.waveNumbers = own.shown }
         }
         return waves
     }
@@ -244,6 +322,7 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
                       silence: player.silenceAt)
         paula.waves = waves
         if sevenVoices { paula.waveNumbers = [0, 1, 2, -1] }
+        if let own { paula.waveNumbers = own.shown }
         mixer = TFMXSevenVoices(silence: player.mixingAt - 0x10000, style: style)
         applyMutes()
         output = TFMXTickOutput()
@@ -258,6 +337,15 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         notes.clear()
         remainder = 0
         heardCount = 0
+        startsLater = 0
+        if let own {
+            // What is mixed first is heard after Paula has played the silence before it.
+            for v in 0 ..< own.voices { (ownParts + v * Self.ownSpace).update(repeating: 0, count: own.leadBytes) }
+            ownPending = own.leadBytes
+            ownClocks = 0
+            ownLevels = InlineArray(repeating: 0)
+            paulaNotes.clear()
+        }
         if sevenVoices {
             // Paula's fourth plays the mixing from the start, a buffer of silence first.
             mixingBuffer = 0
@@ -306,6 +394,7 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         } else {
             runPlayer()
             clocks = player.fourVoiceTick(&timing)
+            if own != nil, !stopped { keepOwnParts(clocks: clocks) }
         }
         if stopped, clocks == 0 {
             tickFrames = 0
@@ -323,9 +412,24 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
             left = .allocate(capacity: tickSpace)
             right = .allocate(capacity: tickSpace)
         }
-        paula.generate(left: left, right: right, count: tickFrames * 2)
-        paula.takeLevels(into: &levels.now)
-        paula.takeNotes(into: &notes)
+        if startsLater != 0 {
+            // The tick's sound up to where the player's notes begin, and then the rest of it.
+            let before = min(tickFrames * 2, noteClocks * outputSampleRate * 2 / Self.chipClock)
+            paula.generate(left: left, right: right, count: before)
+            for v in 0 ..< 4 where startsLater & 1 << UInt16(v) != 0 && !paula.isPlaying(v) {
+                paula.start(voices: 1 << UInt16(v))
+            }
+            startsLater = 0
+            paula.generate(left: left + before, right: right + before, count: tickFrames * 2 - before)
+        } else {
+            paula.generate(left: left, right: right, count: tickFrames * 2)
+        }
+        if let own {
+            takeOwnNotes(own)
+        } else {
+            paula.takeLevels(into: &levels.now)
+            paula.takeNotes(into: &notes)
+        }
         if sevenVoices { takeMixedNotes() }
         levels.tickMade()
         for i in 0 ..< tickFrames {
@@ -366,7 +470,10 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         for event in output.events {
             switch event {
             case let .on(v):
-                if v < paulaVoices {
+                if v < paulaVoices, noteClocks > 0, !sevenVoices, own?.onto != v {
+                    // (Started later in the tick, as the player's write that starts it falls.)
+                    startsLater |= 1 << UInt16(v)
+                } else if v < paulaVoices {
                     if !paula.isPlaying(v) { paula.start(voices: 1 << UInt16(v)) }
                 } else if sevenVoices, v < 7 {
                     mixer.voices[v - 3].on = true
@@ -374,6 +481,7 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
             case let .off(v):
                 if v < paulaVoices {
                     paula.stop(voices: 1 << UInt16(v))
+                    startsLater &= ~(1 << UInt16(v))
                 } else if sevenVoices, v < 7 {
                     mixer.voices[v - 3].on = false
                     mixer.voices[v - 3].restart = true
@@ -421,6 +529,59 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
 
     private var mixedLevels = InlineArray<4, Float>(repeating: 0)
 
+    /// Takes the parts of what the player has just mixed of its own voices, and keeps those Paula plays in
+    /// the tick to come for their scopes and lights: all that was before them, and as much of them as
+    /// she gets through, at the period she plays the mixing at.
+    private func keepOwnParts(clocks: Int) {
+        guard let own else { return }
+        let count = min(player.mixedCount, Self.ownSpace - ownPending)
+        if count > 0 {
+            for v in 0 ..< own.voices {
+                let into = ownParts + v * Self.ownSpace + ownPending
+                for i in 0 ..< count { into[i] = player.mixedPart(v, at: i) }
+            }
+            ownPending += count
+        }
+        let whole = ownClocks + clocks
+        let heard = whole / own.period
+        ownClocks = whole % own.period
+        let taken = min(heard, ownPending)
+        for v in 0 ..< own.voices {
+            let part = ownParts + v * Self.ownSpace
+            var low: Float = 0, high: Float = 0
+            for i in 0 ..< taken {
+                low = min(low, part[i])
+                high = max(high, part[i])
+                waves?.store(3 + v, at: i, part[i])
+            }
+            if heard > taken { for i in taken ..< heard { waves?.store(3 + v, at: i, 0) } }
+            waves?.advance(3 + v, by: heard)
+            ownLevels[v] = min(1, (high - low) * 0.5)
+            if taken < ownPending { part.update(from: part + taken, count: ownPending - taken) }
+        }
+        ownPending -= taken
+    }
+
+    /// What Paula's three and the voices the player mixes itself sound like and are playing, in the order
+    /// they are shown.
+    private func takeOwnNotes(_ own: PaulaOwnMixing) {
+        paula.takeLevels(into: &paulaLevels)
+        paula.takeNotes(into: &paulaNotes)
+        for p in 0 ..< 4 where own.shown[p] >= 0 {
+            let shown = own.shown[p]
+            levels.now[shown] = paulaLevels[p]
+            notes.pitches[shown] = paulaNotes.pitches[p]
+            if paulaNotes.struck[p] { notes.struck[shown] = true }
+        }
+        for p in 0 ..< 4 { paulaNotes.struck[p] = false }
+        for v in 0 ..< own.voices {
+            levels.now[3 + v] = ownLevels[v]
+            let period = player.mixedPeriod(v)
+            notes.pitches[3 + v] = period > 0 ? ChannelPitch.note(ofRate: Paula.clockHz / Double(period)) : 0
+            if player.takeMixedStruck(v) { notes.struck[3 + v] = true }
+        }
+    }
+
     /// What the four 7V voices are playing, by their periods.
     private func takeMixedNotes() {
         for v in 0 ..< 4 {
@@ -459,10 +620,16 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         waves?.ahead = tickFrames - tickPosition
     }
 
-    /// Paula's four voices; or for TFMX 7V her first three and the four mixed onto her fourth.
-    var channelCount: Int { sevenVoices ? 7 : 4 }
+    /// Paula's four voices; or for TFMX 7V her first three and the four mixed onto her fourth; or for a
+    /// player that mixes voices itself her other three and those (see `PaulaOwnMixing`).
+    var channelCount: Int { sevenVoices ? 7 : own.map { 3 + $0.voices } ?? 4 }
 
     func takeChannelSides(into sides: UnsafeMutablePointer<Float>) {
+        if let own {
+            for p in 0 ..< 4 where own.shown[p] >= 0 && own.shown[p] < 3 { sides[own.shown[p]] = Paula.side(ofVoice: p) }
+            for v in 0 ..< own.voices { sides[3 + v] = Paula.side(ofVoice: own.onto) }
+            return
+        }
         for voice in 0 ..< channelCount { sides[voice] = Paula.side(ofVoice: min(voice, 3)) }
     }
 
