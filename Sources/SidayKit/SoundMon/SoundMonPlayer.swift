@@ -29,6 +29,12 @@
 /// play is what that player writes there. It runs fifty times a second, its row every sixth tick
 /// unless the song sets another speed.
 ///
+/// The players have no songs but the one from the first step. But a game's module often holds several
+/// of its tunes, each going round on itself, and the game set the player going at the step it
+/// wanted. So the steps the first song never plays are looked through for more, as a module of any
+/// other kind is (see `ModuleSongs`), and a song found at a step is played as the player would play
+/// it if a game, once the player's `bpinit` had set it up, had set its step (`bpstep`) there.
+///
 /// It owns the memory Paula plays from: the module, which the synthesised instruments rewrite, and
 /// after it room into which a waveform past the module's may be written (and from which nothing is
 /// played that was not), and then the silence a voice with nothing to play is pointed at. What of its
@@ -152,6 +158,21 @@ struct SoundMonPlayer: ~Copyable {
     var stops: Int { 0 }
     private(set) var lengthClocks: UInt64?
 
+    /// The songs: the step each begins at, and its length in Paula's clocks, if it ends.
+    private(set) var songStarts: [UInt16] = [0]
+    private var songLengths: [UInt64?] = [nil]
+    private(set) var song = 0
+
+    /// While the songs are being found (see `ModuleSongs`): which song first played each row of the
+    /// steps (sixteen to a step), the number of the one being played, which steps it has played, how
+    /// many notes it has begun, and whether it has gone on into a row an earlier song played. (Empty
+    /// once they are found.)
+    private var firstPlayedBy: [UInt8] = []
+    private var songNumber: UInt8 = 0
+    private var stepsPlayed: [Bool] = []
+    private var notesBegun = 0
+    private var ledIntoEarlierSong = false
+
     /// What an instrument past fifteen, or a pointer of the player's own, points at that is none of
     /// the module's: played as silence.
     static let nowhere = -0x4000_0000
@@ -176,8 +197,8 @@ struct SoundMonPlayer: ~Copyable {
         }
     }
 
-    /// Reads the module and starts its song (it has one: `song` is taken for that one, whatever it is).
-    init(_ data: [UInt8], song _: Int = 0) throws(TuneError) {
+    /// Reads the module, finds its songs and starts song `song` (the first, if it has no such song).
+    init(_ data: [UInt8], song: Int = 0) throws(TuneError) {
         let version = Self.version(of: data)
         self.version = version ?? .soundMon20
         fileSize = data.count
@@ -222,24 +243,70 @@ struct SoundMonPlayer: ~Copyable {
         // (Refused only once it is all made, that it may be undone as a whole.)
         guard version != nil else { throw .malformed("not a SoundMon module") }
 
-        start()
-        // The song's length, from a playing of it in silence to its end.
-        var none = TFMXSilentOutput()
-        var ticks = 0
-        while endings == 0, ticks < Self.mostTicks {
-            _ = run(&none)
-            ticks += 1
+        findSongs()
+        try select(song: song >= 0 && song < songStarts.count ? song : 0)
+    }
+
+    /// Finds the songs, each from a playing of it in silence to its end, by `ModuleSongs`' rules: a
+    /// song begins at the first step not yet played, and is kept if a note is begun in it, it lasts a
+    /// second or more, and it is not a way of less than half a minute into a song found before it. It
+    /// comes to its end as the first song does (see `endings`).
+    ///
+    /// But for one thing: a short piece that goes on into an earlier song only where that song is
+    /// silent, and begins no note there before it comes round, is a song. A game's module often ends
+    /// its jingles so: each jumps, once played, to a step of silence that goes round on itself, which
+    /// the first of them to be found reaches first (ROADRIOT and MSVMUSIC have three, DIZZYMUSIC2
+    /// eleven).
+    private mutating func findSongs() {
+        let places = Int(steps)
+        firstPlayedBy = [UInt8](repeating: ModuleSongs.unplayed, count: places * 16)
+        var lengths: [UInt64?] = []
+        let samplesPerTick = Double(Self.tickClocks) / Paula.clockHz * Double(outputSampleRate)
+        let found = ModuleSongs.find(places: places, isPattern: { _ in true }) { first, number in
+            start(at: UInt16(truncatingIfNeeded: first))
+            songNumber = number
+            stepsPlayed = [Bool](repeating: false, count: places)
+            notesBegun = 0
+            ledIntoEarlierSong = false
+            var none = TFMXSilentOutput()
+            var watch = ModuleSongs.Watch()
+            var ticks = 0
+            // How many notes had been begun when the song went on into an earlier one, if it has.
+            var notesAtLeadIn: Int?
+            while endings == 0, ticks < Self.mostTicks {
+                let notesBefore = notesBegun
+                _ = run(&none)
+                _ = watch.tick(frames: Int(Double(ticks) * samplesPerTick), playedNote: notesBegun > 0,
+                               ledIntoEarlierSong: ledIntoEarlierSong)
+                if let leadIn = watch.leadIn {
+                    if notesAtLeadIn == nil { notesAtLeadIn = notesBefore }
+                    // A short way into a song that sounds there is no song: it need be played no further.
+                    if leadIn < ModuleSongs.leadIn, notesBegun > notesAtLeadIn! { break }
+                }
+                ticks += 1
+            }
+            // (The tick it came to its end in is the first of it again.)
+            let clocks = endings > 0 ? UInt64(ticks - 1) * UInt64(Self.tickClocks) : nil
+            lengths.append(clocks)
+            let intoSilence = endings > 0 && notesAtLeadIn == notesBegun
+            return ModuleSongs.Pass(played: stepsPlayed, length: clocks.map { Double($0) / Paula.clockHz },
+                                    sounded: intoSilence ? notesBegun > 0 : watch.sounded(notesBegun > 0),
+                                    leadIn: intoSilence ? nil : watch.leadIn)
         }
-        // (The tick it came to its end in is the first of it again.)
-        lengthClocks = endings > 0 ? UInt64(ticks - 1) * UInt64(Self.tickClocks) : nil
-        start()
+        songStarts = found.map { UInt16(truncatingIfNeeded: $0.start) }
+        songLengths = found.map { lengths[Int($0.number)] }
+        firstPlayedBy = []
+        stepsPlayed = []
     }
 
     deinit { memory.deallocate() }
 
-    /// The song from its beginning, as the player is when it is new and its `bpinit` ($1BA) has run;
-    /// and the module as it was.
-    private mutating func start() {
+    /// The song from its beginning, as the player is when it is new and its `bpinit` ($1BA) has run,
+    /// but for the step it plays first: `bpstep`, which is nought then (UADE's `InitSnd` puts the
+    /// player's variables back as they were before `bpinit` runs, which leaves it be), and which only
+    /// `bpnext`, the reading of a row, reads or sets. (So 2.0's count of repeats is one, as `bpinit`
+    /// sets it, whatever the step.) And the module as it was.
+    private mutating func start(at first: UInt16 = 0) {
         lightFilter = false
         if dirtyLow <= dirtyHigh {
             for i in dirtyLow ... dirtyHigh { memory[i] = i < fileSize ? original[i] : 0 }
@@ -249,7 +316,7 @@ struct SoundMonPlayer: ~Copyable {
         voices = .init(repeating: Voice())
         for v in 0 ..< 4 { voices[v].start = silenceAt }
         kept = .init(repeating: Kept())
-        step = 0
+        step = first
         patternCount = 0
         stepTranspose = 0
         noteTranspose = 0
@@ -467,10 +534,14 @@ struct SoundMonPlayer: ~Copyable {
 
     // MARK: Playing
 
-    var songCount: Int { 1 }
-    var song: Int { 0 }
+    var songCount: Int { songStarts.count }
 
-    mutating func select(song _: Int) throws(TuneError) { start() }
+    mutating func select(song: Int) throws(TuneError) {
+        guard song >= 0, song < songStarts.count else { throw .unsupported("there is no song \(song + 1)") }
+        self.song = song
+        lengthClocks = songLengths[song]
+        start(at: songStarts[song])
+    }
 
     /// Runs the player for a tick (`bpmusic`, $286; $262), telling `output` what Paula is to do, in
     /// the order the player tells her. Returns the tick's length in milliseconds.
@@ -552,6 +623,17 @@ struct SoundMonPlayer: ~Copyable {
         let v20 = version == .soundMon20
         var jumped: (step: UInt16, row: UInt8, voice: Int)?
         if played.last != step { played.append(step) }
+        if step < steps, !firstPlayedBy.isEmpty, endings == 0 {
+            // Whose row this is, while the songs are being found. (The row a song comes to its end on is
+            // the first of it again, or of the song from the first step: it is not played by this one.)
+            stepsPlayed[Int(step)] = true
+            let at = Int(step) * 16 + Int(patternCount) / 3 % 16
+            if firstPlayedBy[at] == ModuleSongs.unplayed {
+                firstPlayedBy[at] = songNumber
+            } else if firstPlayedBy[at] != songNumber {
+                ledIntoEarlierSong = true
+            }
+        }
         for v in 0 ..< 4 {
             let (entry, row) = cell(step: step, row: patternCount, voice: v)
             stepTranspose = byte(entry + 2)
@@ -754,6 +836,8 @@ struct SoundMonPlayer: ~Copyable {
     /// on for the voice (by 2.2 for all at once, after).
     private mutating func playNote<Output: TFMXOutput>(_ v: Int, _ output: inout Output) {
         let v20 = version == .soundMon20
+        // (A note of the row the song comes to its end on is not one of its own: see `nextRow`.)
+        if endings == 0 { notesBegun &+= 1 }
         voices[v].period &= 0x7FFF
         // (2.0 puts back the waveform the voice's last synthesised sound rewrote here.)
         if v20, kept[v].at != Self.nowhere { restore(v) }

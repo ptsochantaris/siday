@@ -961,11 +961,24 @@ What is siday's own, or the players' own and worth telling:
 1. When a song has come to its end: when the list of steps comes round, or when a jump goes back to
    a step it has played and would be taken again the next time (a jump the player is told to take a
    number of times is not an end until the count is done). The players say nothing of an end.
-2. Many of the games' files hold several of their tunes in one module, each looping on itself. As in
-   UADE, the one that begins at the first step is played; the others are not counted as songs.
+2. Many of the games' files hold several of their tunes in one module, each looping on itself, and
+   the game set the player going at the step it wanted (ANTICS has five such tunes). The players
+   themselves have no songs but the one from the first step, which is all UADE plays. Here the steps
+   that song never plays are looked through for more, as a module of any other kind is: a song begins
+   at the first step not yet played, and is kept if a note is played in it and it lasts a second or
+   more, but not if it only leads, in less than half a minute, into a song found before it. The one
+   thing added for SoundMon: a short piece that goes on into an earlier song only where that song is
+   silent is a song, for the games end their jingles so, each jumping to one step of silence that
+   goes round on itself. So 22 of the 80 files have more than one song, 149 songs in all (DIZZYMUSIC2
+   has thirteen, most of them jingles). A song is begun as the player is once its set-up has run, but
+   at its own step, as a game that set the player's step there would have begun it: with SoundMon
+   2.0's count of repeats at one, so the first jump of 2.0's that no count was set for is not taken
+   (in BIGNOSE, whose first four steps each jump to a tune, two songs begin with a step of silence).
+   Each of the 69 songs past the first plays as UADE plays a copy of its module with the list of
+   steps turned round to begin there (and its jumps made to go where they went), tick for tick over
+   200 seconds.
 3. The filter command (option 3) turns the Amiga's filter on, or off with nought, and is heard so.
-   One file (CLUMSY) has it, but turns the filter on only in steps of the module its song never
-   reaches.
+   One file (CLUMSY) has it, and turns the filter on only in its third song.
 4. Where a note or an instrument falls past the player's tables, it reads what follows them, as it
    would where UADE puts the player and the module.
 5. How loud it is: SoundMon's music is 1.5 dB louder on the Amiga's chip than modules are in the

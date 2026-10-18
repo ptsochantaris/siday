@@ -247,3 +247,72 @@ private let oneStep = [[2, 2, 2, 1]]
     #expect(loudest > 0.01)
     #expect(renderer.songs.first?.length != nil)
 }
+
+/// Each voice but Paula's first plays the empty pattern `empty`; her first, pattern `pattern`.
+private func step(_ pattern: Int, empty: Int) -> [Int] { [empty, empty, empty, pattern] }
+
+@Test func soundMonFindsTheSongsAModuleHolds() throws {
+    // 2.2: two steps that each go round on themselves (its jump is to the step given, from its first
+    // row), and a third that plays on to the end of the list.
+    let module = soundMon(version: "3", instruments: [sample(length: 100)],
+                          steps: [step(1, empty: 4), step(2, empty: 4), step(3, empty: 4)],
+                          patterns: [[0: (25, 1, 0, 0), 15: (0, 0, 7, 0)], [0: (27, 1, 0, 0), 15: (0, 0, 7, 1)], [0: (29, 1, 0, 0)], [:]],
+                          samples: [UInt8](repeating: 1, count: 200))
+    var player = try SoundMonPlayer(module)
+    #expect(player.songCount == 3)
+    #expect(player.songStarts == [0, 1, 2])
+    for (song, note) in [(0, 25), (1, 27), (2, 29)] {
+        try player.select(song: song)
+        #expect(player.song == song)
+        #expect(player.lengthClocks == UInt64(96 * 70940))
+        // Each song is begun as the player is set up, but at its own step.
+        var out = Recorder()
+        _ = player.run(&out)
+        #expect(player.period(0) == SoundMonPlayer.periodTable[note - 1 + 36])
+        for _ in 0 ..< 96 { _ = player.run(&out) }
+        #expect(player.endings == 1)
+    }
+    #expect(throws: TuneError.self) { try player.select(song: 3) }
+    // A player made for a song starts with it, and one made for a song there is not, with the first.
+    #expect(try SoundMonPlayer(module, song: 2).song == 2)
+    #expect(try SoundMonPlayer(module, song: 7).song == 0)
+    let renderer = try PaulaTickRenderer(try SoundMonPlayer(module), options: LoadOptions())
+    #expect(renderer.subsongCount == 3)
+    #expect(renderer.currentSubsong == 0)
+    #expect(renderer.songs.count == 3)
+}
+
+@Test func soundMonSongsAreFoundByTwoPointNoughtsJumps() throws {
+    // 2.0, whose jump lands on the row after the one it is at: from a step's last row, on the step after
+    // the one it names. An intro, then a step that goes round on itself; and another step that does.
+    // Each is begun with the count of repeats `bpinit` sets, one; each sets its own count, here.
+    let module = soundMon(instruments: [sample(length: 100)],
+                          steps: [step(1, empty: 4), step(2, empty: 4), step(3, empty: 4)],
+                          patterns: [[0: (25, 1, 6, 255)], [0: (27, 1, 6, 255), 15: (0, 0, 7, 0)],
+                                     [0: (29, 1, 6, 255), 15: (0, 0, 7, 1)], [:]],
+                          samples: [UInt8](repeating: 1, count: 200))
+    var player = try SoundMonPlayer(module)
+    #expect(player.songStarts == [0, 2])
+    #expect(player.lengthClocks == UInt64(2 * 96 * 70940))
+    try player.select(song: 1)
+    #expect(player.lengthClocks == UInt64(96 * 70940))
+}
+
+@Test func soundMonKeepsOnlyWhatIsASong() throws {
+    // 2.2. Step 0 goes round on itself. Step 1 plays on into step 2, a step of silence going round on
+    // itself. Step 3 is a jingle that ends in that silence: a song. Step 4 is a short way into the
+    // first song, and is not one; nor is step 5, empty, after which the list comes round to the first
+    // step's note.
+    let module = soundMon(version: "3", instruments: [sample(length: 100)],
+                          steps: [step(1, empty: 6), step(2, empty: 6), step(3, empty: 6), step(4, empty: 6), step(5, empty: 6),
+                                  step(6, empty: 6)],
+                          patterns: [[0: (25, 1, 0, 0), 15: (0, 0, 7, 0)], [0: (27, 1, 0, 0)], [15: (0, 0, 7, 2)],
+                                     [0: (29, 1, 0, 0), 15: (0, 0, 7, 2)], [0: (31, 1, 0, 0), 15: (0, 0, 7, 0)], [:]],
+                          samples: [UInt8](repeating: 1, count: 200))
+    var player = try SoundMonPlayer(module)
+    #expect(player.songStarts == [0, 1, 3])
+    for song in 1 ... 2 {
+        try player.select(song: song)
+        #expect(player.lengthClocks == UInt64(2 * 96 * 70940))
+    }
+}
