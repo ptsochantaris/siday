@@ -27,7 +27,7 @@ siday ~/Music/chiptunes --shuffle
 | Atari ST and STE | SNDH, packed with Ice or not; YM files from the ST, with its timer effects; sample tunes (MIX1, YMT1, YMT2) | the tune's own program on a 68000, on the ST's sound chip and the STE's samples |
 | Atari 400, 800, XL and XE | SAP, for one POKEY or two | the tune's own program on a 6502, on the POKEY |
 | Commodore 64 | SID (PSID and RSID) | the tune's own program on a C64, with either of two emulations of the SID chip |
-| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not, or by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions; ChipTracker's; the Magnetic Fields Packer's, with its samples in a file beside it), PumaTracker, Pierre Adane's packed modules (with their samples beside them), Game Music Creator, Images Music System, TFMX (Chris Hülsbeck's, and TFMX Professional and 7V), Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays; TFMX as Chris Hülsbeck's own players play it; Hippel's TFMX and Future Composer by Michael Schwendt's player of them, his seven voices mixed as Hippel's own player mixed them; PumaTracker, Pierre Adane's, Game Music Creator and Images Music System by their own players |
+| Amiga | MOD of four channels (ProTracker's and its relatives', packed with PowerPacker or XPK or not, or by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions; ChipTracker's; the Magnetic Fields Packer's, with its samples in a file beside it), PumaTracker, Pierre Adane's packed modules (with their samples beside them), Game Music Creator, Images Music System, TFMX (Chris Hülsbeck's, and TFMX Professional and 7V), Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, MED (MED4, and MMD0 to MMD3), AHX, HVL, SFX, OKT, DBM; DIGI; Symphonie and Symphonie Pro (SymMOD) | each tracker's own replayer, on the Amiga's sound chip (HivelyTracker's and DigiBooster's on their own mixers); DIGI Booster's read into what FastTracker 2's replayer plays; TFMX as Chris Hülsbeck's own players play it; Hippel's TFMX and Future Composer by Michael Schwendt's player of them, his seven voices mixed as Hippel's own player mixed them; PumaTracker, Pierre Adane's, Game Music Creator and Images Music System by their own players; Symphonie's read as OpenMPT reads them, into what Impulse Tracker's replayer plays |
 | PC trackers | XM, and MOD of more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | read into what FastTracker 2's replayer plays (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's |
 | Epic MegaGames' games for DOS | PSM files of MASI, their music system (Epic Pinball, Silverball, Jazz Jackrabbit, Extreme Pinball, Sinaria), told from the ZX Spectrum's by how they begin | read into what Scream Tracker 3's replayer plays |
@@ -270,6 +270,7 @@ Not played:
 - **MT2:** a file whose notes are, half of them or more, for VST instruments or MIDI devices, or for
   samples kept in other files.
 - **J2B:** a file whose checksums are wrong, or that does not unpack to what its header says.
+- **SymMOD:** a Symphonie module whose samples are kept in files of their own.
 
 Played, with a difference:
 
@@ -301,6 +302,9 @@ Played, with a difference:
   and a command that has no room beside another, or that Impulse Tracker's replayer has no like for.
 - **AMS:** a command that has no room beside a note's others is left out, as OpenMPT leaves it out;
   a key that a command lets go after some ticks is let go at once, as OpenMPT lets it go.
+- **SymMOD:** played as OpenMPT plays it, which leaves out Symphonie's DSP delay, its stereo detune
+  and phase, its emphasis, its adding to a note's pitch and volume, and filters of the kinds OpenMPT
+  has not got; Symphonie's fine slides are the nearest that Impulse Tracker's replayer has.
 - **STM and STX:** played as Scream Tracker 2.3 played it, whichever version the tune was made with.
 - **DSM:** played by Scream Tracker 3's replayer on a Gravis Ultrasound, as OpenMPT plays it by
   Scream Tracker's rules, but at sixteen places between the speakers and with surround in the
@@ -515,6 +519,9 @@ What it is made from:
   made after OpenMPT's; and how its samples are unpacked, as the description that came with the
   program has it, which libxmp quotes. libopenmpt is the player those files were checked against.
   Digitrakker is by Prodatron.
+- And again: how a Symphonie module is read and its samples made, by Devin Acker and the OpenMPT
+  developers after Patrick Meng's own player and source, and the few things OpenMPT plays for those
+  files alone; libopenmpt is the player those files were checked against. Symphonie is by Patrick Meng.
 - And again: how a DMF file is read, its packed samples among it, and the few ways in which OpenMPT
   plays one otherwise than an IT file; libopenmpt is the player those files were checked against.
   X-Tracker is by D-Lusion.

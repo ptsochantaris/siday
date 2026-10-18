@@ -2094,6 +2094,73 @@ of the same short wave a hair apart in pitch: which of their overtones cancel at
 how their phases have drifted, and comes out otherwise. Played as loud as OpenMPT plays them, the
 middle file is 4 dB quieter than the middle XM file, and the files are made as loud as XM files are.
 
+## SYMMOD — Symphonie and Symphonie Pro
+
+Symphonie is Patrick Meng's tracker for the Amiga, and Symphonie Pro its later, larger form. Songs
+made with it were being put on Aminet from 1994 (Marco Ege's "Breathless", that September), a
+module of sixteen-bit DSP for its version 2.11c in 1995, and the songs of 1996 to 1998 ask for its
+versions 2.3, 2.4, 3.0 and 3.2. Its version 2.4 was sold, and a version of it held to eight tracks
+came on the twelfth of the Aminet CDs, which told of its fourteen-bit playing. Symphonie did not
+play its notes on the Amiga's four voices, but mixed them itself: Symphonie Pro has 256 channels, a
+DSP of sixteen bits and samples of sixteen bits, and was sold for 120 marks. Its source went to
+Aminet some years later, and, completed, to GitHub by 2016 (as amiga-news.de reported that January).
+Its modules are of their own kind: a song is sequences of places in its tracks, each a stretch of a
+track played at its own speed and transposition and so many times over, and the tracks are all of
+one length. The instruments are made from their samples as the song is loaded, by what Symphonie
+does to them first: a sample played backwards or upside down, filtered high or low, through a
+resonant filter whose cutoff moves over the sample, faded, made as loud as it can be and then
+louder, squashed over a knee, or a loop gone round so many times before it plays on. And an
+instrument can be "virtual", mixed from other instruments' samples at other notes, together or one
+after another, or a "transwave", blended from one sample's loop into another's. A stereo sample is
+two instruments, played on two channels together; and the samples are kept in whatever kind of
+sound file they came in, IFF, WAV, AIFF or Symphonie's own, packed or not. The 35 files to hand are
+by five composers, MoSeZ's twenty-five among them.
+
+No player of Symphonie's own is to hand. OpenMPT reads these files (the loader is Devin Acker's and
+the OpenMPT developers', after Patrick Meng's own player in Java and Symphonie's Amiga source) into a
+module of its own kind, with Impulse Tracker's ways of playing but for one, that a note is struck
+again even once its sample has ended; and that is how it is played here, as an MPTM file is (see
+the part on MPTM): by Impulse Tracker's replayer, with OpenMPT's own tables of pitch, its sinc, and
+its echo for Symphonie's (`OpenMPTSymMODEcho`), which 34 of the 35 files use. Every sample is made
+as OpenMPT makes it, through its readers of those kinds of sound file, its filters and squashing to
+the last bit, and the virtual instruments through a copy of its mixer at its straight lines between
+points, and every track's events become the commands it makes of them. Symphonie's slides of
+volume and of pitch are finer than a tick's and are made as it mixes: OpenMPT keeps up with them
+row by row and gives them as the nearest of Impulse Tracker's slides of a channel's volume and of
+pitch, and they are those here. Its echo and filter are set by Zxx macros that OpenMPT makes for the
+song. OpenMPT gives these files a few things that no file of its own has, and the replayer has
+been taught them, for these files alone: a channel's sample stopped where it is and let go on from
+there (which 31 of the 35 files do, 93,672 times in all); a note started so many 256ths of the
+way into its sample, also beside a slide to it, when the playing sound jumps there and slides on;
+a slide to a note in no time; a vibrato and a tremolo that go on by themselves from row to row,
+under whatever else a row says, until one of no depth or a note stops them; and a macro that turns
+the filter about, to let the high through and not the low. (OpenMPT also has an LFO of Symphonie's
+among its plug-ins, which moves other plug-ins' settings; its loader of these files never asks for
+it, so it is not here.)
+
+What OpenMPT leaves out is left out here too, and a file that has it says so: the DSP's delay, the
+stereo detune and phase of Symphonie Pro, the "emphasis" command, which fades a sample as it plays,
+the commands that add to a note's pitch and volume, and filters of the kinds OpenMPT has not got,
+which it plays as no filter. A module whose samples are kept in files of their own is not played.
+A stereo sample is split as OpenMPT splits it, so that the first of its two instruments, which plays
+on the left, has the file's right side; with no Symphonie to set beside, whether Symphonie did the
+same cannot be told, and it is as OpenMPT has it.
+
+All 35 files to hand are played, and set beside libopenmpt 0.8.9. Every sample is as libopenmpt makes
+it, to the last bit of its sound, its loop, its rate and its volumes, the 19 virtual instruments of
+four of the files among them; every cell of every pattern and the list of patterns are what
+OpenMPT makes of the tracks; and the place in the song, and the length of each tick, are the same on
+every tick of each, to its end or for ten minutes. Every channel's pitch and volume were set beside
+libopenmpt's on every tick of the first three minutes of each: they agree on 307,271 ticks of
+307,308, and the rest are a sample that ends within the first frame of a tick. The pitches agree to
+the hertz on 94 voices' ticks in a hundred, and are a hertz apart on the rest: the replayer keeps a
+pitch in whole hertz, and OpenMPT's rounding is now and then the other way. What is heard was set
+beside libopenmpt's sound too, for the first minute of each: the spectrum agrees to 1.000 for the
+middle file and to 0.996 for the worst, the loudness over time to 1.000 and 0.990. (In the worst, a
+low note held through the echo is a hertz apart, and its echo meets it a little otherwise.) The
+files are made about as loud as other modules, by measure, which is 2.3 dB louder than OpenMPT
+plays them.
+
 ## IMF — Imago Orpheus
 
 Imago Orpheus was a tracker for DOS by Lutz Roeder, of the nineties, much of whose music was made for

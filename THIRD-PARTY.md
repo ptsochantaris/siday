@@ -689,6 +689,28 @@ vibrato, a sample's own vibrato, a key let go, a fade, an instrument named witho
 quickly a sample that ends dies away. They are used under OpenMPT's licence, the BSD 3-Clause, set
 out below under "OpenMPT — FM Tracker files".
 
+## OpenMPT — SymMOD files
+
+`Sources/SidayKit/ImpulseTracker/SymMODFile.swift`, `SymMODSamples.swift`, `SymMODModule.swift` and
+`SymMODRenderer.swift`, which read a module of Symphonie's or Symphonie Pro's into the shape Impulse
+Tracker's replayer plays, are made after OpenMPT's loader of that format (`soundlib/Load_symmod.cpp`,
+by Devin Acker and the OpenMPT developers, which follows Patrick Meng's own Java player and
+Symphonie's Amiga source): the layout of the file, how its parts are packed, what its events,
+sequences and instruments are taken to mean, and everything done to an instrument's sample, the
+mixing of its virtual instruments and the blending of its transwave ones among it. With them, the
+kinds of sound file those samples are kept in, as OpenMPT reads them (`soundlib/SampleFormats.cpp`,
+`soundlib/WAVTools.cpp`, `soundlib/SampleIO.cpp`, `soundlib/ModSampleCopy.h`), what it does to a
+sample's sound (`soundlib/modsmp_ctrl.cpp`, `soundlib/ModSample.cpp`), the mixing a virtual
+instrument is made by (`soundlib/IntMixer.h`, `soundlib/MixerInterface.h`,
+`src/openmpt/soundbase/SampleConvertFixedPoint.hpp`), and where a speed is put on a pattern's row
+(`soundlib/pattern.cpp`). `IT2Symphonie.swift`, and the lines in `IT2Player.swift`, `IT2Effects.swift`
+and `IT2Mixer.swift` that are marked as Symphonie's, follow what OpenMPT's player does for these
+files and for no file of its own (`soundlib/Snd_fx.cpp`, `soundlib/Sndmix.cpp`,
+`soundlib/Fastmix.cpp`, `soundlib/ModChannel.cpp`): a sample stopped and let go on, a start by
+256ths of a sample, a slide to a note in no time, a vibrato and a tremolo that go on by themselves,
+and the filter turned about by a macro. They are used under OpenMPT's licence, the BSD 3-Clause, set
+out below under "OpenMPT — FM Tracker files".
+
 ## OpenMPT — IMF files
 
 `Sources/SidayKit/ImpulseTracker/IMFFile.swift`, which reads an Imago Orpheus module into the shape

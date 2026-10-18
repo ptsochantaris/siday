@@ -130,6 +130,7 @@ final class WebPlayer {
                 || format == .sfx || format == .okt
                 || format == .composer669 || format == .far || format == .dbm
                 || format == .mdl
+                || format == .symmod
                 || format == .j2b
                 || format == .dmf
                 || format == .imf || format == .ams

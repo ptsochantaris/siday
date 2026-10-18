@@ -33,6 +33,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case gmc
     case ims
     case masi
+    case symmod
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -295,6 +296,9 @@ public enum TuneLoader {
         case .mt2:
             // MadTracker 2's, which OpenMPT reads into the shape of an IT file: so it is here.
             return try MT2File.renderer(data, options: options)
+        case .symmod:
+            // Symphonie's, which OpenMPT reads into a module of its own kind: played as an MPTM file is.
+            return try SymMODFile.renderer(data, options: options)
         case .cmf:
             return try CMFTune.renderer(data)
         case .rol:

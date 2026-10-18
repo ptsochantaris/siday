@@ -262,6 +262,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .sfx, .okt: false
             case .composer669, .stm, .stx, .far, .dbm: false
             case .mdl: false
+            case .symmod: false
             case .j2b: false
             case .dmf: false
             case .imf, .ams: false
