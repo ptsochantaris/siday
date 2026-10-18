@@ -116,6 +116,9 @@ final class IT2Player {
     var LastSlaveChannel: IT2SlavePointer?
     /// The channels that have a slide to a note going on by itself: see `carryOnSlideToNote`.
     private var slidesCarried: UInt64 = 0
+    /// For a module of Symphonie's: the channels whose vibrato and tremolo go on by themselves, and
+    /// those that have one of their own on the row being played (see `symphonieRow`).
+    var symphonieVibratos: UInt64 = 0, symphonieTremolos: UInt64 = 0, symphonieOwnEffects: UInt64 = 0
     /// True if that voice's key had been let go, or it was fading, before the new note came.
     private var lastWasLetGo = false
     /// True while a Digitrakker instrument named alone is being seen to: see `digitrakkerInstrumentAlone`.
@@ -188,6 +191,9 @@ final class IT2Player {
             if Data < 2 { // cutoff or resonance
                 MIDIInterpretType = Data
                 MIDIInterpretState += 1
+            } else if module.playsAsSymphonie, Data == 2 { // (the kind of filter, in a module of Symphonie's)
+                MIDIInterpretType = Data
+                MIDIInterpretState += 1
             } else if sound != nil, Data == 3 || Data >= 0x80 {
                 // (In a file of ModPlug Tracker's or OpenMPT's with plug-ins that are played, such
                 // a message is for the channel's plug-in.)
@@ -198,7 +204,9 @@ final class IT2Player {
             }
         } else if MIDIInterpretState == 3 {
             if Data <= 0x7F {
-                if MIDIInterpretType >= 2 {
+                if MIDIInterpretType == 2 {
+                    symphonieFilterMode(hc, sc, Data)
+                } else if MIDIInterpretType >= 2 {
                     modPlugMacro(hc, code: MIDIInterpretType, value: Data)
                 } else if MIDIInterpretType == 1 {
                     // (As OpenMPT once had it, a note's random swing goes on being added to
@@ -372,6 +380,7 @@ final class IT2Player {
         sc.pointee.HighPass = hc.pointee.HighPass
 
         sc.pointee.Flags = SF_CHAN_ON + SF_RECALC_PAN + SF_RECALC_VOL + SF_FREQ_CHANGE + SF_NEW_NOTE
+        if module.playsAsSymphonie { sc.pointee.Paused = false }
         if ins.VolEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_VOLENV_ON }
         if ins.PanEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_PANENV_ON }
         if ins.PitchEnv.Flags & ENVF_ENABLED != 0 { sc.pointee.Flags |= SF_PITCHENV_ON }
@@ -452,6 +461,7 @@ final class IT2Player {
         sc.pointee.Note = hc.pointee.RawNote
         sc.pointee.Ins = hc.pointee.Ins
         sc.pointee.Flags = SF_CHAN_ON + SF_RECALC_PAN + SF_RECALC_VOL + SF_FREQ_CHANGE + SF_NEW_NOTE
+        if module.playsAsSymphonie { sc.pointee.Paused = false }
         sc.pointee.Started &+= 1
 
         guard hc.pointee.Smp > 0 else {
@@ -1073,11 +1083,12 @@ final class IT2Player {
         // (The row a song that is over has come to is another song's, and is not read.)
         if over { return }
         let orderBefore = ProcessOrder, breakBefore = BreakRow
-        var onTheRow: UInt64 = 0
+        var onTheRow: UInt64 = 0, read: UInt64 = 0
         while true {
             let chnNum = patternByte()
             if chnNum == 0 { break }
             let hc = readChannel(chnNum, command: true)
+            if module.playsAsSymphonie { read |= 1 << UInt64(hc.pointee.HostChnNum & 63) }
             if hc.pointee.NotePackMask & 1 != 0, hc.pointee.RawNote < 120 { playedNote = true }
             if module.madTracker { madTrackerRow(hc) }
             if module.slidesToNotesCarryOn {
@@ -1096,6 +1107,7 @@ final class IT2Player {
                 PreInitCommand(hc)
             }
         }
+        if module.playsAsSymphonie { symphonieRow(read: read) }
         // In Impulse Tracker a jump on the row of a loop that goes back ends the loop. In OpenMPT,
         // unless a file asks for Impulse Tracker's way, the loop goes back and the jump is forgotten.
         if PatternLooping, module.openMPT?.loopsOutlastJumps == true {
@@ -1177,6 +1189,7 @@ final class IT2Player {
                 if flags & (HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX) != 0, hc.pointee.Flags & HF_ALWAYS_UPDATE_EFX != 0 || hc.pointee.Flags & HF_CHAN_ON != 0 {
                     Command(hc)
                 }
+                if module.playsAsSymphonie { symphonieTick(hc) }
             }
         }
     }
@@ -1558,7 +1571,7 @@ final class IT2Player {
         ownEnvelopeCarry = module.modPlug.ownEnvelopeCarry && !asImpulseTracker
         slideRestartsEnvelopes = module.modPlug.slideRestartsEnvelopes && !asImpulseTracker
         self.asImpulseTracker = asImpulseTracker
-        openMPTHertz = module.openMPT.map { !$0.pitchesArePeriods } == true && module.madeByModPlug
+        openMPTHertz = module.openMPT.map { !$0.pitchesArePeriods } == true && (module.madeByModPlug || module.playsAsSymphonie)
         modPlugInstruments = !asImpulseTracker || module.openMPT != nil
         sound = asImpulseTracker ? nil : module.sound
         adLib = sound?.adLib.map { OpenMPTAdLib(behaviour: $0) }
@@ -1589,7 +1602,7 @@ final class IT2Player {
                          filter: asImpulseTracker ? .impulseTrackers : module.filter,
                          softPanning: module.modPlugLevels.map { $0.mixLevels == 3 && !asImpulseTracker },
                          quickEnds: module.madTracker || module.openMPT != nil || module.madeByModPlug && !asImpulseTracker,
-                         resampling: module.madeByModPlug && !asImpulseTracker)
+                         resampling: (module.madeByModPlug || module.playsAsSymphonie) && !asImpulseTracker)
         mixer.adLib = adLib
         if forSound { mixer.playsPlugIns() }
 

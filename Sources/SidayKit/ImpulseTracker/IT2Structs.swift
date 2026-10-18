@@ -266,6 +266,9 @@ struct IT2SlaveChannel {
     var ReleaseLevel: Int16 = -1
     /// For an MPTM file only: its channel's `HighPass` as it was when the note began.
     var HighPass = false
+    /// For a module of Symphonie's only: true while its sample is stopped where it is, neither heard
+    /// nor moving on (see `IT2Symphonie.swift`).
+    var Paused = false
     /// For a file played with OpenMPT's own filter only (see `IT2Module.Filter`). `FilterSet` is
     /// true once a macro or the instrument's envelope has set the voice's filter since its note
     /// began, and `FilterEnvelope` once that envelope has been followed; `FilterOn` is the mixer's,

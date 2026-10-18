@@ -225,6 +225,12 @@ final class IT2Module {
     /// For such a module: where a note starts at so many 256ths of the way into its sample, under its
     /// pattern, row and channel (see `OpenMPTSong.place`). The cell has O00 in its place.
     var disorderTrackerOffsets: [Int: UInt8] = [:]
+    /// True for a module of Symphonie's, which OpenMPT reads into a module of its own kind and plays
+    /// with a few things no file of its own has: see `SymMODFile` and `IT2Symphonie.swift`.
+    var playsAsSymphonie = false
+    /// For such a module: what its cells have that an IT file's have no room for, under their
+    /// pattern, row and channel (see `OpenMPTSong.place`).
+    var symphonieCells: [Int: IT2SymphonieCell] = [:]
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
     // The header, by its own names.
@@ -759,20 +765,25 @@ final class IT2Module {
     ///   - channelVolumes: each channel's of 64; all at 64 if nil.
     ///   - openMPT: for a module that keeps time in OpenMPT's ways, as an MT2 file does.
     ///   - playsAsDigitrakker: for an MDL file (see `IT2Digitrakker`).
+    ///   - midiData: MIDI settings of its own, laid out as an IT file's; nil for the tracker's.
+    ///   - longList: true for a list of patterns that may be longer than Impulse Tracker's 256
+    ///     places, as an MPTM file's may: it is kept whole. Otherwise only so many are played.
     init(title: String, madeWith: String, orders: [UInt8], flags: UInt16, globalVolume: UInt8, mixVolume: UInt8, speed: UInt8, tempo: UInt8,
          channelPans: [UInt8], samples: [IT2Sample], patterns: [[UInt8]?], rows: [UInt16], slidesToNotesCarryOn: Bool = false,
          instrumentAloneStartsNothing: Bool = false, restart: Int = 0, sound: ModPlugSound? = nil, instruments: [IT2Instrument] = [],
-         channelVolumes: [UInt8]? = nil, openMPT: OpenMPTSong? = nil, filter: Filter = .impulseTrackers, playsAsDigitrakker: Bool = false) {
+         channelVolumes: [UInt8]? = nil, openMPT: OpenMPTSong? = nil, filter: Filter = .impulseTrackers, playsAsDigitrakker: Bool = false,
+         midiData: [UInt8]? = nil, longList: Bool = false) {
         self.slidesToNotesCarryOn = slidesToNotesCarryOn
         self.instrumentAloneStartsNothing = instrumentAloneStartsNothing
         self.playsAsDigitrakker = playsAsDigitrakker
         restartOrder = restart < orders.count && orders[restart] < 200 ? restart : 0
         self.title = title
         self.madeWith = madeWith
-        var Orders = [UInt8](repeating: 255, count: Self.MAX_ORDERS)
-        for i in 0 ..< min(orders.count, Self.MAX_ORDERS) { Orders[i] = orders[i] }
+        let room = longList ? max(Self.MAX_ORDERS, orders.count + 1) : Self.MAX_ORDERS
+        var Orders = [UInt8](repeating: 255, count: room)
+        for i in 0 ..< min(orders.count, room) { Orders[i] = orders[i] }
         self.Orders = Orders
-        OrdNum = min(orders.count, Self.MAX_ORDERS) + 1
+        OrdNum = min(orders.count, room) + 1
         SmpNum = samples.count
         PatNum = patterns.count
         // (Impulse Tracker 2.14's numbers, which nothing here takes to mean anything.)
@@ -789,7 +800,7 @@ final class IT2Module {
         for i in 0 ..< min(channelPans.count, MAX_HOST_CHANNELS) { ChnlPan[i] = channelPans[i] }
         self.ChnlPan = ChnlPan
         ChnlVol = channelVolumes ?? [UInt8](repeating: 64, count: MAX_HOST_CHANNELS)
-        midiData = nil
+        self.midiData = midiData
         InsNum = instruments.count
         self.instruments = instruments.isEmpty ? (0 ..< Self.MAX_INSTRUMENTS).map { _ in Self.blankInstrument() } : instruments
         self.samples = samples

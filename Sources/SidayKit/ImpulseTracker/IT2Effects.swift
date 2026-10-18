@@ -834,6 +834,8 @@ extension IT2Player {
 
     /// Hxy: vibrato.
     func InitCommandH(_ hc: IT2HostPointer) {
+        // (H00 stops a vibrato in a module of Symphonie's, which goes on by itself otherwise: see `symphonieRow`.)
+        if module.playsAsSymphonie, hc.pointee.CmdVal == 0 { return InitNoCommand(hc) }
         if hc.pointee.NotePackMask & 0x11 != 0, hc.pointee.RawNote < 120 {
             hc.pointee.LastVibratoData = 0
             hc.pointee.VibratoPos = 0
@@ -1085,6 +1087,8 @@ extension IT2Player {
 
         if speed > 0 { hc.pointee.TremoloSpeed = speed << 2 }
         if depth > 0 { hc.pointee.TremoloDepth = depth << 1 }
+        // (And one of no depth stops a tremolo there.)
+        if module.playsAsSymphonie, depth == 0 { return InitNoCommand(hc) }
 
         InitNoCommand(hc)
 
@@ -1666,6 +1670,7 @@ extension IT2Player {
         sc.pointee.SamplingPosition = 0
 
         sc.pointee.Flags |= SF_UPDATE_MIXERVOL | SF_NEW_NOTE | SF_LOOP_CHANGED
+        if module.playsAsSymphonie { sc.pointee.Paused = false }
         if module.openMPT?.ownRetrigger == true {
             // (OpenMPT's own strikes the note anew, and with instruments at its own pitch, not where
             // a slide has taken it.)

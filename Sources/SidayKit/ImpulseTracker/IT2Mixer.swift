@@ -872,6 +872,13 @@ final class IT2Mixer {
 
             // Just in case: it should not happen. (The voice's flags are left as they are.)
             if sc.pointee.Delta64 == 0 { continue }
+            // A voice whose sample is stopped where it is is not mixed, and does not move on; and if
+            // it is cut meanwhile, it ends there. (Only a module of Symphonie's stops one.)
+            if sc.pointee.Paused {
+                sounded = 0
+                sc.pointee.Flags &= ~(SF_RECALC_PAN | SF_RECALC_VOL | SF_FREQ_CHANGE | SF_UPDATE_MIXERVOL | SF_NEW_NOTE | SF_NOTE_STOP | SF_LOOP_CHANGED | SF_PAN_CHANGED)
+                continue
+            }
 
             var MixBlockSize = UInt32(bitPattern: RealBytesToMix)
             let FilterActive = sc.pointee.fFilterb > 0 || sc.pointee.fFilterc > 0
