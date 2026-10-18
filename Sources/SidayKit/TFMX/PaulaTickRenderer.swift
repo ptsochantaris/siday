@@ -73,6 +73,13 @@ protocol PaulaTickPlayer: ~Copyable {
     func fourVoiceTick(_ timing: inout TFMXTiming) -> Int
     func period(_ voice: Int) -> UInt16
     func volume(_ voice: Int) -> UInt16
+    /// True while the player has the Amiga's filter on (the one its power light shows).
+    var lightFilter: Bool { get }
+}
+
+extension PaulaTickPlayer where Self: ~Copyable {
+    /// A player that does not set it leaves it off.
+    var lightFilter: Bool { false }
 }
 
 extension TFMXPlayer: PaulaTickPlayer {
@@ -381,6 +388,8 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
                 }
             }
         }
+        // The Amiga's filter, as the player has left it.
+        paula.setLightFilter(player.lightFilter)
         // The period and volume as the player left them, as libtfmxaudiodecoder's mixer takes them: of
         // the volume, its low byte, and no more than 64.
         for v in 0 ..< (sevenVoices ? 7 : 4) {
