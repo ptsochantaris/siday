@@ -216,10 +216,12 @@ private func play(_ player: inout TFMXPlayer, ticks: Int) -> Recorder {
     #expect(TFMXTiming.timer(afterSpeed: 100, was: nil, old: false) == 17904)
     #expect(TFMXTiming.timer(afterSpeed: 100, was: 0x1234, old: true) == 0x4734) // $1C00 / 100 is 71
     var timing = TFMXTiming()
-    #expect(timing.fourVoiceTick(rate: 50 << 8, timer: 14323) == 14323 * 5)
-    // At fifty a second, the library's rate: 70,937.9 clocks, the part over carried.
-    let ticks = (0 ..< 10).map { _ in timing.fourVoiceTick(rate: 50 << 8, timer: nil) }
-    #expect(ticks.reduce(0, +) == 709_379)
+    // The CIA takes one count more than it is set to to come round.
+    #expect(timing.fourVoiceTick(rate: 50 << 8, timer: 14323) == 14324 * 5)
+    // At fifty a second, DeliTracker's timer of $376B; at another rate, the library's, the part over carried.
+    #expect(timing.fourVoiceTick(rate: 50 << 8, timer: nil) == 14188 * 5)
+    let ticks = (0 ..< 10).map { _ in timing.fourVoiceTick(rate: 60 << 8, timer: nil) }
+    #expect(ticks.reduce(0, +) == 591_149)
     // TFMX 7V: 320 bytes a tick at a period of 224, longer or shorter by its tempo.
     #expect(TFMXTiming.sevenVoiceBytes(tempo: 0) == 320 && TFMXTiming.sevenVoiceBytes(tempo: -50) == 218)
     #expect(TFMXTiming.sevenVoiceBytes(tempo: 10) == 352)

@@ -5,7 +5,8 @@
 ///
 /// A player of four voices runs as often as the song's tempo says: fifty times a second unless it
 /// says otherwise, or two fifths of its beats a minute. (libtfmxaudiodecoder keeps that as a rate in
-/// 256ths of a tick a second, `TFMXDecoder.rate`, and so is it kept here.)
+/// 256ths of a tick a second, `TFMXDecoder.rate`, and so is it kept here; but fifty a second is
+/// played as the CIA's timer has it, a little less, and a tempo the player sets as a timer too.)
 ///
 /// The player of TFMX 7V runs as often as Paula's fourth voice comes to the end of the buffer it mixes
 /// the four voices of that one into: as Chris Hülsbeck's player of it, kept in Wanted Team's player for
@@ -21,14 +22,23 @@ struct TFMXTiming {
     static let sevenVoicePeriod = TFMXSevenVoices.Style.huelsbeck.period
 
     /// The length of a tick of a player of four voices: the CIA's timer counts down from `timer` at a
-    /// fifth of Paula's clock; with none, at the rate the library has (in 256ths of a tick a second).
+    /// fifth of Paula's clock, and takes one more count than it is set to to come round (as the 8520
+    /// does, and UADE's `cia.c` has it: the timer runs out when a count would take it below nought).
+    /// With none, at fifty ticks a second, the player is run by the timer DeliTracker and UADE set for
+    /// it, $376B (UADE's `score.s`); at any other rate, at the rate the library has (in 256ths of a
+    /// tick a second).
     mutating func fourVoiceTick(rate: UInt32, timer: UInt16?) -> Int {
-        if let timer { return Int(max(timer, 1)) * 5 }
+        if let timer { return (Int(timer) + 1) * 5 }
+        if rate == 50 << 8 { return Self.fiftyTimes }
         let whole = UInt64(Paula.clockHz) * 256 + carry
         let rate = UInt64(max(rate, 1))
         carry = whole % rate
         return Int(whole / rate)
     }
+
+    /// A tick of the timer DeliTracker and UADE run a player by, fifty times a second and a little
+    /// less: 14,188 counts of the CIA's, each five of Paula's clocks.
+    static let fiftyTimes = (0x376B + 1) * 5
 
     /// The timer a song's tempo sets as it starts: a tempo of 16 or more is beats a minute, which TFMX
     /// Professional's player takes as $1B51F8 over them, and the first player, from 32, as $1C00 over
