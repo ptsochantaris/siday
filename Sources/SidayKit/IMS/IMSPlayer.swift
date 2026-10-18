@@ -35,8 +35,8 @@ struct IMSPlayer: ~Copyable {
 
     private let fileSize: Int
     let title: String
-    /// What of the module is not heard as it asks (see `TuneInfo.shortfalls`).
-    let shortfalls: [String]
+    /// The filter the power light shows, as the E command last set it (`PaulaTickRenderer` plays it).
+    private(set) var lightFilter = false
 
     /// The player's tables, from its table of periods ($ECA) to the end of its code ($11D8): the 48
     /// periods, the samples to be started this row ($F2A, twelve bytes each: where, how long, where the
@@ -202,13 +202,6 @@ struct IMSPlayer: ~Copyable {
         }
         songCount = max(1, count)
 
-        // Paula is told nothing of the filter, which is off: an E that turns it on is not heard.
-        var filterOn = false
-        for cell in stride(from: 1085, to: min(samplesAt, data.count), by: 3) where byte(cell) & 0x0F == 0x0E && byte(cell + 1) & 1 == 0 {
-            filterOn = true
-        }
-        shortfalls = filterOn ? ["Its commands to turn the Amiga's filter on are not played: it is heard with the filter off."] : []
-
         if let refusal { throw refusal }
         begin(song)
     }
@@ -255,6 +248,7 @@ struct IMSPlayer: ~Copyable {
     /// loaded has them.)
     private mutating func initialise() {
         voices = .init(repeating: Voice())
+        lightFilter = false
         for i in Self.startsAt ..< Self.beastAt { tables[i] = 0 }
         var at = UInt32(memory[1082]) << 8 | UInt32(memory[1083])
         for s in 0 ..< 31 {
@@ -359,7 +353,9 @@ struct IMSPlayer: ~Copyable {
             case 0x0B:
                 jump = 0xFFFF
                 jumpTo = parameter
-            case 0x0E: break // The filter, through the power light ($C3E), which Paula is not told here.
+            // The filter, through the power light ($C3E): on for an even parameter (`BCLR #1,$BFE001`),
+            // off for an odd one.
+            case 0x0E: lightFilter = parameter & 1 == 0
             case 0x01: voices[v].slide = 0 &- parameter
             case 0x02: voices[v].slide = parameter
             case 0x0A:
@@ -458,7 +454,6 @@ extension IMSPlayer: PaulaTickPlayer {
     var tuneInfo: TuneInfo {
         var info = TuneInfo(format: "IMS")
         info.title = title
-        info.shortfalls = shortfalls
         info.detail = "Images Music System"
         return info
     }

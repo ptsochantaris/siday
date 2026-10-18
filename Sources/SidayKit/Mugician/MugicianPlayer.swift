@@ -126,9 +126,8 @@ struct MugicianPlayer: ~Copyable {
     private var mixedSequence = 0
 
     /// The filter the power light shows, as the module's commands last set it (`PaulaTickRenderer`
-    /// does not play it); and whether a song turns it on, in its playing through for its length.
+    /// plays it).
     private(set) var lightFilter = false
-    private(set) var turnsFilterOn = false
 
     /// What each of Paula's voices was last told.
     private var paulaStarts = InlineArray<4, Int>(repeating: 0)
@@ -323,7 +322,6 @@ struct MugicianPlayer: ~Copyable {
         var ticks = 0
         while ticks < Self.longest {
             run(&none)
-            if lightFilter { turnsFilterOn = true }
             if endings > 0 { return ticks }
             ticks += 1
         }
@@ -847,9 +845,6 @@ extension MugicianPlayer: PaulaTickPlayer {
         var info = TuneInfo(format: "MUG")
         info.detail = kind == .one ? "Digital Mugician" : "Digital Mugician II"
         info.title = titles[songStarts[song]].trimmingTrailingSpaces
-        if turnsFilterOn {
-            info.shortfalls = ["Its commands to turn the Amiga's filter on are not played: it is heard with the filter off."]
-        }
         return info
     }
 

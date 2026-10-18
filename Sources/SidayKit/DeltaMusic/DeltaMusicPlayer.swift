@@ -133,10 +133,8 @@ struct DeltaMusicPlayer: ~Copyable {
     private var speed: UInt8 = 5
     private var counter: UInt8 = 1
     /// The filter the power light shows, as the module's commands last set it (`PaulaTickRenderer`
-    /// does not play it).
+    /// plays it).
     private(set) var lightFilter = false
-    /// True once the song has turned the filter on, in its playing through for its length.
-    private(set) var turnsFilterOn = false
 
     /// True from when the first voice's track has gone round, as it begins its last block, until it
     /// begins again where it goes round to, when the end is counted.
@@ -264,7 +262,6 @@ struct DeltaMusicPlayer: ~Copyable {
         var ticks = 0
         while ticks < Self.longest {
             run(&none)
-            if lightFilter { turnsFilterOn = true }
             if endings > 0 { return ticks }
             ticks += 1
         }
@@ -546,9 +543,6 @@ extension DeltaMusicPlayer: PaulaTickPlayer {
     var tuneInfo: TuneInfo {
         var info = TuneInfo(format: "DM2")
         info.detail = "Delta Music 2.0"
-        if turnsFilterOn {
-            info.shortfalls = ["Its commands to turn the Amiga's filter on are not played: it is heard with the filter off."]
-        }
         return info
     }
 

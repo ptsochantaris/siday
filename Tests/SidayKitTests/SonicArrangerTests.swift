@@ -196,6 +196,20 @@ private struct Parts {
     #expect(periods == [0xD60, 0xD60, 0xD62, 0xD64])
 }
 
+/// E turns the filter on with nought and off with anything else, as Wanted Team's player does ($10FE).
+@Test func sonicArrangerFilter() throws {
+    var parts = Parts()
+    parts.rows = [(0, 0, 0, 25, 1, 0xE, 0), (0, 0, 1, 25, 1, 0xE, 1)]
+    var player = try SonicArrangerPlayer(parts.song)
+    var states = [player.lightFilter]
+    var recorder = Recorder()
+    player.run(&recorder)
+    states.append(player.lightFilter)
+    for _ in 0 ..< 8 { player.run(&recorder) }
+    states.append(player.lightFilter)
+    #expect(states == [false, true, false])
+}
+
 /// Neither form of a module traps or hangs, cut anywhere or with any byte changed.
 @Test func sonicArrangerSurvivesDamage() throws {
     var parts = Parts()

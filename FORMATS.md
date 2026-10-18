@@ -921,8 +921,8 @@ What is siday's own, or the players' own and worth telling:
    where the game put the module in memory, and is read as it is where UADE puts it.
 3. One of Pang's modules has one sample's length wrong, which Pierre Adane's player mends as it
    loads it, by a test that only that module meets; it is mended here in the same way.
-4. Images Music System's E command turns the Amiga's filter on or off, which is not heard here; the
-   one file that has it only turns it off. Where the players would read past the module or their own
+4. Images Music System's E command turns the Amiga's filter on or off, as ProTracker's E0x does, and
+   is heard so; the one file that has it only turns it off. Where the players would read past the module or their own
    tables, or stop, or never end, what they would read is read, or silence, or the song is ended, as
    told in the code.
 5. How loud they are: on the Amiga's chip, PumaTracker's music is 3.5 dB louder than modules are in
@@ -963,8 +963,9 @@ What is siday's own, or the players' own and worth telling:
    number of times is not an end until the count is done). The players say nothing of an end.
 2. Many of the games' files hold several of their tunes in one module, each looping on itself. As in
    UADE, the one that begins at the first step is played; the others are not counted as songs.
-3. The filter command (option 3) turns the Amiga's filter on or off, which is not heard here; one
-   file (CLUMSY) uses it, and says so.
+3. The filter command (option 3) turns the Amiga's filter on, or off with nought, and is heard so.
+   One file (CLUMSY) has it, but turns the filter on only in steps of the module its song never
+   reaches.
 4. Where a note or an instrument falls past the player's tables, it reads what follows them, as it
    would where UADE puts the player and the module.
 5. How loud it is: SoundMon's music is 1.5 dB louder on the Amiga's chip than modules are in the
@@ -1029,7 +1030,9 @@ What is siday's own, or the players' own and worth telling:
 
 1. The players change waveforms and turn voices on partway through each tick, which is done here at
    the tick's start; that is most of what is left between siday and UADE.
-2. How loud it is: Digital Mugician's music is 4.3 dB louder on the Amiga's chip than modules are,
+2. The commands for the Amiga's filter ($45 on, $46 off, $47 the other way) are heard, as the players
+   set it, off when a song starts.
+3. How loud it is: Digital Mugician's music is 4.3 dB louder on the Amiga's chip than modules are,
    in the middle of the collection, and is turned down by that.
 
 ## DM2 — Delta Music 2.0
@@ -1052,7 +1055,8 @@ What is siday's own, or the players' own and worth telling:
    then carries on rather than starting again, about one note in thirty (a third of Hardy Hitech's
    bass notes). Here every note starts again, which is the least alike file's difference.
 2. When a song has come to its end: when its first voice's list starts again from its loop.
-3. How loud it is: Delta Music's is 7.2 dB louder on the Amiga's chip than modules are, in the
+3. The command for the Amiga's filter is heard: on for anything but nought, off when a song starts.
+4. How loud it is: Delta Music's is 7.2 dB louder on the Amiga's chip than modules are, in the
    middle of the collection, and is turned down by that.
 
 ## MXTX — MaxTrax
@@ -1115,7 +1119,8 @@ What is siday's own, or the players' own and worth telling:
    tick's time instead, in the three files that use one.
 2. When a song has come to its end: when it goes past its last position, or a jump goes back to one
    already played.
-3. The filter command is not heard; a song that turns the filter on says so.
+3. The filter command, E, turns the Amiga's filter on with nought and off otherwise, and is heard so;
+   no song of the collection turns it on.
 4. How loud it is: Sonic Arranger's music is 5.1 dB louder on the Amiga's chip than modules are, in
    the middle of the collection, and is turned down by that.
 

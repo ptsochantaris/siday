@@ -64,7 +64,8 @@ struct SoundMonPlayer: ~Copyable {
     /// The stretch of memory written since the song began, which is put back as it was.
     private var dirtyLow = Int.max, dirtyHigh = Int.min
     let title: String
-    let shortfalls: [String]
+    /// The filter the power light shows, as option 3 last set it (`PaulaTickRenderer` plays it).
+    private(set) var lightFilter = false
 
     /// The length of the song in steps (the header's word at 30), how many waveform tables it has
     /// (its byte at 29), and where they are; and where each instrument's sample is (`samples`).
@@ -218,19 +219,6 @@ struct SoundMonPlayer: ~Copyable {
         }
         self.samples = samples
 
-        // The filter, which Paula is not told of here: an option 3 that turns it on is not heard.
-        var filterOn = false
-        for s in 0 ..< Int(steps) {
-            for v in 0 ..< 4 {
-                let pattern = word(512 + 16 * s + 4 * v)
-                guard pattern != 0 else { continue }
-                let rows = 512 + Int(steps << 4) + Int(pattern - 1) * 48
-                for r in 0 ..< 16 where byte(rows + 3 * r + 1) & 0x0F == 3 && byte(rows + 3 * r + 2) != 0 {
-                    filterOn = true
-                }
-            }
-        }
-        shortfalls = filterOn ? ["Its commands to turn the Amiga's filter on are not played: it is heard with the filter off."] : []
         // (Refused only once it is all made, that it may be undone as a whole.)
         guard version != nil else { throw .malformed("not a SoundMon module") }
 
@@ -252,6 +240,7 @@ struct SoundMonPlayer: ~Copyable {
     /// The song from its beginning, as the player is when it is new and its `bpinit` ($1BA) has run;
     /// and the module as it was.
     private mutating func start() {
+        lightFilter = false
         if dirtyLow <= dirtyHigh {
             for i in dirtyLow ... dirtyHigh { memory[i] = i < fileSize ? original[i] : 0 }
         }
@@ -693,7 +682,8 @@ struct SoundMonPlayer: ~Copyable {
         case 2:
             count = parameter
             delay = parameter
-        case 3: break // The filter, through the power light, which Paula is not told of here.
+        // The filter, through the power light: off for nought (`bset #1,$bfe001`), on for anything else.
+        case 3: lightFilter = parameter != 0
         case 4:
             voices[v].period &-= UInt16(parameter)
             voices[v].arpeggio = 0
@@ -724,7 +714,7 @@ struct SoundMonPlayer: ~Copyable {
         case 2:
             count = parameter
             delay = parameter
-        case 3: break // The filter, as in 2.0.
+        case 3: lightFilter = parameter != 0 // The filter, as in 2.0.
         case 4:
             voices[v].period &-= UInt16(parameter)
             voices[v].arpeggio = 0
@@ -1064,7 +1054,6 @@ extension SoundMonPlayer: PaulaTickPlayer {
         var info = TuneInfo(format: "BP")
         info.detail = version.name
         info.title = title
-        info.shortfalls = shortfalls
         return info
     }
 

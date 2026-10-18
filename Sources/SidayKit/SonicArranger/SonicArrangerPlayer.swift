@@ -70,8 +70,8 @@ struct SonicArrangerPlayer: ~Copyable {
 
     let songCount: Int
     private(set) var song = 0
-    /// What of the module is not heard as it asks (see `TuneInfo.shortfalls`).
-    let shortfalls: [String]
+    /// The filter the power light shows, as the E command last set it (`PaulaTickRenderer` plays it).
+    private(set) var lightFilter = false
 
     /// The song's six words (`lbW000618` to `lbW000622`): the speed, the rows of a position, the first
     /// position, the last, the one gone back to after it and the ticks a second.
@@ -165,37 +165,10 @@ struct SonicArrangerPlayer: ~Copyable {
         memoryCapacity = playerAt + 4 * Self.voiceSize + 2 + 64
         memory = .allocate(capacity: memoryCapacity)
         memory.initialize(repeating: 0, count: memoryCapacity)
-        shortfalls = Self.shortfalls(module, layout: layout)
         begin(song)
     }
 
     deinit { memory.deallocate() }
-
-    /// What the song asks for that is not played: the filter, which the power light's switch turns on
-    /// (command E, with nought), is left off.
-    private static func shortfalls(_ module: [UInt8], layout: SonicArrangerLayout) -> [String] {
-        func word(_ at: Int) -> Int { at >= 0 && at + 2 <= module.count ? Int(module[at]) << 8 | Int(module[at + 1]) : 0 }
-        var visited = Set<Int>()
-        for song in 0 ..< min(layout.songCount, 256) {
-            let entry = layout.songsAt + 12 * song
-            let rows = min(word(entry + 2), 256), first = word(entry + 4), last = word(entry + 6)
-            guard first <= last else { continue }
-            for position in first ... min(last, first + 4096) {
-                for voice in 0 ..< 4 {
-                    let start = layout.rowsAt + word(layout.positionsAt + 16 * position + 4 * voice) * 4
-                    guard visited.insert(start).inserted else { continue }
-                    for r in 0 ..< rows {
-                        let at = start + 4 * r
-                        guard at + 4 <= module.count else { break }
-                        if module[at + 2] & 0x0F == 0x0E, module[at + 3] == 0 {
-                            return ["Its commands to turn the Amiga's filter on are not played: it is heard with the filter off."]
-                        }
-                    }
-                }
-            }
-        }
-        return []
-    }
 
     // MARK: Memory
 
@@ -304,6 +277,7 @@ struct SonicArrangerPlayer: ~Copyable {
     /// `InitSong` (`lbC00066C`) and its starting of the sound (`InitSound`, and the replayer's own at
     /// $822).
     private mutating func start() {
+        lightFilter = false
         for i in 0 ..< size { memory[i] = pristine[i] }
         for i in playerAt ..< memoryCapacity { memory[i] = 0 }
         // `lbC000804`: each voice's instrument has ended (and Wanted Team's player clears them first,
@@ -643,9 +617,13 @@ struct SonicArrangerPlayer: ~Copyable {
         case 0xD: row = rowsPerPosition
         case 0xF:
             if Int8(bitPattern: UInt8(parameter)) > 0, parameter <= 0x10 { speed = parameter }
+        case 0xE:
+            // The filter, through the power light: on for nought (`bclr #1,$bfe001`, $1102 of Wanted
+            // Team's player, and the same in the replayer the songs with one carry), off otherwise.
+            lightFilter = parameter == 0
         default:
-            // 0 (its arpeggio is played on every tick), 3, 5 (the replayer's "sync", for a game to read)
-            // and E (the filter, through the power light, which Paula is not told here).
+            // 0 (its arpeggio is played on every tick), 3 and 5 (the replayer's "sync", for a game to
+            // read).
             break
         }
     }
@@ -1132,7 +1110,6 @@ extension SonicArrangerPlayer: PaulaTickPlayer {
     var tuneInfo: TuneInfo {
         var info = TuneInfo(format: "SA")
         info.detail = "Sonic Arranger"
-        info.shortfalls = shortfalls
         return info
     }
 

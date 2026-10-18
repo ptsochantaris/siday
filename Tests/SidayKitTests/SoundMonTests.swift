@@ -212,14 +212,23 @@ private let oneStep = [[2, 2, 2, 1]]
     for _ in 0 ..< 300 { _ = player.run(&out) }
 }
 
-@Test func soundMonFilterIsAShortfall() throws {
+/// Option 3 turns the filter on for anything but nought, and off for nought; a song starts with it off.
+@Test func soundMonOptionThreeTurnsTheFilter() throws {
     let on = soundMon(instruments: [sample(length: 100)], steps: oneStep, patterns: [[0: (25, 1, 3, 1)], [:]],
                       samples: [UInt8](repeating: 1, count: 200))
-    #expect(try SoundMonPlayer(on).shortfalls.count == 1)
-    // Turned off, it is as it is heard.
+    var player = try SoundMonPlayer(on)
+    var states = [player.lightFilter]
+    var out = Recorder()
+    _ = player.run(&out)
+    states.append(player.lightFilter)
+    try player.select(song: 0)
+    states.append(player.lightFilter)
     let off = soundMon(instruments: [sample(length: 100)], steps: oneStep, patterns: [[0: (25, 1, 3, 0)], [:]],
                        samples: [UInt8](repeating: 1, count: 200))
-    #expect(try SoundMonPlayer(off).shortfalls.isEmpty)
+    var other = try SoundMonPlayer(off)
+    _ = other.run(&out)
+    states.append(other.lightFilter)
+    #expect(states == [false, true, false, false])
 }
 
 @Test func soundMonPlaysThroughTheRenderer() throws {

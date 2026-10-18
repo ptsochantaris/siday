@@ -69,6 +69,19 @@ private func ims(order: [Int] = [0], cells: [Cell]) -> [UInt8] {
 
 /// A note is started at once: Paula's voice off, told where its sample is, on again, then told where
 /// its loop is; with its period from the player's table and its sample's volume.
+/// E turns the filter on for an even parameter and off for an odd one, as ProTracker's E0x does.
+@Test func imsFilter() throws {
+    let module = ims(cells: [(0, 0, 1, 24, 1, 0xE, 0), (0, 1, 1, 24, 1, 0xE, 1)])
+    var player = try IMSPlayer(module)
+    var states = [player.lightFilter]
+    var recorder = Recorder()
+    _ = player.run(&recorder)
+    states.append(player.lightFilter)
+    for _ in 0 ..< 6 { _ = player.run(&recorder) }
+    states.append(player.lightFilter)
+    #expect(states == [false, true, false])
+}
+
 @Test func imsNoteReachesPaula() throws {
     let module = ims(cells: [(0, 0, 1, 24, 1, 0, 0)])
     var player = try IMSPlayer(module)
