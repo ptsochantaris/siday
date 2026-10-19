@@ -112,8 +112,8 @@ final class AmigaChips: M68000Bus {
         return (inFrame / lineClocks, inFrame % lineClocks)
     }
 
-    /// Brings the CIAs up to the time, `cycles` into the current call: their timers, and their times of
-    /// day (frames for CIA-A, lines for CIA-B).
+    /// Brings the chips up to the time, `cycles` into the current call: the CIAs' timers, and, while the
+    /// chips interrupt, the beam's frames and Paula's voices.
     func catchUp(_ cycles: Int) {
         let time = now(cycles)
         let e = time / 5
@@ -128,8 +128,6 @@ final class AmigaChips: M68000Bus {
                 if b & cias[1].interruptMask != 0 { intreq |= 0x2000 }
             }
         }
-        cias[0].timeOfDay = UInt32(truncatingIfNeeded: time / frameClocks)
-        cias[1].timeOfDay = UInt32(truncatingIfNeeded: time / UInt64(Self.lineClocks))
         guard interrupts else { return }
         if time >= nextFrame {
             intreq |= 0x0020
@@ -214,6 +212,10 @@ final class AmigaChips: M68000Bus {
         }
         if address & 0xFF0000 == 0xBF0000 {
             catchUp(cycles)
+            // (Their times of day, which nothing else reads: frames for CIA-A, lines for CIA-B.)
+            let time = now(cycles)
+            cias[0].timeOfDay = UInt32(truncatingIfNeeded: time / frameClocks)
+            cias[1].timeOfDay = UInt32(truncatingIfNeeded: time / UInt64(Self.lineClocks))
             if address & 1 == 1, address & 0x1000 == 0 { return cias[0].read(Int(address >> 8 & 15)) }
             if address & 1 == 0, address & 0x2000 == 0 { return cias[1].read(Int(address >> 8 & 15)) }
             return 0xFF

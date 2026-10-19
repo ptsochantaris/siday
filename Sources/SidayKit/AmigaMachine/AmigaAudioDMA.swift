@@ -39,6 +39,7 @@ struct AmigaAudioDMA: Equatable {
 
 
     static func == (a: Self, b: Self) -> Bool {
+        // (Not by when they are next to be looked at, which only one of them keeps.)
         a.nextLine == b.nextLine && (0 ..< 4).allSatisfy { a.voices[$0] == b.voices[$0] }
     }
 
@@ -51,12 +52,32 @@ struct AmigaAudioDMA: Equatable {
     /// (`skipWords`), as far as the next interrupt it asks for.
     mutating func run(to time: UInt64, intreq: inout UInt16, adkcon: UInt16) {
         let line = UInt64(AmigaChips.lineClocks)
-        for v in 0 ..< 4 where voices[v].state != 0 || voices[v].fetch {
-            Self.advance(&voices[v], bit: UInt16(0x80) << UInt16(v), to: time, lineAt: nextLine, &intreq,
-                         modulatesVolume: adkcon & (1 << UInt16(v)) != 0, modulatesPeriod: adkcon & (0x10 << UInt16(v)) != 0)
+        if time >= quietUntil {
+            var v = 0
+            while v < 4 {
+                if voices[v].state != 0 || voices[v].fetch {
+                    Self.advance(&voices[v], bit: UInt16(0x80) << UInt16(v), to: time, lineAt: nextLine, &intreq,
+                                 modulatesVolume: adkcon & (1 << UInt16(v)) != 0, modulatesPeriod: adkcon & (0x10 << UInt16(v)) != 0)
+                }
+                v += 1
+            }
+            if nextLine <= time { nextLine = (time / line + 1) * line }
+            // (Until the soonest a voice next does anything, nothing need be looked at.)
+            var soonest = UInt64.max
+            v = 0
+            while v < 4 {
+                if voices[v].state != 0 { soonest = min(soonest, voices[v].due) }
+                if voices[v].fetch { soonest = min(soonest, nextLine) }
+                v += 1
+            }
+            quietUntil = soonest
+        } else if nextLine <= time {
+            nextLine = (time / line + 1) * line
         }
-        if nextLine <= time { nextLine = (time / line + 1) * line }
     }
+
+    /// Before when no voice does anything (see `run(to:)`): what the voices are told sets it back.
+    private var quietUntil: UInt64 = 0
 
     /// One voice's part of `run(to:)`: its fetches at the starts of lines (the first line not yet gone by
     /// being `first`) and its steps, in time, until `time`; or, to find when it next asks for its
@@ -276,6 +297,7 @@ struct AmigaAudioDMA: Equatable {
     /// A write to DMACON, as the DMA now stands (`dmacon`, with its master bit), at `time`.
     mutating func setDMA(_ dmacon: UInt16, at time: UInt64) {
         let line = UInt64(AmigaChips.lineClocks)
+        quietUntil = 0
         for v in 0 ..< 4 {
             let on = dmacon & 0x200 != 0 && dmacon & (1 << UInt16(v)) != 0
             voices[v].dma = on
@@ -294,6 +316,7 @@ struct AmigaAudioDMA: Equatable {
 
     /// A write to one of a voice's registers (its offset from AUDxLCH), at `time`.
     mutating func write(_ v: Int, _ register: UInt16, _ value: UInt16, at time: UInt64, _ intreq: inout UInt16) {
+        quietUntil = 0
         switch register {
         case 0x0: voices[v].location = voices[v].location & 0xFFFF | UInt32(value) << 16
         case 0x2: voices[v].location = voices[v].location & 0xFFFF_0000 | UInt32(value & 0xFFFE)

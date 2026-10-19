@@ -27,7 +27,7 @@ struct AmigaCIA {
 
         /// Counts `ticks` of the E clock, and how many times it ran out on the way. A timer runs out on
         /// the count that would take it below nought, reloads from its latch, and in one-shot mode stops.
-        mutating func count(_ ticks: Int) -> Int {
+        @inline(__always) mutating func count(_ ticks: Int) -> Int {
             guard running, ticks > 0 else { return 0 }
             if ticks <= Int(counter) {
                 counter &-= UInt16(ticks)
@@ -66,7 +66,7 @@ struct AmigaCIA {
     /// Moves the timers on by `ticks` of the E clock. Timer B, set to count timer A's running out, counts
     /// those instead; a timer set to count the CNT line counts nothing, for nothing is on it. Returns the
     /// interrupts that happened on the way (bit 0 timer A, bit 1 timer B), whether let through or not.
-    @discardableResult
+    @discardableResult @inline(__always)
     mutating func advance(by ticks: Int) -> UInt8 {
         let a = timers[0].control & 0x20 == 0 ? timers[0].count(ticks) : 0
         if a > 0 { flags |= 1 }

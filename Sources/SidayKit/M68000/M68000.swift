@@ -92,7 +92,7 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
     @inline(__always) public mutating func read16(_ address: UInt32) -> UInt32 {
         cycles &+= 4
         let a = address & 0xFF_FFFF
-        return a < ramSize &- 1 ? UInt32(ram[Int(a)]) << 8 | UInt32(ram[Int(a) + 1]) : UInt32(bus.read16(a, at: cycles))
+        return a < ramSize &- 1 ? UInt32(UInt16(bigEndian: UnsafeRawPointer(ram + Int(a)).loadUnaligned(as: UInt16.self))) : UInt32(bus.read16(a, at: cycles))
     }
 
     @inline(__always) public mutating func read32(_ address: UInt32) -> UInt32 {
@@ -110,8 +110,7 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
         cycles &+= 4
         let a = address & 0xFF_FFFF
         if a < ramSize &- 1 {
-            ram[Int(a)] = UInt8(truncatingIfNeeded: value >> 8)
-            ram[Int(a) + 1] = UInt8(truncatingIfNeeded: value)
+            UnsafeMutableRawPointer(ram + Int(a)).storeBytes(of: UInt16(truncatingIfNeeded: value).bigEndian, as: UInt16.self)
         } else {
             bus.write16(a, UInt16(truncatingIfNeeded: value), at: cycles)
         }
@@ -320,8 +319,18 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
 
     /// Works out where the operand of an addressing mode is, reading any extension words and moving
     /// the address register of a postincrement or predecrement mode. `size` is 0, 1 or 2 for a byte,
-    /// a word or a long.
-    private mutating func operand(_ mode: UInt32, _ register: UInt32, _ size: UInt32) -> Operand {
+    /// a word or a long. (The registers and the simplest of the modes in memory where it is asked for,
+    /// the rest in `farOperand`.)
+    @inline(__always) private mutating func operand(_ mode: UInt32, _ register: UInt32, _ size: UInt32) -> Operand {
+        switch mode {
+        case 0: return Operand(inMemory: false, at: register)
+        case 1: return Operand(inMemory: false, at: register + 8)
+        case 2: return Operand(inMemory: true, at: registers[Int(register & 7) + 8])
+        default: return farOperand(mode, register, size)
+        }
+    }
+
+    @inline(never) private mutating func farOperand(_ mode: UInt32, _ register: UInt32, _ size: UInt32) -> Operand {
         let a = Int(register) + 8
         switch mode {
         case 0: return Operand(inMemory: false, at: register)
@@ -486,7 +495,7 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
 
     // MARK: Instructions
 
-    private mutating func execute() {
+    @inline(__always) private mutating func execute() {
         let start = pc
         let op = fetch16()
         let mode = (op >> 3) & 7, register = op & 7
@@ -1076,25 +1085,33 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
         let mask = fetch16()
         let step: UInt32 = long ? 4 : 2
         let a = Int(register) + 8
+        // (The registers picked out, lowest first.)
+        var picked = mask & 0xFFFF
         if toMemory {
             if mode == 4 {
                 // Downwards, and then the mask is the other way round: A7 first.
                 var address = registers[a]
-                for place in 0 ..< 16 where mask & (1 << UInt32(place)) != 0 {
+                while picked != 0 {
+                    let place = 15 - picked.trailingZeroBitCount & 15
+                    picked &= picked &- 1
                     address &-= step
-                    if long { write32(address, registers[15 - place]) } else { write16(address, registers[15 - place]) }
+                    if long { write32(address, registers[place]) } else { write16(address, registers[place]) }
                 }
                 registers[a] = address
             } else {
                 var address = operand(mode, register, 2).at
-                for place in 0 ..< 16 where mask & (1 << UInt32(place)) != 0 {
+                while picked != 0 {
+                    let place = picked.trailingZeroBitCount & 15
+                    picked &= picked &- 1
                     if long { write32(address, registers[place]) } else { write16(address, registers[place]) }
                     address &+= step
                 }
             }
         } else {
             var address = mode == 3 ? registers[a] : operand(mode, register, 2).at
-            for place in 0 ..< 16 where mask & (1 << UInt32(place)) != 0 {
+            while picked != 0 {
+                let place = picked.trailingZeroBitCount & 15
+                picked &= picked &- 1
                 registers[place] = long ? read32(address) : Self.extend16(read16(address))
                 address &+= step
             }
