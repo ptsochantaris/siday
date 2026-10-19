@@ -120,7 +120,7 @@ struct MartinWalkerPlayer: ~Copyable {
             addresses.append(at)
             at += UInt32(routine.code.count * 2)
         }
-        image = layout.patched(prepared, routines: addresses, patterns: routines.map(\.pattern))
+        image = layout.patched(prepared, routines: addresses, patterns: routines.map { $0.pattern })
         lengths = [UInt64??](repeating: nil, count: max(1, layout.songCount))
         // (Refused only once it is all made.)
         if let refusal { throw refusal }
