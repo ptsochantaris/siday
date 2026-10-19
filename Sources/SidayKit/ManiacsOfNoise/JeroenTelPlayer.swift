@@ -304,7 +304,9 @@ extension JeroenTelPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Jeroen Tel's music is quieter on the Amiga's chip than ProTracker's is, by 1.0 dB in the middle of
+    /// UnExoticA's 17 files, and is turned up by that (2026-10-19).
+    var gain: Float { 0.52 }
 
     mutating func prepareToBeHeard() {}
 

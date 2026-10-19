@@ -355,7 +355,9 @@ extension ManiacsOfNoisePlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// The Maniacs of Noise's music is quieter on the Amiga's chip than ProTracker's is, by 1.7 dB in the middle of
+    /// UnExoticA's 21 files, and is turned up by that (2026-10-19).
+    var gain: Float { 0.56 }
 
     mutating func prepareToBeHeard() {}
 

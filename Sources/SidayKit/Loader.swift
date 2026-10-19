@@ -46,6 +46,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case dw
     case mw
     case jd
+    case mon, jt
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -139,6 +140,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .fc: "HIP"
         case .pap, .gmc, .ims: "PUMA"
         case .sid1, .sid2: "SIDMON"
+        case .jt: "MON"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -247,6 +249,13 @@ public enum TuneLoader {
         case .dw:
             // David Whittaker's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(WhittakerPlayer(data), options: options)
+        case .mon, .jt:
+            // The Maniacs of Noise's drivers, Charles Deenen's and Jeroen Tel's earlier one, each with
+            // its music, run on an Amiga of their own: both are found under either name (the older
+            // driver's files were also called MON), and are told apart by how they begin.
+            if ManiacsOfNoisePlayer.isOne(data) { return try PaulaTickRenderer(ManiacsOfNoisePlayer(data), options: options) }
+            if JeroenTelPlayer.isOne(data) { return try PaulaTickRenderer(JeroenTelPlayer(data), options: options) }
+            throw TuneError.unsupported("not a module of the Maniacs of Noise's or of Jeroen Tel's")
         case .jd:
             // Special FX's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(SpecialFXPlayer(data), options: options)
