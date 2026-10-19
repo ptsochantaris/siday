@@ -388,7 +388,9 @@ extension DaglishPlayer: PaulaTickPlayer {
         TuneInfo(format: "Ben Daglish")
     }
 
-    var gain: Float { 0.46 }
+    /// Ben Daglish's music is louder on the Amiga's chip than ProTracker's is, by 6.4 dB in the middle
+    /// of UnExoticA's 41 files, and is turned down by that (2026-10-19).
+    var gain: Float { 0.22 }
 
     mutating func prepareToBeHeard() {}
 

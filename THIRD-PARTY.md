@@ -272,6 +272,17 @@ own. The first bytes of the Amiga's memory are laid out as UADE's host for the p
 License; https://gitlab.com/uade-music-player/uade), whose layout was read for that and nothing of
 whose code is carried here.
 
+## Ben Daglish
+
+`Sources/SidayKit/Daglish` finds, mends and calls Ben Daglish's drivers, which are in the files
+themselves and are run as they are on siday's own Amiga, as Wanted Team's player of them for
+EaglePlayer does ("Benn Daglish player module V1.2", 2004, carried by UADE as `BenDaglish`, with its
+source in `amigasrc/players/wanted_team`; "(c) 1988-92 by Colin Dooley & Ben(n) Daglish, adapted by
+Mr.Larmer/WT"). Its code was read for that, and nothing of it is carried here but what it does: the
+hooks it puts into a driver are written afresh, in 68000 code of siday's own. When the sound chip asks
+for an interrupt is as UADE's emulation of it has it (`src/audio.c`, `src/custom.c`, from UAE, GNU
+General Public License), which was read for that.
+
 ## Martin Walker
 
 `Sources/SidayKit/MartinWalker` finds, mends and calls Martin Walker's drivers, which are in the files

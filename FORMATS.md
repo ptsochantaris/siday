@@ -1203,6 +1203,43 @@ What is siday's own, or the players' own and worth telling:
 5. How loud it is: the Sonix Music Driver's music is 1.9 dB louder on the Amiga's chip than modules
    are, in the middle of the collection, and is turned down by that.
 
+## BD — Ben Daglish's drivers
+
+Ben Daglish came to the Amiga from the Commodore 64, and played his music for it with a driver of his
+own ("(c) 1988-92 by Colin Dooley & Ben(n) Daglish", Wanted Team's player of it says), which went into
+each game with its music, a copy of it made for each game. A `.bd` file is that driver, 68000 code with
+its music behind it: a table of ways in (start a song, play a tick, stop), the four voices' variables,
+the code, its tables and the samples. A song is four lists of patterns, one for each voice, with counts
+of repeats, transpositions, changes of instrument and an end; a pattern is notes and their lengths and
+commands for vibrato, slides of pitch and envelopes of volume. Periods come from a table of the twelve
+steps of an octave, scaled by each instrument's own; a looping sample is changed to its loop two ticks
+in, and one that does not loop is stopped by the sound chip's own interrupt as it ends, which the
+driver waits for before it lets the note go. UnExoticA's collection has 41 files of it, 135 songs, from
+Artura, Rick Dangerous and its sequel, Switchblade, Super Cars, Pac-Mania, Motörhead, Blasteroids,
+Continental Circus, Deflektor, Dynamite Dux, Heroes of the Lance, Hostile All Terrain Encounter,
+Mickey Mouse, Skidz and others; and three more of another kind of his (`.bds`), which are not played.
+
+UADE plays them with Wanted Team's player for EaglePlayer ("Benn Daglish player module V1.2", 2004),
+which finds the driver's songs, makes it run as a routine and not as the interrupt it was written to be,
+puts hooks into it, and calls it, fifty times a second. siday does the same in Swift, and runs the
+driver on its own Amiga (see DW), with the sound chip's interrupts that end a sample answered as UADE's
+Amiga answers them. What it tells the sound chip on every tick is the same as UADE's for 129 of the 135
+songs over their first 40 seconds, and two more are silent in both; every song ends within a few
+hundredths of a second of where UADE's does; by how loud each side is from moment to moment over the
+first minute, they are 0.9993 alike on average, and none below 0.99.
+
+What is siday's own, or the player's own and worth telling:
+
+1. In four songs a sample comes to its end within a few hundred of the chip's clocks of the moment the
+   driver looks to see whether it has, and which tick sees it is a race, which UADE's slower 68000 and
+   siday's run differently: from one tick on, a note is let go a fiftieth of a second sooner or later.
+2. In the earliest drivers (Heroes of the Lance, John Lowe's Ultimate Darts, Mickey Mouse), Wanted
+   Team's player takes out the instruction that quarters a note's volume, "more volume power", and so
+   does siday's, as the reference has it: those are four times as loud as the driver alone made them.
+3. A song has ended when the driver says so, and starts again in the same tick, as the player has it.
+4. How loud it is: Ben Daglish's music is 6.4 dB louder on the Amiga's chip than modules are, in the
+   middle of the collection, and is turned down by that.
+
 ## DW — David Whittaker's own drivers
 
 David Whittaker wrote the music of a great many Amiga games (from 1987 to 1994, Wanted Team's player of it says), and played it

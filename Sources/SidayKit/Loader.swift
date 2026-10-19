@@ -47,6 +47,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case mw
     case jd
     case mon, jt
+    case bd
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -256,6 +257,9 @@ public enum TuneLoader {
             if ManiacsOfNoisePlayer.isOne(data) { return try PaulaTickRenderer(ManiacsOfNoisePlayer(data), options: options) }
             if JeroenTelPlayer.isOne(data) { return try PaulaTickRenderer(JeroenTelPlayer(data), options: options) }
             throw TuneError.unsupported("not a module of the Maniacs of Noise's or of Jeroen Tel's")
+        case .bd:
+            // Ben Daglish's drivers, each with its music, run on an Amiga of their own.
+            return try PaulaTickRenderer(DaglishPlayer(data), options: options)
         case .jd:
             // Special FX's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(SpecialFXPlayer(data), options: options)
