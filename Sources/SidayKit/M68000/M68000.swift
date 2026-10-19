@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 // Motorola 68000, written against the processor's documented behaviour (the M68000 Family
-// Programmer's Reference Manual). It is what an Atari ST tune's player needs and no more: every
-// instruction of the 68000 does what it should to registers, memory and flags, but nothing here keeps
-// the processor's bus timing. Time is counted roughly, four cycles for each word that crosses the bus,
-// which is close to the truth for a processor that does little else, and is used only to give up on a
-// program that never comes back.
+// Programmer's Reference Manual). It is what the player of an Atari ST's or an Amiga's tune needs and
+// no more: every instruction of the 68000 does what it should to registers, memory and flags, but
+// nothing here keeps the processor's bus timing. Time is counted roughly, four cycles for each word
+// that crosses the bus, which is close to the truth for a processor that does little else (and is how
+// UADE's UAE counts it, two of Paula's clocks to a word), and is used to give up on a program that
+// never comes back, and on the Amiga to place in time what a program writes to the hardware (see
+// `AmigaChips`).
 //
 // There are no address errors and no instruction prefetch, and the flags the manual leaves undefined
 // after decimal arithmetic follow Musashi's, the core the reference player uses.
@@ -17,6 +19,21 @@ public protocol M68000Bus: AnyObject {
     func read16(_ address: UInt32) -> UInt16
     func write8(_ address: UInt32, _ value: UInt8)
     func write16(_ address: UInt32, _ value: UInt16)
+    /// The same, told when: `cycles` is the processor's count of its cycles since it was last set
+    /// running (`M68000.cycles`), this access's included. For hardware that keeps time with the
+    /// processor, as the Amiga's does (see `AmigaChips`). A bus that does not leaves them to the four
+    /// above.
+    func read8(_ address: UInt32, at cycles: Int) -> UInt8
+    func read16(_ address: UInt32, at cycles: Int) -> UInt16
+    func write8(_ address: UInt32, _ value: UInt8, at cycles: Int)
+    func write16(_ address: UInt32, _ value: UInt16, at cycles: Int)
+}
+
+public extension M68000Bus {
+    @inline(__always) func read8(_ address: UInt32, at _: Int) -> UInt8 { read8(address) }
+    @inline(__always) func read16(_ address: UInt32, at _: Int) -> UInt16 { read16(address) }
+    @inline(__always) func write8(_ address: UInt32, _ value: UInt8, at _: Int) { write8(address, value) }
+    @inline(__always) func write16(_ address: UInt32, _ value: UInt16, at _: Int) { write16(address, value) }
 }
 
 /// Why the processor stopped running.
@@ -64,13 +81,13 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
     @inline(__always) public mutating func read8(_ address: UInt32) -> UInt32 {
         cycles &+= 4
         let a = address & 0xFF_FFFF
-        return a < ramSize ? UInt32(ram[Int(a)]) : UInt32(bus.read8(a))
+        return a < ramSize ? UInt32(ram[Int(a)]) : UInt32(bus.read8(a, at: cycles))
     }
 
     @inline(__always) public mutating func read16(_ address: UInt32) -> UInt32 {
         cycles &+= 4
         let a = address & 0xFF_FFFF
-        return a < ramSize &- 1 ? UInt32(ram[Int(a)]) << 8 | UInt32(ram[Int(a) + 1]) : UInt32(bus.read16(a))
+        return a < ramSize &- 1 ? UInt32(ram[Int(a)]) << 8 | UInt32(ram[Int(a) + 1]) : UInt32(bus.read16(a, at: cycles))
     }
 
     @inline(__always) public mutating func read32(_ address: UInt32) -> UInt32 {
@@ -81,7 +98,7 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
     @inline(__always) public mutating func write8(_ address: UInt32, _ value: UInt32) {
         cycles &+= 4
         let a = address & 0xFF_FFFF
-        if a < ramSize { ram[Int(a)] = UInt8(truncatingIfNeeded: value) } else { bus.write8(a, UInt8(truncatingIfNeeded: value)) }
+        if a < ramSize { ram[Int(a)] = UInt8(truncatingIfNeeded: value) } else { bus.write8(a, UInt8(truncatingIfNeeded: value), at: cycles) }
     }
 
     @inline(__always) public mutating func write16(_ address: UInt32, _ value: UInt32) {
@@ -91,7 +108,7 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
             ram[Int(a)] = UInt8(truncatingIfNeeded: value >> 8)
             ram[Int(a) + 1] = UInt8(truncatingIfNeeded: value)
         } else {
-            bus.write16(a, UInt16(truncatingIfNeeded: value))
+            bus.write16(a, UInt16(truncatingIfNeeded: value), at: cycles)
         }
     }
 

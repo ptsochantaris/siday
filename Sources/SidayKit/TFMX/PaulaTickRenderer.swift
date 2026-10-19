@@ -13,6 +13,12 @@ struct TFMXTickOutput: TFMXOutput {
         case on(Int)
         case off(Int)
         case buffer(Int, start: Int, length: UInt16)
+        /// What follows is heard this many of Paula's clocks into the tick; and her registers, as a
+        /// player on an emulated Amiga writes them (see `TFMXOutput.timed(at:)`).
+        case at(Int)
+        case period(Int, UInt16)
+        case volume(Int, UInt16)
+        case filter(Bool)
     }
 
     var events: [Event] = []
@@ -38,6 +44,11 @@ struct TFMXTickOutput: TFMXOutput {
     }
 
     func loopCount(_ voice: Int) -> UInt16 { loops[voice] }
+
+    mutating func timed(at clocks: Int) { events.append(.at(clocks)) }
+    mutating func writePeriod(_ voice: Int, _ period: UInt16) { events.append(.period(voice, period)) }
+    mutating func writeVolume(_ voice: Int, _ volume: UInt16) { events.append(.volume(voice, volume)) }
+    mutating func writeLightFilter(_ on: Bool) { events.append(.filter(on)) }
 }
 
 /// A player of music for Paula that runs a tick at a time and tells her what to do as
@@ -187,6 +198,9 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
     /// started in the tick being made, which begin there.
     private let noteClocks: Int
     private var startsLater: UInt16 = 0
+    /// Where among the tick's events the first told at a moment within it is (`TFMXOutput.timed(at:)`):
+    /// it and those after it are done as the tick's sound is made, each at its moment.
+    private var timedFrom: Int?
     private let style: TFMXSevenVoices.Style
     private let model: AmigaModel
     private var paula: Paula
@@ -345,6 +359,7 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         remainder = 0
         heardCount = 0
         startsLater = 0
+        timedFrom = nil
         if let own {
             // What is mixed first is heard after Paula has played the silence before it.
             for v in 0 ..< own.voices { (ownParts + v * Self.ownSpace).update(repeating: 0, count: own.leadBytes) }
@@ -419,7 +434,22 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
             left = .allocate(capacity: tickSpace)
             right = .allocate(capacity: tickSpace)
         }
-        if startsLater != 0 {
+        if let first = timedFrom {
+            // The tick's sound up to each moment something is told Paula, and then the rest of it.
+            timedFrom = nil
+            let total = tickFrames * 2
+            var made = 0
+            for event in output.events[first...] {
+                if case let .at(clocks) = event {
+                    let upTo = min(total, max(made, Int(Int64(clocks) * Int64(outputSampleRate * 2) / Int64(Self.chipClock))))
+                    paula.generate(left: left + made, right: right + made, count: upTo - made)
+                    made = upTo
+                } else {
+                    tell(event)
+                }
+            }
+            paula.generate(left: left + made, right: right + made, count: total - made)
+        } else if startsLater != 0 {
             // The tick's sound up to where the player's notes begin, and then the rest of it.
             let before = min(tickFrames * 2, noteClocks * outputSampleRate * 2 / Self.chipClock)
             paula.generate(left: left, right: right, count: before)
@@ -474,8 +504,13 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         // Paula's does, whose sound begins a little after the player has written both. (Started before
         // it, a voice that has had no period would never move on from its first sample.)
         for v in 0 ..< (sevenVoices ? 3 : 4) { paula.setPeriod(v, player.period(v)) }
-        for event in output.events {
+        for (index, event) in output.events.enumerated() {
             switch event {
+            case .at:
+                // (The rest is done as the tick is made.)
+                timedFrom = index
+            case .period, .volume, .filter:
+                tell(event)
             case let .on(v):
                 if v < paulaVoices, noteClocks > 0, !sevenVoices, own?.onto != v {
                     // (Started later in the tick, as the player's write that starts it falls.)
@@ -502,6 +537,7 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
                     mixer.voices[v - 3].length = length
                 }
             }
+            if timedFrom != nil { break }
         }
         // The Amiga's filter, as the player has left it.
         paula.setLightFilter(player.lightFilter)
@@ -515,6 +551,30 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
                 mixer.voices[v - 3].period = player.period(v)
                 mixer.voices[v - 3].volume = player.volume(v)
             }
+        }
+    }
+
+    /// Does what a player on an emulated Amiga told Paula, as it falls in the tick (see
+    /// `TFMXOutput.timed(at:)`): as her registers do.
+    private func tell(_ event: TFMXTickOutput.Event) {
+        switch event {
+        case let .on(v):
+            if v < 4, !paula.isPlaying(v) { paula.start(voices: 1 << UInt16(v)) }
+        case let .off(v):
+            if v < 4 { paula.stop(voices: 1 << UInt16(v)) }
+        case let .buffer(v, start, length):
+            if v < 4 {
+                paula.setLocation(v, start)
+                paula.setLength(v, length)
+            }
+        case let .period(v, period):
+            if v < 4 { paula.setPeriod(v, period) }
+        case let .volume(v, volume):
+            if v < 4 { paula.setVolume(v, volume) }
+        case let .filter(on):
+            paula.setLightFilter(on)
+        case .at:
+            break
         }
     }
 

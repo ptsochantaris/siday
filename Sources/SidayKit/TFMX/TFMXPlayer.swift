@@ -21,6 +21,21 @@ protocol TFMXOutput {
     /// How many times the voice has come to the end of what it was playing and gone round again, since
     /// it was last started; nought for one that is not playing.
     func loopCount(_ voice: Int) -> UInt16
+    /// For a player whose own code is run on an emulated Amiga (`AmigaMachine`), which tells Paula
+    /// each thing at the moment in the tick it does it: what is told from here on is told `clocks` of
+    /// Paula's clocks into the tick; and her period, volume and filter, told as they are written. (Every
+    /// other player tells her all of a tick at its start, and its period, volume and filter after it.)
+    mutating func timed(at clocks: Int)
+    mutating func writePeriod(_ voice: Int, _ period: UInt16)
+    mutating func writeVolume(_ voice: Int, _ volume: UInt16)
+    mutating func writeLightFilter(_ on: Bool)
+}
+
+extension TFMXOutput {
+    mutating func timed(at _: Int) {}
+    mutating func writePeriod(_: Int, _: UInt16) {}
+    mutating func writeVolume(_: Int, _: UInt16) {}
+    mutating func writeLightFilter(_: Bool) {}
 }
 
 /// Which TFMX a module is played as: its player's version, from the module's header, a mark of the
