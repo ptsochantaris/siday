@@ -160,6 +160,9 @@ struct DeliTrackerHost: ~Copyable {
     /// Where the player's code went wrong, if it did (for finding out why).
     private(set) var faultAt: UInt32?
     private(set) var faultStatus: UInt32 = 0
+    /// The files the player has asked for (by their names as it gives them, paths and all) that it was
+    /// not given; it goes on without them, as it does in UADE.
+    private(set) var missing: [String] = []
     /// Whether the host's timer calls the player's `DTP_Interrupt` (rather than its own interrupts).
     private(set) var hostTimer = false
     /// The processor's cycles spent, not waiting, since the song was started.
@@ -459,7 +462,7 @@ struct DeliTrackerHost: ~Copyable {
         while true {
             let before = machine.cpu.cycles, waitedBefore = machine.waitedCycles
             let outcome = machine.run(until: end)
-            busyCycles += Int64(machine.cpu.cycles - before) - Int64(machine.waitedCycles - waitedBefore)
+            busyCycles += Int64(machine.cpu.cycles &- before) - Int64(machine.waitedCycles &- waitedBefore)
             switch outcome {
             case .reached, .returned:
                 return outcome
@@ -674,8 +677,10 @@ struct DeliTrackerHost: ~Copyable {
         let d0 = machine.cpu.registers[0], d1 = machine.cpu.registers[1], a1 = machine.cpu.registers[9]
         let cycles = machine.cpu.cycles
         switch call {
-        case .unimplementedExec, .unimplementedDOS, .unimplementedEagle, .unimplementedIntuition, .unimplementedIcon,
-             .unimplementedCIA:
+        case .unimplementedIntuition, .unimplementedIcon, .unimplementedCIA:
+            // score's `intuiwarn`, `iconwarn` and `illegalciaaresource`: a warning, and back, D0 as it was.
+            break
+        case .unimplementedExec, .unimplementedDOS, .unimplementedEagle:
             // The routine's offset: below EaglePlayer's globals, from where its JSR came back to (as score's
             // `eaglebase_unimplemented_call` finds it); in a library, from the JSR d16(A6) that called it
             // (as its `library_unimplemented_call` does).
@@ -832,7 +837,7 @@ struct DeliTrackerHost: ~Copyable {
             machine.cpu.registers[0] = loadSegment(name).map { ($0 - 4) >> 2 } ?? 0
         case .open:
             let name = Array(string(at: d1, most: 256).utf8)
-            guard let file = file(named: name) else {
+            guard let file = find(name) else {
                 machine.cpu.registers[0] = 0
                 return true
             }
@@ -864,7 +869,7 @@ struct DeliTrackerHost: ~Copyable {
             if d1 >= 1, Int(d1) <= openFiles.count { openFiles[Int(d1) - 1] = nil }
             machine.cpu.registers[0] = 0xFFFF_FFFF
         case .lock:
-            machine.cpu.registers[0] = file(named: Array(string(at: d1, most: 256).utf8)) == nil ? 0 : 0xF000_0000
+            machine.cpu.registers[0] = find(Array(string(at: d1, most: 256).utf8)) == nil ? 0 : 0xF000_0000
         case .getListData:
             // The module (number nought) or a file loaded since: its address in A0 and size in D0.
             let index = Int(d0)
@@ -875,7 +880,7 @@ struct DeliTrackerHost: ~Copyable {
         case .loadFile:
             // The file at `dtg_PathArrayPtr` loaded at `chippoint` and listed; D0 nought if it was.
             let name = Array(string(at: machine.peek32(Self.globals + Self.dtgPathArrayPtr), most: 256).utf8)
-            if let file = file(named: name), machine.load(files[file].bytes, at: memoryPoint) {
+            if let file = find(name), machine.load(files[file].bytes, at: memoryPoint) {
                 loaded.append((memoryPoint, UInt32(files[file].bytes.count)))
                 memoryPoint = ((memoryPoint + UInt32(files[file].bytes.count)) & ~0xF) + 16
                 machine.cpu.registers[0] = 0
@@ -916,7 +921,7 @@ struct DeliTrackerHost: ~Copyable {
         if name.isEmpty {
             bytes = module
         } else {
-            guard let file = file(named: name) else { return nil }
+            guard let file = find(name) else { return nil }
             bytes = files[file].bytes
             let at = memoryPoint
             guard Int(at) + bytes.count + Self.room <= machine.memorySize, machine.load(bytes, at: at) else { return nil }
@@ -934,6 +939,16 @@ struct DeliTrackerHost: ~Copyable {
 
     /// The module's own name, as the player is told it.
     var moduleFileName: [UInt8] { moduleName }
+
+    /// A file the player asks for by name, noted among `missing` if it is not given.
+    private mutating func find(_ name: [UInt8]) -> Int? {
+        let found = file(named: name)
+        if found == nil, !name.isEmpty {
+            let named = String(decoding: name, as: UTF8.self)
+            if !missing.contains(named) { missing.append(named) }
+        }
+        return found
+    }
 
     private func file(named name: [UInt8]) -> Int? {
         func last(_ path: [UInt8]) -> ArraySlice<UInt8> {

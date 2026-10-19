@@ -65,8 +65,8 @@ struct DeliCustomPlayer: ~Copyable {
     /// The bytes of the program's first hunk, as they are in the file.
     private static func firstHunk(_ data: [UInt8]) -> ArraySlice<UInt8>? {
         guard AmigaHunks.isOne(data), let sizes = try? AmigaHunks.sizes(data), !sizes.isEmpty else { return nil }
-        func long(_ at: Int) -> Int {
-            at + 4 <= data.count ? Int(data[at]) << 24 | Int(data[at + 1]) << 16 | Int(data[at + 2]) << 8 | Int(data[at + 3]) : 0
+        func long(_ at: Int) -> UInt32 {
+            at + 4 <= data.count ? UInt32(data[at]) << 24 | UInt32(data[at + 1]) << 16 | UInt32(data[at + 2]) << 8 | UInt32(data[at + 3]) : 0
         }
         var at = 20
         for _ in sizes {
@@ -74,16 +74,19 @@ struct DeliCustomPlayer: ~Copyable {
             at += 4
         }
         guard at + 8 <= data.count, long(at) & 0x3FFF_FFFF == 0x3E9 else { return nil }
-        let bytes = min(long(at + 4) * 4, data.count - at - 8)
+        let bytes = Int(min(UInt64(long(at + 4)) * 4, UInt64(data.count - at - 8)))
         return data[(at + 8) ..< (at + 8 + bytes)]
     }
 
-    init(_ data: [UInt8], song: Int = 0, name: String = "custom") throws(TuneError) {
+    /// - Parameter files: files the module loads from beside it, by their names (a few do: Nebulus 2's
+    ///   loading music its instruments from "instr/", Lemmings' older custom its songs and instruments
+    ///   from "songs/" and "instruments/"); found by the last part of the name the module asks for.
+    init(_ data: [UInt8], song: Int = 0, name: String = "custom", files: [(name: String, bytes: [UInt8])] = []) throws(TuneError) {
         var refusal: TuneError?
         let host: DeliTrackerHost
         do throws(TuneError) {
             guard Self.isOne(data) else { throw TuneError.malformed("not a DeliTracker custom module") }
-            host = try DeliTrackerHost(player: data, name: name)
+            host = try DeliTrackerHost(player: data, name: name, files: files)
         } catch {
             refusal = error
             host = try! DeliTrackerHost(moduleAt: 0x10000, module: [])
@@ -175,6 +178,9 @@ extension DeliCustomPlayer: PaulaTickPlayer {
         info.title = title
         let player = host.playerName
         if player != "CustomPlay", player != "Custom Player" { info.detail = player }
+        for file in host.missing {
+            info.shortfalls.append("It loads \(file) from beside it, which was not given, and plays without it.")
+        }
         return info
     }
 
