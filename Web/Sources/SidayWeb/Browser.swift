@@ -111,7 +111,9 @@ func sidayChooseTunes() throws(JSException)
 
 /// Loads a file from the list, by its place in it, and plays a song of it: -1 for the one the file
 /// names. With it, the files it needs beside its own, by their places among the files given (see
-/// `sidayFiles`), with a space between, and -1 for one that was not found.
+/// `sidayFiles`), with a space between, and -1 for one that was not found; for a folder it needs,
+/// "f" and the places of the files in it, with commas between ("f" alone if none were found), to be
+/// brought to the engine as one, as `CompanionFolder.pack` has them.
 @JSFunction(from: .global)
 func sidayPlay(_ index: Int, _ subsong: Int, _ companions: String) throws(JSException)
 

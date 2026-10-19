@@ -18,6 +18,8 @@ public struct FileFinder: Sendable {
     private var loosely: [[UInt8]: [Int]] = [:]
     /// The places of the files whose names end so, by the ending in small letters.
     private var ending: [String: [Int]] = [:]
+    /// The places of the files in each folder, by its path as `folderKey` writes it.
+    private var inFolder: [[UInt8]: [Int]] = [:]
 
     /// - Parameter paths: each file by its path, with a stroke between folders.
     public init(_ paths: [String] = []) {
@@ -29,7 +31,9 @@ public struct FileFinder: Sendable {
         for path in more {
             let place = paths.count
             paths.append(path)
-            guard let file = Self.steps(path).last else { continue }
+            let steps = Self.steps(path)
+            guard let file = steps.last else { continue }
+            inFolder[Self.folderKey(Self.parts(Array(steps.dropLast()))), default: []].append(place)
             named[Self.plain(file), default: []].append(place)
             loosely[Self.loose(file), default: []].append(place)
             let bytes = Array(file.utf8)
@@ -148,6 +152,18 @@ public struct FileFinder: Sendable {
             }
         }
         return best
+    }
+
+    /// The places of the files in a folder beside another file, of this name in any case (not those
+    /// in the folders below it), in the order they were added.
+    public func places(inFolder name: String, beside other: String) -> [Int] {
+        inFolder[Self.folderKey(Self.parts(other).dropLast() + [Self.plain(name)])] ?? []
+    }
+
+    /// A folder's path as the files in it are known by it: its steps as they are compared, each
+    /// followed by a stroke.
+    private static func folderKey(_ steps: some Sequence<[UInt8]>) -> [UInt8] {
+        steps.reduce(into: []) { $0 += $1 + [0x2F] }
     }
 
     /// The places of the files in the folder another file is in whose names have this ending, in

@@ -391,11 +391,12 @@ async function play(index, subsong, companions) {
   }
   try {
     // With the tune, the files it needs beside its own that were found among those known, by their
-    // places there (-1 for one that was not found, which is sent as nothing).
+    // places there (-1 for one that was not found, which is sent as nothing; and for a folder, the
+    // places of its files, which are sent as one).
     const [bytes, { engine, output }, ...beside] = await Promise.all([
       read(tune.file),
       audio(),
-      ...companions.map((place) => (known[place] ? read(known[place].file) : null)),
+      ...companions.map((place) => (Array.isArray(place) ? readFolder(place) : known[place] ? read(known[place].file) : null)),
     ]);
     if (request !== asked) return;
     // The output drops what it was playing at once; the engine starts on the new tune.
@@ -718,6 +719,28 @@ function chooser(folder, then) {
 }
 // (The third is for the folder that a playlist's tunes are in, which is looked in and not added.)
 const choosers = { files: chooser(false, take), folder: chooser(true, take), tunes: chooser(true, (chosen) => take(chosen, finish)) };
+
+/// The files of a folder that is a tune's companion, by their places in `known`, as SidayKit's
+/// `CompanionFolder.pack` puts them together: for each, its name's length and the name in UTF-8, and
+/// its length and its bytes, each length in four bytes with the highest first. Null if there are none.
+async function readFolder(places) {
+  const files = places.filter((place) => known[place]).map((place) => known[place]);
+  if (files.length === 0) return null;
+  const read_ = await Promise.all(files.map((item) => read(item.file)));
+  const names = files.map((item) => new TextEncoder().encode(item.name.split("/").pop()));
+  const packed = new Uint8Array(names.reduce((sum, name, at) => sum + 8 + name.length + read_[at].byteLength, 0));
+  const view = new DataView(packed.buffer);
+  let at = 0;
+  names.forEach((name, which) => {
+    view.setUint32(at, name.length);
+    packed.set(name, at + 4);
+    at += 4 + name.length;
+    view.setUint32(at, read_[which].byteLength);
+    packed.set(new Uint8Array(read_[which]), at + 4);
+    at += 4 + read_[which].byteLength;
+  });
+  return packed.buffer;
+}
 
 /// The bytes of a file: one that was chosen, or one that came in a drop, which is only an entry in
 /// a folder until it is wanted (see `dropped`).
@@ -1119,7 +1142,9 @@ Object.assign(globalThis, {
     choosers.tunes.click();
   },
   sidayPlay(index, subsong, companions) {
-    starting = play(index, subsong, companions === "" ? [] : companions.split(" ").map(Number));
+    // (A folder's files are "f" and their places with commas between.)
+    const entry = (item) => (item.startsWith("f") ? item.slice(1).split(",").filter((place) => place !== "").map(Number) : Number(item));
+    starting = play(index, subsong, companions === "" ? [] : companions.split(" ").map(entry));
   },
   sidayPause(paused) {
     pause(paused);

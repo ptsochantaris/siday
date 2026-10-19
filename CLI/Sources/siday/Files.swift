@@ -50,8 +50,9 @@ struct TuneFiles: Sendable {
 }
 
 /// The files on disk that tunes need beside their own (see `Companions`): the samples some keep in
-/// a file of their own, the instrument banks of ROL files. They are looked for in the tune's folder,
-/// each folder looked through once and each file read once.
+/// a file of their own, the instrument banks of ROL files, the folder of instruments of a Sonix
+/// score. They are looked for in the tune's folder, each folder looked through once and each file
+/// read once.
 enum CompanionFiles {
     private static let folders = Mutex<[String: FileFinder]>([:])
     private static let files = Mutex<[String: [UInt8]]>([:])
@@ -71,6 +72,7 @@ enum CompanionFiles {
             return listed
         }
         return wanted.map { companion in
+            if companion.folder { return Self.folder(companion, beside: folder, among: beside) }
             guard let place = Companions.find(companion, for: tune.lastPathComponent, among: beside) else { return nil }
             let file = folder.appendingPathComponent(beside.paths[place]).path
             if let read = files.withLock({ $0[file] }) { return read }
@@ -78,6 +80,27 @@ enum CompanionFiles {
             files.withLock { $0[file] = [UInt8](data) }
             return [UInt8](data)
         }
+    }
+
+    /// The files of a folder a tune needs beside it, packed as `CompanionFolder.pack` has them: those
+    /// of the first folder of the companion's names, in any case, that has any. Nil if none has.
+    private static func folder(_ companion: Companion, beside tunes: URL, among beside: FileFinder) -> [UInt8]? {
+        for name in companion.names {
+            guard let found = beside.paths.first(where: { FileFinder.plain($0) == FileFinder.plain(name) }) else { continue }
+            let inside = tunes.appendingPathComponent(found, isDirectory: true)
+            let names = ((try? FileManager.default.contentsOfDirectory(atPath: inside.path)) ?? []).sorted()
+            let packed: [(name: String, bytes: [UInt8])] = names.compactMap { name in
+                let file = inside.appendingPathComponent(name).path
+                var directory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: file, isDirectory: &directory), !directory.boolValue else { return nil }
+                if let read = files.withLock({ $0[file] }) { return (name, read) }
+                guard let data = FileManager.default.contents(atPath: file) else { return nil }
+                files.withLock { $0[file] = [UInt8](data) }
+                return (name, [UInt8](data))
+            }
+            if !packed.isEmpty { return CompanionFolder.pack(packed) }
+        }
+        return nil
     }
 }
 

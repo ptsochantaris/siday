@@ -21,6 +21,10 @@ public struct Companion: Sendable, Equatable {
     public var kind: String?
     /// True if the tune cannot be played without it.
     public var required: Bool
+    /// True if it is not a file but a folder beside the tune, of one of `names` in any case, and what
+    /// the tune has is every file in it (and none in the folders below), brought as one, by
+    /// `CompanionFolder.pack`.
+    public var folder = false
 
     /// What it is, as said of the tune: "its samples".
     public var what: String {
@@ -28,6 +32,46 @@ public struct Companion: Sendable, Equatable {
         case .samples: "its samples"
         case .instruments: "its instruments"
         }
+    }
+}
+
+/// The files of a folder that is a tune's companion (`Companion.folder`), as they are brought to the
+/// library: one run of bytes, so that they go wherever a companion's file does. Each file is its
+/// name's length in UTF-8 and then the name, and its length and then its bytes, each length in four
+/// bytes with the highest first.
+public enum CompanionFolder {
+    public static func pack(_ files: [(name: String, bytes: [UInt8])]) -> [UInt8] {
+        var packed: [UInt8] = []
+        packed.reserveCapacity(files.reduce(0) { $0 + 8 + $1.name.utf8.count + $1.bytes.count })
+        func count(_ n: Int) {
+            for shift in [24, 16, 8, 0] { packed.append(UInt8(truncatingIfNeeded: n >> shift)) }
+        }
+        for file in files {
+            count(file.name.utf8.count)
+            packed += file.name.utf8
+            count(file.bytes.count)
+            packed += file.bytes
+        }
+        return packed
+    }
+
+    /// The files packed in a run of bytes, in their order; as many as are whole, if it is cut short.
+    public static func unpack(_ packed: [UInt8]) -> [(name: String, bytes: [UInt8])] {
+        var files: [(name: String, bytes: [UInt8])] = []
+        var at = 0
+        func count() -> Int? {
+            guard at + 4 <= packed.count else { return nil }
+            defer { at += 4 }
+            return packed[at ..< at + 4].reduce(0) { $0 << 8 | Int($1) }
+        }
+        while let length = count(), length <= packed.count - at {
+            let name = String(decoding: packed[at ..< at + length], as: UTF8.self)
+            at += length
+            guard let size = count(), size <= packed.count - at else { break }
+            files.append((name, Array(packed[at ..< at + size])))
+            at += size
+        }
+        return files
     }
 }
 
@@ -58,7 +102,7 @@ public struct Companion: Sendable, Equatable {
 public enum Companions {
     /// The endings of the names of companion files, of every kind: a file with one of these is part of
     /// a tune, not a tune.
-    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam"]
+    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss"]
 
     /// True if a file of this extension, in any case, is a companion of a tune.
     public static func are(fileExtension: String) -> Bool {
@@ -134,9 +178,26 @@ public enum Companions {
         return nil
     }
 
+    /// The files of a companion that is a folder (`Companion.folder`) among some files: those in the
+    /// first folder of its names that is beside the tune and has any. Empty if there is none.
+    /// - Parameter tune: the tune's path among the files.
+    public static func findFolder(_ companion: Companion, for tune: String, among files: FileFinder) -> [Int] {
+        for name in companion.names {
+            let found = files.places(inFolder: name, beside: tune)
+            if !found.isEmpty { return found }
+        }
+        return []
+    }
+
+    /// Where a companion is kept, as said of the tune: "in a file of their own, title.smp".
+    public static func whereKept(_ companion: Companion) -> String {
+        let names = companion.names.count > 1 ? companion.names.dropLast().joined(separator: ", ") + " or " + (companion.names.last ?? "")
+            : companion.names.joined()
+        return companion.folder ? "in a folder of their own beside it, \(names)" : "in a file of their own, \(names)"
+    }
+
     /// The error of a tune that is not played because a companion it cannot be without was not found.
     public static func missing(_ companion: Companion) -> TuneError {
-        let names = companion.names.count > 1 ? companion.names.dropLast().joined(separator: ", ") + " or " + companion.names.last! : companion.names.joined()
-        return .missingCompanion("\(companion.what) are kept in a file of their own, \(names), which was not found")
+        .missingCompanion("\(companion.what) are kept \(whereKept(companion)), which was not found")
     }
 }

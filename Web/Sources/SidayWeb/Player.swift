@@ -332,24 +332,23 @@ final class Player {
     }
 
     /// The files a tune in the list needs beside its own, by their places among the files given (-1
-    /// for one that was not found); and of those it cannot be played without, the first that was not.
-    private func companions(of index: Int) -> (places: [Int], missing: Companion?) {
+    /// for one that was not found, and for a folder, the places of its files, none if it was not); and
+    /// of those it cannot be played without, the first that was not.
+    private func companions(of index: Int) -> (places: [[Int]], folders: [Bool], missing: Companion?) {
         let path = files[index]
         let letters = Array(path.utf8)
         guard let stop = letters.lastIndex(of: 0x2E),
-              let format = TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)) else { return ([], nil) }
+              let format = TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)) else { return ([], [], nil) }
         let name = letters.lastIndex(of: 0x2F).map { String(decoding: letters[($0 + 1)...], as: UTF8.self) } ?? path
         let wanted = Companions.wanted(for: format, fileName: name)
-        let places = wanted.map { Companions.find($0, for: path, among: finding.given) ?? -1 }
-        return (places, wanted.indices.first { wanted[$0].required && places[$0] < 0 }.map { wanted[$0] })
+        let places = wanted.map { $0.folder ? Companions.findFolder($0, for: path, among: finding.given) : [Companions.find($0, for: path, among: finding.given) ?? -1] }
+        return (places, wanted.map { $0.folder }, wanted.indices.first { wanted[$0].required && places[$0].allSatisfy { $0 < 0 } }.map { wanted[$0] })
     }
 
     /// What is said of a tune that cannot be played because a file it needs was not given to the page.
     private static func notice(_ file: String, wants companion: Companion) -> String {
         let name = file.split(separator: "/").last.map { String($0) } ?? file
-        let names = companion.names.count > 1 ? companion.names.dropLast().joined(separator: ", ") + " or " + (companion.names.last ?? "")
-            : companion.names.joined()
-        return "\(name) keeps \(companion.what) in a file of its own, \(names), which the page was not given. A web page can only read the files it is given, so it cannot fetch it itself."
+        return "\(name) keeps \(companion.what) \(Companions.whereKept(companion)), which the page was not given. A web page can only read the files it is given, so it cannot fetch it itself."
     }
 
     /// The listener is to say where the tunes are that the playlists name and were not found, or the
@@ -525,7 +524,7 @@ final class Player {
         rendered = 0
         // With the files it needs beside its own; and if one it cannot be played without was not
         // given, the page says so, and plays it when it is.
-        let (places, missing) = companions(of: index)
+        let (places, folders, missing) = companions(of: index)
         if let missing {
             companionNotice = Self.notice(files[index], wants: missing)
             wanting = index
@@ -533,7 +532,10 @@ final class Player {
             companionNotice = nil
             wanting = nil
         }
-        try? sidayPlay(index, song, places.map { String($0) }.joined(separator: " "))
+        // (A folder's files as "f" and their places with commas between, as `sidayPlay` says.)
+        try? sidayPlay(index, song, places.indices.map { place in
+            folders[place] ? "f" + places[place].map { String($0) }.joined(separator: ",") : String(places[place].first ?? -1)
+        }.joined(separator: " "))
     }
 
     private func loaded(_ plays: Bool, _ text: String, _ songs: Int, _ song: Int, _ length: Double) {
