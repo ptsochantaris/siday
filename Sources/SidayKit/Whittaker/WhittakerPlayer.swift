@@ -347,7 +347,9 @@ extension WhittakerPlayer: PaulaTickPlayer {
         TuneInfo(format: "David Whittaker")
     }
 
-    var gain: Float { 0.46 }
+    /// David Whittaker's music is louder on the Amiga's chip than ProTracker's is, by 4.6 dB in the
+    /// middle of UnExoticA's 115 modules, and is turned down by that (2026-10-19).
+    var gain: Float { 0.27 }
 
     mutating func prepareToBeHeard() {}
 

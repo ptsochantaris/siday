@@ -1211,6 +1211,65 @@ What is siday's own, or the players' own and worth telling:
 5. How loud it is: the Sonix Music Driver's music is 1.9 dB louder on the Amiga's chip than modules
    are, in the middle of the collection, and is turned down by that.
 
+## DW — David Whittaker's own drivers
+
+David Whittaker wrote the music of a great many Amiga games (from 1987 to 1994, Wanted Team's player of it says), and played it
+with a driver of his own, which went into each game with its music. A `.dw` file is not music for a
+player to read: it is that driver, 68000 code with the music behind it, as it was taken out of the
+game. It begins with a few calls for the game to make (start a song, play a tick, stop, start a sound
+effect, and in later ones fade), and its code writes straight to the Amiga's sound chip. Every address
+in it is counted from one place within it, so that a game could load it anywhere, and it keeps its
+own variables. Each voice has a list of patterns that goes round; a pattern is a run of bytes for
+notes and their lengths, the instrument, the volume envelope, an arpeggio or vibrato, and commands
+for slides, speed and fading. A note's period is the note's own scaled by the instrument's, so that
+samples of any rate play in tune (the earliest driver works that out from each sample's rate, by the
+clock of the American Amiga, as it first starts). The tempo can be a fraction of a tick: a count adds
+the speed each tick, and a tick is passed over when it goes round. Sound effects share the voices with
+the music, and while one plays the music is not heard on its voice. That is what a tracker of 1987 did
+not give a game: music and effects from one small driver, a tune for each part of the game, fades,
+and tempos finer than a tick. (This is read from the code; Whittaker did not say it.)
+
+UnExoticA's collection has 119 files: 115 of his, from 89 games and versions of them, among them Shadow of the Beast,
+Xenon and Xenon 2, Speedball, Bubble Bobble, Golden Axe, Carrier Command, Licence to Kill, Days of
+Thunder, Total Recall, Tetris, Loopz and Alfred Chicken; three drivers of Ray Norrish's for sound
+effects alone, made in Whittaker's way and with no music in them, which are not played; and Rob
+Hubbard's Q-Ball, whose driver is run by the sound chip's own interrupts, which siday does not run, and
+is not played either.
+
+UADE plays them with Wanted Team's player for EaglePlayer ("David Whittaker player module V1.0", 2000;
+"(c) 1987-94 by David Whittaker & Rob Hubbard, adapted by Wanted Team"), which does not play the music
+itself: it finds the driver's ways in by the instructions Whittaker used, counts its songs, mends a
+few things in it, and calls it, fifty times a second. siday does the same: what that player does to
+find and mend a driver is done in Swift, and the driver itself is run, on an Amiga of siday's own
+(see below). What it tells the sound chip on every tick is the same as UADE's for all 551 songs of
+the 115 modules over their first 40 seconds, or to where they stop, and every song ends where UADE's
+does; by how loud each side is from moment to moment over the first minute, they are 0.9992 alike
+on average.
+
+**The Amiga it runs on.** siday's 68000, the one that plays the Atari ST's tunes, with chip memory,
+the Amiga's custom chips as far as sound needs them (Paula's registers, the DMA and interrupt
+switches, the beam's position, which drivers wait on), both CIAs with their timers, and the first
+bytes of memory laid out as UADE lays them out, since a driver may read them. What the driver writes
+to Paula is heard at the moment in the tick it writes it, as on the Amiga, so a voice stopped, waited
+on and started again is heard so. The same Amiga will run the other composers' drivers that come in
+their own files.
+
+What is siday's own, or the player's own and worth telling:
+
+1. A song has ended when every voice has come round its list of patterns, or when the driver stops
+   the music; Wanted Team's player puts hooks into the driver to know it, and so does siday's, with
+   the same few instructions in their place.
+2. Of what Wanted Team's player mends, what is heard is mended here too: drivers saved after they had
+   already run (their samples made ready a second time), a delay loop in one made to wait on the beam,
+   a voice given a silent envelope to begin with, the random choice of a song in some made a plain one,
+   and the volume of Chrono Quest's and Explora's put back each tick. What only feeds EaglePlayer's
+   own displays is left out, so the driver's writes come a little earlier in each tick than UADE's
+   (a fifth of a millisecond, in the middle), which changes nothing that is played.
+3. Dan Dare III's driver is refused by Wanted Team's player, for want of room after its last sample;
+   UADE plays it all the same, and so does siday, the same as UADE's.
+4. How loud it is: Whittaker's music is 4.6 dB louder on the Amiga's chip than modules are, in the
+   middle of the collection, and is turned down by that.
+
 ## RJP — Richard Joseph's player
 
 Richard Joseph's music for the Amiga's games was played with a replayer of his own and Andi
