@@ -1420,6 +1420,44 @@ What is siday's own, or the players' own and worth telling:
 4. How loud they are: the later driver's music is 1.7 dB quieter on the Amiga's chip than modules are,
    in the middle of the collection, and the earlier's 1.0 dB, and they are turned up by that.
 
+## CUST — DeliTracker's custom modules
+
+DeliTracker, Frank Riffel's and Peter Kunath's player of the Amiga's music, took players of each format
+from files of their own, and one kind of file that is its own player: a custom module, an Amiga
+program that holds a game's music and its replay code together, and tells DeliTracker, by a list of
+tags at its start, what to call to start a song and to play it. Its code calls DeliTracker back for
+what it needs: to have the sound chip, to set the timer it is played by, to say a song has ended. It is
+the way a game's music is kept whose player was the game's own and fits no format; UnExoticA's
+collection has 369 of them: Defender of the Crown,
+The King of Chicago, Lemmings, The Bard's Tale, Speedball 2, Battle Squadron, Paradroid 90, Cadaver,
+Loom, Indiana Jones and the Last Crusade, Starglider, and some three hundred more.
+
+UADE plays them by running them as DeliTracker did, in an Amiga of its own, under its host for the
+players (`score`), which answers what they call for as DeliTracker would. siday does the same: its
+Amiga (see DW) has been given the rest of what the hardware does for them, interrupts taken as they
+come due from the display, the timers and the sound chip, and a host that does what UADE's does, in its
+order and at its addresses, answering DeliTracker's calls, the few of the Amiga's own system's that
+the modules make (memory, the timers and the sound chip's device, loading a file), and starting the
+module's tick from the timer it asks for. Of the 2,539 songs of the 416 modules played on that host
+(these, and Dave Lowe's own; see DLN), 2,381 are the same as UADE's in every write to the sound chip
+over their first 40 seconds; most of the others are the same but where the processor and the chip
+race to a moment, which UADE's processor and siday's reach a little differently.
+
+What is siday's own, or the host's own and worth telling:
+
+1. Eighteen modules call for what UADE's host does not give either (a task of their own, made by the
+   system), or have nothing to call to play, and are not played. A few more play silence, or begin
+   with a silent song, as they do in UADE; one of those, Lemmings' older custom, wants files from
+   beside it (3, below).
+2. Most customs never say when a song has ended. Each song is played through unheard for up to ten
+   minutes to see; but a module whose code cannot call to say so, of which one song has been played
+   that long without ending, is taken to have no songs that end, so that one of seventy songs loads in
+   a moment and not in minutes. A song with no end plays for the time given to such tunes.
+3. Two modules load more of their music from files beside them, as their games did (Nebulus 2's
+   loading music, and Lemmings' older custom); they say which were not given.
+4. How loud they are: these modules' music is 3.4 dB louder on the Amiga's chip than modules are, in
+   the middle of the collection, and is turned down by that.
+
 ## RJP — Richard Joseph's player
 
 Richard Joseph's music for the Amiga's games was played with a replayer of his own and Andi
@@ -1457,7 +1495,8 @@ What is siday's own, or the player's own and worth telling:
 ## DLN — Dave Lowe's later music
 
 Dave Lowe, of Uncle Art, kept his earlier music for the Amiga as Amiga programs (`.dl`, his own code
-with its music, which siday does not play yet). His later music, of King's Quest VI, Beneath a Steel Sky's CD32 version and Super Street
+with its music, 47 files in the collection), which Wanted Team's player of them ("Dave Lowe") loads
+and calls, mending the code that writes a voice's volume. His later music, of King's Quest VI, Beneath a Steel Sky's CD32 version and Super Street
 Fighter II, is kept as its songs alone (`.dln`, 41 files in UnExoticA's collection, holding 128 songs
 with their samples), and is played by Wanted Team's player of it for EaglePlayer ("Dave Lowe New",
 2001, which UADE carries; "(c) 1993-95 Dave Lowe from Uncle Art", it says), which holds the two players
@@ -1481,6 +1520,12 @@ What is siday's own, or the player's own and worth telling:
    seconds; it is played as it is written.
 4. How loud it is: Dave Lowe's music is 1.5 dB louder on the Amiga's chip than modules are, in the
    middle of the collection, and is turned down by that.
+5. The earlier programs are run on siday's Amiga under its host for DeliTracker's players (see CUST),
+   loaded and called as Wanted Team's player does: all but two of the 45 that are his are the same as
+   UADE's in every song over their first 40 seconds, and those two, Frontier's and Midwinter II's, are
+   the same but for writes of a value the chip already has, which change nothing heard. Two others named as his are of another kind, the songs alone
+   for DARKNESS's player of them, and are not played. His earlier music is 5.5 dB louder than modules
+   are, and is turned down by that.
 
 ## XM — FastTracker 2
 

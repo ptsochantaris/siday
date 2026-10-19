@@ -64,6 +64,8 @@ siday ~/Music/chiptunes --shuffle
 - **Composers' own players**:
   - David Whittaker's, Ben Daglish's, Martin Walker's, Special FX's and the Maniacs of Noise's (Charles
     Deenen's and Jeroen Tel's) drivers, their own 68000 code in each file, run on an emulated Amiga
+  - DeliTracker's custom modules, each a game's own player with its music, and Dave Lowe's earlier
+    music, his own code with it, hosted on the emulated Amiga as DeliTracker hosted them
   - Richard Joseph's (Cannon Fodder, The Chaos Engine, Sensible World of Soccer, James Pond 2 and 3),
     with its samples beside it
   - Dave Lowe's later music (King's Quest VI, Beneath a Steel Sky, Super Street Fighter II)
@@ -295,7 +297,7 @@ uses is said, and only what might be heard.
 Not played:
 
 - **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-- **Amiga:** a module packed by a game's packer that ProWizard refuses, or that says "+SNT" where ProRunner's say "SNT." (Winter Olympics'); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, a Richard Joseph module without its samples, or a Sonix score with no folder of its instruments beside it; a song that MED saved before MED4 (MED2, MED3), and
+- **Amiga:** a module packed by a game's packer that ProWizard refuses, or that says "+SNT" where ProRunner's say "SNT." (Winter Olympics'); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, a Richard Joseph module without its samples, or a Sonix score with no folder of its instruments beside it; a DeliTracker custom module that calls for what DeliTracker's host does not give (a task of its own); a song that MED saved before MED4 (MED2, MED3), and
   a MED4 song whose instruments are kept in files of their own; a module of the later SoundFX, of
   31 samples.
 - **PC:** a DTM file from Digital Home Studio; the other kind of
@@ -386,6 +388,7 @@ the command-line player.
 | Amiga trackers with players of their own: PumaTracker, Pierre Adane's packer, Game Music Creator, Images Music System, SoundMon, SidMon, Digital Mugician, Delta Music, Sonic Arranger | each format's own player, read in its 68000 code as UADE carries it (or, for formats whose files carry it, in the files) | that player, run by UADE: what it tells the sound chip, tick for tick, on every file of UnExoticA's collection |
 | MaxTrax scores | the MaxTrax Music Driver's released source (LGPL), ported | ScummVM's player of it, its departures from the driver put back: 282 of 283 songs tick for tick |
 | David Whittaker's, Ben Daglish's, Martin Walker's, Special FX's and the Maniacs of Noise's drivers | the drivers themselves, run on an emulated Amiga (siday's 68000, chip memory, Paula heard as she is written, the CIAs and the beam), found and mended as the players of them for EaglePlayer that UADE carries do, read in their 68000 code | those players, run by UADE: what the driver tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (551 of Whittaker's, 129 of Daglish's 135, 106 of Walker's, the 355 of Special FX's that are heard, 87 of the Maniacs of Noise's) |
+| DeliTracker's custom modules, Dave Lowe's earlier music | the modules themselves, hosted on the emulated Amiga, with its interrupts, timers and sound chip as the hardware has them, as UADE's host for the players (`score`) hosts them, read in its 68000 source; Dave Lowe's loaded and called as Wanted Team's player of them does | UADE: what the module tells the sound chip, tick for tick, over the first 40 seconds of 2,381 of the 2,539 songs of UnExoticA's 416 modules, the rest but where the processor and the chip race |
 | Richard Joseph's modules, Dave Lowe's later music | each composer's own player, read in its 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (917 of Richard Joseph's, the 108 of Dave Lowe's that make a sound) |
 | Sonix Music Driver scores | Mark Riley's three players, read in their 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of all 237 scores of UnExoticA's collection |
 | Epic MegaGames' MASI files and Symphonie modules | OpenMPT's readings of them (BSD) | libopenmpt |

@@ -48,6 +48,8 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case jd
     case mon, jt
     case bd
+    case cust
+    case dl
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -69,6 +71,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "sonic" || name == "sa-p" || name == "lion" || name == "sa_old" {
             // (Sonic Arranger's, by the names the Amiga's players knew them by.)
             self = .sa
+        } else if name == "cus" || name == "custom" {
+            // (DeliTracker's custom modules, by the other names they are kept under.)
+            self = .cust
         } else if name == "avp" {
             // (Martin Walker's, by the other name UADE knows them by.)
             self = .mw
@@ -142,6 +147,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .pap, .gmc, .ims: "PUMA"
         case .sid1, .sid2: "SIDMON"
         case .jt: "MON"
+        case .dl: "DLN"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -257,6 +263,13 @@ public enum TuneLoader {
             if ManiacsOfNoisePlayer.isOne(data) { return try PaulaTickRenderer(ManiacsOfNoisePlayer(data), options: options) }
             if JeroenTelPlayer.isOne(data) { return try PaulaTickRenderer(JeroenTelPlayer(data), options: options) }
             throw TuneError.unsupported("not a module of the Maniacs of Noise's or of Jeroen Tel's")
+        case .cust:
+            // DeliTracker's custom modules, each a player of its own with its music, hosted on an
+            // Amiga of their own as DeliTracker hosted them.
+            return try PaulaTickRenderer(DeliCustomPlayer(data, name: fileName(path)), options: options)
+        case .dl:
+            // Dave Lowe's earlier music, his own code with it, hosted in the same way.
+            return try PaulaTickRenderer(DaveLoweCodePlayer(data, name: fileName(path)), options: options)
         case .bd:
             // Ben Daglish's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(DaglishPlayer(data), options: options)

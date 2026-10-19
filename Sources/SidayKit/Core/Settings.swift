@@ -275,11 +275,11 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .mfp: false
             case .tfmx, .hip, .fc: false
             case .puma, .pap, .gmc, .ims: false
-            case .bp, .sid1, .sid2, .mug, .dm2, .mxtx, .sa, .sonix, .rjp, .dln, .dw, .mw, .jd, .mon, .jt, .bd: false
+            case .bp, .sid1, .sid2, .mug, .dm2, .mxtx, .sa, .sonix, .rjp, .dln, .dw, .mw, .jd, .mon, .jt, .bd, .cust, .dl: false
             default: true
             }
         case .sidModel, .sidEngine, .sidFilter: format == .sid
-        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt || format == .agi || format == .mfp || format == .tfmx || format == .hip || format == .fc || format == .puma || format == .pap || format == .gmc || format == .ims || format == .bp || format == .sid1 || format == .sid2 || format == .mug || format == .dm2 || format == .mxtx || format == .sa || format == .sonix || format == .rjp || format == .dln || format == .dw || format == .mw || format == .jd || format == .mon || format == .jt || format == .bd)
+        case .amiga, .amigaSeparation: renderer?.isPlayedOnAnAmiga ?? (format == .mod || format == .med || format == .ahx || format == .sfx || format == .okt || format == .agi || format == .mfp || format == .tfmx || format == .hip || format == .fc || format == .puma || format == .pap || format == .gmc || format == .ims || format == .bp || format == .sid1 || format == .sid2 || format == .mug || format == .dm2 || format == .mxtx || format == .sa || format == .sonix || format == .rjp || format == .dln || format == .dw || format == .mw || format == .jd || format == .mon || format == .jt || format == .bd || format == .cust || format == .dl)
         case .s3mCard: format == .s3m
         case .sbProSeparation: format == .vgm || format == .sap
         case .agiReplay: format == .agi

@@ -313,6 +313,19 @@ player of it for EaglePlayer does ("Jeroen Tel player module V1.0", 2004, carrie
 for that, and nothing of it is carried here but what it does: where Wanted Team's player changes the
 driver, the change is made afresh in 68000 code of siday's own.
 
+## DeliTracker's custom modules, and Dave Lowe's earlier music
+
+`Sources/SidayKit/AmigaMachine/DeliTrackerHost.swift` hosts DeliTracker's custom modules
+(`Sources/SidayKit/DeliCustom`) as UADE's host for the players does, in its order and at its
+addresses: its sound core `score` (`amigasrc/score/score.s`, Copyright Heikki Orsila, GNU Lesser
+General Public License; https://gitlab.com/uade-music-player/uade), with the DeliTracker and
+EaglePlayer include files beside it, was read for that, and nothing of its code is carried here. When
+the sound chip asks for an interrupt is as UADE's emulation of the hardware has it (`src/audio.c`,
+`src/custom.c`, from UAE, GNU General Public License), which was read for that. DeliTracker is Frank
+Riffel's and Peter Kunath's. Dave Lowe's earlier music (`Sources/SidayKit/DaveLoweCode`) is loaded and
+called as Wanted Team's player of it does ("Dave Lowe", carried by UADE as `DaveLowe`, with its source
+in `amigasrc/players/wanted_team`), whose code was read for that.
+
 ## Richard Joseph's player and Dave Lowe's
 
 `Sources/SidayKit/RichardJoseph` and `DaveLowe` play these composers' music as their own players do,

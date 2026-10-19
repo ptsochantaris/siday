@@ -558,7 +558,9 @@ extension DaveLoweCodePlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Dave Lowe's earlier music is louder on the Amiga's chip than ProTracker's is, by 5.5 dB in the middle of
+    /// UnExoticA's 45 files that play, and is turned down by that (2026-10-19).
+    var gain: Float { 0.24 }
 
     mutating func prepareToBeHeard() {}
 

@@ -35,6 +35,16 @@ struct DeliCustomPlayer: ~Copyable {
     static let dryRunBudget: Int64 = 1_200_000_000
     static let dryRunsBudget: Int64 = 6_000_000_000
     private var dryRuns: Int64 = 0
+    /// Whether the module's code calls DeliTracker's `dtg_SongEnd` (or EaglePlayer's), as far as can be
+    /// seen by looking (`callsSongEnd`); whether any of its songs has been found to end; and whether one
+    /// has been played to `mostClocks` without ending. A module that does not call it, of which no song
+    /// has ended and one has been played that long, is taken to have no songs that end, and the rest are
+    /// not played through to find out: most customs never tell DeliTracker, and one of seventy songs
+    /// would otherwise take more than a minute to load. (In UnExoticA's collection this leaves one song
+    /// without the length it has, Lemmings' seventh, which stops after 3:52.)
+    private let callsSongEnd: Bool
+    private var anyEnded = false
+    private var anyRanOut = false
 
     var memory: UnsafeMutablePointer<UInt8> { host.memory }
     var memoryCapacity: Int { host.memorySize }
@@ -107,10 +117,28 @@ struct DeliCustomPlayer: ~Copyable {
         self.first = first
         songCount = count
         self.title = title
+        callsSongEnd = Self.callsSongEnd(data)
         lengths = [UInt64??](repeating: nil, count: count)
         // (Refused only once it is all made.)
         if let refusal { throw refusal }
         try select(song: song >= 0 && song < count ? song : 0)
+    }
+
+    /// True if the module has an instruction that reaches `dtg_SongEnd` in the globals it is given (a
+    /// `MOVE` or `MOVEA` from it, or a `JSR` through it, at its offset from an address register), or a
+    /// `JSR` to EaglePlayer's `ENPP_SongEnd`. Any word of the file is looked at, so it may say yes for
+    /// one that does not; it says no only for a module that cannot call it in these ways.
+    static func callsSongEnd(_ data: [UInt8]) -> Bool {
+        var at = 0
+        while at + 3 < data.count {
+            let word = UInt16(data[at]) << 8 | UInt16(data[at + 1])
+            let offset = UInt16(data[at + 2]) << 8 | UInt16(data[at + 3])
+            if offset == UInt16(DeliTrackerHost.dtgSongEnd), word >> 12 == 2 || word >> 12 == 3, (word >> 3) & 7 == 5 { return true }
+            if offset == UInt16(DeliTrackerHost.dtgSongEnd), word & 0xFFF8 == 0x4EA8 { return true }
+            if offset == UInt16(bitPattern: Int16(DeliTrackerHost.enppSongEnd)), word & 0xFFF8 == 0x4EA8 { return true }
+            at += 2
+        }
+        return false
     }
 
     /// Starts a song afresh, as UADE does: the machine switched on and the module started by its host.
@@ -124,6 +152,7 @@ struct DeliCustomPlayer: ~Copyable {
     mutating func select(song: Int) throws(TuneError) {
         guard song >= 0, song < songCount else { throw .unsupported("there is no song \(song + 1)") }
         self.song = song
+        if lengths[song] == nil, !callsSongEnd, anyRanOut, !anyEnded { lengths[song] = .some(nil) }
         if lengths[song] == nil {
             // Played through in silence to its end: the tick it ends in is the first of it again, or the
             // first of the silence after it.
@@ -139,6 +168,7 @@ struct DeliCustomPlayer: ~Copyable {
                 dryRuns += host.busyCycles - busy
             }
             lengths[song] = .some(endings > 0 || stops > 0 ? clocks - UInt64(ticks.tickClocks) : nil)
+            if endings > 0 || stops > 0 { anyEnded = true } else if clocks >= Self.mostClocks { anyRanOut = true }
         }
         lengthClocks = lengths[song] ?? nil
         try start(song)
@@ -184,7 +214,9 @@ extension DeliCustomPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// DeliTracker's custom modules' music is louder on the Amiga's chip than ProTracker's is, by 3.4 dB in the middle of
+    /// UnExoticA's 345 files that play, and is turned down by that (2026-10-19).
+    var gain: Float { 0.31 }
 
     mutating func prepareToBeHeard() {}
 
