@@ -246,7 +246,10 @@ struct AmigaMachine: ~Copyable {
                 waiting = false
                 continue
             }
-            let next = min(end, chips.nextInterrupt(after: time))
+            // (While nothing is asked for that the mask holds back, where the processor is looked at
+            // changes nothing until something asks, and it is run until then; otherwise as below.)
+            let exact = level == 0 ? chips.nextRequest(after: time, by: end) : nil
+            let next = exact ?? min(end, chips.nextInterrupt(after: time))
             if waiting {
                 let idle = max(2, Int(min(next - time, 1 << 30)) * 2)
                 cpu.wait(cycles: idle)
@@ -256,7 +259,7 @@ struct AmigaMachine: ~Copyable {
             // No further than the next interrupt that may come due, and no more than a few lines' worth
             // between looks (a write may have set one going sooner); a few instructions at a time while
             // one is asked for that the mask holds back, to take it as soon as the mask comes down.
-            let most = level > 0 ? 64 : 1024
+            let most = level > 0 ? 64 : exact != nil ? 1 << 30 : 1024
             let span = Int(min(next - time, UInt64(most / 2))) * 2
             switch cpu.resume(cycles: cpu.cycles + max(2, span)) {
             case .outOfTime: continue

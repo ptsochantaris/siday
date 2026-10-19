@@ -164,14 +164,36 @@ final class AmigaChips: M68000Bus {
     /// The soonest time after `time` at which something may ask for an interrupt that is enabled: the
     /// next frame, a CIA's timer running out, or a voice of Paula's.
     func nextInterrupt(after time: UInt64) -> UInt64 {
+        var soonest = nextTimedInterrupt
+        guard interrupts else { return soonest }
+        if intena & 0x0780 != 0, let next = audio.nextEvent { soonest = min(soonest, next) }
+        return max(soonest, time)
+    }
+
+    /// The same, by `limit` at the latest, and for Paula's voices not the soonest they may ask but when one
+    /// does (`AmigaAudioDMA.nextRequest`), for a processor that has none asked for that it does not take:
+    /// until something asks, it may be left to run, since nothing it does before then is told apart by when
+    /// it is looked at. Nil where that cannot be said (see `AmigaAudioDMA.canTellRequests`).
+    func nextRequest(after time: UInt64, by limit: UInt64) -> UInt64? {
+        var soonest = min(limit, nextTimedInterrupt)
+        guard interrupts else { return max(soonest, time) }
+        let voices = intena & 0x0780
+        if voices != 0, intena & 0x4000 != 0 {
+            guard AmigaAudioDMA.canTellRequests(of: voices, adkcon: adkcon) else { return nil }
+            if let next = audio.nextRequest(of: voices, intreq: intreq, adkcon: adkcon, by: soonest) { soonest = min(soonest, next) }
+        }
+        return max(soonest, time)
+    }
+
+    /// When the next frame or a CIA's timer asks for an interrupt that is enabled.
+    private var nextTimedInterrupt: UInt64 {
         var soonest = UInt64.max
         guard interrupts else { return soonest }
         if intena & 0x0020 != 0 { soonest = nextFrame }
         for c in 0 ..< 2 where intena & (c == 0 ? 0x0008 : 0x2000) != 0 {
             if let ticks = cias[c].ticksToInterrupt { soonest = min(soonest, (eTicks + UInt64(ticks)) * 5) }
         }
-        if intena & 0x0780 != 0, let next = audio.nextEvent { soonest = min(soonest, next) }
-        return max(soonest, time)
+        return soonest
     }
 
 

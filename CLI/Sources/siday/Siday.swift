@@ -758,9 +758,12 @@ struct Siday: ParsableCommand {
         let block = 1024
         let buffer = UnsafeMutablePointer<Float>.allocate(capacity: block * 2)
         defer { buffer.deallocate() }
-        var totalRendered = 0.0, totalTaken = 0.0
+        var totalRendered = 0.0, totalTaken = 0.0, totalLoad = 0.0
         for url in files.prefix(50) {
+            let loadStart = DispatchTime.now().uptimeNanoseconds
             guard let renderer = try? tuneFiles.load(url) else { continue }
+            let load = Double(DispatchTime.now().uptimeNanoseconds - loadStart) / 1e9
+            totalLoad += load
             let start = DispatchTime.now().uptimeNanoseconds
             var frames = 0
             while frames < seconds * outputSampleRate {
@@ -770,10 +773,10 @@ struct Siday: ParsableCommand {
             let taken = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9
             totalRendered += Double(seconds)
             totalTaken += taken
-            print(String(format: "%7.0fx  %@  %@", Double(seconds) / taken, renderer.info.format, url.lastPathComponent))
+            print(String(format: "%7.0fx  load %6.3fs  %@  %@", Double(seconds) / taken, load, renderer.info.format, url.lastPathComponent))
         }
         if totalTaken > 0 {
-            print(String(format: "%7.0fx  overall", totalRendered / totalTaken))
+            print(String(format: "%7.0fx  load %6.3fs  overall", totalRendered / totalTaken, totalLoad))
         }
     }
 
