@@ -184,14 +184,18 @@ struct OPL3Chip: ~Copyable {
 
     // MARK: Envelope generator
 
-    @inline(__always) private func OPL3_EnvelopeCalcExp(_ level: UInt32) -> Int16 {
+    // (These two are given the chip's tables rather than the chip: called by a method of a chip, which is
+    // not to be copied, where the compiler did not put them inline, each call copied the whole of it.)
+    @inline(__always) private static func OPL3_EnvelopeCalcExp(_ level: UInt32, _ exprom: UnsafeMutablePointer<UInt16>) -> Int16 {
         let level = min(level, 0x1FFF)
         return Int16(truncatingIfNeeded: (Int32(exprom[Int(level & 0xFF)]) << 1) >> Int32(level >> 8))
     }
 
     /// One sample of one of the chip's eight waveforms, at a level. The first four are the OPL2's: a
     /// sine, its upper half, both halves turned upwards, and the rising quarters.
-    @inline(__always) private func envelope_sin(_ waveform: UInt8, _ phase: UInt16, _ envelope: UInt16) -> Int16 {
+    @inline(__always) private static func envelope_sin(_ waveform: UInt8, _ phase: UInt16, _ envelope: UInt16,
+                                                       _ logsinrom: UnsafeMutablePointer<UInt16>, _ exprom: UnsafeMutablePointer<UInt16>) -> Int16
+    {
         var phase = phase & 0x3FF
         var out: UInt32 = 0
         var neg: Int16 = 0
@@ -235,7 +239,7 @@ struct OPL3Chip: ~Copyable {
             }
             out = UInt32(phase) << 3
         }
-        return OPL3_EnvelopeCalcExp(out + (UInt32(envelope) << 3)) ^ neg
+        return OPL3_EnvelopeCalcExp(out + (UInt32(envelope) << 3), exprom) ^ neg
     }
 
     private func OPL3_EnvelopeUpdateKSL(_ slot: UnsafeMutablePointer<Slot>) {
@@ -410,9 +414,9 @@ struct OPL3Chip: ~Copyable {
         slot.pointee.prout = out
         OPL3_EnvelopeCalc(slot)
         OPL3_PhaseGenerate(slot)
-        slot.pointee.out.pointee = envelope_sin(slot.pointee.reg_wf,
-                                                UInt16(truncatingIfNeeded: Int32(slot.pointee.pg_phase_out) + Int32(slot.pointee.mod.pointee)),
-                                                slot.pointee.eg_out)
+        slot.pointee.out.pointee = Self.envelope_sin(slot.pointee.reg_wf,
+                                                     UInt16(truncatingIfNeeded: Int32(slot.pointee.pg_phase_out) + Int32(slot.pointee.mod.pointee)),
+                                                     slot.pointee.eg_out, logsinrom, exprom)
     }
 
     // MARK: Channel

@@ -193,9 +193,20 @@ extension ReSIDfpChip {
         /// - Returns: convolved result
         @inline(__always)
         static func convolve(_ a: UnsafePointer<Int32>, _ b: UnsafePointer<Int16>, _ bLength: Int) -> Int32 {
-            var out: Int32 = 0
-            for i in 0 ..< bLength {
+            // Eight at a time, and then the rest: added round as they are, in any order the sum is the same.
+            var sums = SIMD8<Int32>.zero
+            var i = 0
+            let a8 = UnsafeRawPointer(a), b8 = UnsafeRawPointer(b)
+            while i &+ 8 <= bLength {
+                let x = a8.loadUnaligned(fromByteOffset: i &* 4, as: SIMD8<Int32>.self)
+                let y = SIMD8<Int32>(truncatingIfNeeded: b8.loadUnaligned(fromByteOffset: i &* 2, as: SIMD8<Int16>.self))
+                sums &+= x &* y
+                i &+= 8
+            }
+            var out = sums.wrappedSum()
+            while i < bLength {
                 out &+= a[i] &* Int32(b[i])
+                i &+= 1
             }
 
             return (out &+ (1 << 14)) >> 15

@@ -1709,15 +1709,17 @@ final class IT2Mixer {
 
     /// The eight samples about `s`, each by its weight, added in the original's order.
     @inline(__always)
+    // (Each sample by way of Int, whose conversion to Float is the processor's own: Int32's, in a generic
+    // body like this one, was left a call to the general conversion. The value is the same.)
     private static func SincInterpolation<T: FixedWidthInteger & SignedInteger>(_ s: UnsafePointer<T>, _ t: UnsafePointer<Float>, _ scale: Float) -> Float {
-        var out = Float(Int32(truncatingIfNeeded: s[-3])) * t[0]
-        out += Float(Int32(truncatingIfNeeded: s[-2])) * t[1]
-        out += Float(Int32(truncatingIfNeeded: s[-1])) * t[2]
-        out += Float(Int32(truncatingIfNeeded: s[0])) * t[3]
-        out += Float(Int32(truncatingIfNeeded: s[1])) * t[4]
-        out += Float(Int32(truncatingIfNeeded: s[2])) * t[5]
-        out += Float(Int32(truncatingIfNeeded: s[3])) * t[6]
-        out += Float(Int32(truncatingIfNeeded: s[4])) * t[7]
+        var out = Float(Int(truncatingIfNeeded: s[-3])) * t[0]
+        out += Float(Int(truncatingIfNeeded: s[-2])) * t[1]
+        out += Float(Int(truncatingIfNeeded: s[-1])) * t[2]
+        out += Float(Int(truncatingIfNeeded: s[0])) * t[3]
+        out += Float(Int(truncatingIfNeeded: s[1])) * t[4]
+        out += Float(Int(truncatingIfNeeded: s[2])) * t[5]
+        out += Float(Int(truncatingIfNeeded: s[3])) * t[6]
+        out += Float(Int(truncatingIfNeeded: s[4])) * t[7]
         return out * scale
     }
 
@@ -1729,7 +1731,7 @@ final class IT2Mixer {
         var out: Float = 0
         var index = Int64(position) - 3
         for tap in 0 ..< 8 {
-            let sample: Float = index >= lowest && index <= highest ? Float(Int32(truncatingIfNeeded: base[Int(index)])) : 0
+            let sample: Float = index >= lowest && index <= highest ? Float(Int(truncatingIfNeeded: base[Int(index)])) : 0
             if tap == 0 { out = sample * t[0] } else { out += sample * t[tap] }
             index += 1
         }

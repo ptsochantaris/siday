@@ -88,7 +88,7 @@ struct Paula: ~Copyable {
                 bytesLeft = 2
             }
 
-            level = Float(data.0) * storedVolume
+            level = Float(Int(data.0)) * storedVolume
             swing.note(level)
             if level != lastLevel {
                 if stepDelta > stepPhase {
