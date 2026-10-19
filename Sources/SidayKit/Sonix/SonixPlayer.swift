@@ -881,10 +881,18 @@ extension SonixPlayer: PaulaTickPlayer {
         info.title = title
         let plural = instrumentCount == 1 ? "" : "s"
         info.detail = "Mark Riley's Sonix Music Driver \(kind.playerVersion); \(instrumentCount) instrument\(plural), \(synthesisedCount) synthesised"
+        // (The player itself would not play a score without all of them.)
+        if !missingInstruments.isEmpty {
+            info.shortfalls.append(Shortfall.some(missingInstruments.count, one: "instruments was not found in the folder of instruments beside it, and is not heard: ",
+                                                  many: "instruments were not found in the folder of instruments beside it, and are not heard: ")
+                + Shortfall.list(missingInstruments) + ".")
+        }
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// The Sonix Music Driver's music is louder on the Amiga's chip than ProTracker's is, by 1.9 dB in
+    /// the middle of UnExoticA's 237 scores, and is turned down by that (2026-10-19).
+    var gain: Float { 0.37 }
 
     mutating func prepareToBeHeard() {}
 

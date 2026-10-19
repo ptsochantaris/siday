@@ -40,6 +40,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case dm2
     case mxtx
     case sa
+    case sonix
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -61,6 +62,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "sonic" || name == "sa-p" || name == "lion" || name == "sa_old" {
             // (Sonic Arranger's, by the names the Amiga's players knew them by.)
             self = .sa
+        } else if name == "smus" || name == "snx" || name == "tiny" {
+            // (The Sonix Music Driver's scores, of its three kinds.)
+            self = .sonix
         } else if name == "bp3" || name == "sndmon" {
             // (SoundMon's, as the Amiga's players named them: bp3 for 2.2's.)
             self = .bp
@@ -222,6 +226,13 @@ public enum TuneLoader {
                 return try PaulaTickRenderer(MaxTraxPlayer(data, instruments: instruments), options: options)
             }
             return try PaulaTickRenderer(MaxTraxPlayer(data), options: options)
+        case .sonix:
+            // The Sonix Music Driver's scores, with the instruments of the folder beside them.
+            guard let folder = companions.first ?? nil else {
+                _ = try SonixPlayer.check(data)
+                throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+            }
+            return try PaulaTickRenderer(SonixPlayer(data, instruments: CompanionFolder.unpack(folder)), options: options)
         case .sa:
             // Sonic Arranger's: the editor's modules, games' songs, and songs with their replayer.
             return try PaulaTickRenderer(SonicArrangerPlayer(data), options: options)

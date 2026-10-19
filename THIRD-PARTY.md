@@ -247,6 +247,18 @@ It was checked against ScummVM's player of MaxTrax (`audio/mods/maxtrax.cpp`, GN
 License, version 2 or later, https://github.com/scummvm/scummvm), from which the tempos Legend of
 Kyrandia's game gives its scores are taken (`engines/kyra/sound/sound_amiga_lok.cpp`).
 
+## Sonix Music Driver
+
+`Sources/SidayKit/Sonix` plays the Sonix Music Driver's scores as Mark Riley's players of them do
+("Sonix Music Driver (C) Copyright 1987-91 Mark Riley, All Rights Reserved"), as Wanted Team keep
+three of them in their player of the scores for EaglePlayer ("Sonix Music Driver player module
+V2.0", 2004, carried by UADE as `SonixMusicDriver`, with its source in `amigasrc/players/wanted_team`;
+it says of itself "(c) 1987-91 by Mark Riley, adapted by Wanted Team"): version 2.3c, from Dynamix's
+Rise of the Dragon, 2.0b, from Melbourne House's Magic Johnson's Basketball, and 2.0f, from
+Synergistic's Vengeance of Excalibur. Their 68000 code was read for that, and nothing of it is
+carried here but what it does and its tables: of the steps of an octave and of pitch bends, of tempos, of
+the lengths of notes and rests, and of the filters a synthesised instrument is passed through.
+
 ## Magnetic Fields Packer
 
 `Sources/SidayKit/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as

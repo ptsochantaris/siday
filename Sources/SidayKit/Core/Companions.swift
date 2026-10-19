@@ -97,6 +97,10 @@ public enum CompanionFolder {
 ///   `smp.title`. Failing those, the one file ending `.smp` beside it, if there is only one.
 /// - a MaxTrax file of scores alone has its instruments in `set.smpl` beside it (on the Amiga's own
 ///   disks, `mxtx.title`'s in `smpl.title`), or the one file ending `.smpl` beside it.
+/// - a score of the Sonix Music Driver, `title.smus`, `title.tiny` or `title.snx`, names its
+///   instruments, and has them in a folder beside it, `Instruments` (`NAME.instr`, and the sampled
+///   sound of one that names one, `NAME.ss`): the whole folder is brought, and the player finds them
+///   in it.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
@@ -150,6 +154,9 @@ public enum Companions {
             var names = ["set.smpl"]
             if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .sonix:
+            // Named in the score, and kept, as the player looks for them, in a folder beside it.
+            return [Companion(part: .instruments, names: ["Instruments"], kind: nil, required: true, folder: true)]
         case .rol:
             let own = Companion(part: .instruments, names: ["\(stem).bnk"], required: false)
             let standard = Companion(part: .instruments, names: ["standard.bnk"], required: false)

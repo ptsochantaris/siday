@@ -29,7 +29,8 @@ kept, on the computer or in the browser.
 
 Some files are not all of a tune, or not a tune at all. A playlist names tunes in other files; a
 ROL tune takes its instruments from a bank in a file beside it; a song packed with the Magnetic
-Fields Packer, or with TFMX, or by Pierre Adane's packer, keeps its samples in a file of their own. They are all found in one way, by
+Fields Packer, or with TFMX, or by Pierre Adane's packer, keeps its samples in a file of their own;
+a Sonix score has its instruments in a folder beside it, which is brought whole. They are all found in one way, by
 `FileFinder`: by the names they are known to have, beside the file that wants them first, and as
 Windows would, to which a capital and a small letter are one. On the command line that is the
 folder on the disk. In a browser it is the files the page has been given, since a page can read no
@@ -1145,6 +1146,62 @@ What is siday's own, or the players' own and worth telling:
    no song of the collection turns it on.
 4. How loud it is: Sonic Arranger's music is 5.1 dB louder on the Amiga's chip than modules are, in
    the middle of the collection, and is turned down by that.
+
+## SONIX — the Sonix Music Driver
+
+Aegis Sonix (1987) began as Musicraft, a music program Commodore had made for the Amiga and never
+sold. Aegis Development bought it and had the two who wrote it, Mark Riley and Gary Koffler, carry
+on with it. It was a score editor that wrote music as notes on staves, with a synthesiser of the
+Amiga's four voices and an editor of sampled sounds beside it, and it kept its songs as SMUS, the
+Simple Music Score that Jerry Morrison of Electronic Arts had set down as part of IFF, the
+Amiga's way of keeping files of every kind. A SMUS file names its instruments and does not hold them:
+Sonix kept each in a file of its own, `NAME.instr`, and the sound of a sampled one in another,
+`NAME.ss`, in a folder named Instruments.
+
+Games used Sonix's music through the Sonix Music Driver, Mark Riley's player of it ("Sonix Music
+Driver (C) Copyright 1987-91 Mark Riley", its copies say). Its scores come in three kinds: SMUS as
+Sonix saved it; TINY, a shorter form, whose instruments the games numbered (the copies here have
+names of four letters instead, which is how Wanted Team's player of them asks for them to be kept);
+and SNX, the driver's own. UnExoticA's collection has 237 scores, 128 of SMUS, 82 of TINY and 27 of
+SNX, from eighteen games (with a demo of one and another version of another): Spirit of Excalibur, War in Middle Earth, Rocket Ranger,
+TV Sports Football and Boxing, It Came from the Desert and Antheads after it, four of the Carmen
+Sandiego games, Stellar 7, A-10 Tank Killer, California Games, 4x4 Off-Road Racing, Alternate
+Reality, Bo Jackson Baseball and New York Warrior.
+
+An instrument is synthesised or sampled. A synthesised one is a waveform of 128 bytes, which the
+driver passes through 64 filters as it is loaded, from bright to dark, and plays through one of
+them as its envelope and vibrato move it, its phase and pitch slid; it writes each voice's waveform
+anew as it plays. A sampled one has its sound in the `.ss` file, in octaves; an instrument can also
+be an IFF 8SVX sample, or, for SNX, an AIFF one.
+
+Wanted Team's player of the scores for EaglePlayer ("Sonix Music Driver player module V2.0", 2004,
+which UADE carries) holds three of Mark Riley's own players, one for each kind, which they took from
+games: version 2.3c from Dynamix's Rise of the Dragon for SNX, 2.0b from Melbourne House's Magic
+Johnson's Basketball for TINY, and 2.0f from Synergistic's Vengeance of Excalibur for SMUS. siday's
+player is those three, read in their 68000 code, with the Amiga's memory the instruments are loaded
+into and the waveforms written into kept as the Amiga kept it. What it tells the Amiga's sound chip
+on every tick is the same as UADE's, running that player, for all 237 scores over their first 40
+seconds; every score ends within three hundredths of a second of where UADE's ends; and by how loud
+each side is from moment to moment over the first minute, the middle of them is 0.993 to 0.997
+alike (the least is 0.888, a score of sharp attacks whose notes all fall within 20 ms of UADE's).
+
+What is siday's own, or the players' own and worth telling:
+
+1. Each player sets the Amiga's timer itself. SNX's from its tempo, a tick of the score each time
+   the timer runs out; TINY's and SMUS's from a table of 128 tempos, a tick of the score being one
+   to fifteen of the timer's. A tick lasts as long as the timer says, and a timer set during a tick
+   counts from the next, as the Amiga's does.
+2. The whole Instruments folder beside a score is brought with it, on the command line and in the
+   browser alike, and the player finds the instruments the score names in it, without regard to
+   capitals. On UnExoticA's copies a full stop in an instrument's name has become an underscore in
+   its file's (`SNARE2.R8` is in `SNARE2_R8.instr`), and either is taken for the other.
+3. The driver would not play a score with an instrument missing. siday plays it without, and says
+   which are missing; a score none of whose instruments is found is not played. In the collection,
+   none is missing.
+4. Where a damaged file would have the player divide by nought, or read or write on through memory
+   without end, it stops short instead; no file of the collection comes near it.
+5. How loud it is: the Sonix Music Driver's music is 1.9 dB louder on the Amiga's chip than modules
+   are, in the middle of the collection, and is turned down by that.
 
 ## XM — FastTracker 2
 
