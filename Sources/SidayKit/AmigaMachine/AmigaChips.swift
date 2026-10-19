@@ -50,6 +50,35 @@ final class AmigaChips: M68000Bus {
     /// Whether the filter was on, by the power light, as last told.
     private var filterOn = false
 
+    /// Whether the chips ask for the processor's interrupts, as the hardware does: the beam's frame
+    /// (VERTB), the CIAs' timers (PORTS and EXTER), Paula's voices (AUD0 to AUD3) and the program's own
+    /// (SOFT). Off, as it is for a player whose host calls its code itself, nothing asks: INTREQ holds
+    /// only what the program writes to it, and the chips are as they were before this was made.
+    ///
+    /// On, the frames are as UADE's UAE has them: short ones, of 312 lines (its long-frame bit, which only
+    /// an interlaced display changes, is clear as it starts), and VPOSR says so. Off, every frame is a long
+    /// one of 313, as the players called a tick at a time were made with.
+    var interrupts = false {
+        didSet {
+            frameClocks = UInt64(Self.lineClocks * (interrupts ? Self.shortFrameLines : Self.frameLines))
+            nextFrame = (clock / frameClocks + 1) * frameClocks
+        }
+    }
+    /// Set by a write that may ask for an interrupt, while `interrupts` is on: to the interrupts' enables
+    /// and requests, the DMA, Paula's voices, or a CIA. The processor stops after the instruction that
+    /// made it (`M68000Bus.asksToBeLookedAt`), and the machine looks, as UAE does after the next.
+    var wroteInterrupts = false
+    var asksToBeLookedAt: Bool { wroteInterrupts }
+
+    /// A short frame's lines.
+    static let shortFrameLines = 312
+    /// A frame's length, in Paula's clocks.
+    private(set) var frameClocks = UInt64(lineClocks * frameLines)
+    /// When the next frame begins, for its interrupt, in Paula's clocks.
+    private var nextFrame = UInt64(lineClocks * frameLines)
+    /// When each voice asks for its interrupt (while `interrupts` is on).
+    private var audio = AmigaAudioDMA()
+
     init() {
         writes.reserveCapacity(256)
     }
@@ -69,6 +98,9 @@ final class AmigaChips: M68000Bus {
         clock = 0
         eTicks = 0
         filterOn = false
+        interrupts = false
+        nextFrame = UInt64(Self.lineClocks * Self.frameLines)
+        audio = AmigaAudioDMA()
     }
 
     /// The time, `cycles` into the current call.
@@ -87,13 +119,61 @@ final class AmigaChips: M68000Bus {
         let e = time / 5
         if e > eTicks {
             let ticks = Int(min(e - eTicks, UInt64(Int32.max)))
-            cias[0].advance(by: ticks)
-            cias[1].advance(by: ticks)
+            let a = cias[0].advance(by: ticks)
+            let b = cias[1].advance(by: ticks)
             eTicks = e
+            // A timer let through asks for its CIA's interrupt as it runs out (UAE's `RethinkICR`).
+            if interrupts {
+                if a & cias[0].interruptMask != 0 { intreq |= 0x0008 }
+                if b & cias[1].interruptMask != 0 { intreq |= 0x2000 }
+            }
         }
-        cias[0].timeOfDay = UInt32(truncatingIfNeeded: time / UInt64(Self.lineClocks * Self.frameLines))
+        cias[0].timeOfDay = UInt32(truncatingIfNeeded: time / frameClocks)
         cias[1].timeOfDay = UInt32(truncatingIfNeeded: time / UInt64(Self.lineClocks))
+        guard interrupts else { return }
+        if time >= nextFrame {
+            intreq |= 0x0020
+            nextFrame = (time / frameClocks + 1) * frameClocks
+        }
+        audio.run(to: time, intreq: &intreq, adkcon: adkcon)
     }
+
+    // MARK: Interrupts
+
+    /// The level of the interrupt the chips ask the processor for now (nought for none): the highest
+    /// of those requested and enabled, while the master enable (INTEN) is on.
+    var interruptLevel: Int {
+        guard interrupts, intena & 0x4000 != 0 else { return 0 }
+        let asked = intena & intreq & 0x3FFF
+        if asked == 0 { return 0 }
+        // TBE, DSKBLK, SOFT 1; PORTS 2; COPER, VERTB, BLIT 3; AUD0-3 4; RBF, DSKSYN 5; EXTER 6.
+        if asked & 0x2000 != 0 { return 6 }
+        if asked & 0x1800 != 0 { return 5 }
+        if asked & 0x0780 != 0 { return 4 }
+        if asked & 0x0070 != 0 { return 3 }
+        if asked & 0x0008 != 0 { return 2 }
+        return 1
+    }
+
+    /// When a CIA's timer next runs out, in Paula's clocks, if it is going (as the chips were last
+    /// brought up to time).
+    func timerRunsOut(cia: Int, timer: Int) -> UInt64? {
+        cias[cia].ticksToRunOut(timer).map { (eTicks + UInt64($0)) * 5 }
+    }
+
+    /// The soonest time after `time` at which something may ask for an interrupt that is enabled: the
+    /// next frame, a CIA's timer running out, or a voice of Paula's.
+    func nextInterrupt(after time: UInt64) -> UInt64 {
+        var soonest = UInt64.max
+        guard interrupts else { return soonest }
+        if intena & 0x0020 != 0 { soonest = nextFrame }
+        for c in 0 ..< 2 where intena & (c == 0 ? 0x0008 : 0x2000) != 0 {
+            if let ticks = cias[c].ticksToInterrupt { soonest = min(soonest, (eTicks + UInt64(ticks)) * 5) }
+        }
+        if intena & 0x0780 != 0, let next = audio.nextEvent { soonest = min(soonest, next) }
+        return max(soonest, time)
+    }
+
 
     /// True while the filter is on: the power light's line is an output, and low.
     var lightFilter: Bool { filterOn }
@@ -136,11 +216,16 @@ final class AmigaChips: M68000Bus {
         }
         if address & 0xFF0000 == 0xBF0000 {
             catchUp(cycles)
+            if interrupts { wroteInterrupts = true }
             if address & 1 == 1, address & 0x1000 == 0 {
                 cias[0].write(Int(address >> 8 & 15), value)
                 noteFilter(at: cycles)
+                if interrupts, cias[0].interrupting, address >> 8 & 15 == 13 { intreq |= 0x0008 }
             }
-            if address & 1 == 0, address & 0x2000 == 0 { cias[1].write(Int(address >> 8 & 15), value) }
+            if address & 1 == 0, address & 0x2000 == 0 {
+                cias[1].write(Int(address >> 8 & 15), value)
+                if interrupts, cias[1].interrupting, address >> 8 & 15 == 13 { intreq |= 0x2000 }
+            }
             return
         }
         if address & 0xFF0000 == Self.hostPort {
@@ -166,9 +251,16 @@ final class AmigaChips: M68000Bus {
     // MARK: The custom chips
 
     private func readCustom(_ register: UInt16, at cycles: Int) -> UInt16 {
+        if interrupts { catchUp(cycles) }
         switch register {
         case 0x002: return dmacon & 0x07FF
         case 0x004, 0x006:
+            if interrupts {
+                // A short frame (bit 15 of VPOSR clear).
+                let inFrame = Int(now(cycles) % frameClocks)
+                let line = inFrame / Self.lineClocks, position = inFrame % Self.lineClocks
+                return register == 0x004 ? UInt16(line >> 8) : UInt16(line & 0xFF) << 8 | UInt16(position)
+            }
             let (line, position) = Self.beam(at: now(cycles))
             // Every frame is a long one (bit 15 of VPOSR); the Agnus says nothing of itself.
             return register == 0x004 ? 0x8000 | UInt16(line >> 8) : UInt16(line & 0xFF) << 8 | UInt16(position)
@@ -185,17 +277,25 @@ final class AmigaChips: M68000Bus {
     }
 
     private func writeCustom(_ register: UInt16, _ value: UInt16, at cycles: Int) {
+        if interrupts {
+            catchUp(cycles)
+            if register == 0x96 || register == 0x9A || register == 0x9C || register >= 0xA0 && register < 0xE0 { wroteInterrupts = true }
+        }
         switch register {
         case 0x096:
             dmacon = Self.setOrClear(dmacon, value)
             writes.append(AmigaWrite(cycles: cycles, register: register, value: value))
-        case 0x09A: intena = Self.setOrClear(intena, value)
-        case 0x09C: intreq = Self.setOrClear(intreq, value)
+            if interrupts { audio.setDMA(dmacon, at: now(cycles)) }
+        case 0x09A, 0x09C:
+            if register == 0x09A { intena = Self.setOrClear(intena, value) } else { intreq = Self.setOrClear(intreq, value) }
+            // (Kept with the rest while the chips interrupt, for a host to see; Paula takes no notice.)
+            if interrupts { writes.append(AmigaWrite(cycles: cycles, register: register, value: value)) }
         case 0x09E:
             adkcon = Self.setOrClear(adkcon, value)
             writes.append(AmigaWrite(cycles: cycles, register: register, value: value))
         case 0x0A0 ..< 0x0E0:
             if register & 0xF < 0xC { writes.append(AmigaWrite(cycles: cycles, register: register, value: value)) }
+            if interrupts { audio.write(Int(register - 0xA0) >> 4, register & 0xF, value, at: now(cycles), &intreq) }
         default:
             // (The copper's, the blitter's, the display's: nothing a player of music is heard by.)
             break

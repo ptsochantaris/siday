@@ -64,8 +64,10 @@ struct AmigaCIA {
     var interrupting: Bool { flags & mask & 0x1F != 0 }
 
     /// Moves the timers on by `ticks` of the E clock. Timer B, set to count timer A's running out, counts
-    /// those instead; a timer set to count the CNT line counts nothing, for nothing is on it.
-    mutating func advance(by ticks: Int) {
+    /// those instead; a timer set to count the CNT line counts nothing, for nothing is on it. Returns the
+    /// interrupts that happened on the way (bit 0 timer A, bit 1 timer B), whether let through or not.
+    @discardableResult
+    mutating func advance(by ticks: Int) -> UInt8 {
         let a = timers[0].control & 0x20 == 0 ? timers[0].count(ticks) : 0
         if a > 0 { flags |= 1 }
         let b: Int
@@ -77,6 +79,38 @@ struct AmigaCIA {
             b = 0
         }
         if b > 0 { flags |= 2 }
+        return (a > 0 ? 1 : 0) | (b > 0 ? 2 : 0)
+    }
+
+    /// How many ticks of the E clock until a timer that counts them runs out, if it is going.
+    func ticksToRunOut(_ timer: Int) -> Int? {
+        guard timers[timer].running, timers[timer].control & 0x20 == 0, timer == 0 || timers[1].control & 0x40 == 0 else {
+            return nil
+        }
+        return Int(timers[timer].counter) + 1
+    }
+
+    /// The interrupts let through, as the mask has them.
+    var interruptMask: UInt8 { mask }
+
+    /// How many ticks of the E clock until a timer whose interrupt is let through next runs out: nil if
+    /// none will. (For the machine, which runs the processor no further than that before it looks.)
+    var ticksToInterrupt: Int? {
+        var soonest: Int?
+        let a = timers[0].running && timers[0].control & 0x20 == 0 ? Int(timers[0].counter) + 1 : nil
+        if mask & 1 != 0, let a { soonest = a }
+        if mask & 2 != 0, timers[1].running {
+            var b: Int?
+            if timers[1].control & 0x60 == 0x40 {
+                // Counting timer A's running out: the counter's worth of A's periods after A next does.
+                if let a, !timers[0].oneShot { b = a + Int(timers[1].counter) * (Int(timers[0].latch) + 1) }
+                else if let a, timers[1].counter == 0 { b = a }
+            } else if timers[1].control & 0x20 == 0 {
+                b = Int(timers[1].counter) + 1
+            }
+            if let b { soonest = min(soonest ?? b, b) }
+        }
+        return soonest
     }
 
     mutating func read(_ register: Int) -> UInt8 {

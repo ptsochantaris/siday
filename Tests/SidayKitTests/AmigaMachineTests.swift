@@ -247,3 +247,130 @@ private struct Told: TFMXOutput {
     #expect(throws: TuneError.self) { try AmigaHunks.load(wrong, at: 0x4000, into: m.memory, capacity: m.memorySize) }
     #expect(throws: TuneError.self) { try AmigaHunks.load(file, at: 0xFFF0, into: m.memory, capacity: m.memorySize) }
 }
+
+// MARK: Running as the hardware runs
+
+/// A machine whose chips ask for interrupts, its program at `origin` in supervisor mode with its
+/// interrupts let through, and `handler` set in the vector of `level`.
+private func interrupting(_ code: AmigaCode, level: Int, handler: String) -> AmigaMachine {
+    var m = machine(code)
+    m.chips.interrupts = true
+    m.poke32(UInt32(0x60 + level * 4), code.origin + UInt32(code.offset(handler)))
+    m.cpu.registers[15] = stack
+    m.cpu.setStatus(0x2000)
+    m.jump(to: code.origin)
+    return m
+}
+
+/// The times, in Paula's clocks, at which the program wrote `register`.
+private func times(_ m: inout AmigaMachine, _ register: UInt16) -> [Int] {
+    var writes: [AmigaWrite] = []
+    m.takeWrites(into: &writes)
+    return writes.filter { $0.register == register }.map { $0.cycles / 2 }
+}
+
+/// The main program waits; the handler counts its calls into $3000, writes the count to AUD1PER (so
+/// that its moment is kept), clears its request (`request`) and comes back.
+private func waitingProgram(_ setUp: [UInt16], request: UInt16, reading icr: UInt32? = nil) -> AmigaCode {
+    var c = AmigaCode(at: origin)
+    for word in setUp { c.w(word) }
+    c.label("loop")
+    c.w(0x4E72, 0x2000, 0x60FA) // STOP #$2000; BRA.S loop
+    c.label("handler")
+    c.w(0x5279, 0x0000, 0x3000) // ADDQ.W #1,$3000
+    if let icr { c.w(0x1039, UInt16(icr >> 16), UInt16(icr & 0xFFFF)) } // MOVE.B icr,D0
+    c.w(0x33FC, request, 0x00DF, 0xF09C) // MOVE.W #request,$DFF09C
+    c.w(0x33F9, 0x0000, 0x3000, 0x00DF, 0xF0B6) // MOVE.W $3000,$DFF0B6
+    c.w(0x4E73) // RTE
+    return c
+}
+
+@Test func amigaTimersInterruptAsTheyRunOut() {
+    // CIA-B's timer A from 99 (a hundred ticks of the E clock, 500 of Paula's), continuously, its
+    // interrupt let through, and the CIA's let through to level 6.
+    let code = waitingProgram([0x13FC, 0x0063, 0x00BF, 0xD400, 0x13FC, 0x0000, 0x00BF, 0xD500,
+                               0x13FC, 0x0081, 0x00BF, 0xDD00, 0x13FC, 0x0011, 0x00BF, 0xDE00,
+                               0x33FC, 0xE000, 0x00DF, 0xF09A], request: 0x2000, reading: 0xBFDD00)
+    var m = interrupting(code, level: 6, handler: "handler")
+    #expect(m.run(until: 5_250) == .reached)
+    #expect(m.peek16(0x3000) == 10)
+    let at = times(&m, 0xB6)
+    #expect(at.count == 10)
+    // Every 500 clocks, and each the handler's few instructions after its timer ran out.
+    for i in 1 ..< at.count { #expect(at[i] - at[i - 1] == 500) }
+    let waiting = m.waiting
+    #expect(waiting)
+}
+
+@Test func amigaFramesInterrupt() {
+    let code = waitingProgram([0x33FC, 0xC020, 0x00DF, 0xF09A], request: 0x0020)
+    var m = interrupting(code, level: 3, handler: "handler")
+    // (Short frames, of 312 lines, as UADE's are.)
+    let frame = UInt64(AmigaChips.lineClocks * AmigaChips.shortFrameLines)
+    #expect(m.chips.frameClocks == frame)
+    #expect(m.run(until: frame * 7 / 2) == .reached)
+    #expect(m.peek16(0x3000) == 3)
+    let at = times(&m, 0xB6)
+    #expect(at.count == 3 && at.allSatisfy { $0 % Int(frame) < 100 })
+}
+
+@Test func amigaVoicesInterruptAsTheyTakeUpTheirBlocks() {
+    // Voice 0 playing four words from $4000 at a period of 200, its interrupt let through.
+    let setUp: [UInt16] = [0x23FC, 0x0000, 0x4000, 0x00DF, 0xF0A0, 0x33FC, 0x0004, 0x00DF, 0xF0A4,
+                           0x33FC, 0x00C8, 0x00DF, 0xF0A6, 0x33FC, 0xC080, 0x00DF, 0xF09A,
+                           0x33FC, 0x8201, 0x00DF, 0xF096]
+    var m = interrupting(waitingProgram(setUp, request: 0x0080), level: 4, handler: "handler")
+    #expect(m.run(until: 20000) == .reached)
+    var at = times(&m, 0xB6)
+    // The first as the voice starts, at the next line; then each time it takes up its block again,
+    // as its last word begins: a block of four words, each played for two periods of 200 clocks.
+    #expect(at.count >= 10)
+    for i in 2 ..< at.count { #expect(at[i] - at[i - 1] == 1600) }
+    // Played faster than the lines come (a period of 16), a word is fetched each line: four lines a
+    // block, the first as long as the rest.
+    var fast = setUp
+    fast[12] = 0x0010
+    m = interrupting(waitingProgram(fast, request: 0x0080), level: 4, handler: "handler")
+    #expect(m.run(until: 20000) == .reached)
+    at = times(&m, 0xB6)
+    for i in 1 ..< at.count { #expect(at[i] - at[i - 1] == 4 * AmigaChips.lineClocks) }
+}
+
+@Test func amigaChipsAskForNothingUnlessToldTo() {
+    // As a player whose host calls its code itself has them: the requests only as written, whatever
+    // time passes.
+    let m = AmigaMachine(chipRAM: 0x10000)
+    m.chips.write16(AmigaChips.custom + 0x9A, 0xE028)
+    m.chips.write8(0xBFD400, 1)
+    m.chips.write8(0xBFD500, 0)
+    m.chips.write8(0xBFDD00, 0x81)
+    m.chips.write8(0xBFDE00, 0x11)
+    m.chips.clock = 1_000_000
+    m.chips.catchUp(0)
+    #expect(m.chips.read16(AmigaChips.custom + 0x1E) == 0)
+    #expect(m.chips.interruptLevel == 0)
+}
+
+@Test func amigaInterruptsWaitForTheMask() {
+    // A frame's interrupt asked for while the processor's mask is at 3 is taken once the mask comes
+    // down (here by MOVE to SR, after a long wait at level 7).
+    var c = AmigaCode(at: origin)
+    c.w(0x33FC, 0xC020, 0x00DF, 0xF09A) // MOVE.W #$C020,$DFF09A
+    c.w(0x46FC, 0x2700) // MOVE.W #$2700,SR
+    c.w(0x203C, 0x0000, 0x9000) // MOVE.L #$9000,D0
+    c.label("spin")
+    c.w(0x5380, 0x66FC) // SUBQ.L #1,D0; BNE.S spin
+    c.w(0x33FC, 0x0001, 0x00DF, 0xF0A6) // MOVE.W #1,$DFF0A6
+    c.w(0x46FC, 0x2000) // MOVE.W #$2000,SR
+    c.label("loop")
+    c.w(0x60FE) // BRA.S loop
+    c.label("handler")
+    c.w(0x33FC, 0x0020, 0x00DF, 0xF09C, 0x33FC, 0x0002, 0x00DF, 0xF0A6, 0x4E73)
+    var m = interrupting(c, level: 3, handler: "handler")
+    #expect(m.run(until: 400_000) == .reached)
+    var writes: [AmigaWrite] = []
+    m.takeWrites(into: &writes)
+    let marks = writes.filter { $0.register == 0xA6 }
+    #expect(marks.count >= 2 && marks[0].value == 1 && marks[1].value == 2)
+    #expect(marks[1].cycles - marks[0].cycles < 200)
+}

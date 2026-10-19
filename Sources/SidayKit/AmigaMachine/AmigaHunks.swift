@@ -41,21 +41,32 @@ enum AmigaHunks {
         return try readHeader(file, &at)
     }
 
-    /// Loads the file into `memory` (of `capacity` bytes), its first segment at `address` and each of the
-    /// others after the one before, on an eight-byte boundary. The memory the segments take is cleared
-    /// first. Throws for a file that is not one, is cut short, or would not fit.
+    /// Where the segments go, one after another.
+    enum Placement {
+        /// The first at the address given, each other on the next eight-byte boundary after the one
+        /// before.
+        case packed
+        /// As UADE's host relocates a player (`relocator.s`): each, the first too, eight bytes past the
+        /// eight-byte boundary at or below the end of the one before (or the address given).
+        case uade
+    }
+
+    /// Loads the file into `memory` (of `capacity` bytes), its segments placed after `address` as
+    /// `placement` has them. The memory the segments take is cleared first. Throws for a file that is
+    /// not one, is cut short, or would not fit.
     static func load(_ file: [UInt8], at address: UInt32, into memory: UnsafeMutablePointer<UInt8>,
-                     capacity: Int) throws(TuneError) -> [Segment]
+                     capacity: Int, placement: Placement = .packed) throws(TuneError) -> [Segment]
     {
         var at = 0
         let sizes = try readHeader(file, &at)
         var segments: [Segment] = []
         var next = Int(address)
         for size in sizes {
+            if placement == .uade { next = (next & ~7) + 8 }
             guard next + size <= capacity else { throw .malformed("the program does not fit in the machine's memory") }
             segments.append(Segment(kind: .bss, address: UInt32(next), size: size))
             memory.advanced(by: next).initialize(repeating: 0, count: size)
-            next = (next + size + 7) & ~7
+            next = placement == .uade ? next + size : (next + size + 7) & ~7
         }
         var current = -1
         var ended = true

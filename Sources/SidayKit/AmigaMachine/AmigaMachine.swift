@@ -13,6 +13,19 @@ enum AmigaCall: Equatable {
     case failed
 }
 
+/// How a stretch of the machine's running as the hardware runs it (`AmigaMachine.run(until:)`) came out.
+enum AmigaRun: Equatable {
+    /// It ran until the time it was given.
+    case reached
+    /// It executed RESET: a call into the program's code has come back to `AmigaMachine.returnAddress`.
+    case returned
+    /// It executed TRAP with this number, and waits for the host to answer it (and run on), or to take
+    /// it as the 68000 would (`M68000.takeTrap`).
+    case trap(Int)
+    /// It met something that is not an instruction, or took an exception: the program has gone wrong.
+    case failed
+}
+
 /// As much of an Amiga as music needs whose player is a composer's own code: a 68000 (`M68000`), its
 /// chip RAM, from which Paula plays, and the chips above it (`AmigaChips`).
 ///
@@ -48,6 +61,10 @@ struct AmigaMachine: ~Copyable {
     let memorySize: Int
     let chips: AmigaChips
     var cpu: M68000<AmigaChips>
+    /// True while the processor waits, after a STOP, for an interrupt (see `run(until:)`).
+    private(set) var waiting = false
+    /// The processor's cycles it has spent waiting so, all told.
+    private(set) var waitedCycles = 0
 
     /// - Parameter chipRAM: how many bytes of chip RAM, from address 0 (at least 64 KB).
     init(chipRAM: Int) {
@@ -73,6 +90,7 @@ struct AmigaMachine: ~Copyable {
         poke16(Self.faultAddress, 0x4AFC)
         poke32(4, Self.execBase)
         for routine in 1 ... Self.libraryRoutines { setLibraryRoutine(routine * 6, to: Self.faultAddress) }
+        waiting = false
     }
 
     /// Makes the library's routine at `offset` below its base (as a program calls it, `JSR -offset(A6)`)
@@ -167,6 +185,87 @@ struct AmigaMachine: ~Copyable {
     mutating func takeWrites(into list: inout [AmigaWrite]) {
         list.removeAll(keepingCapacity: true)
         swap(&list, &chips.writes)
+    }
+
+    // MARK: Running as the hardware runs
+
+    // A player that sets its own timers, takes over the interrupts, or feeds its voices from Paula's
+    // interrupts cannot be called a tick at a time: the machine is run as the Amiga runs, its processor
+    // going on from where it is and taking each interrupt as the chips ask for it (`AmigaChips.interrupts`
+    // on), and time passing as it goes.
+
+    /// Starts a stretch of time: the time the processor has reached becomes the moment its cycles, and
+    /// the times of the writes it makes from now (`takeWrites`), are counted from (`chips.clock`).
+    mutating func beginStretch() {
+        let used = cpu.cycles
+        chips.clock &+= UInt64(max(0, used) / 2)
+        _ = cpu.run(cycles: 0)
+        cpu.wait(cycles: used & 1)
+    }
+
+    /// The time the processor has reached, in Paula's clocks since the machine was switched on.
+    var now: UInt64 { chips.now(cpu.cycles) }
+
+    /// Sends the processor to `address`, as the start of a call, a return or an interrupt the host makes:
+    /// it no longer waits, if it was.
+    mutating func jump(to address: UInt32) {
+        cpu.pc = address
+        waiting = false
+    }
+
+    /// Runs the processor from where it is until the time `end`, as the hardware runs it: each interrupt
+    /// the chips ask for is taken between two instructions as soon as it comes due and the processor's
+    /// mask lets it through, and after a STOP nothing runs until one is. It stops before then for a RESET,
+    /// a TRAP, or code that has gone wrong. A program that never comes back is no matter: time still
+    /// runs to `end`.
+    mutating func run(until end: UInt64) -> AmigaRun {
+        // (After an instruction that wrote to what asks for interrupts, one more is run before an
+        // interrupt is taken, as UAE takes it.)
+        var oneMore = false
+        while true {
+            chips.catchUp(cpu.cycles)
+            let time = now
+            if time >= end { return .reached }
+            if chips.wroteInterrupts {
+                chips.wroteInterrupts = false
+                oneMore = !waiting
+            }
+            let level = chips.interruptLevel
+            if oneMore {
+                oneMore = false
+                switch cpu.resume(cycles: cpu.cycles + 1) {
+                case .outOfTime: continue
+                case .stopped: waiting = true
+                case .reset: return .returned
+                case let .trap(number): return .trap(number)
+                case .illegal: return .failed
+                }
+                continue
+            }
+            if level > 0, cpu.interrupt(level: level) {
+                waiting = false
+                continue
+            }
+            let next = min(end, chips.nextInterrupt(after: time))
+            if waiting {
+                let idle = max(2, Int(min(next - time, 1 << 30)) * 2)
+                cpu.wait(cycles: idle)
+                waitedCycles &+= idle
+                continue
+            }
+            // No further than the next interrupt that may come due, and no more than a few lines' worth
+            // between looks (a write may have set one going sooner); a few instructions at a time while
+            // one is asked for that the mask holds back, to take it as soon as the mask comes down.
+            let most = level > 0 ? 64 : 1024
+            let span = Int(min(next - time, UInt64(most / 2))) * 2
+            switch cpu.resume(cycles: cpu.cycles + max(2, span)) {
+            case .outOfTime: continue
+            case .stopped: waiting = true
+            case .reset: return .returned
+            case let .trap(number): return .trap(number)
+            case .illegal: return .failed
+            }
+        }
     }
 
     /// What the host's code has told it through its port since this was last asked.

@@ -27,6 +27,10 @@ public protocol M68000Bus: AnyObject {
     func read16(_ address: UInt32, at cycles: Int) -> UInt16
     func write8(_ address: UInt32, _ value: UInt8, at cycles: Int)
     func write16(_ address: UInt32, _ value: UInt16, at cycles: Int)
+    /// True when what the processor has just done may have asked for an interrupt (for hardware that
+    /// interrupts it, as the Amiga's does): the processor stops after the instruction, for its host to
+    /// look. A bus that never interrupts leaves it false.
+    var asksToBeLookedAt: Bool { get }
 }
 
 public extension M68000Bus {
@@ -34,6 +38,7 @@ public extension M68000Bus {
     @inline(__always) func read16(_ address: UInt32, at _: Int) -> UInt16 { read16(address) }
     @inline(__always) func write8(_ address: UInt32, _ value: UInt8, at _: Int) { write8(address, value) }
     @inline(__always) func write16(_ address: UInt32, _ value: UInt16, at _: Int) { write16(address, value) }
+    @inline(__always) var asksToBeLookedAt: Bool { false }
 }
 
 /// Why the processor stopped running.
@@ -228,6 +233,7 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
         while cycles < budget {
             execute()
             if let stop { return stop }
+            if bus.asksToBeLookedAt { return .outOfTime }
         }
         return .outOfTime
     }
@@ -235,6 +241,49 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
     /// Takes the exception of the TRAP the processor has just stopped at, for a trap nobody answers.
     public mutating func takeTrap(_ number: Int) {
         exception(32 &+ UInt32(number), returningTo: pc)
+    }
+
+    // MARK: For a machine whose hardware interrupts the processor
+
+    // (The Amiga's, `AmigaMachine`, whose host runs the program and its interrupts as the hardware asks
+    // for them. Nothing else here uses these, and nothing they do happens unless they are called.)
+
+    /// Takes an interrupt that the hardware asks for at `level` (1 to 7), as the 68000 does between two
+    /// instructions, if its mask lets that level through (level 7 always goes through): the status and
+    /// the place to come back to go on the supervisor's stack, the mask is raised to the level, and it
+    /// goes on from the level's autovector. It takes the 68000's 44 cycles. True if it was taken.
+    public mutating func interrupt(level: Int) -> Bool {
+        guard level >= 1, level <= 7, UInt32(level) > interruptMask || level == 7 else { return false }
+        let used = cycles
+        exception(24 &+ UInt32(level), returningTo: pc)
+        interruptMask = UInt32(level)
+        cycles = used &+ 44
+        return true
+    }
+
+    /// Counts cycles that pass with the processor doing nothing, as it waits after a STOP.
+    public mutating func wait(cycles more: Int) {
+        cycles &+= max(0, more)
+    }
+
+    /// Whether MULU and MULS take as long as the 68000's do, by their source's bits (as UADE's processor
+    /// has them), rather than a time of their own. Off unless asked for.
+    public var timesMultiplies = false
+
+    /// The level below which the processor lets no interrupt through.
+    public var interruptLevel: Int { Int(interruptMask) }
+
+    /// Sets the whole status register, as MOVE to SR does (the stack pointer swapped with the mode).
+    public mutating func setStatus(_ value: UInt32) {
+        setStatusRegister(value)
+    }
+
+    /// The user's stack pointer, whichever mode the processor is in.
+    public var userStack: UInt32 {
+        get { supervisor ? otherStack : registers[15] }
+        set {
+            if supervisor { otherStack = newValue } else { registers[15] = newValue }
+        }
     }
 
     // MARK: Operands
@@ -635,7 +684,14 @@ public struct M68000<Bus: M68000Bus>: ~Copyable {
                     : value &* other
                 registers[Int(upper)] = result
                 logic(result, 2)
-                cycles &+= 40
+                if timesMultiplies {
+                    // 38 cycles and two for each one in the source (MULU), or for each change between
+                    // its bits from below a nought (MULS), the instruction's fetch among them.
+                    let bits = opmode == 7 ? (value << 1 ^ value) & 0xFFFF : value & 0xFFFF
+                    cycles &+= 34 &+ bits.nonzeroBitCount &* 2
+                } else {
+                    cycles &+= 40
+                }
             } else if opmode == 4, mode < 2 {
                 decimal(subtracting: false, mode, register, upper)
             } else if opmode == 5, mode < 2 {
