@@ -1707,19 +1707,22 @@ final class IT2Mixer {
         self.fLastRightValue = fLastRightValue
     }
 
-    /// The eight samples about `s`, each by its weight, added in the original's order.
+    /// The eight samples about `s`, each by its weight, added in the original's order. (They are turned
+    /// to floating point and multiplied by their weights all at once, which gives each product as it is;
+    /// only the adding up is done one after another.)
     @inline(__always)
-    // (Each sample by way of Int, whose conversion to Float is the processor's own: Int32's, in a generic
-    // body like this one, was left a call to the general conversion. The value is the same.)
     private static func SincInterpolation<T: FixedWidthInteger & SignedInteger>(_ s: UnsafePointer<T>, _ t: UnsafePointer<Float>, _ scale: Float) -> Float {
-        var out = Float(Int(truncatingIfNeeded: s[-3])) * t[0]
-        out += Float(Int(truncatingIfNeeded: s[-2])) * t[1]
-        out += Float(Int(truncatingIfNeeded: s[-1])) * t[2]
-        out += Float(Int(truncatingIfNeeded: s[0])) * t[3]
-        out += Float(Int(truncatingIfNeeded: s[1])) * t[4]
-        out += Float(Int(truncatingIfNeeded: s[2])) * t[5]
-        out += Float(Int(truncatingIfNeeded: s[3])) * t[6]
-        out += Float(Int(truncatingIfNeeded: s[4])) * t[7]
+        let from = UnsafeRawPointer(s - 3)
+        let samples = T.bitWidth == 8 ? SIMD8<Float>(from.loadUnaligned(as: SIMD8<Int8>.self)) : SIMD8<Float>(from.loadUnaligned(as: SIMD8<Int16>.self))
+        let products = samples * UnsafeRawPointer(t).loadUnaligned(as: SIMD8<Float>.self)
+        var out = products[0]
+        out += products[1]
+        out += products[2]
+        out += products[3]
+        out += products[4]
+        out += products[5]
+        out += products[6]
+        out += products[7]
         return out * scale
     }
 
