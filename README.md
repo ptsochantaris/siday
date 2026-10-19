@@ -61,6 +61,10 @@ siday ~/Music/chiptunes --shuffle
     are kept apart;
   - the Sonix Music Driver, Mark Riley's, its SMUS, TINY and SNX scores as his own players play
     them, with their instruments in the folder beside them.
+- **Composers' own players**:
+  - Richard Joseph's (Cannon Fodder, The Chaos Engine, Sensible World of Soccer, James Pond 2 and 3),
+    with its samples beside it
+  - Dave Lowe's later music (King's Quest VI, Beneath a Steel Sky, Super Street Fighter II)
 - **Other trackers**:
   - MED (MED4, and MMD0 to MMD3), by players written to do as OctaMED's do
   - AHX and HVL, by their own replayers (HivelyTracker's on its own mixer)
@@ -88,8 +92,8 @@ are read where they are and never leave your computer.
 
 A playlist can be dropped too, and so can the files some tunes need beside their own: a ROL tune's
 banks of instruments, the samples of a TFMX module or of a song packed by the Magnetic Fields Packer
-or by Pierre Adane's, the instruments of a MaxTrax score kept apart from them, and the folder of
-instruments beside a Sonix score. A web page can
+or by Pierre Adane's or of a Richard Joseph module, the instruments of a MaxTrax score kept apart
+from them, and the folder of instruments beside a Sonix score. A web page can
 only read the files it is given, so it cannot go from a list to its tunes on the disk, or from a
 tune to its samples. Dropped by itself, a list, or a tune that cannot be played without its samples,
 says so and asks for the folder they are in, which is then only looked in, and stays known for what
@@ -289,7 +293,7 @@ uses is said, and only what might be heard.
 Not played:
 
 - **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-- **Amiga:** a module packed by a game's packer that ProWizard refuses, or that says "+SNT" where ProRunner's say "SNT." (Winter Olympics'); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, or a Sonix score with no folder of its instruments beside it; a song that MED saved before MED4 (MED2, MED3), and
+- **Amiga:** a module packed by a game's packer that ProWizard refuses, or that says "+SNT" where ProRunner's say "SNT." (Winter Olympics'); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, a Richard Joseph module without its samples, or a Sonix score with no folder of its instruments beside it; a song that MED saved before MED4 (MED2, MED3), and
   a MED4 song whose instruments are kept in files of their own; a module of the later SoundFX, of
   31 samples.
 - **PC:** a DTM file from Digital Home Studio; the other kind of
@@ -379,6 +383,7 @@ the command-line player.
 | Magnetic Fields Packer songs | libxmp's reading (MIT), but for its table of patterns, which is read as the format's replayer reads it | that replayer, in Wanted Team's player for EaglePlayer, run by UADE: the first 40 seconds of all 37 songs of UnExoticA's collection, by how loud each side is from moment to moment |
 | Amiga trackers with players of their own: PumaTracker, Pierre Adane's packer, Game Music Creator, Images Music System, SoundMon, SidMon, Digital Mugician, Delta Music, Sonic Arranger | each format's own player, read in its 68000 code as UADE carries it (or, for formats whose files carry it, in the files) | that player, run by UADE: what it tells the sound chip, tick for tick, on every file of UnExoticA's collection |
 | MaxTrax scores | the MaxTrax Music Driver's released source (LGPL), ported | ScummVM's player of it, its departures from the driver put back: 282 of 283 songs tick for tick |
+| Richard Joseph's modules, Dave Lowe's later music | each composer's own player, read in its 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (917 of Richard Joseph's, the 108 of Dave Lowe's that make a sound) |
 | Sonix Music Driver scores | Mark Riley's three players, read in their 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of all 237 scores of UnExoticA's collection |
 | Epic MegaGames' MASI files and Symphonie modules | OpenMPT's readings of them (BSD) | libopenmpt |
 | 8-bit Atari machine, its 6502 and its POKEY | ASAP by Piotr Fusik (GPL) | ASAP's `asapconv` itself, sample for sample: the first 30 seconds of every song of the 6,337 files of ASMA, 8,349 of them, and three minutes of 286 songs of 200 of the files |
@@ -534,6 +539,7 @@ from where and under which terms; [FORMATS.md](FORMATS.md) tells each format's s
   - Delta Music 2.0, and Sonic Arranger (Carsten Schlote, Branko Mikić and Carsten Herbst)
   - TFMX and Jochen Hippel's seven voices
   - the Sonix Music Driver (Mark Riley), of the music Aegis Sonix made
+  - Richard Joseph's player (Richard Joseph and Andi Smithers), and Dave Lowe's (Uncle Art)
   - Sierra's AGI sounds, whose routines Sierra's interpreter for the Amiga played them with.
     NewRisingSun's recordings of King's Quest II on the PCjr and the Tandy 1000, at
     [vgmrips.net](https://vgmrips.net/), show how Sierra's interpreter wrote to their chip.

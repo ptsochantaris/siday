@@ -41,6 +41,8 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case mxtx
     case sa
     case sonix
+    case rjp
+    case dln
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -233,6 +235,16 @@ public enum TuneLoader {
                 throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
             }
             return try PaulaTickRenderer(SonixPlayer(data, instruments: CompanionFolder.unpack(folder)), options: options)
+        case .dln:
+            // Dave Lowe's later music, as the players of Flink and Super Street Fighter II had it.
+            return try PaulaTickRenderer(DaveLoweNewPlayer(data), options: options)
+        case .rjp:
+            // Richard Joseph's modules, with their samples from the file beside them.
+            guard let samples = companions.first ?? nil else {
+                guard RichardJosephPlayer.isOne(data) else { throw TuneError.unsupported("not a Richard Joseph Player module") }
+                throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+            }
+            return try PaulaTickRenderer(RichardJosephPlayer(data, samples: samples), options: options)
         case .sa:
             // Sonic Arranger's: the editor's modules, games' songs, and songs with their replayer.
             return try PaulaTickRenderer(SonicArrangerPlayer(data), options: options)

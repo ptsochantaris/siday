@@ -401,12 +401,14 @@ extension RichardJosephPlayer {
         let endingsBefore = endings
         if voicesUsed == 0 { endings += 1 }
         for v in 0 ..< 4 where voices[v].active { voiceTick(v, &output) }
-        // Once no voice plays, the player does nothing more: the song has stopped, as it has come to its
-        // end (or, for a voice taken to go round for ever, there).
+        // Once no voice plays, the player does nothing more: the song has come to its end (or, for a
+        // voice taken to go round for ever, there). It has stopped if nothing is left sounding; a voice
+        // left on a loop at some volume goes on sounding it, as it does on the Amiga, and the song is
+        // faded as one that goes on is.
         if !(0 ..< 4).contains(where: { voices[$0].active }) {
             stopped = true
-            stops += 1
             if endings == endingsBefore { endings += 1 }
+            if !(0 ..< 4).contains(where: { volumes[$0] > 0 && voices[$0].loopLength > 1 }) { stops += 1 }
         }
         return 20
     }
@@ -700,7 +702,9 @@ extension RichardJosephPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// Richard Joseph's music is quieter on the Amiga's chip than ProTracker's is, by 3.1 dB in the
+    /// middle of UnExoticA's 108 modules that make a sound, and is turned up by that (2026-10-19).
+    var gain: Float { 0.66 }
 
     mutating func prepareToBeHeard() {}
 

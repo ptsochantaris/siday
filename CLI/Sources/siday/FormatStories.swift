@@ -1211,6 +1211,68 @@ What is siday's own, or the players' own and worth telling:
 5. How loud it is: the Sonix Music Driver's music is 1.9 dB louder on the Amiga's chip than modules
    are, in the middle of the collection, and is turned down by that.
 
+## RJP — Richard Joseph's player
+
+Richard Joseph's music for the Amiga's games was played with a replayer of his own and Andi
+Smithers' ("(c) 1992-93 by Richard Joseph & Andi Smithers", Wanted Team's player
+of it says; its version is 1.7A). A module, `title.rjp`, begins "RJP1SMOD" and holds the songs, their
+sequences and patterns, the instruments and their envelopes; the sounds themselves are in a file of
+their own, `title.smp`, beside it, as the games loaded them. UnExoticA's collection has 109 modules, from
+Cannon Fodder and its sequel, The Chaos Engine and its sequel, Sensible World of Soccer and Sensible
+Golf, James Pond 2 and 3, Flight of the Amazon Queen, Rome AD 92, Brutal Football, Diggers, Mr Blobby and
+others, and Jason Page's Ruff 'n' Tumble, made with the same player. A module holds as many songs as a
+game wanted from it, 917 in all: tunes, jingles and sound effects together.
+
+siday's player is Wanted Team's player for EaglePlayer ("Richard Joseph Player V1.7A module replayer
+V1.1", 2001, which UADE carries), read in its 68000 code, with the two fixes Wanted Team made to two
+modules as they load (Crazy Football's title and Cannon Fodder 2's KILLER). What it tells the Amiga's
+sound chip on every tick is the same as UADE's for all 917 songs over their first 40 seconds, or to
+where they stop; by how loud each side is from moment to moment over the first minute, the middle of
+them is 0.9993 alike.
+
+What is siday's own, or the player's own and worth telling:
+
+1. The player runs fifty times a second, on the timer UADE runs it on, and a note's sound is turned
+   on a tick after the note and its loop told the chip a tick after that, as the player does.
+2. A song has come to its end when every voice it uses has gone past its sequence's end, as the
+   player tells it. If a voice is left playing a loop at some volume, as on the Amiga it goes on
+   sounding, and the song is faded as one that goes on is; if nothing is left sounding, it stops.
+3. When none is asked for, the first song played is the first that lasts a second or more: many
+   modules begin with empty songs, or with a moment's sound effect.
+4. The samples are found as `title.smp` beside the module, then `set.smp` (James Pond 2's for the
+   Amiga 1200 share one), then the one file ending `.smp` beside it; a module without them is not
+   played.
+5. How loud it is: Richard Joseph's music is 3.1 dB quieter on the Amiga's chip than modules are, in
+   the middle of the collection, and is turned up by that.
+
+## DLN — Dave Lowe's later music
+
+Dave Lowe, of Uncle Art, kept his earlier music for the Amiga as Amiga programs (`.dl`, his own code
+with its music, which siday does not play yet). His later music, of King's Quest VI, Beneath a Steel Sky's CD32 version and Super Street
+Fighter II, is kept as its songs alone (`.dln`, 41 files in UnExoticA's collection, holding 128 songs
+with their samples), and is played by Wanted Team's player of it for EaglePlayer ("Dave Lowe New",
+2001, which UADE carries; "(c) 1993-95 Dave Lowe from Uncle Art", it says), which holds the two players
+those songs were made for, told apart by how a file begins. In the second, of Super Street Fighter
+II, each song gives a tempo: after so many ticks, one is passed over.
+
+siday's player is Wanted Team's, read in its 68000 code, with the fix they made to the data of one of
+Beneath a Steel Sky's songs as it loads. What it tells the Amiga's sound chip on every tick is the same
+as UADE's for all 108 songs that make a sound over their first 40 seconds, and the other twenty, which
+are silent, are the same write for write; by how loud each side is from moment to moment over the first
+minute, every song that makes a sound is 0.989 alike or more.
+
+What is siday's own, or the player's own and worth telling:
+
+1. The player runs fifty times a second, on the timer UADE runs it on.
+2. A song has come to its end when the player's own test says so. A voice that takes a jump it has
+   taken before is taken to have come round (King's Quest VI's has a drum that goes round for ever),
+   and one held on a note or a rest of 32,768 ticks or more (eleven minutes) has come to rest; a song whose
+   voices have all come to rest has stopped, as the jingles and the silent songs do.
+3. Some songs end with a long rest before they go round again, in four of King's Quest VI's of 160
+   seconds; it is played as it is written.
+4. How loud it is: Dave Lowe's music is 1.5 dB louder on the Amiga's chip than modules are, in the
+   middle of the collection, and is turned down by that.
+
 ## XM — FastTracker 2
 
 FastTracker 2 came out in 1994, written by Fredrik Huss and Magnus Högdahl of the group Triton, and

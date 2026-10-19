@@ -161,6 +161,10 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
     private(set) var loopCount = 0
     var subsongCount: Int { player.songCount }
     var currentSubsong: Int { player.song }
+    /// The song played when none is asked for: the first that lasts a second or more, as a module's
+    /// first song is chosen (`ModuleSongs.first(of:)`), so that a file whose first songs are empty
+    /// or a moment's sound effect starts with its music. The first, if none does.
+    var defaultSubsong: Int { ModuleSongs.first(of: songs.map { $0.empty || ($0.length ?? 1) < 1 }) }
     private(set) var songs: [SongInfo] = []
     var channelsAreSampled: Bool { true }
 
@@ -251,9 +255,12 @@ final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Renderer {
         let first = self.player.song
         for song in 0 ..< self.player.songCount {
             if song != first { try self.player.select(song: song) }
-            songs.append(SongInfo(length: self.player.lengthClocks.map { Double($0) / Paula.clockHz }))
+            let length = self.player.lengthClocks.map { Double($0) / Paula.clockHz }
+            songs.append(SongInfo(length: length, empty: length == 0))
         }
-        if self.player.song != first { try self.player.select(song: first) }
+        // (Asked for none but the first, the first that is music, as `defaultSubsong` says.)
+        let starting = first == 0 ? defaultSubsong : first
+        if self.player.song != starting { try self.player.select(song: starting) }
         self.player.prepareToBeHeard()
         start()
     }

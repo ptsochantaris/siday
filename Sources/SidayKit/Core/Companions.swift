@@ -97,6 +97,9 @@ public enum CompanionFolder {
 ///   `smp.title`. Failing those, the one file ending `.smp` beside it, if there is only one.
 /// - a MaxTrax file of scores alone has its instruments in `set.smpl` beside it (on the Amiga's own
 ///   disks, `mxtx.title`'s in `smpl.title`), or the one file ending `.smpl` beside it.
+/// - a module of Richard Joseph's player, `title.rjp`, has its samples in `title.smp`, or, where the
+///   modules of a game share them, `set.smp` (or `smp.set`); on the Amiga's own disks `rjp.title` in
+///   `smp.title`. Failing those, the one file ending `.smp` beside it, if there is only one.
 /// - a score of the Sonix Music Driver, `title.smus`, `title.tiny` or `title.snx`, names its
 ///   instruments, and has them in a folder beside it, `Instruments` (`NAME.instr`, and the sampled
 ///   sound of one that names one, `NAME.ss`): the whole folder is brought, and the player finds them
@@ -154,6 +157,13 @@ public enum Companions {
             var names = ["set.smpl"]
             if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .rjp:
+            // Kept as the modules of a game share them, in `set.smp` (UnExoticA's name, for James
+            // Pond 2's for the Amiga 1200), or as Wanted Team's player looks for them, `smp.set`; on
+            // the Amiga's own disks `rjp.title` has them in `smp.title`.
+            var names = ["\(stem).smp", "set.smp", "smp.set"]
+            if fileName.lowercased().hasPrefix("rjp.") { names.insert("smp." + fileName.dropFirst(4), at: 1) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
         case .sonix:
             // Named in the score, and kept, as the player looks for them, in a folder beside it.
             return [Companion(part: .instruments, names: ["Instruments"], kind: nil, required: true, folder: true)]

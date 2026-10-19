@@ -84,12 +84,13 @@ private let samples = Array("RJP1".utf8) + [UInt8](repeating: 50, count: 16)
     out.events = []
     _ = player.run(&out)
     #expect(out.events == ["buffer 0 \(sound + 8) 4"])
-    // Four rows later, the sequence ends and stops: the song has come to its end, and stopped.
+    // Four rows later, the sequence ends and stops: the song has come to its end. Its note is left
+    // sounding its loop, as it is on the Amiga, so it has not stopped.
     for _ in 3 ..< 24 { _ = player.run(&out) }
     #expect(player.endings == 0)
     _ = player.run(&out)
     #expect(player.endings == 1)
-    #expect(player.stops == 1)
+    #expect(player.stops == 0)
     #expect(player.lengthClocks == UInt64(24 * 70940))
 }
 

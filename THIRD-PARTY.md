@@ -259,6 +259,16 @@ Synergistic's Vengeance of Excalibur. Their 68000 code was read for that, and no
 carried here but what it does and its tables: of the steps of an octave and of pitch bends, of tempos, of
 the lengths of notes and rests, and of the filters a synthesised instrument is passed through.
 
+## Richard Joseph's player and Dave Lowe's
+
+`Sources/SidayKit/RichardJoseph` and `DaveLowe` play these composers' music as their own players do,
+as Wanted Team keep them for EaglePlayer, carried by UADE with their source in
+`amigasrc/players/wanted_team`: "Richard Joseph Player V1.7A module replayer V1.1" (2001,
+`RichardJoseph_Player`; "(c) 1992-93 by Richard Joseph & Andi Smithers, adapted by Wanted Team") and
+"Dave Lowe New" (V1.1, 2001, `DaveLoweNew`; "(c) 1993-95 Dave Lowe from Uncle Art, adapted by Wanted
+Team"). Their 68000 code was read for that, and nothing of it is carried here but what it does and
+its tables, and the bytes of the few modules that the players mend as they load them.
+
 ## Magnetic Fields Packer
 
 `Sources/SidayKit/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as
