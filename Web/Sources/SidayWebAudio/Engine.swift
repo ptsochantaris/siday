@@ -144,7 +144,7 @@ final class WebPlayer {
                 || format == .tfmx
                 || format == .hip || format == .fc
                 || format == .puma || format == .pap || format == .gmc || format == .ims
-                || format == .bp || format == .sid1 || format == .sid2 || format == .mug || format == .dm2 || format == .mxtx || format == .sa || format == .sonix || format == .rjp || format == .dln || format == .dw
+                || format == .bp || format == .sid1 || format == .sid2 || format == .mug || format == .dm2 || format == .mxtx || format == .sa || format == .sonix || format == .rjp || format == .dln || format == .dw || format == .mw
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {

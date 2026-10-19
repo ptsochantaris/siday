@@ -272,6 +272,15 @@ own. The first bytes of the Amiga's memory are laid out as UADE's host for the p
 License; https://gitlab.com/uade-music-player/uade), whose layout was read for that and nothing of
 whose code is carried here.
 
+## Martin Walker
+
+`Sources/SidayKit/MartinWalker` finds, mends and calls Martin Walker's drivers, which are in the files
+themselves and are run as they are on siday's own Amiga, as Wanted Team's player of them for
+EaglePlayer does ("Martin Walker player module V1.1", 2001, carried by UADE as `MartinWalker`, with its
+source in `amigasrc/players/wanted_team`; "(c) 1990-94 by Martin Walker, adapted by Wanted Team"). Its
+code was read for that, and nothing of it is carried here but what it does: the hooks it puts into a
+driver are written afresh, in 68000 code of siday's own.
+
 ## Richard Joseph's player and Dave Lowe's
 
 `Sources/SidayKit/RichardJoseph` and `DaveLowe` play these composers' music as their own players do,

@@ -391,7 +391,9 @@ extension MartinWalkerPlayer: PaulaTickPlayer {
         TuneInfo(format: "Martin Walker")
     }
 
-    var gain: Float { 0.46 }
+    /// Martin Walker's music is louder on the Amiga's chip than ProTracker's is, by 6.0 dB in the middle
+    /// of UnExoticA's 22 modules, and is turned down by that (2026-10-19).
+    var gain: Float { 0.23 }
 
     mutating func prepareToBeHeard() {}
 

@@ -44,6 +44,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case rjp
     case dln
     case dw
+    case mw
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -65,6 +66,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         } else if name == "sonic" || name == "sa-p" || name == "lion" || name == "sa_old" {
             // (Sonic Arranger's, by the names the Amiga's players knew them by.)
             self = .sa
+        } else if name == "avp" {
+            // (Martin Walker's, by the other name UADE knows them by.)
+            self = .mw
         } else if name == "dwold" {
             // (David Whittaker's, by the other name UADE knows them by.)
             self = .dw
@@ -242,6 +246,9 @@ public enum TuneLoader {
         case .dw:
             // David Whittaker's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(WhittakerPlayer(data), options: options)
+        case .mw:
+            // Martin Walker's drivers, each with its music, run on an Amiga of their own.
+            return try PaulaTickRenderer(MartinWalkerPlayer(data), options: options)
         case .dln:
             // Dave Lowe's later music, as the players of Flink and Super Street Fighter II had it.
             return try PaulaTickRenderer(DaveLoweNewPlayer(data), options: options)

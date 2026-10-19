@@ -1262,6 +1262,37 @@ What is siday's own, or the player's own and worth telling:
 4. How loud it is: Whittaker's music is 4.6 dB louder on the Amiga's chip than modules are, in the
    middle of the collection, and is turned down by that.
 
+## MW — Martin Walker's own drivers
+
+Martin Walker ("(c) 1990-94 by Martin Walker", Wanted Team's player of his music says) wrote the
+music of games such as Hunter, R-Type II, Dragon Breed, Atomic Robo-Kid, AV8B Harrier Assault,
+Thunderhawk, Kingmaker, Reach for the Skies, Spindizzy Worlds, 9 Lives and D/Generation, and, as
+David Whittaker did, played it with a driver of his own that went into each game with its music: a
+routine to start a song and one to play a tick, assembled with the data. Each voice has a list of
+steps that names patterns, with steps that set a fade, stop the music or go back; a pattern holds
+notes and instruments, with bits for slides and effects; and an instrument says its sample, vibrato,
+arpeggio and envelope. On each tick it writes the Amiga's sound chip itself and waits on the chip
+before it turns the voices on. Some games have a driver of sound effects in front of it, which shares
+the voices with the music. UnExoticA's collection has 22 files of it, 106 songs.
+
+UADE plays them with Wanted Team's player for EaglePlayer ("Martin Walker player module V1.1", 2001),
+which knows five kinds of these drivers, finds their ways in, puts hooks into them to know when a song
+has ended, and calls them, fifty times a second. siday does what that player does to them in Swift, and
+runs the drivers themselves on its own Amiga, as it runs David Whittaker's (see DW). What they tell the
+sound chip on every tick is the same as UADE's for all 106 songs over their first 40 seconds, or to
+where they stop, and every song ends where UADE's does; by how loud each side is from moment to
+moment over the first minute, every song is 0.991 alike or more.
+
+What is siday's own, or the player's own and worth telling:
+
+1. A song has gone round when all four voices have come back to the start of their steps, as the
+   player's hooks tell it; one whose driver stops the music, at a step that says so or at the end of a
+   fade, has stopped (the player would start it again, which is not heard here).
+2. The waits the drivers make between turning a voice off and on are made the player's own wait on
+   the beam, as it makes them; the hooks it puts in only for EaglePlayer's displays are left out.
+3. How loud it is: Martin Walker's music is 6.0 dB louder on the Amiga's chip than modules are, in the
+   middle of the collection, and is turned down by that.
+
 ## RJP — Richard Joseph's player
 
 Richard Joseph's music for the Amiga's games was played with a replayer of his own and Andi
