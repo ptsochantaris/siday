@@ -62,8 +62,8 @@ siday ~/Music/chiptunes --shuffle
   - the Sonix Music Driver, Mark Riley's, its SMUS, TINY and SNX scores as his own players play
     them, with their instruments in the folder beside them.
 - **Composers' own players**:
-  - David Whittaker's, Martin Walker's and Special FX's drivers, their own 68000 code in each file,
-    run on an emulated Amiga
+  - David Whittaker's, Martin Walker's, Special FX's and the Maniacs of Noise's (Charles Deenen's and
+    Jeroen Tel's) drivers, their own 68000 code in each file, run on an emulated Amiga
   - Richard Joseph's (Cannon Fodder, The Chaos Engine, Sensible World of Soccer, James Pond 2 and 3),
     with its samples beside it
   - Dave Lowe's later music (King's Quest VI, Beneath a Steel Sky, Super Street Fighter II)
@@ -385,7 +385,7 @@ the command-line player.
 | Magnetic Fields Packer songs | libxmp's reading (MIT), but for its table of patterns, which is read as the format's replayer reads it | that replayer, in Wanted Team's player for EaglePlayer, run by UADE: the first 40 seconds of all 37 songs of UnExoticA's collection, by how loud each side is from moment to moment |
 | Amiga trackers with players of their own: PumaTracker, Pierre Adane's packer, Game Music Creator, Images Music System, SoundMon, SidMon, Digital Mugician, Delta Music, Sonic Arranger | each format's own player, read in its 68000 code as UADE carries it (or, for formats whose files carry it, in the files) | that player, run by UADE: what it tells the sound chip, tick for tick, on every file of UnExoticA's collection |
 | MaxTrax scores | the MaxTrax Music Driver's released source (LGPL), ported | ScummVM's player of it, its departures from the driver put back: 282 of 283 songs tick for tick |
-| David Whittaker's, Martin Walker's and Special FX's drivers | the drivers themselves, run on an emulated Amiga (siday's 68000, chip memory, Paula heard as she is written, the CIAs and the beam), found and mended as Wanted Team's players for EaglePlayer do, read in their 68000 code | those players, run by UADE: what the driver tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (551 of Whittaker's, 106 of Walker's, the 355 of Special FX's that are heard) |
+| David Whittaker's, Martin Walker's, Special FX's and the Maniacs of Noise's drivers | the drivers themselves, run on an emulated Amiga (siday's 68000, chip memory, Paula heard as she is written, the CIAs and the beam), found and mended as the players of them for EaglePlayer that UADE carries do, read in their 68000 code | those players, run by UADE: what the driver tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (551 of Whittaker's, 106 of Walker's, the 355 of Special FX's that are heard, 87 of the Maniacs of Noise's) |
 | Richard Joseph's modules, Dave Lowe's later music | each composer's own player, read in its 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (917 of Richard Joseph's, the 108 of Dave Lowe's that make a sound) |
 | Sonix Music Driver scores | Mark Riley's three players, read in their 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of all 237 scores of UnExoticA's collection |
 | Epic MegaGames' MASI files and Symphonie modules | OpenMPT's readings of them (BSD) | libopenmpt |
@@ -542,8 +542,8 @@ from where and under which terms; [FORMATS.md](FORMATS.md) tells each format's s
   - Delta Music 2.0, and Sonic Arranger (Carsten Schlote, Branko Mikić and Carsten Herbst)
   - TFMX and Jochen Hippel's seven voices
   - the Sonix Music Driver (Mark Riley), of the music Aegis Sonix made
-  - David Whittaker's, Martin Walker's and Special FX's (Matthew Cannon and Jonathan Dunn) drivers,
-    and Richard Joseph's player (Richard Joseph and Andi Smithers), and Dave
+  - David Whittaker's, Martin Walker's, Special FX's (Matthew Cannon and Jonathan Dunn) and the
+    Maniacs of Noise's (Charles Deenen and Jeroen Tel) drivers, and Richard Joseph's player (Richard Joseph and Andi Smithers), and Dave
     Lowe's (Uncle Art)
   - Sierra's AGI sounds, whose routines Sierra's interpreter for the Amiga played them with.
     NewRisingSun's recordings of King's Quest II on the PCjr and the Tandy 1000, at

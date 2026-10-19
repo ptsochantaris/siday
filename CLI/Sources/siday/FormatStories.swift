@@ -1334,6 +1334,55 @@ What is siday's own, or the player's own and worth telling:
 3. How loud it is: Special FX's music is 1.7 dB louder on the Amiga's chip than modules are, in the
    middle of the collection, and is turned down by that.
 
+## MON — the Maniacs of Noise's drivers, Charles Deenen's and Jeroen Tel's
+
+The Maniacs of Noise, the Dutch musicians Charles Deenen and Jeroen Tel and those who worked with them,
+came to the Amiga from the Commodore 64, where a musician's driver was his instrument, and played
+their music for it with drivers of their own, two generations of them, kept as 38 files in UnExoticA's
+collection. The earlier, Jeroen Tel's and Charles Deenen's of 1989 and 1990 ("(c) 1989-90 by Jeroen Tel
+& Charles Deenen", Wanted Team's player of it says), was put together for each game at the addresses
+it was to run at, and its files (`.jt`, and an older rip of most of them as `.mon`) are that memory,
+taken out of the games: Stormlord, Tusker, Onslaught, Insects in Space and Unreal. Each voice has a
+list of patterns, with bytes that transpose, go round or stop; a pattern is notes with their lengths
+and bits for ties, rests, instruments and slides; and an instrument has an envelope that rises, falls,
+holds and is let go, a vibrato that waits before it starts, an arpeggio, and a sweep of its sound made
+by moving where its sample starts. Its tick is in two halves: the notes worked out and the chip given
+its samples, then the periods and volumes written and the voices turned on.
+
+The later, Charles Deenen's (`.mon`, 21 files, from Battle Chess II, Dragon Wars, Flimbo's
+Quest, Lord of the Rings, Mysterious Worlds, Rubicon and Unreal), was written afresh to run wherever it
+is loaded, with a table of ways in: its commands go by tables of routines, its envelopes of volume
+and vibrato loop and hold, its slides are worked out by division, each song has its own speed, volume
+and filter, and the game can fade it in and out, and have it pass over one tick in six so that it
+keeps its tempo where the display runs at 60 Hz.
+
+UADE plays the later with its own player of them ("MON player module V0.1 for UADE", 2002, by Heikki
+Orsila, "based on replayer by Frederick Hahn and Maniacs of Noise/Charles Deenen"), which calls the
+file's own driver, and the earlier with Wanted Team's ("Jeroen Tel player module V1.0", 2004), which
+runs a copy of the driver of Unreal's title of its own, its addresses moved to where the file is. Both
+are run here on siday's Amiga (see DW); for the earlier, each file's own driver, loaded back at the
+address it was put together for, with the few changes Wanted Team made to theirs made to it too: it
+is the same code as theirs but for its addresses and a few instructions written another way. Which of
+the two a file is, is told by how it begins, whatever it is named. What they tell the sound chip on
+every tick is the same as UADE's for all 87 songs over their first 40 seconds, or to where they stop;
+by how loud each side is from moment to moment over the first minute, every song is 0.998 alike or
+more.
+
+What is siday's own, or the players' own and worth telling:
+
+1. A song of the later driver has gone round when the places the four voices are at come back to
+   where they have been, as UADE's player's source tells it; the build of UADE these were checked
+   against never says so, and plays them on, so their lengths have nothing to be set beside. One that
+   the driver stops after a fade has stopped; its stop command leaves the last notes sounding (it
+   turns the voices off with the wrong byte), in UADE too, and they are let ring.
+2. UADE's player sets the later driver's own master volume to the full 64 before every song, and so
+   does siday, as the reference has it: one song of Mysterious Worlds, which asks for 50, is the
+   louder for it.
+3. A song of the earlier driver has ended when a voice's list goes round, and stopped where it says
+   to stop, as Wanted Team's player tells it.
+4. How loud they are: the later driver's music is 1.7 dB quieter on the Amiga's chip than modules are,
+   in the middle of the collection, and the earlier's 1.0 dB, and they are turned up by that.
+
 ## RJP — Richard Joseph's player
 
 Richard Joseph's music for the Amiga's games was played with a replayer of his own and Andi

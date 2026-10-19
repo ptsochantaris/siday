@@ -290,6 +290,18 @@ FX player module V1.1", 2007, carried by UADE as `Special-FX`, with its source i
 Team"). Its code was read for that, and nothing of it is carried here but what it does: the hooks it
 puts into the driver are written afresh, in 68000 code of siday's own that does as theirs does.
 
+## The Maniacs of Noise
+
+`Sources/SidayKit/ManiacsOfNoise` calls the Maniacs of Noise's drivers, which are in the files
+themselves and are run as they are on siday's own Amiga: Charles Deenen's later one as UADE's own
+player of it does ("MON player module V0.1 for UADE", 2002, Copyright Heikki Orsila, GNU Lesser General
+Public License; "based on replayer by Frederick Hahn and Maniacs of Noise/Charles Deenen"; its source
+in UADE's `amigasrc/players/uade/mon/ManiacsOfNoise.asm`), and Jeroen Tel's and Charles Deenen's earlier one as Wanted Team's
+player of it for EaglePlayer does ("Jeroen Tel player module V1.0", 2004, carried by UADE as
+`JeroenTel`; "(c) 1989-90 by Jeroen Tel & Charles Deenen, adapted by Wanted Team"). Their code was read
+for that, and nothing of it is carried here but what it does: where Wanted Team's player changes the
+driver, the change is made afresh in 68000 code of siday's own.
+
 ## Richard Joseph's player and Dave Lowe's
 
 `Sources/SidayKit/RichardJoseph` and `DaveLowe` play these composers' music as their own players do,
