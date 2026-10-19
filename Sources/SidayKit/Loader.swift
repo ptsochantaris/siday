@@ -45,6 +45,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case dln
     case dw
     case mw
+    case jd
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -246,6 +247,9 @@ public enum TuneLoader {
         case .dw:
             // David Whittaker's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(WhittakerPlayer(data), options: options)
+        case .jd:
+            // Special FX's drivers, each with its music, run on an Amiga of their own.
+            return try PaulaTickRenderer(SpecialFXPlayer(data), options: options)
         case .mw:
             // Martin Walker's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(MartinWalkerPlayer(data), options: options)

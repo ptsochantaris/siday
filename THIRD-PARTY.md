@@ -281,6 +281,15 @@ source in `amigasrc/players/wanted_team`; "(c) 1990-94 by Martin Walker, adapted
 code was read for that, and nothing of it is carried here but what it does: the hooks it puts into a
 driver are written afresh, in 68000 code of siday's own.
 
+## Special FX
+
+`Sources/SidayKit/SpecialFX` moves, mends and calls Special FX's driver, which is in each file itself
+and is run as it is on siday's own Amiga, as Wanted Team's player of it for EaglePlayer does ("Special
+FX player module V1.1", 2007, carried by UADE as `Special-FX`, with its source in
+`amigasrc/players/wanted_team`; "(c) 1989-91 by Matthew Cannon & Jonathan Dunn, adapted by Wanted
+Team"). Its code was read for that, and nothing of it is carried here but what it does: the hooks it
+puts into the driver are written afresh, in 68000 code of siday's own that does as theirs does.
+
 ## Richard Joseph's player and Dave Lowe's
 
 `Sources/SidayKit/RichardJoseph` and `DaveLowe` play these composers' music as their own players do,

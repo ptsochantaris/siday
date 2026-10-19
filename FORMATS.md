@@ -1293,6 +1293,39 @@ What is siday's own, or the player's own and worth telling:
 3. How loud it is: Martin Walker's music is 6.0 dB louder on the Amiga's chip than modules are, in the
    middle of the collection, and is turned down by that.
 
+## JD — Special FX's driver
+
+Special FX was a team that made games for Ocean, and its music was played by a driver of its own
+("(c) 1989-91 by Matthew Cannon & Jonathan Dunn", Wanted Team's player of it says), used mostly by
+Jonathan Dunn, Matthew Cannon and Keith Tinman, Wanted Team write. As with David Whittaker's, a `.jd`
+file is the driver itself, 68000 code with the music behind it, as it went into a game; but it was
+assembled to run at one address in the game's memory. Each of its four voices walks a list of
+patterns, with commands to go round, transpose and repeat; a pattern is notes and their lengths and
+some sixteen commands, for the instrument, tables of arpeggio and pitch, vibrato, slides, volume
+envelopes and rests. It was the game's sound as well as its music: a sound effect takes a voice from
+the music by its rank, and gives it back when it is done. UnExoticA's collection has 29 files of it,
+359 songs, from Batman, RoboCop 2, Midnight Resistance, Operation Thunderbolt, The New Zealand
+Story, Head over Heels, Navy SEALs, Hudson Hawk, Rambo III, Elf, Battle Command, Wild Wheels and
+Striker.
+
+UADE plays them with Wanted Team's player for EaglePlayer ("Special FX player module V1.1", 2007),
+which moves the driver's addresses to where it has been loaded, mends a few things, puts hooks into it
+to know when a song has ended, and calls it, fifty times a second. siday does the same in Swift, and
+runs the driver on its own Amiga (see DW), loaded where UADE loads it. What it tells the sound chip on
+every tick is the same as UADE's for all 355 songs that are heard over their first 40 seconds, and the
+four that are never heard are the same write for write; every song ends where UADE's does; by how
+loud each side is from moment to moment over the first minute, every song is 0.996 alike or more.
+
+What is siday's own, or the player's own and worth telling:
+
+1. A song has ended when every voice it uses has reached the end of its list, as the player's hook
+   tells it. Three songs have no voices, and are empty.
+2. The player's hooks are written afresh as its own are, instruction for instruction, so that the
+   driver takes the time it takes in UADE; only the call that tells EaglePlayer a song has ended is
+   made a word sent to siday.
+3. How loud it is: Special FX's music is 1.7 dB louder on the Amiga's chip than modules are, in the
+   middle of the collection, and is turned down by that.
+
 ## RJP — Richard Joseph's player
 
 Richard Joseph's music for the Amiga's games was played with a replayer of his own and Andi
