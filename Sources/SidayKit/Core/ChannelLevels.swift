@@ -26,6 +26,14 @@ struct Swing<Value: Comparable> {
         if value > high { high = value }
     }
 
+    // (The same for each kind of value it is used with, which is noted once a sample: in a generic body
+    // the compiler has been seen to leave its comparisons to the protocol's, a call each.)
+    @inline(__always) mutating func note(_ value: Value) where Value == Float { if value < low { low = value }; if value > high { high = value } }
+    @inline(__always) mutating func note(_ value: Value) where Value == Int32 { if value < low { low = value }; if value > high { high = value } }
+    @inline(__always) mutating func note(_ value: Value) where Value == Int16 { if value < low { low = value }; if value > high { high = value } }
+    @inline(__always) mutating func note(_ value: Value) where Value == Int8 { if value < low { low = value }; if value > high { high = value } }
+    @inline(__always) mutating func note(_ value: Value) where Value == UInt8 { if value < low { low = value }; if value > high { high = value } }
+
     /// False if nothing has been noted.
     var moved: Bool { low < high }
 

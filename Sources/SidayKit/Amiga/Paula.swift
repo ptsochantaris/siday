@@ -108,11 +108,13 @@ struct Paula: ~Copyable {
             f -= Float(whole)
             var source = whole
             var i = stepIndex
-            for _ in 0 ..< 16 {
+            var n = 0
+            while n < 16 {
                 let a = table[source], b = table[source &+ 1]
                 steps[unchecked: i] += amplitude * (a + ((b - a) * f))
                 source &+= 16
                 i = (i &+ 1) & 31
+                n &+= 1
             }
             stepsLeft = 16
         }
@@ -126,7 +128,9 @@ struct Paula: ~Copyable {
                 waves?.silence(number, count: count)
                 return
             }
-            for j in 0 ..< count {
+            var j = 0
+            while j < count {
+                defer { j &+= 1 }
                 if nextSampleDue {
                     nextSampleDue = false
                     nextSample(memory, size, table)
@@ -361,13 +365,15 @@ struct Paula: ~Copyable {
         guard count > 0 else { return }
         generateUnfiltered(left: left, right: right, count: count)
 
-        for i in 0 ..< count {
+        var i = 0
+        while i < count {
             var l = left[i], r = right[i]
             if hasLowPass { lowPass.lowPass(&l, &r) }
             if lightFilter { light.lowPass(&l, &r) }
             highPass.highPass(&l, &r)
             left[i] = l
             right[i] = r
+            i &+= 1
         }
     }
 
@@ -399,23 +405,22 @@ struct HalfBand {
     private var state = InlineArray<30, Float>(repeating: 0)
 
     @inline(__always) mutating func step(_ first: Float, _ second: Float) -> Float {
-        var x = InlineArray<15, Float>(repeating: 0)
-        for j in 0 ..< 15 { x[unchecked: j] = first * Self.taps[unchecked: j] }
+        // (Each tap times the first sample where it is wanted, rather than all of them first.)
         let centre = second * Self.middle
 
-        let out = state[unchecked: 29] + x[unchecked: 14]
+        let out = state[unchecked: 29] + first * Self.taps[unchecked: 14]
         var k = 29
         while k >= 16 {
-            state[unchecked: k] = state[unchecked: k &- 1] + x[unchecked: k &- 16]
+            state[unchecked: k] = state[unchecked: k &- 1] + first * Self.taps[unchecked: k &- 16]
             k &-= 1
         }
-        state[unchecked: 15] = state[unchecked: 14] + x[unchecked: 0] + centre
+        state[unchecked: 15] = state[unchecked: 14] + first * Self.taps[unchecked: 0] + centre
         k = 14
         while k >= 2 {
-            state[unchecked: k] = state[unchecked: k &- 1] + x[unchecked: 15 &- k]
+            state[unchecked: k] = state[unchecked: k &- 1] + first * Self.taps[unchecked: 15 &- k]
             k &-= 1
         }
-        state[unchecked: 1] = x[unchecked: 14]
+        state[unchecked: 1] = first * Self.taps[unchecked: 14]
         return out
     }
 }
