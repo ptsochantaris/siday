@@ -431,7 +431,7 @@ struct STSoundChip: ~Copyable {
     /// the low-pass filter, on the scale of `nextSample` and centred as it is.
     @inline(__always) mutating func nextFiltered() -> Float {
         repeat {
-            let level = Float(tick())
+            let level = Float(Int(tick()))
             window[windowHead] = level
             window[windowHead + Self.windowSize] = level
             windowHead = (windowHead + 1) & (Self.windowSize - 1)

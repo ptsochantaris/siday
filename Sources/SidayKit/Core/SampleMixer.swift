@@ -210,7 +210,8 @@ struct SampleMixer: ~Copyable {
         } else if at >= sound.length {
             return 0
         }
-        return at < 0 ? 0 : Float(sound.data[at])
+        // (By way of Int, whose conversion is the processor's own; the generic one was left a call.)
+        return at < 0 ? 0 : Float(Int(sound.data[at]))
     }
 
     /// Adds a voice to the sound, and moves it on; and adds it to `wave` too, if it is given, as

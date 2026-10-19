@@ -397,15 +397,15 @@ final class ST2Player {
     func renderSample() -> UInt8 {
         var mix = 0
         let waves = waves
-        for i in 0 ..< ST2Module.channels {
+        // (The channels and the lights' last levels are taken out of the player while the sample is made,
+        // and put back: looked at where they are, as a class's, each look had a check of its own.)
+        var channels = self.channels, lately = self.lately
+        self.channels = []
+        self.lately = []
+        let sound = module.sound, slot = latelyAt
+        var i = 0
+        while i < ST2Module.channels {
             var level = 0
-            defer {
-                let heard = lately[i * Self.lightsLag + latelyAt]
-                lately[i * Self.lightsLag + latelyAt] = level
-                if heard < channels[i].low { channels[i].low = heard }
-                if heard > channels[i].high { channels[i].high = heard }
-                waves?.store(i, at: 0, Float(level))
-            }
             channels[i].smpPosition &+= channels[i].smpStep
             var at = Int(channels[i].smpPosition >> 16)
             var sounding = at < Int(channels[i].smpLoopEnd)
@@ -417,7 +417,7 @@ final class ST2Player {
             }
             if sounding {
                 if channels[i].smpBase >= 0, channels[i].volumeMix < 65 {
-                    let byte = at < channels[i].smpCount ? Int(Int8(bitPattern: module.sound[channels[i].smpBase + at])) : 0
+                    let byte = at < channels[i].smpCount ? Int(Int8(bitPattern: sound[channels[i].smpBase + at])) : 0
                     // (The high half of the product, which for a sample below the middle rounds away from it.)
                     level = (Int(channels[i].volumeMix) * byte) >> 8
                     if !channels[i].muted { mix += level }
@@ -425,7 +425,15 @@ final class ST2Player {
             } else {
                 channels[i].smpPosition = UInt32(channels[i].smpLoopEnd) << 16 | (channels[i].smpPosition & 0xFFFF)
             }
+            let heard = lately[i * Self.lightsLag + slot]
+            lately[i * Self.lightsLag + slot] = level
+            if heard < channels[i].low { channels[i].low = heard }
+            if heard > channels[i].high { channels[i].high = heard }
+            waves?.store(i, at: 0, Float(level))
+            i += 1
         }
+        self.channels = channels
+        self.lately = lately
 
         waves?.advance(by: 1)
         latelyAt = latelyAt == Self.lightsLag - 1 ? 0 : latelyAt + 1

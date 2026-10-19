@@ -130,7 +130,6 @@ struct Paula: ~Copyable {
             }
             var j = 0
             while j < count {
-                defer { j &+= 1 }
                 if nextSampleDue {
                     nextSampleDue = false
                     nextSample(memory, size, table)
@@ -149,6 +148,7 @@ struct Paula: ~Copyable {
                     phase -= 1
                     refetchPeriod()
                 }
+                j &+= 1
             }
         }
     }
@@ -393,6 +393,13 @@ struct Paula: ~Copyable {
 }
 
 /// Halves a sample rate: a half-band filter of 59 taps, taking two samples in for each one out.
+///
+/// It is kept as thirty running sums, each to come out that many samples later: with each sample the
+/// sums move on by one, each taking the last's and adding its own tap times the sample, and the last of
+/// them, with its tap, comes out. They are worked on eight at a time, which takes each sum as it would be
+/// taken one by one, its product made and added in the same order; the one sum the middle sample is
+/// added to is given it with nothing added to the rest, which is to say minus nought, so that a sum of
+/// minus nought stays minus nought.
 struct HalfBand {
     /// The filter's odd taps from the middle outwards; the even ones are nothing, but for the middle one.
     private static let taps: InlineArray<15, Float> = [
@@ -402,25 +409,43 @@ struct HalfBand {
     ]
     private static let middle: Float = 0.5
 
-    private var state = InlineArray<30, Float>(repeating: 0)
+    /// The tap each sum takes the sample by, sum 1 first: from the outermost in to the middle, which sum 15
+    /// takes, and out again to the outermost, which the sum that comes out (30) takes. Sums 31 and 32 are
+    /// none of the filter's, and take nothing.
+    private static func weight(_ sum: Int) -> Float {
+        sum <= 15 ? taps[unchecked: 15 - sum] : sum <= 30 ? taps[unchecked: sum - 16] : 0
+    }
+
+    private static let weights: (SIMD8<Float>, SIMD8<Float>, SIMD8<Float>, SIMD8<Float>) = {
+        var w = (SIMD8<Float>.zero, SIMD8<Float>.zero, SIMD8<Float>.zero, SIMD8<Float>.zero)
+        for i in 0 ..< 8 {
+            w.0[i] = weight(1 + i)
+            w.1[i] = weight(9 + i)
+            w.2[i] = weight(17 + i)
+            w.3[i] = weight(25 + i)
+        }
+        return w
+    }()
+
+    /// Sums 1 to 32, eight at a time; each sum is nought to start with.
+    private var sums = (SIMD8<Float>.zero, SIMD8<Float>.zero, SIMD8<Float>.zero, SIMD8<Float>.zero)
+
+    /// The last lane of `a`, then the first seven of `b`: each sum taken one place on.
+    @inline(__always) private static func on(_ a: SIMD8<Float>, _ b: SIMD8<Float>) -> SIMD8<Float> {
+        SIMD8(a[7], b[0], b[1], b[2], b[3], b[4], b[5], b[6])
+    }
 
     @inline(__always) mutating func step(_ first: Float, _ second: Float) -> Float {
-        // (Each tap times the first sample where it is wanted, rather than all of them first.)
         let centre = second * Self.middle
-
-        let out = state[unchecked: 29] + first * Self.taps[unchecked: 14]
-        var k = 29
-        while k >= 16 {
-            state[unchecked: k] = state[unchecked: k &- 1] + first * Self.taps[unchecked: k &- 16]
-            k &-= 1
-        }
-        state[unchecked: 15] = state[unchecked: 14] + first * Self.taps[unchecked: 0] + centre
-        k = 14
-        while k >= 2 {
-            state[unchecked: k] = state[unchecked: k &- 1] + first * Self.taps[unchecked: 15 &- k]
-            k &-= 1
-        }
-        state[unchecked: 1] = first * Self.taps[unchecked: 14]
-        return out
+        let w = Self.weights
+        // (Before sum 1 there is none: it starts from minus nought, which its product added to is itself.)
+        let n0 = Self.on(SIMD8(repeating: -0.0), sums.0) + first * w.0
+        var n1 = Self.on(sums.0, sums.1) + first * w.1
+        let n2 = Self.on(sums.1, sums.2) + first * w.2
+        let n3 = Self.on(sums.2, sums.3) + first * w.3
+        // Sum 15 also takes the middle sample.
+        n1 += SIMD8(-0.0, -0.0, -0.0, -0.0, -0.0, -0.0, centre, -0.0)
+        sums = (n0, n1, n2, n3)
+        return n3[5]
     }
 }

@@ -115,10 +115,13 @@ struct DaglishPaula {
     mutating func run(to: UInt64) -> UInt64? {
         let line = UInt64(AmigaChips.lineClocks)
         while true {
+            // (Loops of their own rather than over ranges, which the compiler had left as calls.)
             var next = UInt64.max
-            for v in 0 ..< 4 {
+            var v = 0
+            while v < 4 {
                 if voices[v].state != 0 { next = min(next, voices[v].due) }
                 if voices[v].fetchDue { next = min(next, (time + line - 1) / line * line) }
+                v += 1
             }
             guard next <= to else {
                 time = max(time, to)
@@ -127,11 +130,17 @@ struct DaglishPaula {
             time = max(time, next)
             // (As hsync_handler has it: the voices' steps that fall now first, then the fetches.)
             var asked = false
-            for v in 0 ..< 4 where voices[v].state != 0 && voices[v].due <= time {
-                if step(v) { asked = true }
+            v = 0
+            while v < 4 {
+                if voices[v].state != 0, voices[v].due <= time, step(v) { asked = true }
+                v += 1
             }
             if time % line == 0 {
-                for v in 0 ..< 4 where voices[v].fetchDue { fetch(v) }
+                v = 0
+                while v < 4 {
+                    if voices[v].fetchDue { fetch(v) }
+                    v += 1
+                }
             }
             if asked { return time }
         }
