@@ -27,6 +27,8 @@ typealias KrisHatlelidPlayer = WantedTeamPlayer<KrisHatlelid>
 
 struct KrisHatlelid: WantedTeamRecipe {
     static let format = "Kris Hatlelid"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -16.1 dB.)
+    static let gain: Float = 0.18
 
     /// The name of the replayer the player loads beside a module of music alone (`EPlayerName`, $14F), from
     /// the module's folder.

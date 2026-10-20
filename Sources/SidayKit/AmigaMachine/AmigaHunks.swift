@@ -107,6 +107,9 @@ enum AmigaHunks {
                 guard at <= file.count else { throw .malformed("the program's file is cut short") }
             case end, `break`:
                 ended = true
+                // (UADE's relocator reads no more than the hunks the header gives: what follows the last's end
+                // is passed over, as score's `relocator` does.)
+                if placement == .uade, current + 1 == segments.count { at = file.count }
             case reloc16, reloc8, ext, overlay:
                 throw .unsupported("an AmigaDOS program that needs linking or overlays")
             default:

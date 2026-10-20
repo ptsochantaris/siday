@@ -104,6 +104,7 @@ public enum CompanionFolder {
 ///   instruments, and has them in a folder beside it, `Instruments` (`NAME.instr`, and the sampled
 ///   sound of one that names one, `NAME.ss`): the whole folder is brought, and the player finds them
 ///   in it.
+/// - a module of Kris Hatlelid's that is music alone is played by his replayer, beside it as `songplay`.
 /// - a module of Jesper Olsen's that is music alone is played by its game's driver, beside it as
 ///   `WantedTeam.bin`; one of the Dynamic Synthesizer's, `title.dns`, has its samples in `title.smp`
 ///   (`SMP.title` for `DNS.title`).
@@ -171,6 +172,9 @@ public enum Companions {
             var names = ["set.smpl"]
             if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .kh:
+            // His replayer, which a module of music alone is played by, in a file of its own beside it.
+            return [Companion(part: .samples, names: ["songplay"], kind: nil, required: false)]
         case .jo:
             // The game's own driver, for the modules that are music and samples alone, as Wanted Team
             // kept it beside them; a module with the driver in it needs none, which is known only once it

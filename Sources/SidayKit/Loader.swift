@@ -50,7 +50,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case bd
     case cust
     case dl
-    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns
+    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -138,7 +138,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// player of it for EaglePlayer plays it, by the recipe they share (`WantedTeamPlayer`).
     public var isWantedTeamCode: Bool {
         switch self {
-        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns: true
+        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr: true
         default: false
         }
     }
@@ -158,7 +158,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sid1, .sid2: "SIDMON"
         case .jt: "MON"
         case .dl: "DLN"
-        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns: "CORE"
+        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr: "CORE"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -322,6 +322,12 @@ public enum TuneLoader {
             return try PaulaTickRenderer(SeanConnollyPlayer(data, name: fileName(path)), options: options)
         case .mc:
             return try PaulaTickRenderer(MarkCookseyPlayer(data, name: fileName(path)), options: options)
+        case .kh:
+            // Kris Hatlelid's: most are music alone, played by his replayer beside them, `songplay`.
+            let replayer = (companions.first ?? nil).map { [(KrisHatlelid.replayerName, $0)] } ?? []
+            return try PaulaTickRenderer(KrisHatlelidPlayer(data, name: fileName(path), files: replayer), options: options)
+        case .scr:
+            return try PaulaTickRenderer(SeanConranPlayer(data, name: fileName(path)), options: options)
         case .jo:
             // Jesper Olsen's: some modules with his code in them, the rest played by the game's own driver
             // beside them, which Wanted Team kept as `WantedTeam.bin`.

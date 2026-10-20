@@ -24,6 +24,8 @@ typealias SeanConranPlayer = WantedTeamPlayer<SeanConran>
 
 struct SeanConran: WantedTeamRecipe {
     static let format = "Sean Conran"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -26.3 dB.)
+    static let gain: Float = 0.59
 
     /// `Check2` ($38E): the module's first words its table of periods, $0FFF $0FE2 $0FC4 $0FA7 $0F8B $0F6E
     /// (or the same from $1000), or $0F1C $0F0E $0F00 $0EF2 $0EE4 $0ED6; and none of the 128 words from the

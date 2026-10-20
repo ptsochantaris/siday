@@ -266,6 +266,12 @@ struct Paula: ~Copyable {
         // A period of nothing is the longest there is, and one too short is as short as Paula can go.
         let real = period == 0 ? 65536 : max(Self.shortestPeriod, Int(period))
         voices[voice].storedDelta = periodToDelta / Float(real)
+        // A voice set going on a period of $FFFF (as Sean Conran's driver sets one before
+        // each note and its period a moment after) takes up the new one at once: UAE's Paula takes up a
+        // period only as the first word plays, a line or two after the start, and so never counts that one.
+        if voices[voice].active, voices[voice].period == 0xFFFF, real < 0xFFFF {
+            voices[voice].delta = voices[voice].storedDelta
+        }
         voices[voice].period = real
         if voices[voice].stepDelta == 0 { voices[voice].stepDelta = voices[voice].delta }
     }
