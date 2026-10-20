@@ -1010,10 +1010,11 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   or more. It is near enough to ProTracker to be taken for a packer of its modules, but its vibrato only
   ever goes down, and twice as far, so it is played by its own replayer, with its other ways too.
 - **Alcatraz Packer** (`.alp`): Andy Sterbenz's of 1995, for Cedric and Oldtimer, most with their
-  samples in a file beside them (`title.smp`). Twelve files, the same as UADE's to the tick. Eleven of
-  them use a command (9) that Wanted Team's player does nothing with, and that looks from the music
-  to be a slide of the volume, which the twelfth does with another command (8); it is played here as
-  the player plays it, without them, until heard otherwise.
+  samples in a file beside them (`title.smp`). Twelve files, the same as UADE's to the tick but for
+  one command. Eleven of them use a command (9) that Wanted Team's player does nothing with, and that
+  looks from the music to be a slide of the volume, which the twelfth does with another command (8).
+  It is played here as that slide: without it, Cedric's lead holds its notes flat where with it they
+  swell and fade, and heard both ways, the slides are the music.
 
 - **Digital Sonix & Chrome** (`.dsc`): David Hanlon's music, with Andrew E. Bailey, for Dragon's
   Breath (1990), by the game's own player: each row a sample for each of four voices, or nothing, and a

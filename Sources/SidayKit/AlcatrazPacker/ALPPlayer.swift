@@ -21,7 +21,7 @@
 /// player tells her, tick by tick. It is ProTracker's, more or less, with its commands numbered afresh:
 /// between rows 1 arpeggio, 2 a slide either way, 3 a slide to the note, 4 vibrato, 5 and 6 those two
 /// with a slide of the volume, 7 tremolo (whose wave moves, and nothing else), 8 a slide of the volume
-/// either way; at the row 9 nothing (see `volumeSlideOnNine`), A the sample from further in, B a jump, C
+/// either way; at the row 9 nothing (but see `volumeSlideOnNine`), A the sample from further in, B a jump, C
 /// the volume, D on to the next pattern, E the filter and fine slides, F the speed. It sets no timer of
 /// its own (it has only `DTP_Interrupt`), and so is run by EaglePlayer's, which UADE runs from a CIA's
 /// timer of $376B: 70,940 of Paula's clocks, fifty times a second and a little less.
@@ -43,7 +43,9 @@ struct ALPPlayer: ~Copyable {
     let soundsGiven: Int
     /// Whether command 9, which Wanted Team's player passes over, slides the volume as 8 does. The
     /// modules of two files (all but Cedric's demo_1) use 9 where demo_1 uses 8, with the parameters
-    /// of a slide, and never use 8; their own players are not known. Off, as UADE plays them.
+    /// of a slide, and never use 8; their own players are not known. On unless asked otherwise: played
+    /// so, Cedric's music swells and fades where with it passed over its notes are held flat, and the
+    /// user, listening, heard the slides as the music (2026). Off, it is as UADE plays it.
     let volumeSlideOnNine: Bool
 
     /// Where the positions, patterns and tracks are (`lbL0033AA`), and the samples' table.
@@ -187,7 +189,7 @@ struct ALPPlayer: ~Copyable {
 
     /// Reads the module and its samples (`samples`, the file beside it, for a module that wants one; for
     /// one that does not, its own) and starts its song (it has one: `song` is taken for that one).
-    init(_ data: [UInt8], samples: [UInt8] = [], song _: Int = 0, volumeSlideOnNine: Bool = false) throws(TuneError) {
+    init(_ data: [UInt8], samples: [UInt8] = [], song _: Int = 0, volumeSlideOnNine: Bool = true) throws(TuneError) {
         func word(_ a: Int) -> UInt16 { a >= 0 && a + 1 < data.count ? UInt16(data[a]) << 8 | UInt16(data[a + 1]) : 0 }
         self.volumeSlideOnNine = volumeSlideOnNine
         var refusal: TuneError?
@@ -562,8 +564,9 @@ extension ALPPlayer: PaulaTickPlayer {
         return info
     }
 
-    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -21.8 dB.)
-    var gain: Float { 0.35 }
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -22.5 dB, its
+    /// command 9 played as a slide.)
+    var gain: Float { 0.38 }
 
     mutating func prepareToBeHeard() {}
 
