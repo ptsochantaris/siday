@@ -104,6 +104,7 @@ public enum CompanionFolder {
 ///   instruments, and has them in a folder beside it, `Instruments` (`NAME.instr`, and the sampled
 ///   sound of one that names one, `NAME.ss`): the whole folder is brought, and the player finds them
 ///   in it.
+/// - a module of Ashley Hogg's of 1993, `title.ash`, has its samples in `title.smp`.
 /// - a module of Kris Hatlelid's that is music alone is played by his replayer, beside it as `songplay`.
 /// - a module of Jesper Olsen's that is music alone is played by its game's driver, beside it as
 ///   `WantedTeam.bin`; one of the Dynamic Synthesizer's, `title.dns`, has its samples in `title.smp`
@@ -172,6 +173,12 @@ public enum Companions {
             var names = ["set.smpl"]
             if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .ash:
+            // Those of 1993 have their samples beside them, `title.smp` for `title.ash` (`SMP.title` for
+            // `ASH.title`); those of 1991 keep theirs in the module, which is known only once it is read.
+            var names = ["\(stem).smp"]
+            if fileName.lowercased().hasPrefix("ash.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: nil, required: false)]
         case .kh:
             // His replayer, which a module of music alone is played by, in a file of its own beside it.
             return [Companion(part: .samples, names: ["songplay"], kind: nil, required: false)]

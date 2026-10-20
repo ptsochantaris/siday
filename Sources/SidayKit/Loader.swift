@@ -50,7 +50,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case bd
     case cust
     case dl
-    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr
+    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -138,7 +138,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// player of it for EaglePlayer plays it, by the recipe they share (`WantedTeamPlayer`).
     public var isWantedTeamCode: Bool {
         switch self {
-        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr: true
+        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash: true
         default: false
         }
     }
@@ -158,7 +158,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sid1, .sid2: "SIDMON"
         case .jt: "MON"
         case .dl: "DLN"
-        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr: "CORE"
+        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash: "CORE"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -328,6 +328,19 @@ public enum TuneLoader {
             return try PaulaTickRenderer(KrisHatlelidPlayer(data, name: fileName(path), files: replayer), options: options)
         case .scr:
             return try PaulaTickRenderer(SeanConranPlayer(data, name: fileName(path)), options: options)
+        case .wb:
+            return try PaulaTickRenderer(WallyBebenPlayer(data, name: fileName(path)), options: options)
+        case .md:
+            return try PaulaTickRenderer(MikeDaviesPlayer(data, name: fileName(path)), options: options)
+        case .jcb:
+            return try PaulaTickRenderer(JasonBrookePlayer(data, name: fileName(path)), options: options)
+        case .ash:
+            // Ashley Hogg's: those of 1993 have their samples beside them, by the module's name.
+            let name = fileName(path)
+            let samples = (companions.first ?? nil).flatMap { bytes in
+                AshleyHogg.samplesName(Array(name.utf8)).map { [(String(decoding: $0, as: UTF8.self), bytes)] }
+            } ?? []
+            return try PaulaTickRenderer(AshleyHoggPlayer(data, name: name, files: samples), options: options)
         case .jo:
             // Jesper Olsen's: some modules with his code in them, the rest played by the game's own driver
             // beside them, which Wanted Team kept as `WantedTeam.bin`.

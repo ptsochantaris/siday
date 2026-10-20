@@ -25,6 +25,8 @@ typealias WallyBebenPlayer = WantedTeamPlayer<WallyBeben>
 
 struct WallyBeben: WantedTeamRecipe {
     static let format = "Wally Beben"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -18.3 dB.)
+    static let gain: Float = 0.23
 
     /// `Check2` (line 310): a BRA.W to an even place further on, at which a BSR (short or long) and two
     /// CLR.B $Address and an RTS; after it `MOVEM.L D0-A6,-(A7)` and a BSR.W to a `MOVEM.L $Address,D0-D7`

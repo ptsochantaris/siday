@@ -30,6 +30,8 @@ typealias AshleyHoggPlayer = WantedTeamPlayer<AshleyHogg>
 
 struct AshleyHogg: WantedTeamRecipe {
     static let format = "Ashley Hogg"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -21.9 dB.)
+    static let gain: Float = 0.35
 
     /// `Check2` (lines 536-589): the kind of module (1 for that of 1993, 0 for that of 1991), or nil. Four
     /// BRA.Ws, each forward to an even place; then, for 1993's, two more, the second of which goes forward

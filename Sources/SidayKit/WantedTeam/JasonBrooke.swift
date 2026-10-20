@@ -29,6 +29,8 @@ typealias JasonBrookePlayer = WantedTeamPlayer<JasonBrooke>
 
 struct JasonBrooke: WantedTeamRecipe {
     static let format = "Jason C. Brooke"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -20.0 dB.)
+    static let gain: Float = 0.28
 
     /// `Check2` ($562): the kind of module, as the player tells them apart (1 for the first, 0 for the
     /// second), or nil. The first kind's first longs `MOVEM.L D0-D3/A0-A3,-(A7)`, `CLR.W D0; LEA` and

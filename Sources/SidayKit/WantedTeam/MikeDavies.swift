@@ -23,6 +23,8 @@ typealias MikeDaviesPlayer = WantedTeamPlayer<MikeDavies>
 
 struct MikeDavies: WantedTeamRecipe {
     static let format = "Mike Davies"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -21.0 dB.)
+    static let gain: Float = 0.32
 
     /// `Check2` ($324): `MOVEM.L D0-A6,-(A7); BSR.S *+8; MOVEM.L (A7)+,D0-A6; RTS` ending at 242 bytes in
     /// and followed by a `CMPI.W #x,D0` (or 6 bytes earlier, and followed by a `MOVE.W D0,$Address`); and
