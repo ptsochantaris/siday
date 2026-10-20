@@ -23,6 +23,8 @@ typealias FredMonitorPlayer = WantedTeamPlayer<FredMonitor>
 
 struct FredMonitor: WantedTeamRecipe {
     static let format = "Fred Monitor"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -15.6 dB.)
+    static let gain: Float = 0.17
 
     /// `Check2` (lines 34-122), its three kinds of module: the four JMPs (d16(PC)) and a word or two that
     /// follow them as they are in each; and its last song's number, a byte where the displacement of the

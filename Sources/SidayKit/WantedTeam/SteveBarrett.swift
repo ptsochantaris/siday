@@ -23,6 +23,8 @@ typealias SteveBarrettPlayer = WantedTeamPlayer<SteveBarrett>
 
 struct SteveBarrett: WantedTeamRecipe {
     static let format = "Steve Barrett"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -18.8 dB.)
+    static let gain: Float = 0.25
 
     /// `Check2` (lines 287-313): four BRA.Ws of even displacements; where the fourth's displacement
     /// points, two bytes on, a MOVEA.L #$DFF0A8,A5; and the first LEA d(PC),A0 of the file pointing at

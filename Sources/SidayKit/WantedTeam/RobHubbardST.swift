@@ -22,6 +22,8 @@ typealias RobHubbardSTPlayer = WantedTeamPlayer<RobHubbardST>
 
 struct RobHubbardST: WantedTeamRecipe {
     static let format = "Rob Hubbard ST"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -18.2 dB.)
+    static let gain: Float = 0.23
 
     /// UADE puts the module past the player's two hunks (of 1,776 and 5,000 bytes, from $D008).
     static let moduleAt: UInt32 = 0x10000

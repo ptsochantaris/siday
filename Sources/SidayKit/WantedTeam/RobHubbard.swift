@@ -22,6 +22,8 @@ typealias RobHubbardPlayer = WantedTeamPlayer<RobHubbard>
 
 struct RobHubbard: WantedTeamRecipe {
     static let format = "Rob Hubbard"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -20.4 dB.)
+    static let gain: Float = 0.30
 
     /// Where UADE has the player's `Pusty` (line 883), eight bytes of nought that its patch makes a voice's
     /// sample: its last eight bytes, in its hunk of 2,308 bytes at $D008.
