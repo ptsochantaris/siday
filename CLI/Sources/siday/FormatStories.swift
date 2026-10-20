@@ -1081,6 +1081,12 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   (`Instruments`), as Sonix's scores have theirs. Sixty ticks a second, as the game's own timer gave them.
   Eleven files, the same as UADE's to the tick, 0.985 alike or more.
 
+- **Paul Shields** (`.ps`): his music on Paul Hunter's player, of 1988 to 1991, for Airball, Jug,
+  Goldrunner II, Amiga Soccer and Psygnosis' Amnios, by two of the player's replayers: the first with
+  seven waves of its own, one of them 400 bytes of the player's own code played as noise; the second,
+  for Amnios, with envelopes of pitch and volume by the instrument. Fourteen files, the same as UADE's to
+  the tick, 0.9997 alike or more.
+
 How loud it is: at the level of modules, these are between 1.0 dB quieter and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 
