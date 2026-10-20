@@ -15,11 +15,11 @@
 enum ProWizard {
     /// The packers, in the order libxmp asks each whether a file is its: a file another packer's test
     /// would also take is taken by the first. (SoundTracker 2.6's, which libxmp loads as a format of
-    /// its own, is asked last.)
+    /// its own, is asked after them; and after that Channel Player's, which only Deli-Wizard reads.)
     enum Packer: CaseIterable {
         case ac1d, novotrade, promizer18, proRunner1, proRunner2, pha, trackerPacker3, digitalIllusions
         case player4, proPacker21, proPacker30, player50, player60, player61
-        case noisePacker2, noisePacker1, noisePacker3, gameMusicCreator, iceTracker
+        case noisePacker2, noisePacker1, noisePacker3, gameMusicCreator, iceTracker, channelPlayer
 
         /// What it is called, as ProWizard calls it.
         var name: String {
@@ -43,6 +43,7 @@ enum ProWizard {
             case .noisePacker3: "NoisePacker v3"
             case .gameMusicCreator: "Game Music Creator"
             case .iceTracker: "SoundTracker 2.6"
+            case .channelPlayer: "Channel Player"
             }
         }
 
@@ -71,6 +72,7 @@ enum ProWizard {
             case .noisePacker3: NoisePacker.test3(data, size)
             case .gameMusicCreator: GameMusicCreator.test(data, size)
             case .iceTracker: IceTracker.test(data, size)
+            case .channelPlayer: ChannelPlayer.test(data, size)
             }
         }
 
@@ -96,6 +98,7 @@ enum ProWizard {
             case .noisePacker3: try NoisePacker.depack3(&input, &output)
             case .gameMusicCreator: try GameMusicCreator.depack(&input, &output)
             case .iceTracker: try IceTracker.depack(&input, &output)
+            case .channelPlayer: try ChannelPlayer.depack(&input, &output)
             }
         }
     }
@@ -174,7 +177,7 @@ enum ProWizard {
     /// The endings of the names of files packed by these packers, as UnExoticA and others name them.
     static let extensions: Set<String> = [
         "ac1d", "ntp", "prun", "pru1", "pru2", "pha", "tp3", "di", "p4x", "p40a", "p40b", "p41a",
-        "pp21", "pp30", "p50a", "p60", "p60a", "p6x", "p61", "p61a", "np1", "np2", "np3", "gmc", "pro", "pr1", "pm1", "pm18a", "st26", "ice",
+        "pp21", "pp30", "p50a", "p60", "p60a", "p6x", "p61", "p61a", "np1", "np2", "np3", "gmc", "pro", "pr1", "pm1", "pm18a", "st26", "ice", "chan",
     ]
 
     /// The periods of ProTracker's three octaves, as the two bytes a note is written in: the first
