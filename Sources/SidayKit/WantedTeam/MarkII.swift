@@ -23,6 +23,8 @@ typealias MarkIIPlayer = WantedTeamPlayer<MarkII>
 
 struct MarkII: WantedTeamRecipe {
     static let format = "Mark II"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -18.9 dB.)
+    static let gain: Float = 0.25
 
     /// `Check2` ($19A): the module's second instruction a LEA d16(PC); then, in its first $240 bytes, an
     /// `ASL.W #3,D2` with a LEA d16(PC) after it; and a `ADDA.L d16(PC),A0` in the 24 words from that

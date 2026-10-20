@@ -50,7 +50,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case bd
     case cust
     case dl
-    case core, jmf, bds, gray, hd, spl
+    case core, jmf, bds, gray, hd, spl, dz, mii
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -138,7 +138,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// player of it for EaglePlayer plays it, by the recipe they share (`WantedTeamPlayer`).
     public var isWantedTeamCode: Bool {
         switch self {
-        case .core, .jmf, .bds, .gray, .hd, .spl: true
+        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii: true
         default: false
         }
     }
@@ -158,7 +158,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sid1, .sid2: "SIDMON"
         case .jt: "MON"
         case .dl: "DLN"
-        case .jmf, .bds, .gray, .hd, .spl: "CORE"
+        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii: "CORE"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -298,6 +298,10 @@ public enum TuneLoader {
             return try PaulaTickRenderer(HowieDaviesPlayer(data, name: fileName(path)), options: options)
         case .spl:
             return try PaulaTickRenderer(SoundProgrammingLanguagePlayer(data, name: fileName(path)), options: options)
+        case .dz:
+            return try PaulaTickRenderer(DariusZendehPlayer(data, name: fileName(path)), options: options)
+        case .mii:
+            return try PaulaTickRenderer(MarkIIPlayer(data, name: fileName(path)), options: options)
         case .jd:
             // Special FX's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(SpecialFXPlayer(data), options: options)

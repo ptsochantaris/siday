@@ -27,6 +27,8 @@ typealias DariusZendehPlayer = WantedTeamPlayer<DariusZendeh>
 
 struct DariusZendeh: WantedTeamRecipe {
     static let format = "Darius Zendeh"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is about -20 (its main songs; the levels' first songs are short) dB.)
+    static let gain: Float = 0.28
 
     /// The player's kinds (`M_Type`, lines 163-177): the second it knows from a demo's and Crash and Burn,
     /// the third from a cracktro's, and its number for the strange one is 666.
