@@ -1057,6 +1057,14 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   Porschen's Krymini: not patterns but eight lists of events, four of notes and four of effects, at a
   speed each module sets for itself. Five files, the same as UADE's to the tick, 0.998 alike.
 
+- **Professional Sound Artists** (`.psa`): the player of the game The Punisher ("(c) 1990 by Dave
+  'Sinbad' Hasler", Wanted Team's player says), whose instruments are samples or a square wave whose
+  width it varies, with an envelope of four stages. One file, the same as UADE's to the tick, 0.9975
+  alike.
+- **The Musical Enlightenment** (`.tme`): N. J. Luuring jr's, of 1989 and 1990, for Labyrinth: sixteen
+  tunes, instruments with lists of instructions for their vibrato and tremolo, envelopes, arpeggios,
+  slides and glides. One file, the same as UADE's to the tick, 0.9998 alike.
+
 How loud it is: at the level of modules, these are between 1.5 and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 

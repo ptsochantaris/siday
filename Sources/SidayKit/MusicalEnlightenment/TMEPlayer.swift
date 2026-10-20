@@ -711,7 +711,8 @@ extension TMEPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// (Its music turned to the loudness of the rest: at 0.46 its one file is -22.3 dB.)
+    var gain: Float { 0.37 }
 
     mutating func prepareToBeHeard() {}
 
