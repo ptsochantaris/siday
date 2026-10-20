@@ -75,11 +75,14 @@ final class ST2Player {
 
     private let module: ST2Module
     private let sampleRate: Int
-    private var channels = [Channel](repeating: Channel(), count: ST2Module.channels)
+    // (It and `lately` are not checked for being used twice over at once, which the compiler cannot prove
+    // of a class's properties: each sample takes them out and puts them back, and nothing else is done
+    // with them meanwhile. See `renderSample`.)
+    @exclusivity(unchecked) private var channels = [Channel](repeating: Channel(), count: ST2Module.channels)
     /// What each channel put out for the last `lightsLag` samples, for the lights, which are of each
     /// sample once it is heard: the player's samples reach the output through a filter, whose middle
     /// is that many of them behind the newest (see `STMRenderer`).
-    private var lately = [Int](repeating: 0, count: ST2Module.channels * ST2Player.lightsLag)
+    @exclusivity(unchecked) private var lately = [Int](repeating: 0, count: ST2Module.channels * ST2Player.lightsLag)
     private var latelyAt = 0
     static let lightsLag = 8
     private var changePatternNext = false
@@ -398,42 +401,47 @@ final class ST2Player {
         var mix = 0
         let waves = waves
         // (The channels and the lights' last levels are taken out of the player while the sample is made,
-        // and put back: looked at where they are, as a class's, each look had a check of its own.)
-        var channels = self.channels, lately = self.lately
+        // and put back: looked at where they are, as a class's, each look had a check of its own. They are
+        // gone through by their buffers, the channels by their number, which is always within them.)
+        var channelsHeld = self.channels, latelyHeld = self.lately
         self.channels = []
         self.lately = []
         let sound = module.sound, slot = latelyAt
-        var i = 0
-        while i < ST2Module.channels {
-            var level = 0
-            channels[i].smpPosition &+= channels[i].smpStep
-            var at = Int(channels[i].smpPosition >> 16)
-            var sounding = at < Int(channels[i].smpLoopEnd)
-            if !sounding {
-                // Round, for a sample that goes round: with no look at where that leaves it.
-                channels[i].smpPosition = UInt32(channels[i].smpLoopStart) << 16 | (channels[i].smpPosition & 0xFFFF)
-                sounding = channels[i].smpLoopStart != 0xFFFF
-                at = Int(channels[i].smpLoopStart)
-            }
-            if sounding {
-                if channels[i].smpBase >= 0, channels[i].volumeMix < 65 {
-                    let byte = at < channels[i].smpCount ? Int(Int8(bitPattern: sound[channels[i].smpBase + at])) : 0
-                    // (The high half of the product, which for a sample below the middle rounds away from it.)
-                    level = (Int(channels[i].volumeMix) * byte) >> 8
-                    if !channels[i].muted { mix += level }
+        channelsHeld.withUnsafeMutableBufferPointer { channels in
+            latelyHeld.withUnsafeMutableBufferPointer { lately in
+                var i = 0
+                while i < ST2Module.channels {
+                    var level = 0
+                    channels[i].smpPosition &+= channels[i].smpStep
+                    var at = Int(channels[i].smpPosition >> 16)
+                    var sounding = at < Int(channels[i].smpLoopEnd)
+                    if !sounding {
+                        // Round, for a sample that goes round: with no look at where that leaves it.
+                        channels[i].smpPosition = UInt32(channels[i].smpLoopStart) << 16 | (channels[i].smpPosition & 0xFFFF)
+                        sounding = channels[i].smpLoopStart != 0xFFFF
+                        at = Int(channels[i].smpLoopStart)
+                    }
+                    if sounding {
+                        if channels[i].smpBase >= 0, channels[i].volumeMix < 65 {
+                            let byte = at < channels[i].smpCount ? Int(Int8(bitPattern: sound[channels[i].smpBase + at])) : 0
+                            // (The high half of the product, which for a sample below the middle rounds away from it.)
+                            level = (Int(channels[i].volumeMix) * byte) >> 8
+                            if !channels[i].muted { mix += level }
+                        }
+                    } else {
+                        channels[i].smpPosition = UInt32(channels[i].smpLoopEnd) << 16 | (channels[i].smpPosition & 0xFFFF)
+                    }
+                    let heard = lately[i * Self.lightsLag + slot]
+                    lately[i * Self.lightsLag + slot] = level
+                    if heard < channels[i].low { channels[i].low = heard }
+                    if heard > channels[i].high { channels[i].high = heard }
+                    waves?.store(i, at: 0, Float(level))
+                    i += 1
                 }
-            } else {
-                channels[i].smpPosition = UInt32(channels[i].smpLoopEnd) << 16 | (channels[i].smpPosition & 0xFFFF)
             }
-            let heard = lately[i * Self.lightsLag + slot]
-            lately[i * Self.lightsLag + slot] = level
-            if heard < channels[i].low { channels[i].low = heard }
-            if heard > channels[i].high { channels[i].high = heard }
-            waves?.store(i, at: 0, Float(level))
-            i += 1
         }
-        self.channels = channels
-        self.lately = lately
+        self.channels = channelsHeld
+        self.lately = latelyHeld
 
         waves?.advance(by: 1)
         latelyAt = latelyAt == Self.lightsLag - 1 ? 0 : latelyAt + 1

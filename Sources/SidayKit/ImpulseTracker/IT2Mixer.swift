@@ -155,18 +155,21 @@ final class IT2Mixer {
     /// `fMixBuffer` has. There is none until a channel is left out.
     private var fMutedBuffer: UnsafeMutablePointer<Float>?
     private var fLastClickRemovalLeft: Float = 0, fLastClickRemovalRight: Float = 0, fPrngStateL: Float = 0, fPrngStateR: Float = 0
+    // (These five, changed in place for each voice as each tick is mixed, are not checked as they are used
+    // for being used twice over at once, which the compiler cannot prove of a class's properties: none
+    // of them is used while it is being changed.)
     /// For the lights: how loud each of the 64 channels is in the tick last mixed, which is told as
     /// it is heard; and the lowest and highest the voice being mixed has had its sample.
-    var levels = HeardLevels(voices: 64)
+    @exclusivity(unchecked) var levels = HeardLevels(voices: 64)
     /// And what each is playing.
-    var notes = TickNotes(voices: 64)
+    @exclusivity(unchecked) var notes = TickNotes(voices: 64)
     /// And where each channel's note lies between the two sides, from -1 on the left to 1 on the
     /// right: that of the voice it last had hold of.
-    private(set) var sides = [Float](repeating: 0, count: 64)
+    @exclusivity(unchecked) private(set) var sides = [Float](repeating: 0, count: 64)
     /// For each channel, whether the voice it has hold of plays a sample, and not an FM instrument:
     /// nil, until it has had hold of one.
-    private(set) var sampled = [Bool?](repeating: nil, count: 64)
-    private var swing = Swing<Float>(from: -4, to: 4)
+    @exclusivity(unchecked) private(set) var sampled = [Bool?](repeating: nil, count: 64)
+    @exclusivity(unchecked) private var swing = Swing<Float>(from: -4, to: 4)
 
     /// Where each channel's sound is kept for its scope, if it is wanted (see `keepWaves`): which of
     /// the waves' voices each of the 64 channels is, less than nought for one not shown.

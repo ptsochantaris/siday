@@ -7,9 +7,13 @@
 /// chip, the STE's sample player and its blitter, and a few places a player's code looks at to see what kind of
 /// machine it is on.
 final class STHardware: M68000Bus {
-    var chip: STSoundChip
-    var timers: MFP
-    var samples: STESound
+    // (The three that are moved on with every sample are not checked as they are used, while the program
+    // runs, for being used twice over at once: the compiler cannot prove it of a class's properties, and
+    // checks each use, which costs time at the rate of the sound. None of them is used during a use of
+    // itself: what the program writes to them is written between the samples' uses of them.)
+    @exclusivity(unchecked) var chip: STSoundChip
+    @exclusivity(unchecked) var timers: MFP
+    @exclusivity(unchecked) var samples: STESound
     var blitter = STBlitter()
     /// The machine's memory, which the blitter works on.
     var ram: UnsafeMutablePointer<UInt8>?
@@ -121,7 +125,10 @@ final class STMachine {
 
     private let ram: UnsafeMutablePointer<UInt8>
     private let hardware: STHardware
-    private var cpu: M68000<STHardware>
+    // (Not checked as it is used for being used twice over at once, which the compiler cannot prove of a
+    // class's properties: the processor reaches only the hardware as it runs, which cannot reach the
+    // machine, and what it stops for is answered once it has stopped.)
+    @exclusivity(unchecked) private var cpu: M68000<STHardware>
     private var heap: UInt32 = 0
     /// The system's own way of feeding the sound chip from a list, which a few tunes use: where it
     /// has got to, the value it is stepping, and how many ticks it is waiting.
@@ -275,7 +282,11 @@ final class STMachine {
     /// of that code did not come back.
     @inline(__always) private func runTimers() -> Bool {
         var sound = true
-        for line in 0 ..< 5 where hardware.timers.tick(line) {
+        // (A loop of its own rather than over a range, which the compiler had left as calls.)
+        var line = -1
+        while line < 4 {
+            line += 1
+            guard hardware.timers.tick(line) else { continue }
             let handler = cpu.read32(Self.vectors[line])
             // The handler ends with a return from exception, which finds the RESET.
             cpu.write32(UInt32(Self.ramSize - 4), Self.resetAddress)

@@ -36,13 +36,21 @@ final class AmigaChips: M68000Bus {
     static let lineClocks = 227
     static let frameLines = 313
 
+    // (These, and `writes`, `signals` and `audio`, which are changed in place with each access the
+    // processor makes to the chips, are not checked as they are used for being used twice over at once:
+    // the compiler cannot prove it of a class's properties and checks each use, at the rate the processor
+    // runs. None of them is: the chips call nothing beyond themselves while one is being changed.)
+
     /// CIA-A, then CIA-B.
-    var cias = InlineArray<2, AmigaCIA>(repeating: AmigaCIA())
-    private(set) var dmacon: UInt16 = 0, intena: UInt16 = 0, intreq: UInt16 = 0, adkcon: UInt16 = 0
+    @exclusivity(unchecked) var cias = InlineArray<2, AmigaCIA>(repeating: AmigaCIA())
+    @exclusivity(unchecked) private(set) var dmacon: UInt16 = 0
+    @exclusivity(unchecked) private(set) var intena: UInt16 = 0
+    @exclusivity(unchecked) private(set) var intreq: UInt16 = 0
+    @exclusivity(unchecked) private(set) var adkcon: UInt16 = 0
     /// The writes to Paula and the DMA made since they were last taken, in order; and what the host's
     /// code has told it through its port.
-    var writes: [AmigaWrite] = []
-    var signals: [AmigaWrite] = []
+    @exclusivity(unchecked) var writes: [AmigaWrite] = []
+    @exclusivity(unchecked) var signals: [AmigaWrite] = []
     /// The time as the current call began, in Paula's clocks since the machine was switched on.
     var clock: UInt64 = 0
     /// How far the CIAs have been moved on, in ticks of the E clock (a fifth of Paula's).
@@ -77,7 +85,7 @@ final class AmigaChips: M68000Bus {
     /// When the next frame begins, for its interrupt, in Paula's clocks.
     private var nextFrame = UInt64(lineClocks * frameLines)
     /// When each voice asks for its interrupt (while `interrupts` is on).
-    private var audio = AmigaAudioDMA()
+    @exclusivity(unchecked) private var audio = AmigaAudioDMA()
 
     init() {
         writes.reserveCapacity(256)
