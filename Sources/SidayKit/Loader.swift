@@ -51,7 +51,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case cust
     case dl
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
-    case dum, ex, pvp, alp, dsc, bye
+    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -148,7 +148,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// for EaglePlayer or DeliTracker that took its place (Infogrames', Fashion Tracker's and the rest).
     public var isPortedGamePlayer: Bool {
         switch self {
-        case .dum, .ex, .pvp, .alp, .dsc, .bye: true
+        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme: true
         default: false
         }
     }
@@ -169,7 +169,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .jt: "MON"
         case .dl: "DLN"
         case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash, .tw: "CORE"
-        case .ex, .pvp, .alp, .dsc, .bye: "DUM"
+        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme: "DUM"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -352,6 +352,12 @@ public enum TuneLoader {
             return try PaulaTickRenderer(DigitalSonixPlayer(data), options: options)
         case .bye:
             return try PaulaTickRenderer(AndrewPartonPlayer(data), options: options)
+        case .ems:
+            return try PaulaTickRenderer(EMSPlayer(data), options: options)
+        case .fw:
+            return try PaulaTickRenderer(ForgottenWorldsPlayer(data), options: options)
+        case .lme:
+            return try PaulaTickRenderer(LMEPlayer(data), options: options)
         case .pvp:
             return try PaulaTickRenderer(PVPPlayer(data), options: options)
         case .alp:

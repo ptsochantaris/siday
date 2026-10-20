@@ -1026,6 +1026,21 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   Twelve files, the same as UADE's to the tick, and 0.9995 alike. A tune ends when its stream does and
   its notes have died away (or five seconds after, for one that ends on a note held).
 
+- **Editeur Musical Séquentiel** (`.ems`): Thomas Pimmel's, version 1.24 of 1991, for OCB and
+  Imperial (Jean-Marc Boursot's music): near enough to Ultimate Soundtracker's modules, with commands
+  numbered its own way. Six files, the same as UADE's to the tick, 0.9986 alike or more.
+- **Forgotten Worlds** (`.fw`, "FWMP"): Mark Cooksey's music for Arc Developments' Amiga version of
+  the game (1989), by the game's own replayer, which Psygore's player for EaglePlayer carries. That
+  player is broken: it turns on the wrong registers in place of the voices, so that in UADE four of the
+  five files are silent, and the rest stall. Set beside copies of it mended in scratch (none of which is
+  kept), the five play the same to the tick, 0.992 alike or more. The tunes go round for ever, each voice
+  on a length of its own; a song ends here once every voice has gone round at least once.
+- **Leggless Music Editor** (`.lme`): Steve "Leggless" Hasler's of 1990, for Ninja Spirit (17 songs) and
+  Punisher, with samples or square waves of its own whose width it varies. Three files, 35 songs, the
+  same as UADE's to the tick but for the first tick of each note: Wanted Team's player gives a note just
+  begun, for that tick, a volume of eight times its voice's number, by a slip of a register; here it has
+  its instrument's volume, as Hasler's own code gave it.
+
 How loud it is: at the level of modules, these are between 1.5 and 6.8 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 
