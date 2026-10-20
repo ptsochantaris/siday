@@ -1472,6 +1472,60 @@ What is siday's own, or the players' own and worth telling:
 4. How loud they are: the later driver's music is 1.7 dB quieter on the Amiga's chip than modules are,
    in the middle of the collection, and the earlier's 1.0 dB, and they are turned up by that.
 
+## CORE, JMF, BDS, GRAY, HD and SPL — more composers' own drivers, by Wanted Team's recipe
+
+Many of the Amiga's composers wrote their own drivers, and what was ripped from the games is the
+driver with its music: 68000 code that plays one game's tunes. Wanted Team, who made players for
+EaglePlayer of many of them, made most the same way: find the driver's routines, by a header
+they put before it or by searching its code; mend a few of its instructions, with patches they wrote
+in its place; call its routine to start a song with the song's number; call its routine for a tick
+fifty times a second; and know a song has ended by a hook among the patches. siday does what each of
+their players does, in Swift, with their patches assembled as they are, and runs the driver on its
+own Amiga (see DW), loaded where UADE loads it. The six here share one recipe for it; each is a
+few hundred lines of what its player does. Each was set beside UADE running Wanted Team's player,
+over the first 40 seconds of every song of UnExoticA's collection, by what the driver tells the sound
+chip on every tick, and over the first minute of some of each, by how loud each side is from moment to
+moment. No
+part of Wanted Team's players is carried here; their code was read, and where its source is not
+given, its 68000 code.
+
+- **Core Design** (`.core`): Benn Daglish's music for Core Design's games, of 1989 and 1990, as the
+  player's credit has it: Action Fighter, Dynamite Dux, Monty Python's Flying Circus, Rick Dangerous,
+  Axel's Magic Hammer and Saint & Greavsie. Six files, 145 songs, many of them sound effects. It is
+  played by Paula's audio interrupts as well as its tick: its routine for them is put on each of her
+  four through exec's SetIntVector, as the player does. Every song's writes are the same as UADE's
+  in value, and 142 in order too (the other three are silent stretches); every song ends where
+  UADE's does, 123 of them never. By loudness, six of eight songs are 0.999 alike or more; the other two,
+0.92 and 0.97, are where a voice is turned off and on again (see below, under SPL).
+- **Janko Mrsic-Flogel** (`.jmf`): his music of 1986 to 1988, for Fire Blaster, Space Station,
+  Protector, Bomb Jack, War Zone and Luxor. Six files, 16 songs, on three voices that play short
+  waves of the driver's own. The same as UADE's in every song, and the eight songs measured 0.997 alike
+or more.
+- **Benn Daglish SID** (`.bds`): the music of his that Wanted Team's player calls his "SID" music, of
+  1987 and 1988: Terramex, Chubby Gristle and The Flintstones. Three files, five songs, three voices of
+  short waves whose volumes its audio interrupt writes. Its wait for the sound chip counts the beam's
+  lines, and siday's Amiga runs a little slower than UADE's, so that now and then a volume is caught a
+  step later; every song ends where UADE's does, and by loudness the four measured are 0.999 alike or
+more.
+  (His other music is under BD, and Core Design's above.)
+- **Fred Gray** (`.gray`): his music of 1987 and 1988, for Star Goose, Victory Road, Eco and Black
+  Lamp. Four files, 21 songs, the same as UADE's in every song, and the four measured 0.996 alike or more.
+The same music is
+  also among DeliTracker's custom modules (see CUST).
+- **Howie Davies** (`.hd`): his music and Gary Antcliffe's, of 1990 and 1991, for Yogi's Great Escape,
+  Blazing Thunder and Future Bike Simulator. Three files, 12 songs, the same as UADE's in every song but
+  for when a few ticks come, from a wait of the driver's that counts the beam's lines from where the
+  timer happened to start; the three measured 0.9996 alike or more.
+- **Sound Programming Language** (`.spl`): Holger Gehrmann's music of 1987 and 1988, by the name
+  Wanted Team's player gives it, for Hollywood Poker, Clever & Smart, Graffiti Man and Boulder Dash.
+  Four files, 12 songs, each module setting the speed of its own ticks. UADE's Paula carries on
+  playing a voice that is turned off and on again before its sample runs out; siday's starts it
+  afresh, so about a tenth of the times a note starts are not UADE's; the four measured are 0.977 to
+0.995 alike.
+
+How loud it is: at the level of modules, these come out between 0.5 and 7.8 dB louder in the
+middle of their files, and each is turned down by its own amount to the level of the rest.
+
 ## CUST — DeliTracker's custom modules
 
 DeliTracker, Frank Riffel's and Peter Kunath's player of the Amiga's music, took players of each format

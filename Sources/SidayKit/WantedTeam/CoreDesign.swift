@@ -19,6 +19,8 @@ typealias CoreDesignPlayer = WantedTeamPlayer<CoreDesign>
 
 struct CoreDesign: WantedTeamRecipe {
     static let format = "Core Design"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -20.9 dB.)
+    static let gain: Float = 0.31
 
     /// `Check3` ($428): the standard header with "S.PHIPPS", and its routines for a tick, the audio
     /// interrupts, a song's start and its stop, and its number of songs, not nought.

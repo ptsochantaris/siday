@@ -20,6 +20,8 @@ typealias FredGrayPlayer = WantedTeamPlayer<FredGray>
 
 struct FredGray: WantedTeamRecipe {
     static let format = "Fred Gray"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -16.4 dB.)
+    static let gain: Float = 0.19
 
     /// `Check3` ($2DE): the standard header with "FREDGRAY", and its routines for a tick and a song's
     /// start, and its number of songs, not nought.

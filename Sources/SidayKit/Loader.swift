@@ -50,6 +50,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case bd
     case cust
     case dl
+    case core, jmf, bds, gray, hd, spl
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -133,6 +134,15 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// How much of the start of a file `refined(byLeading:)` looks at.
     public static let leadingBytes = 64
 
+    /// True for a kind of the Amiga's music whose file is the composer's own code, played as Wanted Team's
+    /// player of it for EaglePlayer plays it, by the recipe they share (`WantedTeamPlayer`).
+    public var isWantedTeamCode: Bool {
+        switch self {
+        case .core, .jmf, .bds, .gray, .hd, .spl: true
+        default: false
+        }
+    }
+
     /// True if a file of this kind may be found by how it begins to be another (see `refined(byLeading:)`).
     public var sharesItsName: Bool { self == .psm || self == .sid }
 
@@ -148,6 +158,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sid1, .sid2: "SIDMON"
         case .jt: "MON"
         case .dl: "DLN"
+        case .jmf, .bds, .gray, .hd, .spl: "CORE"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -273,6 +284,20 @@ public enum TuneLoader {
         case .bd:
             // Ben Daglish's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(DaglishPlayer(data), options: options)
+        case .core:
+            // The composers' own code that Wanted Team's players find and call, each run on an Amiga
+            // of its own as their player for EaglePlayer runs it.
+            return try PaulaTickRenderer(CoreDesignPlayer(data, name: fileName(path)), options: options)
+        case .jmf:
+            return try PaulaTickRenderer(JankoMrsicFlogelPlayer(data, name: fileName(path)), options: options)
+        case .bds:
+            return try PaulaTickRenderer(DaglishSIDPlayer(data, name: fileName(path)), options: options)
+        case .gray:
+            return try PaulaTickRenderer(FredGrayPlayer(data, name: fileName(path)), options: options)
+        case .hd:
+            return try PaulaTickRenderer(HowieDaviesPlayer(data, name: fileName(path)), options: options)
+        case .spl:
+            return try PaulaTickRenderer(SoundProgrammingLanguagePlayer(data, name: fileName(path)), options: options)
         case .jd:
             // Special FX's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(SpecialFXPlayer(data), options: options)

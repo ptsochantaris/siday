@@ -19,6 +19,8 @@ typealias JankoMrsicFlogelPlayer = WantedTeamPlayer<JankoMrsicFlogel>
 
 struct JankoMrsicFlogel: WantedTeamRecipe {
     static let format = "Janko Mrsic-Flogel"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -19.5 dB.)
+    static let gain: Float = 0.27
 
     /// `Check3` ($2EA): the standard header with "J.FLOGEL", and its routines for a tick and a song's
     /// start, and its number of songs, not nought.

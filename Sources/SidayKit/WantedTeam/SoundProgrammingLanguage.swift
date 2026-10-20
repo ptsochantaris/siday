@@ -20,6 +20,8 @@ typealias SoundProgrammingLanguagePlayer = WantedTeamPlayer<SoundProgrammingLang
 
 struct SoundProgrammingLanguage: WantedTeamRecipe {
     static let format = "Sound Programming Language"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -23.2 dB.)
+    static let gain: Float = 0.41
 
     /// `Check3` ($40C): the standard header with "!SOPROL!", and its routines for a tick and a song's
     /// start, and its number of songs, not nought.

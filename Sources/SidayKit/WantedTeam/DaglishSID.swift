@@ -21,6 +21,8 @@ typealias DaglishSIDPlayer = WantedTeamPlayer<DaglishSID>
 
 struct DaglishSID: WantedTeamRecipe {
     static let format = "Benn Daglish SID"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -23.7 dB.)
+    static let gain: Float = 0.43
 
     /// `Check3` ($1F0): the standard header with "DAGLISH!", and its routines for a tick, the audio
     /// interrupts and a song's start, and its number of songs, not nought.

@@ -22,6 +22,8 @@ typealias HowieDaviesPlayer = WantedTeamPlayer<HowieDavies>
 
 struct HowieDavies: WantedTeamRecipe {
     static let format = "Howie Davies"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -19.1 dB.)
+    static let gain: Float = 0.26
 
     /// Where UADE puts the player's second hunk, a long of nought (its first hunk, of 2,004 bytes, at
     /// $D008, eight bytes past the eight-byte boundary below the end of the one before as UADE's

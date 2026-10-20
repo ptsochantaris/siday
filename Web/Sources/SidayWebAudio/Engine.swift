@@ -145,6 +145,7 @@ final class WebPlayer {
                 || format == .hip || format == .fc
                 || format == .puma || format == .pap || format == .gmc || format == .ims
                 || format == .bp || format == .sid1 || format == .sid2 || format == .mug || format == .dm2 || format == .mxtx || format == .sa || format == .sonix || format == .rjp || format == .dln || format == .dw || format == .mw || format == .jd || format == .mon || format == .jt || format == .bd || format == .cust || format == .dl
+                || format.isWantedTeamCode
             select(policy.firstSubsong(of: loaded))
             return true
         } catch let error as TuneError {
