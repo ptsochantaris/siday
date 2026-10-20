@@ -20,6 +20,8 @@ typealias ScummPlayer = WantedTeamPlayer<Scumm>
 
 struct Scumm: WantedTeamRecipe {
     static let format = "SCUMM"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -20.8 dB.)
+    static let gain: Float = 0.31
 
     /// `Check2` ($CC): the sound's code where its fourth byte is (or where the BRA.W there goes) begins
     /// `MOVEM.L D1-D7/A0-A6,-(A7)` and `MOVEA.L A3,A2; MOVEA.L A3,A5` or `BCLR #4,D0`.

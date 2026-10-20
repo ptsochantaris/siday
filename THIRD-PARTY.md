@@ -278,6 +278,19 @@ Synergistic's Vengeance of Excalibur. Their 68000 code was read for that, and no
 carried here but what it does and its tables: of the steps of an octave and of pitch bends, of tempos, of
 the lengths of notes and rests, and of the filters a synthesised instrument is passed through.
 
+## Wanted Team's players, and more composers' drivers
+
+`Sources/SidayKit/WantedTeam` finds, mends and calls the drivers of seventeen more of the Amiga's
+composers and studios, which are in the files themselves, on siday's own Amiga, as the players of them
+for EaglePlayer that UADE carries do: Wanted Team's (in `amigasrc/players/wanted_team`, where their
+source is given, or in UADE's `players`, read in their 68000 code where it is not: Fred Gray, Howie
+Davies, Sound Programming Language, Beathoven Synthesizer, Sean Connolly), Andy Silva's for the SCUMM
+sounds and Eagleeye's for Mark II (in UADE's `players`, read in their code), Stephen Mifsud's for
+Darius Zendeh (`amigasrc/players/dz`), and UADE's own for Fred Monitor (`amigasrc/players/fred`,
+Heikki Orsila, LGPL). Their code was read for that, and nothing of it is
+carried here but what it does: their patches are written afresh as the same instructions, assembled by
+siday, and their tables of patterns to find written out.
+
 ## David Whittaker
 
 `Sources/SidayKit/Whittaker` finds, mends and calls David Whittaker's drivers, which are in the files

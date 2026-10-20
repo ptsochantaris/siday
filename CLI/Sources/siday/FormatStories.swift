@@ -1472,7 +1472,7 @@ What is siday's own, or the players' own and worth telling:
 4. How loud they are: the later driver's music is 1.7 dB quieter on the Amiga's chip than modules are,
    in the middle of the collection, and the earlier's 1.0 dB, and they are turned up by that.
 
-## CORE, JMF, BDS, GRAY, HD and SPL — more composers' own drivers, by Wanted Team's recipe
+## CORE and others — more composers' own drivers, by Wanted Team's recipe
 
 Many of the Amiga's composers wrote their own drivers, and what was ripped from the games is the
 driver with its music: 68000 code that plays one game's tunes. Wanted Team, who made players for
@@ -1481,8 +1481,8 @@ they put before it or by searching its code; mend a few of its instructions, wit
 in its place; call its routine to start a song with the song's number; call its routine for a tick
 fifty times a second; and know a song has ended by a hook among the patches. siday does what each of
 their players does, in Swift, with their patches assembled as they are, and runs the driver on its
-own Amiga (see DW), loaded where UADE loads it. The six here share one recipe for it; each is a
-few hundred lines of what its player does. Each was set beside UADE running Wanted Team's player,
+own Amiga (see DW), loaded where UADE loads it. The formats here share one recipe for it; each is
+a few hundred lines of what its player does. Each was set beside UADE running Wanted Team's player,
 over the first 40 seconds of every song of UnExoticA's collection, by what the driver tells the sound
 chip on every tick, and over the first minute of some of each, by how loud each side is from moment to
 moment. No
@@ -1523,7 +1523,60 @@ The same music is
   afresh, so about a tenth of the times a note starts are not UADE's; the four measured are 0.977 to
 0.995 alike.
 
-How loud it is: at the level of modules, these come out between 0.5 and 7.8 dB louder in the
+- **Beathoven Synthesizer** (`.bss`): Thomas Lopatic's ("(c) 1987-91"), for The Great Giana
+  Sisters, Katakis, Denaris, Zoom, Ganymed, Detonator, Final Mission, Phalanx II, Ringside, Street Gang,
+  In 80 Days Around the World and the German game shows Glücksrad, Der Preis ist heiss, Riskant and
+  Wetten dass; and Oliver Becker's Cosmic Bouncer and Rock Challenge. 21 files, 37 songs, of its
+  versions 1.00, 1.09 and "NEW". Each module is an AmigaDOS program whose header gives its routines, and
+  may set its own speed, from 48 to 237 ticks a second. Every song is the same as UADE's, tick for tick
+  (once a register written twice with the same value is passed over), and ends where UADE's does;
+  0.99 alike or more.
+- **Sound Master** (`.sm`): Michiel Soede's Sound Master 1.0 to 3.0 ("(c) 1991-94"), used mostly by
+  Jeroen Soede, Wanted Team write: Doofus and Future Shock, twelve files of a song each. The same as
+  UADE's in every song, and 0.9995 alike or more. One, Doofus's third tune in the game, comes round
+  again only after 13 minutes, past the ten that siday plays a song through to find its length.
+- **Darius Zendeh** (`.dz`): his own replayers, for R-Type, Katakis, Denaris and Crash and Burn,
+  called with a command in a register. 15 files, 40 songs, every one the same as UADE's to the tick.
+  Neither his player nor UADE ends the songs that go round, which is most of them: here a song ends
+  when the module itself marks its music as over, or, in Katakis's and Denaris's, when it comes back
+  to where it started.
+- **Mark II** (`.mii`): the Mark II Sound System, which grew from his editor (Andreas Scholl went on
+  with it, and Cachet Software sold it): Katakis's and Denaris's title and end music again, four files,
+  the same as UADE's to the tick. Its player ends a song where it goes round, and as it does so clears
+  the wrong word of the module's, so that after the first time round one voice is silent; UADE plays it
+  so, and so does siday.
+- **Steve Barrett** (`.sb`): his music of 1988 to 1990, and Wally Beben's for Street Fighter: Advanced
+  Ski Simulator (at a hundred ticks a second, as the player has it), Artificial Dreams, Chronicles of
+  Omega, Dragon Scape and Kelly X. Six files, 16 songs, the same as UADE's in every song; 0.994 alike
+  or more, but for Street Fighter's first song, 0.94, whose voices are turned off and on again (see SPL).
+- **Rob Hubbard** (`.rh`): his music of 1989 to 1991, for Populous, Budokan, PGA Tour Golf and The
+  Bard's Tale III. Five files, 18 songs, the same as UADE's to the tick, and 0.998 alike or more.
+- **Rob Hubbard ST** (`.rho`): his music of 1987 and 1988 on Steve Bak's replayer from the Atari ST,
+  made for the Amiga: Gold Runner, Jupiter Probe and Battleships, three files on three voices of short
+  waves. The same as UADE's but for one silent voice of Jupiter Probe's, which is started a tick early;
+  0.985 alike or more.
+- **Fred Monitor** (`.fred`): Frederic Hahn's, as UADE's own player of it names it: Fuzzball and
+  Ilyad, four files, 24 songs, the same as UADE's in every song, 0.994 alike or more. UADE never ends
+  them (its player's test for an end fails on these files, it says); here a song ends once every voice
+  has come to where its list jumps back, or when the module stops itself.
+
+- **Desire** (`.dsr`): Dentons' music of 1993 and 1994, as the player's credit has it, for Power
+  Drive and Batman Returns. Three files, 26 songs, the same as UADE's in every song. Most of the songs
+  go round, and the player ends only those that stop: here a song also ends once every voice has
+  come round, its longest loop played through once (UADE's three that end, end at the same moment). One
+  song of Batman Returns goes round a part of it twenty times, as its code says, and so is over eight
+  minutes long. The last song of each of Power Drive's is past the end of the list of them, and is
+  silent, in UADE too.
+- **SCUMM** (`.scumm`): the music and sounds of Lucasfilm's Maniac Mansion (Chris Grigg's) and Zak
+  McKracken (Matthew Kane's), each file one sound's own 68000 code, as Andy Silva's player for
+  EaglePlayer calls it. Ten files, the same as UADE's. A sound says when it is done, which the player
+  does not heed; here it ends the song. Three loop for ever, in UADE too.
+- **Sean Connolly** (`.scn`): his music for Surf Ninjas, of 1993, and his replayer, which its own
+  text calls his "EMS". One file, seven songs, the same as UADE's, each ending where UADE's does. His
+  replayer is in three versions in the player; only the one this file has is played, and the other
+  two are refused, with no file to check them by.
+
+How loud it is: at the level of modules, these come out between 0.5 and 8.6 dB louder in the
 middle of their files, and each is turned down by its own amount to the level of the rest.
 
 ## CUST — DeliTracker's custom modules

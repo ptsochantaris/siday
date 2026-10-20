@@ -21,6 +21,8 @@ typealias DesirePlayer = WantedTeamPlayer<Desire>
 
 struct Desire: WantedTeamRecipe {
     static let format = "Desire"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -19.9 dB.)
+    static let gain: Float = 0.28
 
     /// `Check2` (lines 234-269): longer than 2,500 bytes; the four voices' records' third longs $00010101;
     /// within the 400 bytes after them a LEA x(PC),A4, which the module's routine for a tick begins

@@ -21,6 +21,8 @@ typealias SeanConnollyPlayer = WantedTeamPlayer<SeanConnolly>
 
 struct SeanConnolly: WantedTeamRecipe {
     static let format = "Sean Connolly"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -18.0 dB.)
+    static let gain: Float = 0.23
 
     /// The player's file is 4,204 bytes, its hunk 3,964: relocated to $E000 by UADE, the module goes
     /// at $10000.
