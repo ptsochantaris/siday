@@ -114,6 +114,8 @@ public enum CompanionFolder {
 ///   (`SMP.title` for `DNS.title`).
 /// - a replayer of Mark Cooksey's of 1988, `title.mcr`, has its song data and samples in `title.mcs`
 ///   (on the Amiga's own disks `MCR.title`'s in `MCS.title`).
+/// - a score of Scott Johnston's SoundPlayer, `title.sjs`, has its samples in `title.smp` (on the Amiga's
+///   own disks `SJS.title`'s in `SMP.title`).
 /// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
 ///   `Instruments`, each named in the score.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
@@ -224,6 +226,11 @@ public enum Companions {
             // `title.smp` for `title.dns`; on the Amiga's own disks `SMP.title` for `DNS.title`.
             var names = ["\(stem).smp"]
             if fileName.lowercased().hasPrefix("dns.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .sjs:
+            // `title.smp` for `title.sjs`; on the Amiga's own disks `SMP.title` for `SJS.title`.
+            var names = ["\(stem).smp"]
+            if fileName.lowercased().hasPrefix("sjs.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
         case .mcr:
             // Named as the replayer is, as Wanted Team's player looks for it: `MCS.title` for

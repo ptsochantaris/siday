@@ -51,7 +51,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case cust
     case dl
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
-    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps
+    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -148,7 +148,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// for EaglePlayer or DeliTracker that took its place (Infogrames', Fashion Tracker's and the rest).
     public var isPortedGamePlayer: Bool {
         switch self {
-        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps: true
+        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs: true
         default: false
         }
     }
@@ -169,7 +169,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .jt: "MON"
         case .dl: "DLN"
         case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash, .tw: "CORE"
-        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps: "DUM"
+        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs: "DUM"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -371,6 +371,13 @@ public enum TuneLoader {
             return try PaulaTickRenderer(CinemawarePlayer(data, instruments: CompanionFolder.unpack(folder)), options: options)
         case .ps:
             return try PaulaTickRenderer(PaulShieldsPlayer(data), options: options)
+        case .sjs:
+            // Scott Johnston's SoundPlayer, with its samples beside it.
+            guard let samples = companions.first ?? nil else {
+                guard SJSPlayer.isOne(data) else { throw TuneError.unsupported("not a score of SoundPlayer's") }
+                throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+            }
+            return try PaulaTickRenderer(SJSPlayer(data, samples: samples), options: options)
         case .jpo:
             return try PaulaTickRenderer(SteveTurnerPlayer(data), options: options)
         case .psa:

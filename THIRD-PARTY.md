@@ -223,11 +223,11 @@ for the same kinds of constants; the rate it mixes at is the one UADE runs it at
 ## Infogrames, Fashion Tracker, the Peter Verswyvelen Packer, the Alcatraz Packer and others
 
 `Sources/SidayKit/Infogrames`, `FashionTracker`, `PeterVerswyvelenPacker`, `AlcatrazPacker`,
-`DigitalSonix`, `AndrewParton`, `EditeurMusicalSequentiel`, `ForgottenWorlds`, `Leggless`, `JamCracker`, `AMComposer`, `ProfessionalSoundArtists`, `MusicalEnlightenment`, `SteveTurner`, `Cinemaware` and `PaulShields` play
+`DigitalSonix`, `AndrewParton`, `EditeurMusicalSequentiel`, `ForgottenWorlds`, `Leggless`, `JamCracker`, `AMComposer`, `ProfessionalSoundArtists`, `MusicalEnlightenment`, `SteveTurner`, `Cinemaware`, `PaulShields` and `SoundPlayer` play
 these formats as the players of them carried by UADE do: Andy Silva's DeliTracker player for Infogrames'
 music (read in UADE's `amigasrc/players/uade/infogrames`, whose licence is not given), and Wanted Team's
 players for EaglePlayer of the others (`FashionTracker-v1.0`, `PeterVerswyvelenPacker`,
-`Alcatraz_Packer`, `DigitalSonixChrome_v1.asm`, `Andrew Parton`, `EMS`, `LME`, `AMComposer`, `PSA`, `TME`, `SteveTurner`, `Cinemaware`, `PaulShields` in
+`Alcatraz_Packer`, `DigitalSonixChrome_v1.asm`, `Andrew Parton`, `EMS`, `LME`, `AMComposer`, `PSA`, `TME`, `SteveTurner`, `Cinemaware`, `PaulShields`, `SoundPlayer` in
 `amigasrc/players/wanted_team`), and Psygore's for Forgotten Worlds (UADE's `players/ForgottenWorlds_Game`,
 read in its 68000 code), and Buggs/DEFECT's for JamCracker (`amigasrc/players/defect/jamcracker`). Their code was read for that, and nothing of it is
 carried here but its tables of periods, and, for Paul Shields' player, the seven waves of its own that

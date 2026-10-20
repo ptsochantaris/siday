@@ -1093,6 +1093,15 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   for Amnios, with envelopes of pitch and volume by the instrument. Fourteen files, the same as UADE's to
   the tick, 0.9997 alike or more.
 
+- **SoundPlayer** (`.sjs`, with its `.smp`): Scott Johnston's driver for DMA Design's Lemmings (1991),
+  with Tim Wright's music, and that of Oh No! More Lemmings and Christmas Lemmings 1994 (Brian
+  Johnston's) and Christmas Lemmings 1993 (Andy Whyte's). Each voice reads its own column of the score
+  from its own place, so that a wait in one lets the others go on, and the samples are IFF files one
+  after another in the file beside the score. The tick is the score's own, about 49 a second in Tim
+  Wright's. Where Wanted Team's player moves a fading volume without telling the sound chip, the
+  game's own player is followed, which does; no file in the collection fades. Thirty-four files, the
+  same as UADE's to the tick.
+
 How loud it is: at the level of modules, these are between 1.0 dB quieter and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 
