@@ -23,6 +23,8 @@ typealias SoundImagesPlayer = WantedTeamPlayer<SoundImages>
 
 struct SoundImages: WantedTeamRecipe {
     static let format = "Sound Images"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -21.0 dB.)
+    static let gain: Float = 0.32
 
     /// `Check2` ($500): the kind of the module, 1 or 2, or nil. The first is a BRA.W forwards to an even
     /// place two bytes before which is an RTE and `MOVEM.L`, and eight before `$009C4CDF` (the end of its

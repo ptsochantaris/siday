@@ -280,11 +280,12 @@ the lengths of notes and rests, and of the filters a synthesised instrument is p
 
 ## Wanted Team's players, and more composers' drivers
 
-`Sources/SidayKit/WantedTeam` finds, mends and calls the drivers of seventeen more of the Amiga's
+`Sources/SidayKit/WantedTeam` finds, mends and calls the drivers of 28 more of the Amiga's
 composers and studios, which are in the files themselves, on siday's own Amiga, as the players of them
 for EaglePlayer that UADE carries do: Wanted Team's (in `amigasrc/players/wanted_team`, where their
 source is given, or in UADE's `players`, read in their 68000 code where it is not: Fred Gray, Howie
-Davies, Sound Programming Language, Beathoven Synthesizer, Sean Connolly), Andy Silva's for the SCUMM
+Davies, Sound Programming Language, Beathoven Synthesizer, Sean Connolly, Sound Images, Mike Davies,
+Jason C. Brooke, Dynamic Synthesizer), Andy Silva's for the SCUMM
 sounds and Eagleeye's for Mark II (in UADE's `players`, read in their code), Stephen Mifsud's for
 Darius Zendeh (`amigasrc/players/dz`), and UADE's own for Fred Monitor (`amigasrc/players/fred`,
 Heikki Orsila, LGPL). Their code was read for that, and nothing of it is

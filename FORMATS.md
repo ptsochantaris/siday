@@ -1568,6 +1568,59 @@ The same music is
   replayer is in three versions in the player; only the one this file has is played, and the other
   two are refused, with no file to check them by.
 
+- **Sound Images** (`.tw`): Tony "Tiny" Williams's music of 1988 to 1993, as the player's credit has
+  it, for Shinobi, Viz, Narc, Smash TV, Judge Dredd, Nitro, Teenage Mutant Hero Turtles, Super Monaco GP,
+  International Ice Hockey, Future Basketball, MoonFall, Never Mind, Sharkey's Moll, Chuckie Egg II and
+  Blinky's Scary School. 30 files, 133 songs, each with a handler of its own for Paula's interrupts that
+  gives a voice its next sample. Every period and volume is the same as UADE's, and every song ends where
+  UADE's does; which notes' first samples the handler catches depends on a few of the processor's
+  clocks against the beam, on both Amigas, so they differ now and then. Eight songs crash UADE, as some
+  modules ask for those interrupts before their handler is in place: here they wait for it, as UADE
+  does when it does not crash.
+- **Wally Beben** (`.wb`): his music of 1988 to 1990 ("Wally 'Hagar' Beben"), on his Ariston replayer,
+  for Elite, Hammerfist, Superman, Colossus Chess X, Dark Side, Total Eclipse, Pool of Radiance,
+  Hyperdome, Lancaster, Circus Games, Time Machine and others, and Richard Joseph's Wicked on the same
+  replayer. 21 files, 82 songs, the code saved where it ran in the game, and moved where UADE loads it as
+  the player moves it. The same as UADE's in every song.
+- **Mike Davies** (`.md`): his music of 1989 to 1994 for Strider and Strider II, Mercs, Alien Storm,
+  Die Hard 2, Indiana Jones and the Last Crusade, Dynasty Wars and Italy 1990 (which is the same file as
+  World Class Soccer). Nine files, 50 songs, moved as Wally Beben's are, and the same as UADE's to the tick.
+- **Jason C. Brooke** (`.jcb`): his music of 1987 to 1990: Out Run,
+  Space Harrier, Thunder Blade, After Burner, 1943, Side Arms, Ikari Warriors, Pac-Land, Vixen, Heavy
+  Metal, Harley-Davidson, Rockford, Feud, World Darts and others. 20 files, 85 songs, the same as UADE's
+  but for Pac-Land's: its code reads its envelopes through a register it never sets, which UADE's host
+  leaves such that every one is silent, and siday's such that they are heard.
+- **Ashley Hogg** (`.ash`): his and Jonathan Menzies' music of 1991 to 1993: Nobby the Aardvark, Spike in
+  Transylvania and CJ in the USA, and the two of 1993, Cosmic Spacehead and Fantastic Dizzy, whose
+  samples are in a file beside them (`title.smp`). Five files, 69 songs, the same as UADE's; a song of
+  1993 that jumps back to repeat ends there, which is siday's own rule.
+- **Mark Cooksey** (`.mc`, and `.mcr` with `.mcs`): his music on Richard Frankish's player, of 1988 to
+  1990: Commando, Ghosts'n Goblins, Paperboy, Gremlins 2, Mighty Bomb Jack, Grand National and World
+  Championship Soccer; and the earlier kind, an Atari ST program with its song data in a second file
+  beside it (`title.mcs` for `title.mcr`): Live and Let Die (also Aquablast), Overlander, A Question of
+  Sport and Mike Read's Pop Quiz. 13 files, 74 songs, the same as UADE's, with the player's mends of the
+  replayer (Commando "sounds better", its notes say).
+- **Kris Hatlelid** (`.kh`): his music of 1989 to 1991 for The Cycles, Grand Prix Circuit, Test Drive II,
+  Hardball II, Wings of Fury, Super C and Teenage Mutant Ninja Turtles, and his replayer playing Igor
+  Shimsky's music for Fiendish Freddy's Big Top o' Fun. 13 files, 71 songs; most are music alone, played
+  by his replayer in a file beside them named `songplay`. Each song sets its own speed. 62 songs are the
+  same as UADE's to the tick; in nine, his handler for Paula's interrupts runs on a few ticks in one
+  Amiga and not the other. (The custom modules of Grand Prix Circuit are the same music, see CUST.)
+- **Sean Conran** (`.scr`): his music of 1989 to 1991 for Count Duckula, Defenders of the Earth, Yogi
+  Bear, Hong Kong Phooey, Top Cat, Ruff and Reddy, Wacky Races, Mega Twins, Infestation, Videokid and
+  WWF Wrestlemania. 14 files, 38 songs, the same as UADE's. Each note is begun on the longest of periods
+  and given its own a moment later; UADE's Paula takes up a period only as a note's first sample plays,
+  and so never counts the long one, and siday's now does the same. Two sound effects of Defenders of
+  the Earth play samples that are not in the file, and are silent.
+- **Jesper Olsen** (`.jo`): his music of 1990 to 1995 for Guldkorn Expressen (the same as Kalas Puffs
+  Expressen), Georg Glaxo and Lollypop; the last two's are music and samples alone, played by the game's
+  own driver beside them, which Wanted Team kept as `WantedTeam.bin`. 29 files, 74 songs and Lollypop's
+  30 sound effects, the same as UADE's in every one. Where a song leaves voices to the game's sound
+  effects, which never come, it ends when the voices that are heard have come round.
+- **Dynamic Synthesizer** (`.dns`): Chris Hülsbeck's of 1987 and 1988, for Hollywood Poker Pro, with its
+  samples beside it (`title.smp`): two files, 13 songs, the code moved from where it was assembled to run
+  as the player moves it, and the same as UADE's.
+
 How loud it is: at the level of modules, these come out between 0.5 and 8.6 dB louder in the
 middle of their files, and each is turned down by its own amount to the level of the rest.
 
