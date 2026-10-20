@@ -45,13 +45,16 @@ struct WantedTeamPlayer<Recipe: WantedTeamRecipe>: ~Copyable {
 
     static func isOne(_ data: [UInt8]) -> Bool { Recipe.isOne(data) }
 
-    /// - Parameter name: the module's file name, as the player is told it.
-    init(_ data: [UInt8], song: Int = 0, name: String = "module") throws(TuneError) {
+    /// - Parameters:
+    ///   - name: the module's file name, as the player is told it.
+    ///   - files: other files the player may load beside the module (its samples, or a replayer kept in a
+    ///     file of its own), by the names the player asks the host for them by.
+    init(_ data: [UInt8], song: Int = 0, name: String = "module", files: [(name: String, bytes: [UInt8])] = []) throws(TuneError) {
         var refusal: TuneError?
         let host: DeliTrackerHost
         do throws(TuneError) {
             guard Recipe.isOne(data) else { throw TuneError.malformed("not a module of \(Recipe.format)'s") }
-            host = try DeliTrackerHost(moduleAt: Recipe.moduleAt, module: data, name: name)
+            host = try DeliTrackerHost(moduleAt: Recipe.moduleAt, module: data, name: name, files: files)
         } catch {
             refusal = error
             host = try! DeliTrackerHost(moduleAt: Recipe.moduleAt, module: [])
