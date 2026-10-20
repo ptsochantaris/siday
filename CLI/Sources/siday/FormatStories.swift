@@ -1102,6 +1102,18 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   game's own player is followed, which does; no file in the collection fades. Thirty-four files, the
   same as UADE's to the tick.
 
+- **Paul Robotham** (`.dat`, with its `.ssd`): his music on Pete Barnett's driver, "another 4 voice MIDI
+  clone" as Wanted Team's notes call it, for Space 1889, Ashes of Empire, Dawn Patrol, MegaTraveller 2
+  and Starlord, whose player (MicroProse's, of 1994) is the one played, with the two commands of the
+  Amiga's filter that Dawn Patrol's has. The samples are in a file beside the scores, by the score's own
+  name or, as most of a game's scores share them, `mdtest.ssd`. As `.dat` is the name of many files of
+  other kinds, a file is played only when the player's own check finds it a score. A song stops where
+  all its voices have ended, as the driver has it; where Wanted Team's player begins it again as soon as
+  its first voice reaches its end, the last notes of the others are cut short, by up to four seconds.
+  Most of Ashes of Empire's scores, and Space 1889's, go round a loop of a hundred times or more, which
+  siday takes as for ever: each time round is the song's end. Nineteen files, the same as
+  UADE's to the tick for five minutes.
+
 How loud it is: at the level of modules, these are between 1.0 dB quieter and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 

@@ -116,6 +116,8 @@ public enum CompanionFolder {
 ///   (on the Amiga's own disks `MCR.title`'s in `MCS.title`).
 /// - a score of Scott Johnston's SoundPlayer, `title.sjs`, has its samples in `title.smp` (on the Amiga's
 ///   own disks `SJS.title`'s in `SMP.title`).
+/// - a score of Paul Robotham's on Pete Barnett's driver, `title.dat`, has its samples in `title.ssd`, or,
+///   where the scores of a game share them, `mdtest.ssd`.
 /// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
 ///   `Instruments`, each named in the score.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
@@ -132,7 +134,7 @@ public enum Companions {
 
     /// The endings of the names of companion files, of every kind: a file with one of these is part of
     /// a tune, not a tune.
-    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss", "mcs", "ins"]
+    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss", "mcs", "ins", "ssd"]
 
     /// The names, whole, of companion files kept under a name of their own and not an ending: Kris
     /// Hatlelid's replayer and Jesper Olsen's games' driver.
@@ -232,6 +234,10 @@ public enum Companions {
             var names = ["\(stem).smp"]
             if fileName.lowercased().hasPrefix("sjs.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .dat:
+            // As the player looks for them: the score's name with `.ssd`, then the file the scores of a game
+            // share, `mdtest.ssd`.
+            return [Companion(part: .samples, names: ["\(stem).ssd", "mdtest.ssd"], kind: nil, required: true)]
         case .mcr:
             // Named as the replayer is, as Wanted Team's player looks for it: `MCS.title` for
             // `MCR.title`, and as UnExoticA keeps them, `title.mcs` for `title.mcr`.
