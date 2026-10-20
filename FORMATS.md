@@ -1041,7 +1041,15 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   begun, for that tick, a volume of eight times its voice's number, by a slip of a register; here it has
   its instrument's volume, as Hasler's own code gave it.
 
-How loud it is: at the level of modules, these are between 1.5 and 6.8 dB louder in the middle of
+- **JamCracker** (`.jam`, "BeEp"): JamCrackerPro's, by M. Gemmel and Xag of Betrayal, as DEFECT's
+  player for EaglePlayer has it: for Roll or Die (Ingmar Hansch's) and Paramax (Martin Tykesson's). Its
+  instruments are samples or short waves mixed afresh on every tick, each note with its own speed,
+  arpeggio, vibrato and slide. Four files, the same as UADE's to the tick, 0.998 alike.
+- **A.M.Composer** (`.amc`): Marc Hawlitzeck's, of 1989, version 1.2, for his Magic Jumper and Thomas
+  Porschen's Krymini: not patterns but eight lists of events, four of notes and four of effects, at a
+  speed each module sets for itself. Five files, the same as UADE's to the tick, 0.998 alike.
+
+How loud it is: at the level of modules, these are between 1.5 and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 
 ## BP — Brian Postma's SoundMon

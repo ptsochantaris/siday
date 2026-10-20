@@ -55,8 +55,8 @@ siday ~/Music/chiptunes --shuffle
   - Delta Music 2.0
   - Sonic Arranger
   - Infogrames' scores, Fashion Tracker, the Peter Verswyvelen Packer, the Alcatraz Packer, Digital
-    Sonix & Chrome's, Andrew Parton's, the Editeur Musical Séquentiel, Forgotten Worlds' and the
-    Leggless Music Editor, by ports of their players
+    Sonix & Chrome's, Andrew Parton's, the Editeur Musical Séquentiel, Forgotten Worlds', the
+    Leggless Music Editor, JamCracker and A.M.Composer, by ports of their players
 - **Music systems**:
   - TFMX, Chris Hülsbeck's, with TFMX Professional and 7V, as his own players play it;
   - Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, by Michael Schwendt's player of them,
