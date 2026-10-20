@@ -576,12 +576,17 @@ function counted(count) {
 /// What kind of file a name is: 1 for a tune, 2 for a playlist, 3 for a tune's companion, 0 for none
 /// of those (see `listeners.kind`).
 /// That goes by what follows the name's last full stop, so the page is asked once for each ending
-/// and not once for each file: a whole collection is a great many files and few endings.
+/// and not once for each file: a whole collection is a great many files and few endings. A few
+/// companions are known by the whole of their name and not by an ending (as `Companions.names` has
+/// them), and a name with no full stop has no ending: those are asked about each time.
 const kinds = new Map();
+const companionsByName = new Set(["songplay", "wantedteam.bin"]);
 function kindOf(name) {
-  const stop = name.lastIndexOf(".");
-  if (stop < 0 || !listeners) return 0;
-  const ending = name.slice(stop + 1);
+  if (!listeners) return 0;
+  const leaf = name.slice(name.lastIndexOf("/") + 1);
+  const stop = leaf.lastIndexOf(".");
+  if (stop < 0 || companionsByName.has(leaf.toLowerCase())) return listeners.kind(name);
+  const ending = leaf.slice(stop + 1);
   let kind = kinds.get(ending);
   if (kind === undefined) {
     kind = listeners.kind(name);

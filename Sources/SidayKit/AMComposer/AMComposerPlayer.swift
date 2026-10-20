@@ -271,7 +271,9 @@ extension AMComposerPlayer {
             at += Self.rowClocks
             nextRow(&at, &output)
         }
-        clock += tickClocks
+        // (Kept within a whole number of the beam's lines, of 227 clocks and of 227.5, which is all the
+        // waits ask of it: a count of every clock would outgrow a whole number in a browser.)
+        clock = (clock + tickClocks) % 103_285
         return 20
     }
 

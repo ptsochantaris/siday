@@ -140,7 +140,7 @@ struct InfogramesPlayer: ~Copyable {
     private var stopped = false
 
     /// A song that has not stopped in an hour is taken never to.
-    private var mostTicks: Int { 3600 * Int(Paula.clockHz) / tickClocks }
+    private var mostTicks: Int { Int(3600 * Paula.clockHz / Double(tickClocks)) }
     /// How many bytes of its sequence and patterns a voice may read in a tick before it is taken to be
     /// going round for ever; far more than any score reads.
     static let mostReads = 0x10000
@@ -345,7 +345,9 @@ extension InfogramesPlayer {
             output.takeNextBuffer(v, start: loop, length: sampleWord(entry + 14))
             at = looped + Self.afterLoopClocks
         }
-        clock += tickClocks
+        // (Kept within a whole number of the beam's lines, of 227 clocks and of 227.5, which is all the
+        // waits ask of it: a count of every clock would outgrow a whole number in a browser.)
+        clock = (clock + tickClocks) % 103_285
         if tempoLeft == 0 { tempoLeft = tempo }
         if !stopped, (0 ..< 4).allSatisfy({ voices[$0].flags & 0x40 != 0 }) {
             // Every voice has come to its end: nothing more is heard.

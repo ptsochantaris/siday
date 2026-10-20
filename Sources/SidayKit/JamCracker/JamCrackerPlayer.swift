@@ -331,7 +331,9 @@ extension JamCrackerPlayer {
             ticksLeft = speed
         }
         for v in 0 ..< 4 { moveOn(v, &at, &output) }
-        clock += Self.tickClocks
+        // (Kept within a whole number of the beam's lines, of 227 clocks and of 227.5, which is all the
+        // waits ask of it: a count of every clock would outgrow a whole number in a browser.)
+        clock = (clock + Self.tickClocks) % 103_285
         return 20
     }
 

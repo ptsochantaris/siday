@@ -223,9 +223,10 @@ final class Player {
         try? sidayListen(
             { name in
                 let letters = Array(name.utf8)
-                guard let stop = letters.lastIndex(of: 0x2E) else { return 0 }
+                let leaf = String(decoding: letters[((letters.lastIndex(of: 0x2F) ?? -1) + 1)...], as: UTF8.self)
+                guard let stop = letters.lastIndex(of: 0x2E) else { return Companions.are(fileName: leaf) ? 3 : 0 }
                 let kind = String(decoding: letters[(stop + 1)...], as: UTF8.self)
-                return TuneFormat(fileExtension: kind) != nil ? 1 : PlaylistFile.reads(fileExtension: kind) ? 2 : Companions.are(fileExtension: kind) ? 3 : 0
+                return TuneFormat(fileExtension: kind) != nil ? 1 : PlaylistFile.reads(fileExtension: kind) ? 2 : Companions.are(fileName: leaf) ? 3 : 0
             },
             { [self] lines in
                 // Each line is a name, a tab and a note. (The tab that counts is the last: a note has none.)

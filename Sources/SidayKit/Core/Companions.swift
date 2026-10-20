@@ -128,11 +128,25 @@ public enum Companions {
 
     /// The endings of the names of companion files, of every kind: a file with one of these is part of
     /// a tune, not a tune.
-    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss", "mcs"]
+    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss", "mcs", "ins"]
+
+    /// The names, whole, of companion files kept under a name of their own and not an ending: Kris
+    /// Hatlelid's replayer and Jesper Olsen's games' driver.
+    public static let names: Set<String> = ["songplay", "wantedteam.bin"]
 
     /// True if a file of this extension, in any case, is a companion of a tune.
     public static func are(fileExtension: String) -> Bool {
         endings.contains(fileExtension.lowercased())
+    }
+
+    /// True if a file of this name (the last part of its path), in any case, is a companion of a tune:
+    /// by its ending, or by the whole of it.
+    public static func are(fileName: String) -> Bool {
+        let lowered = fileName.lowercased()
+        if names.contains(lowered) { return true }
+        let letters = Array(lowered.utf8)
+        guard let stop = letters.lastIndex(of: 0x2E) else { return false }
+        return endings.contains(String(decoding: letters[(stop + 1)...], as: UTF8.self))
     }
 
     /// The files a tune of this kind needs beside its own, by the tune's file name (the last part of
