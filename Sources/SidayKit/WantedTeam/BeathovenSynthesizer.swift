@@ -24,6 +24,8 @@ typealias BeathovenSynthesizerPlayer = WantedTeamPlayer<BeathovenSynthesizer>
 
 struct BeathovenSynthesizer: WantedTeamRecipe {
     static let format = "Beathoven Synthesizer"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -21.1 dB.)
+    static let gain: Float = 0.32
 
     /// `Check3` ($4CE): the file an AmigaDOS program, its first hunk for chip memory, its code
     /// `MOVEQ #-1,D0; RTS`, "BEATHOVEN100", "BEATHOVENNEW" or "BEATHOVEN109", and its routines for a

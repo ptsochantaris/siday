@@ -20,6 +20,8 @@ typealias SoundMasterPlayer = WantedTeamPlayer<SoundMaster>
 
 struct SoundMaster: WantedTeamRecipe {
     static let format = "Sound Master"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -21.2 dB.)
+    static let gain: Float = 0.33
 
     /// `Check2`: the module's three branches, the first two forward to even places; a `LEA (PC),A3`
     /// within the first 30 bytes of the code the first goes to; and the first RTS after it following an
