@@ -135,8 +135,17 @@ other formats ASAP reads, and the trackers' players it carries for them, nothing
 `Sources/SidayKit/Packers/ProWizard` is a Swift port of the part of ProWizard, as libxmp 4.6.3 keeps
 it (`src/loaders/prowizard`), that unpacks the modules of The Player 4.x, 5.0a, 6.0a and 6.1a,
 NoisePacker 1 to 3, ProRunner 1.0 and 2.0, ProPacker 2.1 and 3.0, Pha Packer, Tracker Packer 3, AC1D
-Packer, the Novotrade Packer, Digital Illusions' packer and Game Music Creator, and the finding of a
+Packer, the Novotrade Packer, Digital Illusions' packer, Promizer 1.8a (`pm18a.c`, Copyright (C) 1997
+Asle / ReDoX, modified by Claudio Matsuoka and Alice Rowan) and Game Music Creator, and the finding of a
 file's packer (`prowiz.c`), with libxmp's reading of a file (`hio.c`, `dataio.c`) as far as they need it.
+Beside them, after libxmp's loaders of the same 4.6.3 (same licence): `IceTracker.swift`, which reads
+SoundTracker 2.6 and Ice Tracker modules (`ice_load.c`), and `Sources/SidayKit/OctaMED/MMDCFile.swift`,
+which unpacks MED modules packed by MMDC (`mmd1_load.c`). Where these unpack what ProWizard does not, or
+otherwise than it, they do as UADE's converter does, Deli-Wizard ("Deli-Wizard genie module v2.20 by
+Gryzor", "written by Nicolas FRANCK in 1994-95", carried in UADE's `amigasrc/players/tracker/converter`):
+The Player 6.0a's packed samples, Promizer's patterns, NoisePacker 3's test, ProRunner's "+SNT", and the
+patterns of SoundTracker 2.6. Its code was read for that, and nothing of it is carried here but the
+table of steps of the packed samples.
 
 - Copyright (C) 1997-1999 Sylvain "Asle" Chipaux
 - Copyright (C) 1996-2021 Claudio Matsuoka and Hipolito Carraro Jr
@@ -161,6 +170,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
+## AMOS music banks
+
+`Sources/SidayKit/Amiga/AMOSBankFile.swift` reads an AMOS music bank into a ProTracker module as UADE's
+player of them does, step for step: "Amos Music Bank Player (Dec 2004)", which says "François Lionet,
+adapted by DEFECT, just cut,copy'n pasted for UADE by mld/uade team" (`amigasrc/players/ambk/AMOS.s` in
+UADE).
+
+- GNU General Public License, version 2 or later
+- Source: https://gitlab.com/uade-music-player/uade
 
 ## ChipTracker
 

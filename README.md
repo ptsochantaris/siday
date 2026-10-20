@@ -39,9 +39,10 @@ siday ~/Music/chiptunes --shuffle
 - **Modules** of four channels, ProTracker's and its relatives', played by ProTracker 2.3D's
   replayer:
   - packed whole with PowerPacker or XPK, or not packed;
-  - packed by the packers games used: The Player, NoisePacker, ProRunner, ProPacker, Pha Packer,
-    Tracker Packer, AC1D, Novotrade and Digital Illusions;
-  - ChipTracker's, read as its own replayer reads them;
+  - packed by the packers games used: The Player (its packed samples too), NoisePacker, ProRunner,
+    ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions and Promizer;
+  - ChipTracker's, read as its own replayer reads them, and SoundTracker 2.6's and Ice Tracker's;
+  - AMOS's music banks, read into modules as UADE reads them;
   - the Magnetic Fields Packer's, with its samples in a file beside it.
 - **Trackers with players of their own**, each played by its own player:
   - PumaTracker
@@ -70,7 +71,7 @@ siday ~/Music/chiptunes --shuffle
     with its samples beside it
   - Dave Lowe's later music (King's Quest VI, Beneath a Steel Sky, Super Street Fighter II)
 - **Other trackers**:
-  - MED (MED4, and MMD0 to MMD3), by players written to do as OctaMED's do
+  - MED (MED4, MMD0 to MMD3, and MMDC, packed for games), by players written to do as OctaMED's do
   - AHX and HVL, by their own replayers (HivelyTracker's on its own mixer)
   - SFX (SoundFX) and OKT (Oktalyzer)
   - DBM (DigiBooster Pro and 3), by DigiBooster 3's replayer on its own mixer
@@ -297,7 +298,7 @@ uses is said, and only what might be heard.
 Not played:
 
 - **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-- **Amiga:** a module packed by a game's packer that ProWizard refuses, or that says "+SNT" where ProRunner's say "SNT." (Winter Olympics'); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, a Richard Joseph module without its samples, or a Sonix score with no folder of its instruments beside it; a DeliTracker custom module that calls for what DeliTracker's host does not give (a task of its own); a song that MED saved before MED4 (MED2, MED3), and
+- **Amiga:** a module packed by a game's packer that ProWizard refuses; Startrekker's synthesised instruments (a module that has them says so, and plays without them); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, a Richard Joseph module without its samples, or a Sonix score with no folder of its instruments beside it; a DeliTracker custom module that calls for what DeliTracker's host does not give (a task of its own); a song that MED saved before MED4 (MED2, MED3), and
   a MED4 song whose instruments are kept in files of their own; a module of the later SoundFX, of
   31 samples.
 - **PC:** a DTM file from Digital Home Studio; the other kind of
@@ -380,7 +381,8 @@ the command-line player.
 | Ice unpacking | the C version by Hans Wessels (public domain) | — |
 | Sierra AGI sounds on the Amiga | Sierra's two routines, read in Wanted Team's player of the sounds for EaglePlayer | that player itself, run by UADE: all 745 files of UnExoticA's collection, each routine, by how loud each side is from moment to moment |
 | Sierra AGI sounds on the PC | the chip's writes as NewRisingSun's recordings of King's Quest II show them | those recordings, on the same chip: the chip told the same in 9 of the 13, and in the rest but where a recording leaves out writes |
-| Modules packed by games' packers | ProWizard by Sylvain Chipaux, as libxmp keeps it (MIT) | libxmp's ProWizard itself, byte for byte: all 787 packed files of UnExoticA's collection that it unpacks, and some 28,000 copies of them cut short or changed |
+| Modules packed by games' packers | ProWizard by Sylvain Chipaux, as libxmp keeps it (MIT); where ProWizard does not unpack a file, or unpacks it wrongly, UADE's converter, Deli-Wizard, read in its 68000 code | libxmp's ProWizard itself, byte for byte: all 787 packed files of UnExoticA's collection that it unpacks, and some 28,000 copies of them cut short or changed; UADE, by how loud each side is from moment to moment, on those it does not |
+| AMOS music banks | UADE's player of them (GPL), which reads them into a module | that player, run by UADE: the first 40 seconds of eight banks of seven games, by how loud each side is from moment to moment |
 | ChipTracker modules | ChipTracker's own replayer, read in Wanted Team's player for EaglePlayer | that player, run by UADE: the first minute of all 41 files of UnExoticA's collection, by how loud each side is from moment to moment |
 | TFMX modules | libtfmxaudiodecoder by Michael Schwendt (GPL), made to play as Chris Hülsbeck's players do where it does not: their 68000 code read in Wanted Team's players for EaglePlayer, and the player chosen as UADE chooses it | those players, run by UADE: the periods and volumes written, tick for tick, over the first 40 seconds of all 322 modules of UnExoticA's collection (315 the same throughout), and how loud each side is from moment to moment over the first minute; libtfmxaudiodecoder itself, tick by tick, with siday's changes set aside |
 | Jochen Hippel's TFMX and Future Composer | libtfmxaudiodecoder by Michael Schwendt (GPL); TFMX 7V's mixing from Hippel's own player, read in Wanted Team's player for EaglePlayer | libtfmxaudiodecoder itself, tick by tick: every song of all 230 files of UnExoticA's collection, and some 239,000 copies of them cut short or changed; UADE: the first minute of the 190 it plays, by how loud each side is from moment to moment |
@@ -557,7 +559,8 @@ from where and under which terms; [FORMATS.md](FORMATS.md) tells each format's s
   [ScummVM](https://www.scummvm.org/)'s player of it is what it was checked against, and from it are
   the tempos Legend of Kyrandia gives its scores.
 - MED and OctaMED are by Teijo Kinnunen, and the MED module is as he describes it in the notes on
-  the format that came with OctaMED; the MED4 file is as libxmp's authors read it. The players of
+  the format that came with OctaMED; the MED4 file, and the MMDC file packed for games, are as
+  libxmp's authors read them. The players of
   MED modules here, and the mixing, are siday's own: nothing in them is taken from OctaMED's,
   which they were written to do the same as.
 - SoundFX is by Christian Haller and Christian A. Weber (Linel, 1988), and Oktalyzer by Armin Sander

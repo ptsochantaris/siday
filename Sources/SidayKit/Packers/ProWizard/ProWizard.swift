@@ -14,17 +14,19 @@
 /// of the part of it these files need.
 enum ProWizard {
     /// The packers, in the order libxmp asks each whether a file is its: a file another packer's test
-    /// would also take is taken by the first.
+    /// would also take is taken by the first. (SoundTracker 2.6's, which libxmp loads as a format of
+    /// its own, is asked last.)
     enum Packer: CaseIterable {
-        case ac1d, novotrade, proRunner1, proRunner2, pha, trackerPacker3, digitalIllusions
+        case ac1d, novotrade, promizer18, proRunner1, proRunner2, pha, trackerPacker3, digitalIllusions
         case player4, proPacker21, proPacker30, player50, player60, player61
-        case noisePacker2, noisePacker1, noisePacker3, gameMusicCreator
+        case noisePacker2, noisePacker1, noisePacker3, gameMusicCreator, iceTracker
 
         /// What it is called, as ProWizard calls it.
         var name: String {
             switch self {
             case .ac1d: "AC1D Packer"
             case .novotrade: "Novotrade Packer"
+            case .promizer18: "Promizer 1.8a"
             case .proRunner1: "Prorunner 1.0"
             case .proRunner2: "Prorunner 2.0"
             case .pha: "Pha Packer"
@@ -40,6 +42,7 @@ enum ProWizard {
             case .noisePacker1: "NoisePacker v1"
             case .noisePacker3: "NoisePacker v3"
             case .gameMusicCreator: "Game Music Creator"
+            case .iceTracker: "SoundTracker 2.6"
             }
         }
 
@@ -51,6 +54,7 @@ enum ProWizard {
             switch self {
             case .ac1d: AC1DPacker.test(data, size)
             case .novotrade: NovotradePacker.test(data, size)
+            case .promizer18: Promizer.test(data, size)
             case .proRunner1: ProRunner.test1(data, size)
             case .proRunner2: ProRunner.test2(data, size)
             case .pha: PhaPacker.test(data, size)
@@ -66,6 +70,7 @@ enum ProWizard {
             case .noisePacker1: NoisePacker.test1(data, size)
             case .noisePacker3: NoisePacker.test3(data, size)
             case .gameMusicCreator: GameMusicCreator.test(data, size)
+            case .iceTracker: IceTracker.test(data, size)
             }
         }
 
@@ -74,6 +79,7 @@ enum ProWizard {
             switch self {
             case .ac1d: try AC1DPacker.depack(&input, &output)
             case .novotrade: try NovotradePacker.depack(&input, &output)
+            case .promizer18: try Promizer.depack(&input, &output)
             case .proRunner1: try ProRunner.depack1(&input, &output)
             case .proRunner2: try ProRunner.depack2(&input, &output)
             case .pha: try PhaPacker.depack(&input, &output)
@@ -89,6 +95,7 @@ enum ProWizard {
             case .noisePacker1: try NoisePacker.depack1(&input, &output)
             case .noisePacker3: try NoisePacker.depack3(&input, &output)
             case .gameMusicCreator: try GameMusicCreator.depack(&input, &output)
+            case .iceTracker: try IceTracker.depack(&input, &output)
             }
         }
     }
@@ -167,7 +174,7 @@ enum ProWizard {
     /// The endings of the names of files packed by these packers, as UnExoticA and others name them.
     static let extensions: Set<String> = [
         "ac1d", "ntp", "prun", "pru1", "pru2", "pha", "tp3", "di", "p4x", "p40a", "p40b", "p41a",
-        "pp21", "pp30", "p50a", "p60", "p60a", "p6x", "p61", "p61a", "np1", "np2", "np3", "gmc",
+        "pp21", "pp30", "p50a", "p60", "p60a", "p6x", "p61", "p61a", "np1", "np2", "np3", "gmc", "pro", "pr1", "pm1", "pm18a", "st26", "ice",
     ]
 
     /// The periods of ProTracker's three octaves, as the two bytes a note is written in: the first

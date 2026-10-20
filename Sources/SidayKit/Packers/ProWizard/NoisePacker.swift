@@ -125,8 +125,10 @@ enum NoisePacker {
 
         header += orderSize + highest + 8
 
+        // (libxmp asks for more than 63 bytes of tracks; UADE's converter, Deli-Wizard's `CheckNP30`,
+        // only for some, as Dragonstone's shortest sound effects have.)
         let trackSize = ProWizard.word(data, 6)
-        if trackSize <= 63 { return -1 }
+        if trackSize == 0 || trackSize & 1 != 0 { return -1 }
 
         if let more = ProWizard.request(size, header + trackSize + 2) { return more }
 
@@ -148,8 +150,9 @@ enum NoisePacker {
             if second & 0x0F == 0x0D, third > 0x40 { wrong += 1 }
             // A sample that is not there.
             if first << 4 & 0x10 | second >> 4 & 0x0F > samples { wrong += 1 }
-            // A line with nothing on it, which would have been a run of empty lines.
-            if first == 0, second == 0, third == 0, i < trackSize - 3 { wrong += 1 }
+            // (A line with nothing on it, which could have been a run of empty lines, is not counted
+            // as wrong, as libxmp counts it: Last Ninja 3's first level has four, and UADE's
+            // converter, which does not look at the tracks, takes it.)
             if wrong > 1 { return -1 }
             i += 3
         }

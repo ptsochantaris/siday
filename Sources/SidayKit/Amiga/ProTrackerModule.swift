@@ -239,6 +239,13 @@ final class ProTrackerModule {
         // A file with no four letters is taken on trust by the tracker this is ported from. Here it must
         // at least be big enough to hold the patterns it speaks of, and its samples no louder than loud.
         if kind == nil {
+            // Some, Jean Baudlot's for Bad Dudes and Castle Warrior, have numbers left in the order past
+            // the song's end, of patterns the file does not hold: for them the patterns are those the
+            // song plays, and the samples follow those.
+            if size < p + patternCount * 1024 {
+                patternCount = 1
+                for i in 0 ..< songLength { patternCount = max(patternCount, Int(orders[i]) + 1) }
+            }
             guard size >= p + patternCount * 1024 else { throw TuneError.malformed("not a module") }
             for i in 0 ..< 15 where UInt8(bitPattern: samples[i].volume) > 64 { throw TuneError.malformed("not a module") }
         }
@@ -352,6 +359,12 @@ final class ProTrackerModule {
                                              many: "samples are longer than ProTracker has room for, and are cut off at 64 KB."))
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        // Startrekker kept its synthesised instruments in a file of their own beside the module (its
+        // `.nt`), and left their samples empty in it: a module of Startrekker's that plays more than
+        // one empty sample is taken to have them, as OpenMPT takes it (`Load_mod.cpp`).
+        if self.kind == .startrekker, (0 ..< 31).count(where: { used[$0 + 1] && samples[$0].length == 0 }) > 1 {
+            shortfalls.append("Its synthesised instruments, which Startrekker kept in a file beside it (.nt), are not played.")
+        }
 
         // And the samples made safe to play.
         for i in 0 ..< 31 {

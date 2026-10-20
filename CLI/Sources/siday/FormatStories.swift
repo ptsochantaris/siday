@@ -345,7 +345,7 @@ samples' differences in place of the samples, or a track used twice once. Each g
 and the music of a game is as often found in one of them as not: The Player, in its versions 4, 5,
 6.0 and 6.1; NoisePacker, in three versions; ProRunner, in two;
 ProPacker, in two; Pha Packer, Tracker Packer, AC1D Packer, the Novotrade Packer, Digital Illusions'
-packer; and the files of Game Music Creator, a tracker of its own whose songs are near enough to
+packer, Promizer 1.8a, whose files begin with its own replayer; and the files of Game Music Creator, a tracker of its own whose songs are near enough to
 ProTracker's to be read as one, though a file named for it is played by its own player (see PUMA). What was packed was a ProTracker module, or one in all but name, and
 that is what each is unpacked to again, to be played as ProTracker played it. Sylvain Chipaux's
 ProWizard knew how to unpack them all; libxmp keeps it, and the unpacking here is a port of the part
@@ -360,9 +360,21 @@ a pattern other than the first, so that a jingle whose every place plays one pat
 song of no length, and is played here as that pattern once (fourteen files, of Brian the Lion and of
 Frankenstein); and the
 modules of Ultimate Pinball Quest, which say "KURT" where ProRunner's say "SNT.", are taken as
-ProRunner's, and so unpacked are as UADE plays them. Not played: the eight of Winter Olympics that say
-"+SNT", which unpacked as ProRunner's are not as UADE plays them; and eight named for packers that none of these packers
-takes, and that cannot be read as modules either. Two of Brian the Lion's are silent, because
+ProRunner's, and so unpacked are as UADE plays them; and so are the eight of Winter Olympics, which
+say "+SNT" there. UADE's converter, Nicolas Franck's Deli-Wizard, looks at how such a file is made and
+not at those letters, and takes six of the eight as ProRunner's: set beside UADE over their first 40
+seconds, by how loud each side is from moment to moment, those six are 0.995 alike or more. The other
+two, of the biathlon and the ski jump, it takes first as Unic Tracker's, with eight and ten songs, and
+plays as something else. NoisePacker 3's test in ProWizard asks for more than 63 bytes of tracks and
+no line with nothing on it; Deli-Wizard looks at neither, and nor is either asked here, so that the
+first level of Last Ninja 3 and two of the shortest sound effects of Dragonstone play (two more of
+Dragonstone's, 46 bytes each, are nothing of the kind, and are not played). The Player 6.0 could also
+pack the samples themselves, each byte two steps of four bits, into half their size; ProWizard does
+not unpack those, and they are unpacked as Deli-Wizard unpacks them (the intro of Statix, which comes
+out the size its file says). Promizer 1.8a, which ProWizard unpacks too, is unpacked with each
+pattern taken from where the song first plays it, as Deli-Wizard takes it: ProWizard takes the pattern
+of each number from that place in the order instead, and so plays the wrong patterns of a song that
+plays one again before its last is first heard, as the one of Aquanaut does. Two of Brian the Lion's are silent, because
 ProWizard numbers their patterns wrongly, where UADE plays them; and one of Evil's Doom's is silent
 in both. A file whose last sample is cut short (sixteen of The Player 4's, as the games' rippers
 left them) says so, and plays with that sample silent.
@@ -382,6 +394,38 @@ note within ProTracker's three octaves, uses the samples' finetune, and counts a
 words.) OpenMPT also reads some as having sounds of their own making, from waveforms kept before the
 tracks; no file to hand has them, nor a replayer of them to play them by, and such a file is not
 played.
+
+SoundTracker 2.6 and Ice Tracker kept a module the same way, but for its moves: tracks of 64 lines,
+and for each place in the song the four of them to play, with "MTN" or "IT10" where ProTracker has
+"M.K.". Such a file is read into a ProTracker module of a pattern for each different four tracks, as
+Deli-Wizard reads it (the one to hand, of Exile, is 0.998 alike with UADE over its first 40 seconds).
+A speed command with both its digits set is, in SoundTracker 2.6, two speeds taken in turn from line
+to line, as libxmp plays it; it is left here as ProTracker reads it, and Deli-Wizard makes a speed and
+a tempo of one of more than 31. The file to hand has none.
+
+Some of the oldest modules, with 15 samples and nothing to say what they are, have numbers left in
+their order past the end of the song, of patterns the file does not have: seven of Jean Baudlot's,
+for Bad Dudes and Castle Warrior. Counted over the whole order the file is too short for its
+patterns; counted over the song, the samples follow them to the byte, and so they are read. (UADE
+does not play them.)
+
+Startrekker, by Exolon of Fairlight, could play instruments it made itself as well as samples, from
+a waveform and an envelope, and kept them in a file of their own beside the module, the `.nt` file;
+the module has empty samples in their places. Those instruments are not played here, so a module of
+Startrekker's that plays more than one empty sample says so (as OpenMPT tells of one), and plays with
+those voices silent; its file of instruments, given as a tune, says what it is. Played without its
+instruments, a module that has nothing else is silent: four of the nine of Escape 2.
+
+AMOS, François Lionet's BASIC for the Amiga, kept a program's music as a bank of the program's, "AmBk"
+of the kind "Music": instruments, songs, and patterns, each a list of one voice's notes and commands
+with a command to wait between them. Programs and games written in AMOS have their music in these
+banks, and each is read into a ProTracker module as UADE's player of them reads it (DEFECT's, put
+together for UADE by mld, under the GPL), and played as one: the samples' headers from the
+instruments', the order from the first voice's list, each command as ProTracker's like it, the last
+command that goes on kept on each line until another, a tempo as a hundred over AMOS's, and the end
+of a pattern as a break on the line before. Set beside UADE over their first 40 seconds, eight banks
+of seven games are 0.995 alike or more. Five banks of Tyran, which crash UADE, are refused here as cut
+short.
 
 The Magnetic Fields Packer was Shaun Southern's, by the replayer's own word and libxmp's, from 1994
 and 1995, and the games that used it kept a module in two files: the song, and its samples in a
@@ -484,6 +528,14 @@ instrument's repeat begins down to a whole 256 bytes (the name it copies runs ov
 number). And it would read the two bits beside a note that an MMD0 module gives to the
 instrument's number as part of the note; here they are the instrument's, as in a module, though
 none of these files has an instrument past the fifteenth to show which is right.
+
+Some games kept their MED music packed: an MMD0 module that says "MMDC", each of whose blocks has
+its notes kept as runs, of so many noughts or so many bytes as they are. The player Wanted Team made
+for these files is the one of Knightmare, which they credit to Antony 'Ratt' Crowther, 1991. Such a
+module is unpacked into the MMD0 module it was, as libxmp unpacks it, and played as that is, by
+OctaMED's way of playing and not by the game's player. Set beside the game's player, run by UADE,
+over the first 40 seconds, by how loud each side is from moment to moment, the songs of Captain
+Planet are 0.994 alike or more, and the title of Knightmare 0.973.
 
 ## SFX and OKT — SoundFX and Oktalyzer
 

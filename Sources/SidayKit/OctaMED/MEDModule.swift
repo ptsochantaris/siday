@@ -292,6 +292,7 @@ final class MEDModule {
 
     init(_ file: [UInt8]) throws {
         var data = file
+        if MMDCFile.isOne(data) { data = try MMDCFile.mmd0(data) }
         if MED4File.isOne(data) {
             let read = try MED4File.mmd0(data)
             data = read.file
@@ -304,7 +305,6 @@ final class MEDModule {
         func tag(_ at: Int, _ text: StaticString) -> Bool {
             text.withUTF8Buffer { letters in (0 ..< letters.count).allSatisfy { file[at + $0] == letters[$0] } }
         }
-        if tag(0, "MMDC") { throw TuneError.unsupported("a MED module packed with MMDC") }
         if tag(0, "MED"), file[3] >= 2, file[3] <= 3 {
             throw TuneError.unsupported("a song in one of MED's first formats (MED2, MED3): only MED4 and its modules, MMD0 to MMD3, are played")
         }

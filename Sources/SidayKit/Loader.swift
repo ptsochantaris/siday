@@ -55,7 +55,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
     public init?(fileExtension: String) {
         let name = fileExtension.lowercased()
-        if name == "mmd0" || name == "mmd1" || name == "mmd2" || name == "mmd3" {
+        if name == "mmd0" || name == "mmd1" || name == "mmd2" || name == "mmd3" || name == "mmdc" {
             self = .med
         } else if name == "vgz" {
             // (A VGM file packed by gzip, which is how they are mostly kept.)
@@ -90,9 +90,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
             // (Game Music Creator's, which ProWizard would make a ProTracker module of, but which
             // is played by its own player.)
             self = .gmc
-        } else if ProWizard.extensions.contains(name) || name == "kris" {
+        } else if ProWizard.extensions.contains(name) || name == "kris" || name == "abk" {
             // (A module packed by one of the packers games and demos used, named for the packer; or
-            // one of ChipTracker's, which is read into a module.)
+            // one of ChipTracker's, or an AMOS music bank, which are read into a module.)
             self = .mod
         } else if name == "mdat" || name == "tfx" || name == "tfm" {
             // (TFMX's notes, named for its file of them, which the samples are beside; or a module
@@ -323,8 +323,18 @@ public enum TuneLoader {
                 guard let (packer, module) = ProWizard.unpack(data) else { return nil }
                 return try MODRenderer(module, options: options, origin: "packed by \(packer)")
             }
+            // (Startrekker kept its synthesised instruments in a file of their own beside the module,
+            // which is no tune, whatever it is named.)
+            if data.count >= 16, [UInt8]("ST1.2 ModuleINFO".utf8) == Array(data[0 ..< 16]) || [UInt8]("ST1.3 ModuleINFO".utf8) == Array(data[0 ..< 16])
+                || [UInt8]("AudioSculpture10".utf8) == Array(data[0 ..< 16])
+            {
+                throw TuneError.unsupported("Startrekker's synthesised instruments for the module beside it, and not a tune of its own")
+            }
             if ChipTrackerFile.isOne(data) {
                 return try MODRenderer(ChipTrackerFile.module(data), options: options, origin: "ChipTracker")
+            }
+            if AMOSBankFile.isOne(data) {
+                return try MODRenderer(AMOSBankFile.module(data), options: options, origin: "an AMOS music bank")
             }
             if !ProTrackerModule.saysWhatItIs(data), let renderer = try unpacked() { return renderer }
             do {

@@ -23,28 +23,33 @@ enum ThePlayer61 {
         if patterns > 0x7F || patterns == 0 { return -1 }
         let samples = byte(3) & 0x3F
         if samples > 0x1F || samples == 0 { return -1 }
+        // A module with samples packed has the length of them all unpacked before the samples'
+        // headers, and the top bit of a packed sample's fine tuning set. (This is UADE's converter's,
+        // Deli-Wizard's `CheckP50A`; libxmp's test does not know of them.)
+        let base = byte(3) & 0x40 != 0 ? 8 : 4
+        let tuning = byte(3) & 0x40 != 0 ? 0x7F : 0xFF
 
-        if let more = ProWizard.request(size, 4 + samples * 6) { return more }
+        if let more = ProWizard.request(size, base + samples * 6) { return more }
         for i in 0 ..< samples {
-            if byte(7 + i * 6) > 0x40 { return -1 }
-            if byte(6 + i * 6) > 0x0F { return -1 }
+            if byte(base + 3 + i * 6) > 0x40 { return -1 }
+            if byte(base + 2 + i * 6) & tuning > 0x0F { return -1 }
         }
 
         // A size above 0xFFDF is a sample that is another's.
         for i in 0 ..< samples {
-            let length = word(i * 6 + 4)
+            let length = word(base + i * 6)
             if (length <= 0xFFDF && length > 0x8000) || length == 0 { return -1 }
-            let start = word(i * 6 + 8)
+            let start = word(base + 4 + i * 6)
             if start != 0xFFFF && start >= length { return -1 }
             if length > 0xFFDF && 0xFFFF - length > samples { return -1 }
         }
 
-        let patternData = 4 + samples * 6 + patterns * 8
+        let patternData = base + samples * 6 + patterns * 8
         let sampleData = word(0)
         if sampleData < patternData { return -1 }
 
         if let more = ProWizard.request(size, patternData) { return more }
-        for i in 0 ..< patterns * 4 where word(4 + samples * 6 + i * 2) + patternData > sampleData {
+        for i in 0 ..< patterns * 4 where word(base + samples * 6 + i * 2) + patternData > sampleData {
             return -1
         }
 
@@ -145,13 +150,22 @@ enum ThePlayer61 {
         var sizes = [Int](repeating: 0, count: 31)
         var lengths = [Int](repeating: 0, count: 31)
         var starts = [Int](repeating: 0, count: 31)
+        // Which are packed, each of its bytes two of the sample's, and so how many bytes each takes in
+        // the file.
+        var packed = [Bool](repeating: false, count: 31)
+        var kept = [Int](repeating: 0, count: 31)
 
         let sampleData = Int(file.read16b())
         let patternCount = Int(file.read8())
         if patternCount >= 128 { throw .malformed("too many patterns") }
         var sampleCount = Int(file.read8())
         let delta = sampleCount & 0x80 != 0
-        if sampleCount & 0x40 != 0 { throw .unsupported("samples packed by The Player") }
+        // Samples packed, which libxmp does not unpack, are unpacked as UADE's converter does
+        // (Deli-Wizard's `CheckP50A` and `P50A_Copy_Samples`): after the length of them all unpacked,
+        // which is not needed, each sample's header says by the top bit of its fine tuning whether it
+        // is packed.
+        let packing = sampleCount & 0x40 != 0
+        if packing { _ = file.read32b() }
         sampleCount &= 0x3F
         // (The C does not look, and would write past its tables; the test lets no more than 31 by.)
         if sampleCount > 31 { throw .malformed("too many samples") }
@@ -160,6 +174,7 @@ enum ThePlayer61 {
         for i in 0 ..< sampleCount {
             output.writeZero(22)
             var j = Int(file.read16b())
+            let tuning = file.read8()
             sizes[i] = j
             if j > 0xFF00 {
                 // A sample that is another's. (The test lets the other be one past the last of the 31,
@@ -168,13 +183,17 @@ enum ThePlayer61 {
                 lengths[i] = other < 31 ? lengths[other] : 0
                 sizes[i] = other < 31 ? sizes[other] : 0
                 starts[i] = other < 31 ? starts[other] : 0
+                packed[i] = other < 31 ? packed[other] : false
+                kept[i] = other < 31 ? kept[other] : 0
             } else {
-                if i > 0 { starts[i] = starts[i - 1] + lengths[i - 1] }
+                if i > 0 { starts[i] = starts[i - 1] + kept[i - 1] }
                 lengths[i] = j * 2
+                packed[i] = packing && tuning & 0x80 != 0
+                kept[i] = packed[i] ? j : j * 2
             }
             j = lengths[i] / 2
             output.write16b(UInt16(truncatingIfNeeded: sizes[i]))
-            output.write8(file.read8() & 0x3F)
+            output.write8(tuning & 0x3F)
             output.write8(file.read8())
             let loop = Int(file.read16b())
             if loop == 0xFFFF {
@@ -514,6 +533,10 @@ enum ThePlayer61 {
         file.seek(sampleData)
         for i in 0 ..< sampleCount {
             file.seek(sampleData + starts[i])
+            if packed[i] {
+                output.write(ThePlayer.unpackSample(ThePlayer.readWhole(&file, lengths[i] / 2)))
+                continue
+            }
             var sample = ThePlayer.readWhole(&file, lengths[i])
             if delta {
                 // Each byte after the first was kept as how much the running sum of those before it,
