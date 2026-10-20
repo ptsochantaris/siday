@@ -104,12 +104,23 @@ public enum CompanionFolder {
 ///   instruments, and has them in a folder beside it, `Instruments` (`NAME.instr`, and the sampled
 ///   sound of one that names one, `NAME.ss`): the whole folder is brought, and the player finds them
 ///   in it.
+/// - a replayer of Mark Cooksey's of 1988, `title.mcr`, has its song data and samples in `title.mcs`
+///   (on the Amiga's own disks `MCR.title`'s in `MCS.title`).
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
+    /// The name of the file of song data and samples beside a replayer of Mark Cooksey's of 1988:
+    /// `MCS.title` for `MCR.title`, `title.mcs` for `title.mcr`.
+    static func markCookseySongs(of fileName: String) -> String {
+        let letters = Array(fileName.utf8)
+        if fileName.lowercased().hasPrefix("mcr.") { return "MCS." + String(decoding: letters.dropFirst(4), as: UTF8.self) }
+        let stem = letters.lastIndex(of: 0x2E).map { String(decoding: letters[..<$0], as: UTF8.self) } ?? fileName
+        return "\(stem).mcs"
+    }
+
     /// The endings of the names of companion files, of every kind: a file with one of these is part of
     /// a tune, not a tune.
-    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss"]
+    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss", "mcs"]
 
     /// True if a file of this extension, in any case, is a companion of a tune.
     public static func are(fileExtension: String) -> Bool {
@@ -157,6 +168,10 @@ public enum Companions {
             var names = ["set.smpl"]
             if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .mcr:
+            // Named as the replayer is, as Wanted Team's player looks for it: `MCS.title` for
+            // `MCR.title`, and as UnExoticA keeps them, `title.mcs` for `title.mcr`.
+            return [Companion(part: .samples, names: [markCookseySongs(of: fileName)], kind: nil, required: true)]
         case .rjp:
             // Kept as the modules of a game share them, in `set.smp` (UnExoticA's name, for James
             // Pond 2's for the Amiga 1200), or as Wanted Team's player looks for them, `smp.set`; on

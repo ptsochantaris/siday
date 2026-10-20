@@ -50,7 +50,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case bd
     case cust
     case dl
-    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn
+    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -138,7 +138,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// player of it for EaglePlayer plays it, by the recipe they share (`WantedTeamPlayer`).
     public var isWantedTeamCode: Bool {
         switch self {
-        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn: true
+        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr: true
         default: false
         }
     }
@@ -158,7 +158,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sid1, .sid2: "SIDMON"
         case .jt: "MON"
         case .dl: "DLN"
-        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn: "CORE"
+        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr: "CORE"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -320,6 +320,18 @@ public enum TuneLoader {
             return try PaulaTickRenderer(ScummPlayer(data, name: fileName(path)), options: options)
         case .scn:
             return try PaulaTickRenderer(SeanConnollyPlayer(data, name: fileName(path)), options: options)
+        case .mc:
+            return try PaulaTickRenderer(MarkCookseyPlayer(data, name: fileName(path)), options: options)
+        case .mcr:
+            // Mark Cooksey's replayer of 1988, with its song data beside it, which the player loads by the
+            // name it makes of the replayer's.
+            let name = fileName(path)
+            guard let songs = companions.first ?? nil else {
+                guard MarkCooksey.isOne(data) else { throw TuneError.unsupported("not a module of Mark Cooksey's") }
+                throw Companions.missing(Companions.wanted(for: format, fileName: name)[0])
+            }
+            return try PaulaTickRenderer(MarkCookseyPlayer(data, name: name, files: [(Companions.markCookseySongs(of: name), songs)]),
+                                         options: options)
         case .jd:
             // Special FX's drivers, each with its music, run on an Amiga of their own.
             return try PaulaTickRenderer(SpecialFXPlayer(data), options: options)
