@@ -24,6 +24,8 @@ typealias DynamicSynthesizerPlayer = WantedTeamPlayer<DynamicSynthesizer>
 
 struct DynamicSynthesizer: WantedTeamRecipe {
     static let format = "Dynamic Synthesizer"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -26.7 dB.)
+    static let gain: Float = 0.61
 
     /// `Check2` ($3F4): the first five longs BRA.Ws forward (an even distance), and the fifth's routine
     /// `MOVE.L A0,abs.l; RTS`.

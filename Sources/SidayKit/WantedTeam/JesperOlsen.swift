@@ -34,6 +34,8 @@ typealias JesperOlsenPlayer = WantedTeamPlayer<JesperOlsen>
 
 struct JesperOlsen: WantedTeamRecipe {
     static let format = "Jesper Olsen"
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -22.5 dB.)
+    static let gain: Float = 0.38
 
     /// The player's kinds of module (its `Format`: 0, 1 and -1), and for the first, the size of its songs'
     /// entries (`Mulu`).

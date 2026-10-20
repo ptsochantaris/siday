@@ -50,7 +50,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case bd
     case cust
     case dl
-    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr
+    case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -138,7 +138,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// player of it for EaglePlayer plays it, by the recipe they share (`WantedTeamPlayer`).
     public var isWantedTeamCode: Bool {
         switch self {
-        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr: true
+        case .core, .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns: true
         default: false
         }
     }
@@ -158,7 +158,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .sid1, .sid2: "SIDMON"
         case .jt: "MON"
         case .dl: "DLN"
-        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr: "CORE"
+        case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns: "CORE"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -322,6 +322,19 @@ public enum TuneLoader {
             return try PaulaTickRenderer(SeanConnollyPlayer(data, name: fileName(path)), options: options)
         case .mc:
             return try PaulaTickRenderer(MarkCookseyPlayer(data, name: fileName(path)), options: options)
+        case .jo:
+            // Jesper Olsen's: some modules with his code in them, the rest played by the game's own driver
+            // beside them, which Wanted Team kept as `WantedTeam.bin`.
+            let driver = (companions.first ?? nil).map { [(JesperOlsen.replayerName, $0)] } ?? []
+            return try PaulaTickRenderer(JesperOlsenPlayer(data, name: fileName(path), files: driver), options: options)
+        case .dns:
+            // Chris Hülsbeck's Dynamic Synthesizer, with its samples beside it.
+            let name = fileName(path)
+            guard let samples = companions.first ?? nil, let samplesName = DynamicSynthesizer.samplesName(name) else {
+                guard DynamicSynthesizer.isOne(data) else { throw TuneError.unsupported("not a module of the Dynamic Synthesizer's") }
+                throw Companions.missing(Companions.wanted(for: format, fileName: name)[0])
+            }
+            return try PaulaTickRenderer(DynamicSynthesizerPlayer(data, name: name, files: [(samplesName, samples)]), options: options)
         case .mcr:
             // Mark Cooksey's replayer of 1988, with its song data beside it, which the player loads by the
             // name it makes of the replayer's.

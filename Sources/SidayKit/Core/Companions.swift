@@ -104,6 +104,9 @@ public enum CompanionFolder {
 ///   instruments, and has them in a folder beside it, `Instruments` (`NAME.instr`, and the sampled
 ///   sound of one that names one, `NAME.ss`): the whole folder is brought, and the player finds them
 ///   in it.
+/// - a module of Jesper Olsen's that is music alone is played by its game's driver, beside it as
+///   `WantedTeam.bin`; one of the Dynamic Synthesizer's, `title.dns`, has its samples in `title.smp`
+///   (`SMP.title` for `DNS.title`).
 /// - a replayer of Mark Cooksey's of 1988, `title.mcr`, has its song data and samples in `title.mcs`
 ///   (on the Amiga's own disks `MCR.title`'s in `MCS.title`).
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
@@ -168,6 +171,16 @@ public enum Companions {
             var names = ["set.smpl"]
             if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .jo:
+            // The game's own driver, for the modules that are music and samples alone, as Wanted Team
+            // kept it beside them; a module with the driver in it needs none, which is known only once it
+            // is read.
+            return [Companion(part: .samples, names: ["WantedTeam.bin"], kind: nil, required: false)]
+        case .dns:
+            // `title.smp` for `title.dns`; on the Amiga's own disks `SMP.title` for `DNS.title`.
+            var names = ["\(stem).smp"]
+            if fileName.lowercased().hasPrefix("dns.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
         case .mcr:
             // Named as the replayer is, as Wanted Team's player looks for it: `MCS.title` for
             // `MCR.title`, and as UnExoticA keeps them, `title.mcs` for `title.mcr`.
