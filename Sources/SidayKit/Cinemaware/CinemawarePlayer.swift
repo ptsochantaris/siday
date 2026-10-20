@@ -370,9 +370,10 @@ struct CinemawarePlayer: ~Copyable {
         }
         // Its length: the ticks to its end's event, each event's wait (one less than nought, none) added, and the
         // tick it comes on.
+        // (Counted no further than an hour's: a count of every tick could outgrow a whole number in a browser.)
         var ticks = 0
         var r = sequence
-        while r <= end {
+        while r <= end, ticks < Self.mostTicks {
             ticks += max(0, Int(Int16(bitPattern: UInt16(data[r]) << 8 | UInt16(data[r + 1]))))
             r += 5
         }
