@@ -250,7 +250,7 @@ struct SJSPlayer: ~Copyable {
     private static func installSamples(_ file: [UInt8], into samples: inout [Sample], count: inout Int, silence: Int) {
         func long(_ at: Int) -> UInt32 {
             var value: UInt32 = 0
-            for k in 0 ..< 4 { value = value << 8 | UInt32(at + k >= 0 && at + k < file.count ? file[at + k] : 0) }
+            for k in 0 ..< 4 { value = value << 8 | UInt32(at &+ k >= 0 && at &+ k < file.count ? file[at &+ k] : 0) }
             return value
         }
         // (`lbC06398A`: the chunk's name looked for, a byte at a time, from the `FORM` to so far; the place after it.)
@@ -284,10 +284,10 @@ struct SJSPlayer: ~Copyable {
                 }
                 samples[number - 1] = sample
                 count += 1
-                at += 4
-                at += Int(Int32(bitPattern: long(at)))
+                at &+= 4
+                at &+= Int(Int32(bitPattern: long(at)))
             }
-            at += 4
+            at &+= 4
             if at >= file.count || number == 38 { break }
             number += 1
         }
