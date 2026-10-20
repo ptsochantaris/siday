@@ -1015,7 +1015,18 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   to be a slide of the volume, which the twelfth does with another command (8); it is played here as
   the player plays it, without them, until heard otherwise.
 
-How loud it is: at the level of modules, these are between 2.4 and 6.8 dB louder in the middle of
+- **Digital Sonix & Chrome** (`.dsc`): David Hanlon's music, with Andrew E. Bailey, for Dragon's
+  Breath (1990), by the game's own player: each row a sample for each of four voices, or nothing, and a
+  sample played once and then its loop so many times, counted by Paula's interrupts. Twelve files, seven
+  tunes and five banks of the game's sound effects, the same as UADE's but where a note's first
+  interrupt is lost to a race of the player's with the chip, on one note in forty, which falls on other
+  notes in the two Amigas; 0.997 alike or more for the music.
+- **Andrew Parton** (`.bye`): his music for MicroProse's B-17 Flying Fortress (1993), by the game's own
+  player: twenty samples, each with its envelope and vibrato, and notes as a stream much like MIDI's.
+  Twelve files, the same as UADE's to the tick, and 0.9995 alike. A tune ends when its stream does and
+  its notes have died away (or five seconds after, for one that ends on a note held).
+
+How loud it is: at the level of modules, these are between 1.5 and 6.8 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 
 ## BP — Brian Postma's SoundMon

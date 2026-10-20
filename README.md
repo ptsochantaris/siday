@@ -54,8 +54,8 @@ siday ~/Music/chiptunes --shuffle
   - Digital Mugician and Mugician II (seven voices)
   - Delta Music 2.0
   - Sonic Arranger
-  - Infogrames' scores, Fashion Tracker, the Peter Verswyvelen Packer and the Alcatraz Packer, by ports
-    of their players
+  - Infogrames' scores, Fashion Tracker, the Peter Verswyvelen Packer, the Alcatraz Packer, Digital
+    Sonix & Chrome's and Andrew Parton's, by ports of their players
 - **Music systems**:
   - TFMX, Chris Hülsbeck's, with TFMX Professional and 7V, as his own players play it;
   - Jochen Hippel's TFMX (HIP, COSO, 7V) and Future Composer, by Michael Schwendt's player of them,

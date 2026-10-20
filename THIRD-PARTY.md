@@ -217,13 +217,14 @@ Wanted Team's player of it has it ("Jochen Hippel 7V player module V1.1", 2009, 
 `JochenHippel-7V`; it says of itself "(c) 1990-91 Jochen 'Mad Max' Hippel"), read in the same way
 for the same kinds of constants; the rate it mixes at is the one UADE runs it at.
 
-## Infogrames, Fashion Tracker, the Peter Verswyvelen Packer and the Alcatraz Packer
+## Infogrames, Fashion Tracker, the Peter Verswyvelen Packer, the Alcatraz Packer and others
 
-`Sources/SidayKit/Infogrames`, `FashionTracker`, `PeterVerswyvelenPacker` and `AlcatrazPacker` play
+`Sources/SidayKit/Infogrames`, `FashionTracker`, `PeterVerswyvelenPacker`, `AlcatrazPacker`,
+`DigitalSonix` and `AndrewParton` play
 these formats as the players of them carried by UADE do: Andy Silva's DeliTracker player for Infogrames'
 music (read in UADE's `amigasrc/players/uade/infogrames`, whose licence is not given), and Wanted Team's
-players for EaglePlayer of the other three (`FashionTracker-v1.0`, `PeterVerswyvelenPacker`,
-`Alcatraz_Packer` in `amigasrc/players/wanted_team`). Their code was read for that, and nothing of it is
+players for EaglePlayer of the others (`FashionTracker-v1.0`, `PeterVerswyvelenPacker`,
+`Alcatraz_Packer`, `DigitalSonixChrome_v1.asm`, `Andrew Parton` in `amigasrc/players/wanted_team`). Their code was read for that, and nothing of it is
 carried here but its tables of periods.
 
 ## PumaTracker, Pierre Adane's packer, Game Music Creator and Images Music System

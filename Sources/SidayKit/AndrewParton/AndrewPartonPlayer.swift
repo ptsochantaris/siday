@@ -521,7 +521,8 @@ extension AndrewPartonPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -22.6 dB.)
+    var gain: Float { 0.38 }
 
     mutating func prepareToBeHeard() {}
 
