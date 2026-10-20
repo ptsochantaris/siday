@@ -395,6 +395,12 @@ words.) OpenMPT also reads some as having sounds of their own making, from wavef
 tracks; no file to hand has them, nor a replayer of them to play them by, and such a file is not
 played.
 
+Fury of the Furries (Kalisto, 1993), Frédéric Motte's music, kept its modules packed by a packer of
+its own, in three versions, which ProWizard does not know and UADE's converter, Deli-Wizard, does
+("Channel Players"): an order of where each voice's notes begin, and the notes in three bytes, two or
+one. A `.chan` file is unpacked here as Deli-Wizard unpacks it, the packer asked after every other, and
+UADE plays each module so made the same to the tick as it plays the file itself, all nine tunes.
+
 SoundTracker 2.6 and Ice Tracker kept a module the same way, but for its moves: tracks of 64 lines,
 and for each place in the song the four of them to play, with "MTN" or "IT10" where ProTracker has
 "M.K.". Such a file is read into a ProTracker module of a pattern for each different four tracks, as

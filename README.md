@@ -40,7 +40,8 @@ siday ~/Music/chiptunes --shuffle
   replayer:
   - packed whole with PowerPacker or XPK, or not packed;
   - packed by the packers games used: The Player (its packed samples too), NoisePacker, ProRunner,
-    ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions and Promizer;
+    ProPacker, Pha Packer, Tracker Packer, AC1D, Novotrade, Digital Illusions, Promizer and Channel
+    Player;
   - ChipTracker's, read as its own replayer reads them, and SoundTracker 2.6's and Ice Tracker's;
   - AMOS's music banks, read into modules as UADE reads them;
   - the Magnetic Fields Packer's, with its samples in a file beside it.

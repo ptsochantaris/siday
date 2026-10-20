@@ -144,8 +144,11 @@ which unpacks MED modules packed by MMDC (`mmd1_load.c`). Where these unpack wha
 otherwise than it, they do as UADE's converter does, Deli-Wizard ("Deli-Wizard genie module v2.20 by
 Gryzor", "written by Nicolas FRANCK in 1994-95", carried in UADE's `amigasrc/players/tracker/converter`):
 The Player 6.0a's packed samples, Promizer's patterns, NoisePacker 3's test, ProRunner's "+SNT", and the
-patterns of SoundTracker 2.6. Its code was read for that, and nothing of it is carried here but the
-table of steps of the packed samples.
+patterns of SoundTracker 2.6; and `ChannelPlayer.swift` unpacks the one packer only Deli-Wizard knows,
+Channel Player's (`CheckChan`, `ConvertChan`). Its code was read for that, and nothing of it is carried
+here but the table of steps of the packed samples and the table of periods. Deli-Wizard's COPYING says
+it is not under the GPL; its README, by Nicolas Franck, asks to be told of a tool that uses it on another
+system.
 
 - Copyright (C) 1997-1999 Sylvain "Asle" Chipaux
 - Copyright (C) 1996-2021 Claudio Matsuoka and Hipolito Carraro Jr
