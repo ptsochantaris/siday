@@ -1066,7 +1066,14 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   song does not use for one of the game's sound effects and plays an instrument on it, and makes every
   song go round, where the driver goes on to the song the song names, or stops (twenty of them do).
 
-How loud it is: at the level of modules, these are between 1.5 and 7.3 dB louder in the middle of
+- **Cinemaware** (`.cin`): Cinemaware's own player, from Wings (1990), its last game for the Amiga,
+  with Gregory Haggard's music: near enough to MIDI, sixteen channels of notes, programs, pitch bends
+  and controllers given to the four voices as the player chooses, each instrument with envelopes of
+  pitch and volume, vibrato, and up to three IFF samples by the note, from a folder beside the scores
+  (`Instruments`), as Sonix's scores have theirs. Sixty ticks a second, as the game had them in America.
+  Eleven files, the same as UADE's to the tick, 0.985 alike or more.
+
+How loud it is: at the level of modules, these are between 1.0 dB quieter and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 
 ## BP — Brian Postma's SoundMon

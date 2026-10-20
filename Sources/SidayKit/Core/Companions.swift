@@ -114,6 +114,8 @@ public enum CompanionFolder {
 ///   (`SMP.title` for `DNS.title`).
 /// - a replayer of Mark Cooksey's of 1988, `title.mcr`, has its song data and samples in `title.mcs`
 ///   (on the Amiga's own disks `MCR.title`'s in `MCS.title`).
+/// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
+///   `Instruments`, each named in the score.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
@@ -234,7 +236,7 @@ public enum Companions {
             var names = ["\(stem).smp", "set.smp", "smp.set"]
             if fileName.lowercased().hasPrefix("rjp.") { names.insert("smp." + fileName.dropFirst(4), at: 1) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
-        case .sonix:
+        case .sonix, .cin:
             // Named in the score, and kept, as the player looks for them, in a folder beside it.
             return [Companion(part: .instruments, names: ["Instruments"], kind: nil, required: true, folder: true)]
         case .rol:
