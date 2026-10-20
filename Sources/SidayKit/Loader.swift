@@ -324,7 +324,7 @@ public enum TuneLoader {
             return try PaulaTickRenderer(MarkCookseyPlayer(data, name: fileName(path)), options: options)
         case .kh:
             // Kris Hatlelid's: most are music alone, played by his replayer beside them, `songplay`.
-            let replayer = (companions.first ?? nil).map { [(KrisHatlelid.replayerName, $0)] } ?? []
+            let replayer = (companions.first ?? nil).map { [(name: KrisHatlelid.replayerName, bytes: $0)] } ?? []
             return try PaulaTickRenderer(KrisHatlelidPlayer(data, name: fileName(path), files: replayer), options: options)
         case .scr:
             return try PaulaTickRenderer(SeanConranPlayer(data, name: fileName(path)), options: options)
@@ -340,13 +340,13 @@ public enum TuneLoader {
             // Ashley Hogg's: those of 1993 have their samples beside them, by the module's name.
             let name = fileName(path)
             let samples = (companions.first ?? nil).flatMap { bytes in
-                AshleyHogg.samplesName(Array(name.utf8)).map { [(String(decoding: $0, as: UTF8.self), bytes)] }
+                AshleyHogg.samplesName(Array(name.utf8)).map { [(name: String(decoding: $0, as: UTF8.self), bytes: bytes)] }
             } ?? []
             return try PaulaTickRenderer(AshleyHoggPlayer(data, name: name, files: samples), options: options)
         case .jo:
             // Jesper Olsen's: some modules with his code in them, the rest played by the game's own driver
             // beside them, which Wanted Team kept as `WantedTeam.bin`.
-            let driver = (companions.first ?? nil).map { [(JesperOlsen.replayerName, $0)] } ?? []
+            let driver = (companions.first ?? nil).map { [(name: JesperOlsen.replayerName, bytes: $0)] } ?? []
             return try PaulaTickRenderer(JesperOlsenPlayer(data, name: fileName(path), files: driver), options: options)
         case .dns:
             // Chris Hülsbeck's Dynamic Synthesizer, with its samples beside it.
@@ -355,7 +355,7 @@ public enum TuneLoader {
                 guard DynamicSynthesizer.isOne(data) else { throw TuneError.unsupported("not a module of the Dynamic Synthesizer's") }
                 throw Companions.missing(Companions.wanted(for: format, fileName: name)[0])
             }
-            return try PaulaTickRenderer(DynamicSynthesizerPlayer(data, name: name, files: [(samplesName, samples)]), options: options)
+            return try PaulaTickRenderer(DynamicSynthesizerPlayer(data, name: name, files: [(name: samplesName, bytes: samples)]), options: options)
         case .mcr:
             // Mark Cooksey's replayer of 1988, with its song data beside it, which the player loads by the
             // name it makes of the replayer's.
@@ -364,7 +364,7 @@ public enum TuneLoader {
                 guard MarkCooksey.isOne(data) else { throw TuneError.unsupported("not a module of Mark Cooksey's") }
                 throw Companions.missing(Companions.wanted(for: format, fileName: name)[0])
             }
-            return try PaulaTickRenderer(MarkCookseyPlayer(data, name: name, files: [(Companions.markCookseySongs(of: name), songs)]),
+            return try PaulaTickRenderer(MarkCookseyPlayer(data, name: name, files: [(name: Companions.markCookseySongs(of: name), bytes: songs)]),
                                          options: options)
         case .jd:
             // Special FX's drivers, each with its music, run on an Amiga of their own.
