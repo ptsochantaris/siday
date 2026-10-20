@@ -1058,6 +1058,14 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   tunes, instruments with lists of instructions for their vibrato and tremolo, envelopes, arpeggios,
   slides and glides. One file, the same as UADE's to the tick, 0.9998 alike.
 
+- **Steve Turner** (`.jpo`): Graftgold's first driver, Steve Turner's, for his Rainbow Islands and
+  Jason Page's Paradroid 90, Simulcra and Ivan "Ironman" Stewart's Super Off Road, at a hundred ticks a
+  second: instruments with up to three parts to their pitch, envelopes with tremolo, vibrato and slides.
+  Five files, 47 songs, the same as UADE's to the tick when played as Wanted Team's player plays them.
+  By default they are played as the game's own driver played them: Wanted Team's player takes a voice a
+  song does not use for one of the game's sound effects and plays an instrument on it, and makes every
+  song go round, where the driver goes on to the song the song names, or stops (twenty of them do).
+
 How loud it is: at the level of modules, these are between 1.5 and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 
