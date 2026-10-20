@@ -51,6 +51,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case cust
     case dl
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
+    case dum, ex, pvp, alp
 
     /// The format a file name's extension stands for, in any case. A MED module is as often named
     /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
@@ -143,6 +144,15 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         }
     }
 
+    /// True for a kind of the Amiga's music played by a port of a game's own player, or of the player
+    /// for EaglePlayer or DeliTracker that took its place (Infogrames', Fashion Tracker's and the rest).
+    public var isPortedGamePlayer: Bool {
+        switch self {
+        case .dum, .ex, .pvp, .alp: true
+        default: false
+        }
+    }
+
     /// True if a file of this kind may be found by how it begins to be another (see `refined(byLeading:)`).
     public var sharesItsName: Bool { self == .psm || self == .sid }
 
@@ -159,6 +169,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .jt: "MON"
         case .dl: "DLN"
         case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash, .tw: "CORE"
+        case .ex, .pvp, .alp: "DUM"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -328,6 +339,20 @@ public enum TuneLoader {
             return try PaulaTickRenderer(KrisHatlelidPlayer(data, name: fileName(path), files: replayer), options: options)
         case .scr:
             return try PaulaTickRenderer(SeanConranPlayer(data, name: fileName(path)), options: options)
+        case .dum:
+            // Infogrames' scores, with their instruments beside them.
+            guard let instruments = companions.first ?? nil else {
+                guard InfogramesPlayer.isOne(data) else { throw TuneError.unsupported("not a score of Infogrames' player") }
+                throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
+            }
+            return try PaulaTickRenderer(InfogramesPlayer(data, samples: instruments), options: options)
+        case .ex:
+            return try PaulaTickRenderer(FashionTrackerPlayer(data), options: options)
+        case .pvp:
+            return try PaulaTickRenderer(PVPPlayer(data), options: options)
+        case .alp:
+            // The Alcatraz Packer's: most with their samples in a file beside them.
+            return try PaulaTickRenderer(ALPPlayer(data, samples: (companions.first ?? nil) ?? []), options: options)
         case .tw:
             return try PaulaTickRenderer(SoundImagesPlayer(data, name: fileName(path)), options: options)
         case .wb:

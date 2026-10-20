@@ -104,6 +104,9 @@ public enum CompanionFolder {
 ///   instruments, and has them in a folder beside it, `Instruments` (`NAME.instr`, and the sampled
 ///   sound of one that names one, `NAME.ss`): the whole folder is brought, and the player finds them
 ///   in it.
+/// - an Infogrames score, `TITLE.DUM`, has its instruments in `TITLE.INS`, or in that name less its last
+///   letter (`BOB4B.DUM` in `BOB4.INS`), or, for Stir Crazy's and Captain Blood's, in `rh.ins`.
+/// - a module of the Alcatraz Packer's, `title.alp`, mostly has its samples in `title.smp`.
 /// - a module of Ashley Hogg's of 1993, `title.ash`, has its samples in `title.smp`.
 /// - a module of Kris Hatlelid's that is music alone is played by his replayer, beside it as `songplay`.
 /// - a module of Jesper Olsen's that is music alone is played by its game's driver, beside it as
@@ -173,6 +176,20 @@ public enum Companions {
             var names = ["set.smpl"]
             if fileName.lowercased().hasPrefix("mxtx.") { names.insert("smpl." + fileName.dropFirst(5), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smpl", required: false)]
+        case .dum:
+            // As Infogrames' player looks for them: the score's name with `.ins`, then that name less its
+            // last letter (so `BOB4B.DUM` has them in `BOB4.INS`); and, siday's own, `rh.ins`, which Stir
+            // Crazy's and Captain Blood's scores share.
+            var names = ["\(stem).ins"]
+            if stem.count > 1 { names.append("\(stem.dropLast()).ins") }
+            names.append("rh.ins")
+            return [Companion(part: .samples, names: names, kind: nil, required: true)]
+        case .alp:
+            // Most have their samples beside them, `title.smp` for `title.alp` (`SMP.title` for
+            // `ALP.title`); one of one file needs none, which is known only once it is read.
+            var names = ["\(stem).smp"]
+            if fileName.lowercased().hasPrefix("alp.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: nil, required: false)]
         case .ash:
             // Those of 1993 have their samples beside them, `title.smp` for `title.ash` (`SMP.title` for
             // `ASH.title`); those of 1991 keep theirs in the module, which is known only once it is read.

@@ -490,7 +490,8 @@ extension PVPPlayer: PaulaTickPlayer {
         return info
     }
 
-    var gain: Float { 0.46 }
+    /// (Its music turned to the loudness of the rest: at 0.46 the middle of its files is -17.4 dB.)
+    var gain: Float { 0.21 }
 
     mutating func prepareToBeHeard() {}
 

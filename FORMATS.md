@@ -982,6 +982,42 @@ What is siday's own, or the players' own and worth telling:
    the middle of the collection, Pierre Adane's 3.1, Game Music Creator's 5 and Images Music
    System's 7.8, and each is turned down by that.
 
+## DUM and others — more players of games' music, ported
+
+Some of the Amiga's games kept their music as data for a player of their own, which the players for
+DeliTracker and EaglePlayer then took over, ripped from the game or written again. Here each such
+player is ported to Swift, from the source UADE carries of the player that plays it, and set beside
+that player, run by UADE, over the first 40 seconds of every file of UnExoticA's collection (or 300
+seconds), by what it tells the sound chip on every tick, and over the first minute by how loud each
+side is from moment to moment. A player that waits for the sound chip between voices is played with
+each voice's writes at their moment in the tick, as they fall in UADE, since some of these scores
+play one sample on two voices a little apart in pitch, and how far apart they start is heard.
+
+- **Infogrames** (`.dum`, with its instruments in a `.ins` file beside it): the music of Infogrames'
+  games, by the player Andy Silva ripped for DeliTracker: Bob Morane Ocean (whose files are those of
+  Operation Neptune too), Bivouac (those of Chamonix Challenge and Final Assault too), Stir Crazy
+  featuring Bobo and Captain Blood. 36 files, twelve tunes and their copies, each a song that plays
+  once, at a hundred and seven ticks a second. The instruments are found as the player finds them, by
+  the score's name or that name less its last letter (`BOB4.INS` for `BOB4B.DUM`); Stir Crazy's and
+  Captain Blood's scores share one file, `rh.ins`, which the player does not look for and siday does.
+  The same as UADE's to the tick, given that file, and 0.994 alike or more.
+- **Fashion Tracker** (`.ex`): Richard van de Veen's, for Combine and Mini Golf Plus: the game's own
+  replayer and its music, at the address the game had them, found by Wanted Team's player as it finds
+  them. Three files, the same as UADE's to the tick, 0.999 alike. A song ends where it comes round to
+  its first pattern; the player says so as its last begins, which would cut that one off.
+- **Peter Verswyvelen Packer** (`.pvp`): the replayer of Whiz Kidz's Ziriax (1989), by Tomas
+  Dahlgren's music for it and Zarathrusta. Twelve files, the same as UADE's to the tick, 0.987 alike
+  or more. It is near enough to ProTracker to be taken for a packer of its modules, but its vibrato only
+  ever goes down, and twice as far, so it is played by its own replayer, with its other ways too.
+- **Alcatraz Packer** (`.alp`): Andy Sterbenz's of 1995, for Cedric and Oldtimer, most with their
+  samples in a file beside them (`title.smp`). Twelve files, the same as UADE's to the tick. Eleven of
+  them use a command (9) that Wanted Team's player does nothing with, and that looks from the music
+  to be a slide of the volume, which the twelfth does with another command (8); it is played here as
+  the player plays it, without them, until heard otherwise.
+
+How loud it is: at the level of modules, these are between 2.4 and 6.8 dB louder in the middle of
+their files, and each is turned down by its own amount to the level of the rest.
+
 ## BP — Brian Postma's SoundMon
 
 Brian Postma's SoundMon was a tracker for the Amiga in which the instruments are made by the player
