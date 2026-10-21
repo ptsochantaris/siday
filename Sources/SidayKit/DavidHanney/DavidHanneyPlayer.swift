@@ -108,14 +108,38 @@ struct DavidHanneyPlayer: ~Copyable {
     private var blockAt = 0
     /// The song has come to the end of its sequence, and goes round from its next row.
     private var goesRound = false
-    /// What each of Paula's period and volume registers was last given.
+    /// What each of Paula's period and volume registers was last given, and what they held as the tick
+    /// just run began (what `PaulaTickRenderer` sets Paula to then, before the tick's writes are told).
     private var periods = InlineArray<4, UInt16>(repeating: 0)
     private var volumes = InlineArray<4, UInt16>(repeating: 0)
+    private var periodsBefore = InlineArray<4, UInt16>(repeating: 0)
+    private var volumesBefore = InlineArray<4, UInt16>(repeating: 0)
 
     /// How long each tick is: the player is run by EaglePlayer's timer (it has an interrupt and does not
     /// start one of its own), which UADE's runs on a CIA's timer from $376B (score.s,
     /// `cia_timer_base_value`), 70,940 of Paula's clocks.
     static let tickClocks = (0x376B + 1) * 5
+    /// Where in the tick, in Paula's clocks, the player's writes fall in UADE (the medians of its dumps of
+    /// the game's music; UADE's EaglePlayer calls that turn a voice's DMA on wait some 2,100 clocks after
+    /// it, and the rest of the time is the replayer's own): the first voice's period (a guess: only the
+    /// distances between the writes are heard); a wave's volume after its period, and its DMA turned on
+    /// after that; the next voice's first write after a wave's volume; a voice with nothing to do; a sample
+    /// told to go round after it is turned on, and the next voice after that; the first note of a row
+    /// after the last voice's tick; a voice's note after the one before, for a wave and for a sample (and
+    /// a sample's volume and period after its first write); and a voice that strikes no note.
+    static let firstWrite = 300
+    static let waveVolumeClocks = 80
+    static let waveOnClocks = 280
+    static let waveClocks = 2700
+    static let quietClocks = 50
+    static let roundClocks = 2093
+    static let afterRoundClocks = 241
+    static let rowClocks = 360
+    static let waveNoteClocks = 458
+    static let sampleNoteClocks = 665
+    static let sampleVolumeClocks = 181
+    static let samplePeriodClocks = 242
+    static let noNoteClocks = 25
     /// A song that has not gone round in an hour is taken never to.
     private static let mostTicks = 50 * 60 * 60
     /// How many chunks are walked through before the walk is taken never to end; far more than any file
@@ -305,6 +329,8 @@ extension DavidHanneyPlayer {
         voices = .init(repeating: Voice())
         periods = .init(repeating: 0)
         volumes = .init(repeating: 0)
+        periodsBefore = .init(repeating: 0)
+        volumesBefore = .init(repeating: 0)
         ticks = 0
         goesRound = false
         endings = 0
@@ -353,9 +379,12 @@ extension DavidHanneyPlayer {
     /// next block of the sequence begun, at the sequence's end its first again. Returns the tick's
     /// length in milliseconds (unused).
     mutating func run<Output: TFMXOutput>(_ output: inout Output) -> Int {
+        periodsBefore = periods
+        volumesBefore = volumes
         guard playing else { return 20 }
         ticks &+= 1
-        for v in 0 ..< 4 { moveOn(v, &output) }
+        var at = Self.firstWrite
+        for v in 0 ..< 4 { moveOn(v, &at, &output) }
         let was = countdown
         countdown &-= 1
         guard was == 0 else { return 20 }
@@ -364,13 +393,14 @@ extension DavidHanneyPlayer {
             goesRound = false
             endings += 1
         }
-        let at = blockAt + 2 + 12 * Int(row)
+        let notes = blockAt + 2 + 12 * Int(row)
         for v in 0 ..< 4 {
-            voices[v].note = byte(at + 3 * v)
-            voices[v].instrumentNumber = byte(at + 3 * v + 1)
-            voices[v].effect = byte(at + 3 * v + 2)
+            voices[v].note = byte(notes + 3 * v)
+            voices[v].instrumentNumber = byte(notes + 3 * v + 1)
+            voices[v].effect = byte(notes + 3 * v + 2)
         }
-        for v in 0 ..< 4 { strike(v, &output) }
+        at += Self.rowClocks
+        for v in 0 ..< 4 { strike(v, &at, &output) }
         if row < lastRow {
             row &+= 1
         } else {
@@ -388,32 +418,40 @@ extension DavidHanneyPlayer {
 
     /// `$C12`: what the voice's state asks of the tick (a sample turned on, or a wave played), and once
     /// its ticks before it are over, its note struck again.
-    private mutating func moveOn<Output: TFMXOutput>(_ v: Int, _ output: inout Output) {
+    private mutating func moveOn<Output: TFMXOutput>(_ v: Int, _ at: inout Int, _ output: inout Output) {
         switch voices[v].state {
         case 4:
             // `$C44`: the sample turned on, and told to go on round its first word.
+            output.timed(at: at)
             output.on(v)
+            at += Self.roundClocks
+            output.timed(at: at)
             output.takeNextBuffer(v, start: voices[v].location, length: 1)
+            at += Self.afterRoundClocks
             voices[v].state = 0
         case 8:
-            playWave(v, &output)
+            playWave(v, &at, &output)
         default:
-            break
+            at += Self.quietClocks
         }
         if voices[v].again != 0 {
             voices[v].again &-= 1
             if voices[v].again == 0 {
                 voices[v].effect = 0
-                strike(v, &output)
+                strike(v, &at, &output)
             }
         }
     }
 
     /// `$A78`: the row's note for the voice, with its effect: for a slide, only where it slides to; for
     /// any other, a note struck (a wave or a sample), the voice stopped (1), or its note let die away (2).
-    private mutating func strike<Output: TFMXOutput>(_ v: Int, _ output: inout Output) {
+    private mutating func strike<Output: TFMXOutput>(_ v: Int, _ at: inout Int, _ output: inout Output) {
         var voice = voices[v]
-        guard voice.note | voice.instrumentNumber | voice.effect != 0 else { return }
+        guard voice.note | voice.instrumentNumber | voice.effect != 0 else {
+            at += Self.noNoteClocks
+            return
+        }
+        output.timed(at: at)
         voice.slide = 0
         let low = voice.effect & 15
         switch voice.effect >> 4 {
@@ -422,6 +460,7 @@ extension DavidHanneyPlayer {
             voice.slide = UInt16(low) + 1
             voice.target = Self.periodOf(Int(voice.note))
             voices[v] = voice
+            at += Self.noNoteClocks
             return
         case 2:
             voice.envelopeSpeed = low
@@ -434,17 +473,19 @@ extension DavidHanneyPlayer {
         }
         switch voice.note {
         case 0:
-            break
+            at += Self.noNoteClocks
         case 1:
             // `$BEE`: the voice turned off.
             output.off(v)
             voice.state = 0
+            at += Self.noNoteClocks
         case 2:
             // `$C06`: the envelope's last step, at once. (The replayer writes these two to where its A0
             // points, not its voice's A2: that is, to whatever it last pointed A0 at, a wave or a sample
             // or its own code. None of the game's music has the note, and the voice is meant here.)
             voice.envelopeCount = 0
             voice.envelopeStep = 6
+            at += Self.noNoteClocks
         default:
             let index = UInt16(voice.note) - 2
             voice.baseNote = index
@@ -454,6 +495,7 @@ extension DavidHanneyPlayer {
             guard voice.instrumentNumber < 16 else {
                 output.off(v)
                 voice.state = 0
+                at += Self.noNoteClocks
                 break
             }
             let i = Self.instrumentsAt + Self.instrumentSize * Int(voice.instrumentNumber)
@@ -469,15 +511,19 @@ extension DavidHanneyPlayer {
                 voice.location = i + 10
                 output.takeNextBuffer(v, start: voice.location, length: UInt16(memory[i + 72]))
                 voice.state = 8
+                at += Self.waveNoteClocks
             } else {
                 let sample = Self.samples[Int(min(type, 3)) - 1]
                 voice.location = sample.at
                 output.takeNextBuffer(v, start: sample.at, length: sample.length)
                 volumes[v] = Self.volumeOf(63)
+                output.timed(at: at + Self.sampleVolumeClocks)
                 output.writeVolume(v, volumes[v])
                 periods[v] = voice.period
+                output.timed(at: at + Self.samplePeriodClocks)
                 output.writePeriod(v, periods[v])
                 voice.state = 4
+                at += Self.sampleNoteClocks
             }
         }
         voices[v] = voice
@@ -487,7 +533,7 @@ extension DavidHanneyPlayer {
     /// arpeggio, and bent by the instrument's vibrato once it has begun; its volume, from its envelope;
     /// the instrument's wave changed by a byte (once a tick, whichever voices play it); and the voice
     /// turned on.
-    private mutating func playWave<Output: TFMXOutput>(_ v: Int, _ output: inout Output) {
+    private mutating func playWave<Output: TFMXOutput>(_ v: Int, _ at: inout Int, _ output: inout Output) {
         var voice = voices[v]
         let i = voice.instrument
         var period: UInt16
@@ -523,6 +569,7 @@ extension DavidHanneyPlayer {
             }
         }
         periods[v] = period
+        output.timed(at: at)
         output.writePeriod(v, period)
         // `$D0E`: every envelope speed + 1 ticks, the level moved by its step's speed towards its step's
         // level, and once there, on to the next step (after the last, held).
@@ -544,6 +591,7 @@ extension DavidHanneyPlayer {
             voice.level = voice.level & 0xFF00 | UInt16(moved)
         }
         volumes[v] = Self.volumeOf(Int(voice.level >> 2))
+        output.timed(at: at + Self.waveVolumeClocks)
         output.writeVolume(v, volumes[v])
         // `$D70`: the wave's byte at its place made its highest or lowest, every speed of its ticks, and
         // its place moved on, turning at its bounds.
@@ -572,14 +620,21 @@ extension DavidHanneyPlayer {
                 }
             }
         }
+        output.timed(at: at + Self.waveVolumeClocks + Self.waveOnClocks)
         output.on(v)
+        at += Self.waveVolumeClocks + Self.waveClocks
         voices[v] = voice
     }
 
-    /// Paula's period for the voice, as the player last gave it.
-    func period(_ voice: Int) -> UInt16 { periods[voice] }
-    /// Paula's volume for the voice, as the player last gave it.
-    func volume(_ voice: Int) -> UInt16 { volumes[voice] }
+    /// Paula's period for the voice as the tick just run began (its writes in the tick are told at their
+    /// moments).
+    func period(_ voice: Int) -> UInt16 { periodsBefore[voice] }
+    /// Paula's volume for the voice as the tick just run began.
+    func volume(_ voice: Int) -> UInt16 { volumesBefore[voice] }
+    /// What the player last gave Paula's period register for the voice.
+    func periodWritten(_ voice: Int) -> UInt16 { periods[voice] }
+    /// What the player last gave Paula's volume register for the voice.
+    func volumeWritten(_ voice: Int) -> UInt16 { volumes[voice] }
 }
 
 /// David Hanney's music, played on Paula by `PaulaTickRenderer`.
