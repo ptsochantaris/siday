@@ -80,7 +80,8 @@ struct PlaylistTab: View {
                         .accessibilityLabel(Text(spoken(tune.name)))
                     Text(tune.folder)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        // (Not the system's secondary grey, which is too faint for text this small.)
+                        .foregroundStyle(Explanation.colour)
                 }
                 Spacer()
                 if let why = tune.shortfalls {

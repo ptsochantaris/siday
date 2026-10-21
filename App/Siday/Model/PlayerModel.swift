@@ -325,6 +325,7 @@ final class PlayerModel {
         paused = false
         rendered = 0
         engine.send(.stop)
+        engine.pause(true)
         visualiser.rest()
     }
 
@@ -339,7 +340,8 @@ final class PlayerModel {
         if let index = files.firstIndex(where: { $0.id == id }) { play(index) }
     }
 
-    func play(_ index: Int, song: Int = -1) {
+    /// - Parameter startPaused: the tune is made ready, and nothing is heard until play is pressed.
+    func play(_ index: Int, song: Int = -1, paused startPaused: Bool = false) {
         guard files.indices.contains(index) else { return }
         // Another song of the tune that is showing: its details stay up, with the new song marked.
         if index == tuneFile, let tune, tune.songs.indices.contains(song) {
@@ -352,9 +354,9 @@ final class PlayerModel {
         current = index
         problem = nil
         finished = false
-        paused = false
+        paused = startPaused
         rendered = 0
-        engine.pause(false)
+        engine.pause(startPaused)
         let url = files[index].url
         let read: TuneFiles.Read
         do {
@@ -381,6 +383,13 @@ final class PlayerModel {
             if tune == asked, serial == runs { songEnded() }
         case let .voices(count):
             if count != voiceCount { voiceCount = count }
+        case .interrupted:
+            if !paused, !finished, tune != nil {
+                paused = true
+                engine.pause(true)
+                visualiser.rest()
+                nowPlayingChanged()
+            }
         case let .keeper(event):
             switch event {
             case let .loaded(tune, plays, problem, info, songs, song, length, _, levelKey):
@@ -473,6 +482,7 @@ final class PlayerModel {
             play(order[place])
         } else if automatic {
             finished = true
+            engine.pause(true)
             visualiser.rest()
             nowPlayingChanged()
         }
@@ -713,11 +723,7 @@ final class PlayerModel {
         }
         order = Array(files.indices)
         // A visit begins with the first tune ready, and paused: nothing is heard until it is asked for.
-        if !files.isEmpty {
-            play(0)
-            paused = true
-            engine.pause(true)
-        }
+        if !files.isEmpty { play(0, paused: true) }
     }
 
     // MARK: Now playing

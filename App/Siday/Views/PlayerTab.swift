@@ -5,8 +5,8 @@ import Foundation
 import SidayKit
 import SwiftUI
 
-/// What is playing: the tune's details, the spectrum analyser, where in it the song is, the controls,
-/// a light for each voice, its songs, and the picture to listen by.
+/// What is playing: the tune's details, the spectrum analyser, where in it the song is, its songs, the
+/// controls, a light for each voice, and the picture to listen by.
 struct PlayerTab: View {
     @Environment(PlayerModel.self) private var model
 
@@ -18,9 +18,6 @@ struct PlayerTab: View {
                     TimelineView(.animation(minimumInterval: 1 / 60, paused: !model.hasTune)) { timeline in
                         let frame = model.frame(at: timeline.date.timeIntervalSinceReferenceDate)
                         NowPlaying(frame: frame)
-                    }
-                    if let tune = model.tune, tune.songs.count > 1 {
-                        Songs(tune: tune)
                     }
                     if model.hasTune, model.shows(.picture) {
                         PictureSection()
@@ -124,6 +121,13 @@ struct NowPlaying: View {
                 }
                 TimeBar(position: frame.position, rendered: model.rendered, length: tune.length)
                     .padding(.top, 6)
+                // (Between where the song is and the controls, as the web player has them; and drawn
+                // again only when they change, not with every frame of what is heard.)
+                if tune.songs.count > 1 {
+                    Songs(tune: tune)
+                        .equatable()
+                        .padding(.vertical, 4)
+                }
             } else if let problem = model.problem {
                 Text("\(model.fileName): \(problem)")
             } else if model.current != nil {
@@ -290,12 +294,19 @@ enum Control {
 }
 
 /// The songs of a tune that has several: listed by name where the file names them, numbered where not.
-struct Songs: View {
+struct Songs: View, Equatable {
     @Environment(PlayerModel.self) private var model
     let tune: Tune
 
+    static func == (one: Songs, other: Songs) -> Bool { one.tune == other.tune }
+
+    /// How narrow a song's button may be: one that is named, and one that is only numbered, room
+    /// enough for a number and a time on one line, at any size of text.
+    @ScaledMetric(relativeTo: .body) private var named = 220
+    @ScaledMetric(relativeTo: .body) private var numbered = 88
+
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: tune.namesSongs ? 220 : 64), spacing: 8)], spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: tune.namesSongs ? named : numbered), spacing: 8)], spacing: 8) {
             ForEach(tune.songs.indices, id: \.self) { index in
                 let song = tune.songs[index]
                 let passed = model.passesOver(index, of: tune)
@@ -308,6 +319,8 @@ struct Songs: View {
                         if let length = song.length {
                             Spacer(minLength: 4)
                             Text(time(length)).monospacedDigit().foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize()
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

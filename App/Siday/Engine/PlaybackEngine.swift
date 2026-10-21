@@ -86,6 +86,8 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         case ended(tune: Int, serial: Int)
         /// How many voices have a light now.
         case voices(Int)
+        /// Another app has taken the sound (a call, or other music played): the player is to pause.
+        case interrupted
     }
 
     private let ring = SoundRing()
@@ -120,6 +122,40 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     func pause(_ paused: Bool) {
         ring.paused.store(paused, ordering: .releasing)
         if paused { now.withLock { $0.resting = true } }
+        if paused { letGo() } else { take() }
+    }
+
+    /// Whether the sound is going out: only while something is to be heard, so that other apps'
+    /// sound is left alone until then (on an iPhone or iPad, playing stops theirs, as Music's does).
+    private var running = false
+    /// Letting go of the sound, once the fade of a pause is over.
+    private var letting: DispatchWorkItem?
+
+    private func take() {
+        letting?.cancel()
+        letting = nil
+        guard source != nil, !running else { return }
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
+        try? audio.start()
+        running = audio.isRunning
+    }
+
+    private func letGo() {
+        guard running, letting == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, running, ring.paused.load(ordering: .acquiring) else { return }
+            letting = nil
+            audio.pause()
+            running = false
+            #if os(iOS)
+            // (And the app whose sound was stopped is told it can carry on.)
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            #endif
+        }
+        letting = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
     /// The player's own volume, 0 to 1, as it is heard: on a curve, as the ear hears loudness.
@@ -136,8 +172,18 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     func startOutput(silent: Bool) {
         guard source == nil else { return }
         #if os(iOS)
+        // (The session is made active only when there is something to hear: see `take()`.)
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+            // The system has stopped the sound: what is playing is paused, and played again when asked.
+            running = false
+            letting?.cancel()
+            letting = nil
+            let tell = tell
+            MainActor.assumeIsolated { tell(.interrupted) }
+        }
         #endif
         let format = AVAudioFormat(standardFormatWithSampleRate: Double(outputSampleRate), channels: 2)!
         self.silent = silent
@@ -157,7 +203,6 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         audio.connect(node, to: audio.mainMixerNode, format: format)
         if silent { audio.mainMixerNode.outputVolume = 0 }
         source = node
-        try? audio.start()
     }
 
     // MARK: The engine's thread
