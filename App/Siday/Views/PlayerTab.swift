@@ -73,16 +73,31 @@ struct SlideOverView: View {
                     EmptyView()
                 }
             }
-            .navigationTitle(title)
             #if os(iOS)
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { model.slideOver = nil }
                         .keyboardShortcut(.cancelAction)
                 }
             }
+            #else
+            // (On a Mac the window's toolbar is the window's: the panel has its own heading and button.)
+            .safeAreaInset(edge: .top) {
+                HStack {
+                    Text(title).font(.headline)
+                    Spacer()
+                    Button("Close", systemImage: "xmark") { model.slideOver = nil }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .keyboardShortcut(.cancelAction)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.bar)
+            }
+            #endif
         }
         .presentationDetents([.medium, .large])
     }
@@ -108,6 +123,7 @@ struct NowPlaying: View {
                     Analyser(bars: frame.bars, caps: frame.caps)
                 }
                 TimeBar(position: frame.position, rendered: model.rendered, length: tune.length)
+                    .padding(.top, 6)
             } else if let problem = model.problem {
                 Text("\(model.fileName): \(problem)")
             } else if model.current != nil {

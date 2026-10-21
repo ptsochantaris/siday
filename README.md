@@ -158,6 +158,15 @@ for what only a browser has: the chosen files and the audio graph.
 The web player is a package of its own, in `Web/`, built on SidayKit: `Web/build.sh` builds it, and
 `Web/serve.sh` builds it if it needs to and serves it on this Mac only.
 
+## On a Mac, iPhone or iPad
+
+Siday is also an app, for macOS and iOS 26 or later, in `App/`: an Xcode project on SidayKit, written
+in SwiftUI. It has what the web page has, in tabs: the player, the playlist, the settings, and what
+siday plays with each format's story. It opens every kind of file siday plays, from the Finder or the
+Files app, by drag and drop, or with Add Files and Add Folder, and keeps its list from one day to the
+next. Every command is in its menus, with keys for each, and it passes the system's accessibility
+audit (VoiceOver labels, every size of text, contrast). It is not yet in the App Store.
+
 ## On the command line
 
 `siday` is the player for the terminal, on macOS 26 or later. It is a package of its own, in `CLI/`.
@@ -368,13 +377,15 @@ Played, with a difference:
 
 ## How it is built
 
-The repository is three packages. At the top is SidayKit, in `Sources/SidayKit`, which holds all
+The repository is three packages and an app. At the top is SidayKit, in `Sources/SidayKit`, which holds all
 emulation. It has no dependencies and uses none of Foundation: it is given a file's bytes and gives
 back samples, so it builds wherever Swift does, WebAssembly and Embedded Swift included (see
 `Embedded/`), and another package can depend on this repository for it alone. `CLI/` is the player
 for macOS: reading files, Core Audio output, terminal keys and options (via swift-argument-parser).
-`Web/` is the web player. `swift test` at the top tests SidayKit, and `swift test --package-path CLI`
-the command-line player.
+`Web/` is the web player, and `App/` the app, whose list of the kinds of file it opens is written from
+SidayKit's by a test (`SIDAY_WRITE_APP_TYPES=1 swift test --filter appOpensEveryKindOfFile`). `swift
+test` at the top tests SidayKit, `swift test --package-path CLI` the command-line player, and the
+app's scheme in Xcode its accessibility on every tab.
 
 | Part | Based on | Checked against |
 |---|---|---|
