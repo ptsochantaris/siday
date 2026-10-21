@@ -75,6 +75,19 @@ struct ProTrackerReplayer: ~Copyable {
         var command: UInt16 = 0
         /// In words, as Paula is told them.
         var length: UInt16 = 0, repeatLength: UInt16 = 0
+
+        // For Startrekker's synthesised instruments, what ASREPLAY keeps for a voice (at the offset
+        // given, in its record of the voice): whether the voice is playing one (30); the number of
+        // the sample it was last given (34); the level (32); which of the five stages it is in, from
+        // 1, or 0 for none (38); how many ticks it is still to be held (40); the vibrato's angle (36);
+        // and the period it plays at, but for its own vibrato (74).
+        var synthesised = false
+        var instrument: UInt8 = 0
+        var level: Int16 = 0, stage: Int16 = 0, hold: Int16 = 0, angle: Int16 = 0
+        var synthPeriod: Int16 = 0
+        /// The period the effects last gave Paula, on the tick under way, if they gave one.
+        var toldPeriod: UInt16 = 0
+        var told = false
     }
 
     let module: ProTrackerModule
@@ -112,6 +125,8 @@ struct ProTrackerReplayer: ~Copyable {
     private(set) var ledIntoEarlierSong = false
     /// How many rows the table of who played a row first has.
     static let rowsInAll = 128 * ProTrackerModule.rows
+    /// For the noise of Startrekker's synthesised instruments: see `StartrekkerSynth.makeNoise`.
+    private var beam: UInt32 = 0
 
     /// - Parameters:
     ///   - position: where in the list of patterns to start.
@@ -196,7 +211,7 @@ struct ProTrackerReplayer: ~Copyable {
         paula.stop(voices: 1 << c)
         paula.setLocation(c, channels[c].start)
         paula.setLength(c, channels[c].length)
-        paula.setPeriod(c, UInt16(bitPattern: channels[c].period))
+        setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
         paula.start(voices: 1 << c)
         paula.setLocation(c, channels[c].loopStart)
         paula.setLength(c, channels[c].repeatLength)
@@ -221,12 +236,12 @@ struct ProTrackerReplayer: ~Copyable {
         } else if step == 2 {
             add = Int(channels[c].command & 0xF)
         } else {
-            paula.setPeriod(c, UInt16(bitPattern: channels[c].period))
+            setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
             return
         }
         let table = Int(channels[c].fineTune) * 37
         for note in 0 ..< 37 where channels[c].period >= periods[table + note] {
-            paula.setPeriod(c, UInt16(bitPattern: periods[table + note + add]))
+            setPaulaPeriod(c, UInt16(bitPattern: periods[table + note + add]))
             break
         }
     }
@@ -236,14 +251,14 @@ struct ProTrackerReplayer: ~Copyable {
         slideMask = 0xFF
         // ProTracker forgets that a period can go below nothing here, and does not stop it.
         if channels[c].period & 0xFFF < 113 { channels[c].period = (channels[c].period & Int16(bitPattern: 0xF000)) | 113 }
-        paula.setPeriod(c, UInt16(bitPattern: channels[c].period) & 0xFFF)
+        setPaulaPeriod(c, UInt16(bitPattern: channels[c].period) & 0xFFF)
     }
 
     private mutating func slideDown(_ c: Int) {
         channels[c].period &+= Int16(UInt8(truncatingIfNeeded: channels[c].command) & slideMask)
         slideMask = 0xFF
         if channels[c].period & 0xFFF > 856 { channels[c].period = (channels[c].period & Int16(bitPattern: 0xF000)) | 856 }
-        paula.setPeriod(c, UInt16(bitPattern: channels[c].period) & 0xFFF)
+        setPaulaPeriod(c, UInt16(bitPattern: channels[c].period) & 0xFFF)
     }
 
     /// The place in a channel's list of periods of the first one a period is not below.
@@ -290,11 +305,11 @@ struct ProTrackerReplayer: ~Copyable {
             }
         }
         if channels[c].glissFunk & 0xF == 0 {
-            paula.setPeriod(c, UInt16(bitPattern: channels[c].period))
+            setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
         } else {
             // Glissando: only whole notes are heard on the way.
             let table = Int(channels[c].fineTune) * 37
-            paula.setPeriod(c, UInt16(bitPattern: periods[table + place(of: Int(channels[c].period), c)]))
+            setPaulaPeriod(c, UInt16(bitPattern: periods[table + place(of: Int(channels[c].period), c)]))
         }
     }
 
@@ -317,7 +332,7 @@ struct ProTrackerReplayer: ~Copyable {
         data = UInt16(truncatingIfNeeded: (Int(data) * Int(channels[c].vibrato & 0xF)) >> 7)
         let period = Int(channels[c].period)
         data = UInt16(truncatingIfNeeded: channels[c].vibratoPosition < 128 ? period + Int(data) : period - Int(data))
-        paula.setPeriod(c, data)
+        setPaulaPeriod(c, data)
         channels[c].vibratoPosition &+= (channels[c].vibrato >> 2) & 0x3C
     }
 
@@ -444,7 +459,7 @@ struct ProTrackerReplayer: ~Copyable {
             jumping = true
         case 0xE: extended(c)
         case 0xF: setSpeed(c)
-        default: paula.setPeriod(c, UInt16(bitPattern: channels[c].period))
+        default: setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
         }
     }
 
@@ -468,7 +483,7 @@ struct ProTrackerReplayer: ~Copyable {
                 volumeSlide(c)
             case 0xE: extended(c)
             default:
-                paula.setPeriod(c, UInt16(bitPattern: channels[c].period))
+                setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
                 if effect == 0x7 {
                     tremolo(c)
                 } else if effect == 0xA {
@@ -480,9 +495,117 @@ struct ProTrackerReplayer: ~Copyable {
         if effect != 0x7 { paula.setVolume(c, UInt16(truncatingIfNeeded: Int(channels[c].volume))) }
     }
 
+    // MARK: Startrekker's synthesised instruments
+
+    /// Gives Paula a voice's period, and remembers it: a synthesised instrument plays at the period
+    /// the effects give it, with its own slide and vibrato on top.
+    private mutating func setPaulaPeriod(_ c: Int, _ period: UInt16) {
+        paula.setPeriod(c, period)
+        channels[c].toldPeriod = period
+        channels[c].told = true
+    }
+
+    /// Starts a note on a synthesised instrument, as ASREPLAY does (`mt_rambo`): its waveform from the
+    /// start, over and over, at the note's period moved down by the instrument's octaves, and its
+    /// level at the start of the first stage. (ASREPLAY starts one so even where the row asks for a
+    /// slide to the note, and takes the period as the pattern has it, with no fine tuning.)
+    private mutating func startSynthesised(_ c: Int, _ instrument: StartrekkerSynth.Instrument) {
+        // The 68000 shifts a word by a count taken modulo 64, and a word shifted by 16 or more is nothing.
+        let shift = Int(instrument.octave & 63)
+        let note = UInt16(bitPattern: channels[c].note) & 0xFFF
+        channels[c].period = shift < 16 ? Int16(bitPattern: note << shift) : 0
+        channels[c].synthPeriod = channels[c].period
+        paula.stop(voices: 1 << c)
+        channels[c].vibratoPosition = 0
+        if channels[c].waveControl & 0x40 == 0 { channels[c].tremoloPosition = 0 }
+        let wave = StartrekkerSynth.waveform(instrument.waveform, at: module.waveforms)
+        channels[c].loopStart = wave
+        channels[c].waveStart = wave
+        channels[c].repeatLength = 16
+        paula.setLength(c, 16)
+        paula.setLocation(c, wave)
+        setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
+        starting |= 1 << c
+        channels[c].level = instrument.startLevel
+        channels[c].angle = 0
+        channels[c].stage = 1
+    }
+
+    /// What ASREPLAY does on every tick for a voice playing a synthesised instrument, once the
+    /// pattern's effects are done (`mt_amhandler`): the level taken a step on through its stages, and
+    /// the volume from it; the slide of the pitch; and the vibrato. Its sums are of the 68000's
+    /// words, and wrap round as they do.
+    private mutating func synthesise(_ c: Int, _ synth: StartrekkerSynth) {
+        if channels[c].told { channels[c].synthPeriod = Int16(bitPattern: channels[c].toldPeriod) }
+        channels[c].told = false
+        guard channels[c].synthesised, channels[c].stage != 0, let instrument = synth.instrument(channels[c].instrument) else { return }
+
+        var level = channels[c].level
+        var stage = channels[c].stage
+        switch stage {
+        case 1, 2, 3:
+            // Two attacks and a decay: the level moves by the stage's speed until it comes to the
+            // stage's level, and is then held there, and the next stage begins on the tick after.
+            let (target, speed) = stage == 1 ? (instrument.attackLevel, instrument.attackSpeed)
+                : stage == 2 ? (instrument.secondAttackLevel, instrument.secondAttackSpeed)
+                : (instrument.sustainLevel, instrument.decaySpeed)
+            var reached = level == target
+            if !reached {
+                if level < target {
+                    level &+= speed
+                    reached = level >= target
+                } else {
+                    level &-= speed
+                    reached = level <= target
+                }
+                if reached { level = target }
+            }
+            if reached {
+                stage += 1
+                if stage == 4 { channels[c].hold = instrument.sustainTime }
+            }
+        case 4:
+            // The sustain, for so many ticks.
+            channels[c].hold &-= 1
+            if channels[c].hold < 0 { stage = 5 }
+        default:
+            // The release, until the level is below nothing: then the voice is no longer the
+            // instrument's, and falls silent.
+            level &-= instrument.releaseSpeed
+            if level < 0 {
+                channels[c].synthesised = false
+                level = 0
+                stage = 0
+                paula.stop(voices: 1 << c)
+                channels[c].loopStart = module.silence
+                channels[c].waveStart = module.silence
+                channels[c].repeatLength = 1
+            }
+        }
+        channels[c].level = level
+        channels[c].stage = stage
+
+        // The volume: the level's top six bits, times the word of the sample's fine tuning and the
+        // channel's volume (which is the volume, the fine tuning being none), over 64.
+        let volumeWord = UInt32(channels[c].fineTune) << 8 | UInt32(UInt8(bitPattern: channels[c].volume))
+        paula.setVolume(c, UInt16(truncatingIfNeeded: UInt32(UInt16(bitPattern: level) >> 2) * volumeWord) >> 6)
+
+        channels[c].synthPeriod &+= instrument.pitchFall
+        channels[c].period &+= instrument.pitchFall
+        let vibrato = instrument.vibratoDepth == 0 ? 0 : StartrekkerSynth.vibrato(depth: instrument.vibratoDepth, angle: channels[c].angle)
+        paula.setPeriod(c, UInt16(bitPattern: channels[c].synthPeriod &+ vibrato))
+        channels[c].angle &+= instrument.vibratoSpeed &* 2
+        if channels[c].angle >= 720 { channels[c].angle &-= 720 }
+    }
+
     // MARK: Notes
 
     private mutating func setPeriod(_ c: Int) {
+        if channels[c].synthesised, let instrument = module.synth?.instrument(channels[c].instrument) {
+            startSynthesised(c, instrument)
+            rowEffects(c)
+            return
+        }
         let wanted = Int(UInt16(bitPattern: channels[c].note) & 0xFFF)
         var i = 0
         while i < 37, wanted < Int(periods[i]) { i += 1 }
@@ -500,14 +623,14 @@ struct ProTrackerReplayer: ~Copyable {
                 paula.setLength(c, 1)
                 channels[c].repeatLength = 1
             }
-            paula.setPeriod(c, UInt16(bitPattern: channels[c].period))
+            setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
             starting |= 1 << c
         }
         rowEffects(c)
     }
 
     private mutating func playVoice(_ c: Int) {
-        if channels[c].note == 0, channels[c].command == 0 { paula.setPeriod(c, UInt16(bitPattern: channels[c].period)) }
+        if channels[c].note == 0, channels[c].command == 0 { setPaulaPeriod(c, UInt16(bitPattern: channels[c].period)) }
 
         let note = module.note(pattern: Int(pattern), row: Int(row), channel: c)
         if note.period != 0 { playedNote = true }
@@ -535,6 +658,12 @@ struct ProTrackerReplayer: ~Copyable {
                 channels[c].loopStart = module.silence
                 channels[c].waveStart = module.silence
             }
+            // (Whether the sample is one of Startrekker's synthesised instruments is told by the
+            // file beside the module alone, as ASREPLAY tells it: whatever the module has for it.)
+            if let synth = module.synth {
+                channels[c].instrument = note.sample
+                channels[c].synthesised = synth.instrument(note.sample) != nil
+            }
         }
 
         let command = channels[c].command
@@ -549,8 +678,12 @@ struct ProTrackerReplayer: ~Copyable {
         }
         switch (command & 0x0F00) >> 8 {
         case 3, 5:
-            setTonePortamento(c)
-            rowEffects(c)
+            if channels[c].synthesised {
+                setPeriod(c)
+            } else {
+                setTonePortamento(c)
+                rowEffects(c)
+            }
         case 9:
             rowEffects(c)
             setPeriod(c)
@@ -629,6 +762,13 @@ struct ProTrackerReplayer: ~Copyable {
         } else {
             for c in 0 ..< 4 { tickEffects(c) }
             if jumping { nextPosition() }
+        }
+
+        // Startrekker's synthesised instruments, which ASREPLAY plays once a tick's effects are done,
+        // and then their noise made afresh.
+        if let synth = module.synth {
+            for c in 0 ..< 4 { synthesise(c, synth) }
+            StartrekkerSynth.makeNoise(module.memory, at: module.waveforms, beam: &beam)
         }
 
         if stopping {

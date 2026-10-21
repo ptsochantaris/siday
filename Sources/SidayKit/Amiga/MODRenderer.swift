@@ -27,6 +27,8 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// The file, kept if it has a sample longer than ProTracker has room for: for `renderRaw`,
     /// which has such a sample as ProTracker has it.
     private let longFile: [UInt8]?
+    /// The file of Startrekker's synthesised instruments it was given, for `renderRaw` too.
+    private let synthesised: [UInt8]?
     private let songList: [ModuleSongs.Song]
     /// Which song first played each row. See `ModuleSongs`.
     private let firstPlayedBy: UnsafeMutablePointer<UInt8>
@@ -56,11 +58,15 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// run of modules comes out between the middles of the Spectrum's, the Atari's and the C64's tunes.
     private static let gain: Float = 0.26
 
-    /// - Parameter origin: what the module was read from, if it was not a module of its own: the
-    ///   packer it was unpacked from (see `ProWizard`), or the tracker whose file it was read out of.
-    public init(_ data: [UInt8], options: LoadOptions, origin: String? = nil) throws {
-        module = try ProTrackerModule(data)
+    /// - Parameters:
+    ///   - origin: what the module was read from, if it was not a module of its own: the packer it
+    ///     was unpacked from (see `ProWizard`), or the tracker whose file it was read out of.
+    ///   - synthesised: for a module of Startrekker's, the file beside it that Startrekker kept its
+    ///     synthesised instruments in (see `StartrekkerSynth`), if it has one.
+    public init(_ data: [UInt8], options: LoadOptions, origin: String? = nil, synthesised: [UInt8]? = nil) throws {
+        module = try ProTrackerModule(data, synthesised: synthesised)
         longFile = module.hasLongSamples ? data : nil
+        self.synthesised = synthesised
         model = options.amigaModel
         side = options.stereo == .mono ? 0 : Float(max(0, min(1, options.amigaSeparation))) * 0.5
         left = .allocate(capacity: Self.tickSpace)
@@ -221,7 +227,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// to here (for mono, as far as the Amiga has them). For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {
         // (That player is ProTracker, and cuts a sample off where ProTracker's room for it ends.)
-        restart(playing: longFile.flatMap { try? ProTrackerModule($0, asProTracker: true) })
+        restart(playing: longFile.flatMap { try? ProTrackerModule($0, asProTracker: true, synthesised: synthesised) })
         var output: [Int16] = []
         output.reserveCapacity(frames * 2)
 

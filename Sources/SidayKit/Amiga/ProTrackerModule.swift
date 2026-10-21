@@ -77,6 +77,11 @@ final class ProTrackerModule {
     private let patternSpace: Memory<Note>, sampleMemory: Memory<Int8>
     /// What the file asks for that is not played as it asks: see `TuneInfo.shortfalls`.
     private(set) var shortfalls: [String] = []
+    /// Startrekker's synthesised instruments, for a module of Startrekker's given the file of them
+    /// that it kept beside the module; nil if there are none.
+    let synth: StartrekkerSynth?
+    /// Where in memory the synthesised instruments' waveforms are: in the room after the samples'.
+    var waveforms: Int { 31 * sampleSpace }
 
     private let file: ByteReader
     /// Where in the file each sample's bytes are, and how many of them were taken.
@@ -105,10 +110,13 @@ final class ProTrackerModule {
         return data[1080 ..< 1084].allSatisfy { $0 >= 0x20 && $0 < 0x7F }
     }
 
-    /// - Parameter asProTracker: true to cut a sample that is longer than ProTracker has room for
-    ///   off at 64 KB, as ProTracker does. Such a file is some other tracker's, made to be played
-    ///   by the Amiga's routines, which play the whole of it, or by a player on another machine.
-    init(_ data: [UInt8], asProTracker: Bool = false) throws {
+    /// - Parameters:
+    ///   - asProTracker: true to cut a sample that is longer than ProTracker has room for off at
+    ///     64 KB, as ProTracker does. Such a file is some other tracker's, made to be played by the
+    ///     Amiga's routines, which play the whole of it, or by a player on another machine.
+    ///   - synthesised: for a module of Startrekker's, the file beside it of its synthesised
+    ///     instruments (see `StartrekkerSynth`), if it has one.
+    init(_ data: [UInt8], asProTracker: Bool = false, synthesised: [UInt8]? = nil) throws {
         let file = ByteReader(data)
         self.file = file
         let size = data.count
@@ -148,6 +156,9 @@ final class ProTrackerModule {
         guard channelCount > 0 else { throw TuneError.malformed("a module of no channels") }
         let sampleCount = kind == nil ? 15 : 31
         self.kind = kind ?? .soundtracker
+        // (Only a module of Startrekker's own has them, as OpenMPT and ASREPLAY take it.)
+        let instruments = kind == .startrekker ? synthesised.flatMap { StartrekkerSynth($0) } : nil
+        synth = instruments?.hasAny == true ? instruments : nil
         self.channelCount = channelCount
 
         // How long the file says its longest sample is.
@@ -361,8 +372,9 @@ final class ProTrackerModule {
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         // Startrekker kept its synthesised instruments in a file of their own beside the module (its
         // `.nt`), and left their samples empty in it: a module of Startrekker's that plays more than
-        // one empty sample is taken to have them, as OpenMPT takes it (`Load_mod.cpp`).
-        if self.kind == .startrekker, (0 ..< 31).count(where: { used[$0 + 1] && samples[$0].length == 0 }) > 1 {
+        // one empty sample is taken to have them, as OpenMPT takes it (`Load_mod.cpp`), unless it is
+        // given the file.
+        if self.kind == .startrekker, instruments == nil, (0 ..< 31).count(where: { used[$0 + 1] && samples[$0].length == 0 }) > 1 {
             shortfalls.append("Its synthesised instruments, which Startrekker kept in a file beside it (.nt), are not played.")
         }
 
@@ -403,5 +415,6 @@ final class ProTrackerModule {
                 memory[samples[i].offset + 1] = 0
             }
         }
+        if synth != nil { StartrekkerSynth.writeWaveforms(memory, at: waveforms) }
     }
 }
