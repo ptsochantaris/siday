@@ -161,8 +161,8 @@ The web player is a package of its own, in `Web/`, built on SidayKit: `Web/build
 ## On a Mac, iPhone or iPad
 
 Siday is also an app, for macOS and iOS 26 or later, in `App/`: an Xcode project on SidayKit, written
-in SwiftUI. It has what the web page has, in tabs: the player, the playlist, the settings, and what
-siday plays with each format's story. It opens every kind of file siday plays, from the Finder or the
+in SwiftUI. It has what the web page has: the playlist beside the player (on an iPhone, one at a
+time), the settings, and what siday plays with each format's story. It opens every kind of file siday plays, from the Finder or the
 Files app, by drag and drop, or with Add Files and Add Folder, and keeps its list from one day to the
 next. Every command is in its menus, with keys for each, and it passes the system's accessibility
 audit (VoiceOver labels, every size of text, contrast). It is not yet in the App Store.
@@ -385,7 +385,7 @@ for macOS: reading files, Core Audio output, terminal keys and options (via swif
 `Web/` is the web player, and `App/` the app, whose list of the kinds of file it opens is written from
 SidayKit's by a test (`SIDAY_WRITE_APP_TYPES=1 swift test --filter appOpensEveryKindOfFile`). `swift
 test` at the top tests SidayKit, `swift test --package-path CLI` the command-line player, and the
-app's scheme in Xcode its accessibility on every tab.
+app's scheme in Xcode its accessibility in every part of it.
 
 | Part | Based on | Checked against |
 |---|---|---|
