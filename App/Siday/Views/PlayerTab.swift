@@ -246,6 +246,8 @@ struct Controls: View {
                 Text(style.title).tag(style)
             }
         }
+        // (What is chosen, "Stereo", says what it is a choice of: no name beside it.)
+        .labelsHidden()
         .fixedSize()
         .disabled(model.remaking)
         .help("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out (which way round is in the settings), and a television is an early-1980s set's speaker")

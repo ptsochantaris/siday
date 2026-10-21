@@ -124,8 +124,12 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
 
     /// The player's own volume, 0 to 1, as it is heard: on a curve, as the ear hears loudness.
     func setVolume(_ volume: Double) {
-        audio.mainMixerNode.outputVolume = Float(volume * volume)
+        audio.mainMixerNode.outputVolume = silent ? 0 : Float(volume * volume)
     }
+
+    /// True for a test: the sound is made and played, and nothing but silence reaches the speaker,
+    /// whatever the volume is set to.
+    private var silent = false
 
     /// Starts the sound going to the system's output. Silent (for tests), it is made and played, and
     /// nothing is heard.
@@ -136,12 +140,17 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
         let format = AVAudioFormat(standardFormatWithSampleRate: Double(outputSampleRate), channels: 2)!
+        self.silent = silent
         let ring = ring
         let node = AVAudioSourceNode(format: format) { _, _, frameCount, buffers in
             let list = UnsafeMutableAudioBufferListPointer(buffers)
             guard list.count >= 2, let left = list[0].mData?.assumingMemoryBound(to: Float.self),
                   let right = list[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             ring.fill(left: left, right: right, count: Int(frameCount))
+            if silent {
+                left.update(repeating: 0, count: Int(frameCount))
+                right.update(repeating: 0, count: Int(frameCount))
+            }
             return noErr
         }
         audio.attach(node)

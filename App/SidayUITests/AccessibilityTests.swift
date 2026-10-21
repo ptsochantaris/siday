@@ -30,7 +30,7 @@ final class AccessibilityTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Self.squareModule().write(to: folder.appendingPathComponent("square.mod"))
         let app = XCUIApplication()
-        app.launchArguments = ["-SidaySilent", "-SidayFresh", "-SidayOpen", folder.path] + extra
+        app.launchArguments = ["-SidaySilent", "-volume", "0", "-SidayFresh", "-SidayOpen", folder.path] + extra
         app.launch()
         return app
     }

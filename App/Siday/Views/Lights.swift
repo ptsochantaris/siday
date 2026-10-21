@@ -23,6 +23,7 @@ struct Lights: View {
         let columns = scopes
             ? [GridItem(.adaptive(minimum: 64, maximum: 96), spacing: 6)]
             : [GridItem(.adaptive(minimum: min(lampSize, 24), maximum: lampSize), spacing: 0)]
+        GlassEffectContainer {
         LazyVGrid(columns: columns, alignment: .center, spacing: 6) {
             ForEach(0 ..< count, id: \.self) { voice in
                 Light(voice: voice, level: frame.lights[voice],
@@ -31,6 +32,7 @@ struct Lights: View {
                       wave: scopes ? Array(frame.scopes.dropFirst(voice * ChannelWaves.points).prefix(ChannelWaves.points)) : nil,
                       lamp: lamps, lampSize: lampSize, scopeHeight: scopeHeight)
             }
+        }
         }
         .frame(maxWidth: scopes ? CGFloat(min(8, max(1, count))) * 102 : CGFloat(count) * lampSize)
         .frame(maxWidth: .infinity)
@@ -55,12 +57,21 @@ private struct Light: View {
     var body: some View {
         VStack(spacing: 2) {
             if lamp {
+                let size = wave == nil ? lampSize : 24
                 Lamp(level: level, kind: kind)
-                    .frame(width: wave == nil ? lampSize : 24, height: wave == nil ? lampSize : 24)
+                    .frame(width: size, height: size)
+                    // A dome of glass over the lamp's own glass, which the glow shows through.
+                    .overlay {
+                        Circle()
+                            .fill(.clear)
+                            .frame(width: size / 2 + 2, height: size / 2 + 2)
+                            .glassEffect(.clear, in: .circle)
+                    }
             }
             if let wave {
-                Scope(wave: wave, colour: Lamp.colour(kind))
+                Scope(wave: wave, kind: kind)
                     .frame(height: lamp ? scopeHeight - 28 : scopeHeight)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 6))
             }
         }
         .saturation(muted ? 0.22 : 1)
@@ -89,10 +100,13 @@ private struct Light: View {
     }
 }
 
-/// A lamp: dark glass when its voice is quiet, glowing when it plays.
+/// A lamp: glass when its voice is quiet, glowing when it plays, with a thin ring round the glass as the
+/// web player's lamps have. In the dark the glass is dark, as the web player's; in the light it is a
+/// paler glass of the same colour.
 struct Lamp: View {
     let level: Float
     let kind: VoiceKind
+    @Environment(\.colorScheme) private var scheme
 
     static func colour(_ kind: VoiceKind) -> Color {
         switch kind {
@@ -102,11 +116,30 @@ struct Lamp: View {
         }
     }
 
-    private static func glass(_ kind: VoiceKind) -> [Color] {
+    /// The trace of a voice's scope: its lamp's colour, a little deeper on a light ground so that it
+    /// stands out from it.
+    static func trace(_ kind: VoiceKind, _ scheme: ColorScheme) -> Color {
+        guard scheme == .light else { return colour(kind) }
         switch kind {
-        case .chip: [Color(red: 0.42, green: 0.11, blue: 0.09), Color(red: 0.13, green: 0.03, blue: 0.03)]
-        case .sample: [Color(red: 0.09, green: 0.19, blue: 0.43), Color(red: 0.03, green: 0.06, blue: 0.15)]
-        case .speaker: [Color(red: 0.42, green: 0.11, blue: 0.33), Color(red: 0.15, green: 0.03, blue: 0.12)]
+        case .chip: return Color(red: 0.83, green: 0.16, blue: 0.08)
+        case .sample: return Color(red: 0.10, green: 0.37, blue: 0.84)
+        case .speaker: return Color(red: 0.80, green: 0.18, blue: 0.65)
+        }
+    }
+
+    /// The glass, lit from above on the left: its light side and its shaded side.
+    private static func glass(_ kind: VoiceKind, _ scheme: ColorScheme) -> [Color] {
+        if scheme == .light {
+            switch kind {
+            case .chip: return [Color(red: 0.93, green: 0.74, blue: 0.71), Color(red: 0.78, green: 0.52, blue: 0.48)]
+            case .sample: return [Color(red: 0.72, green: 0.79, blue: 0.93), Color(red: 0.50, green: 0.59, blue: 0.80)]
+            case .speaker: return [Color(red: 0.91, green: 0.72, blue: 0.86), Color(red: 0.76, green: 0.50, blue: 0.69)]
+            }
+        }
+        switch kind {
+        case .chip: return [Color(red: 0.42, green: 0.11, blue: 0.09), Color(red: 0.13, green: 0.03, blue: 0.03)]
+        case .sample: return [Color(red: 0.09, green: 0.19, blue: 0.43), Color(red: 0.03, green: 0.06, blue: 0.15)]
+        case .speaker: return [Color(red: 0.42, green: 0.11, blue: 0.33), Color(red: 0.15, green: 0.03, blue: 0.12)]
         }
     }
 
@@ -118,8 +151,11 @@ struct Lamp: View {
             // The lamp is half the place; its glow is as wide as the place when bright, and fainter than
             // its level, so a loud voice stands out from a quiet one and a note is seen to die away.
             let glass = CGRect(x: centre.x - side / 4, y: centre.y - side / 4, width: side / 2, height: side / 2)
-            let colours = Self.glass(kind)
+            let colours = Self.glass(kind, scheme)
             context.fill(Path(ellipseIn: glass), with: .radialGradient(Gradient(colors: colours), center: CGPoint(x: glass.minX + glass.width * 0.38, y: glass.minY + glass.height * 0.32), startRadius: 0, endRadius: side / 4))
+            // The ring: on the web player's dark panel nearly black; on a light ground a soft grey.
+            let ring = scheme == .light ? Color(white: 0.45, opacity: 0.55) : Color(red: 0.047, green: 0.051, blue: 0.063)
+            context.stroke(Path(ellipseIn: glass.insetBy(dx: -0.5, dy: -0.5)), with: .color(ring), lineWidth: 1)
             let glow = level * level.squareRoot()
             guard glow > 0.01 else { return }
             let radius = side / 2 * (0.5 + 0.5 * level)
@@ -135,15 +171,22 @@ struct Lamp: View {
     }
 }
 
-/// A voice's wave, in the colour of its lamp, on a dark ground of its own.
+/// A voice's wave, in the colour of its lamp, on a ground of its own: dark in the dark, as the web
+/// player's, and pale in the light, with a line round it.
 struct Scope: View {
     let wave: [Float]
-    let colour: Color
+    let kind: VoiceKind
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Canvas { context, size in
-            let ground = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 6)
-            context.fill(ground, with: .color(.black.opacity(0.85)))
+            let ground = Path(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: 0.5, dy: 0.5), cornerRadius: 6)
+            // (Tinted a little over the glass behind it: pale in the light, the web player's paper in the dark.)
+            if scheme == .light {
+                context.fill(ground, with: .color(Color(white: 0.92, opacity: 0.85)))
+            } else {
+                context.fill(ground, with: .color(Color(red: 0.078, green: 0.086, blue: 0.102, opacity: 0.6)))
+            }
             guard wave.count > 1 else { return }
             var path = Path()
             for (place, value) in wave.enumerated() {
@@ -151,7 +194,7 @@ struct Scope: View {
                                     y: size.height / 2 - CGFloat(value) * (size.height / 2 - 2))
                 if place == 0 { path.move(to: point) } else { path.addLine(to: point) }
             }
-            context.stroke(path, with: .color(colour), lineWidth: 1.5)
+            context.stroke(path, with: .color(Lamp.trace(kind, scheme)), lineWidth: 1.5)
         }
         .accessibilityHidden(true)
     }

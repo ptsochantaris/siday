@@ -52,8 +52,8 @@ enum Part: String, CaseIterable, Identifiable {
     var id: Self { self }
 
     /// True for a part that is put away until the listener first asks for it: the scopes, which are
-    /// more than most want to see.
-    var startsHidden: Bool { self == .waves }
+    /// more than most want to see, and the picture.
+    var startsHidden: Bool { self == .waves || self == .picture }
 
     var title: String {
         switch self {
@@ -193,7 +193,8 @@ final class PlayerModel {
         self.picture = picture
         visualiser = Visualiser(mode: picture)
         output = defaults.string(forKey: "output").flatMap { OutputStyle(rawValue: $0) }.flatMap { Self.outputs.contains($0) ? $0 : nil } ?? .abc
-        volume = defaults.object(forKey: "volume") as? Double ?? 1
+        // (Kept as a number; given on the command line, as text: either is read.)
+        volume = defaults.object(forKey: "volume") != nil ? max(0, min(1, defaults.double(forKey: "volume"))) : 1
         let words = Set(defaults.stringArray(forKey: "hidden") ?? [])
         hidden = Set(Part.allCases.filter { $0.startsHidden ? !words.contains("+" + $0.rawValue) : words.contains($0.rawValue) })
         settings = Self.rememberedSettings
