@@ -870,6 +870,14 @@ extension SoundfactoryPlayer {
 
     // MARK: The buffers
 
+    /// The size in bytes of a sample that is smoothed or bent, as the player makes it of its length in words (a
+    /// word, so that nought is 65,536). (One of more than the buffers' 1,024 bytes, which would be written past
+    /// them, is taken as that long: none of UnExoticA's is more than 256, its voice's buffer.)
+    private static func bufferedSize(_ words: UInt16) -> Int {
+        let size = Int(words << 1)
+        return size == 0 ? 1024 : min(1024, size)
+    }
+
     /// A byte of a voice's buffer written, if it is within the buffers.
     @inline(__always) private func buffer(_ v: Int, _ index: Int, _ value: UInt8) {
         let at = buffersAt + 256 * v + index
@@ -879,7 +887,7 @@ extension SoundfactoryPlayer {
     /// `lbC000DD2`: the sample smoothed into the voice's buffer: each byte the mean of itself and the one so
     /// far before it (the smoothing's distance), going round.
     private func smooth(_ v: Int, _ a: Int) {
-        let size = Int(word(a + 4) << 1)
+        let size = Self.bufferedSize(word(a + 4))
         let sample = a + 0x26
         var from = Int(Int16(truncatingIfNeeded: size - Int(voices[v].smoothDistance)))
         var to = 0
@@ -895,7 +903,7 @@ extension SoundfactoryPlayer {
     /// `lbC000EEC`: the sample (or its smoothing) bent into the voice's buffer: means of as many bytes as the
     /// bending's amount, joined by straight lines; of one, copied as it is.
     private func bendShape(_ v: Int, _ a: Int) {
-        let size = Int(word(a + 4) << 1) & 0xFFFF
+        let size = Self.bufferedSize(word(a + 4))
         let amount = Int(voices[v].bend)
         let own = buffersAt + 256 * v
         let source = byte(a + 8) & 8 != 0 ? own : a + 0x26

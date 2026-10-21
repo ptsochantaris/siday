@@ -68,10 +68,10 @@ struct ThomasHermannPlayer: ~Copyable {
     var stops: Int { 0 }
     private(set) var lengthClocks: UInt64?
 
-    /// True to run the slides and envelopes as Wanted Team's module does in UADE: on CIA-B's timer B, set
-    /// from EaglePlayer's timer of fifty times a second ($376B) with its bytes swapped ($6B37), some 25.8
-    /// times a second. False (the game's own way, as Blue Angel 69's custom module plays it): fifty.
-    var wantedTeamsTimer = false
+    /// True to run the slides and envelopes as Wanted Team's module does in UADE (`InitSound`): on CIA-B's
+    /// timer B, set from EaglePlayer's timer of fifty times a second ($376B) with its bytes swapped ($6B37),
+    /// some 25.8 times a second. False (the game's own way, as Blue Angel 69's custom module plays it): fifty.
+    let wantedTeamsTimer: Bool
     var effectsClocks: UInt64 {
         wantedTeamsTimer ? UInt64(0x6B37 + 1) * 5 : UInt64(TFMXTiming.fiftyTimes)
     }
@@ -134,15 +134,14 @@ struct ThomasHermannPlayer: ~Copyable {
         var slideTarget: UInt16 = 0
 
         // Paula's part: whether the voice's DMA is on, its audio interrupt is let through and asked for;
-        // what her location and length registers hold, the length of what she is playing, and when she
-        // comes to its end (in Paula's clocks); the period she plays at; and when the interrupt of its
-        // start is due, if it is still to come.
+        // what her location and length registers hold, and when she comes to the end of what she is
+        // playing (in Paula's clocks); the period she plays at; and when the interrupt of its start is due,
+        // if it is still to come.
         var dma = false
         var enabled = false
         var requested = false
         var location = 0
         var length: UInt16 = 0
-        var playing: UInt16 = 0
         var endsAt: UInt64 = 0
         var period: UInt16 = 0
         var startInterrupt: UInt64?
@@ -270,7 +269,9 @@ struct ThomasHermannPlayer: ~Copyable {
     /// `Instruments` beside it, by name (an IFF 8SVX file's sound taken from its 104th byte, as the player
     /// takes it), a sample whose file is not given not heard. A module whose patterns go past its end is
     /// refused, as `InitPlayer` refuses it.
-    init(_ data: [UInt8], samples: [UInt8]? = nil, instruments files: [(name: String, bytes: [UInt8])] = [], song: Int = 0) throws(TuneError) {
+    init(_ data: [UInt8], samples: [UInt8]? = nil, instruments files: [(name: String, bytes: [UInt8])] = [], song: Int = 0,
+         wantedTeamsTimer: Bool = false) throws(TuneError) {
+        self.wantedTeamsTimer = wantedTeamsTimer
         fileSize = data.count
         origin = Self.long(data, 46)
         let count = min(32, Int(Self.byte(data, 35)))
@@ -749,7 +750,6 @@ extension ThomasHermannPlayer {
         }
         if voices[v].endsAt + Self.clocksPerByte(voices[v].period) <= at {
             voices[v].requested = true
-            voices[v].playing = voices[v].length
             let each = Self.clocks(voices[v].length, voices[v].period)
             let past = at - voices[v].endsAt
             voices[v].endsAt += (past / each + 1) * each
@@ -761,7 +761,6 @@ extension ThomasHermannPlayer {
         if voices[v].startInterrupt != nil {
             voices[v].startInterrupt = nil
         } else {
-            voices[v].playing = voices[v].length
             voices[v].endsAt += Self.clocks(voices[v].length, voices[v].period)
         }
         voices[v].requested = true
@@ -807,7 +806,6 @@ extension ThomasHermannPlayer {
         tell(at, begin, &told, &output)
         output.on(v)
         voices[v].dma = true
-        voices[v].playing = voices[v].length
         voices[v].endsAt = at + Self.clocks(voices[v].length, voices[v].period)
         voices[v].startInterrupt = at + Self.startInterrupt
     }

@@ -176,9 +176,7 @@ private func run(_ player: inout ThomasHermannPlayer, until: UInt64) -> Recorder
     // Fifty times a second (Wanted Team's timer would run them some 26).
     let times = r.events.indices.filter { r.events[$0].hasPrefix("period 0") }.map { r.times[$0] }
     #expect(times[1] - times[0] == 70940)
-    var wt = try ThomasHermannPlayer(module(note: 0x01, effect: 1), samples: sound)
-    wt.wantedTeamsTimer = true
-    try wt.select(song: 0)
+    var wt = try ThomasHermannPlayer(module(note: 0x01, effect: 1), samples: sound, wantedTeamsTimer: true)
     let w = run(&wt, until: 90 * 81925)
     let wtimes = w.events.indices.filter { w.events[$0].hasPrefix("period 0") }.map { w.times[$0] }
     #expect(wtimes[1] - wtimes[0] == 137_240)
