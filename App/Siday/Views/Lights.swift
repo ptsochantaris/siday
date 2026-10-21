@@ -23,7 +23,6 @@ struct Lights: View {
         let columns = scopes
             ? [GridItem(.adaptive(minimum: 64, maximum: 96), spacing: 6)]
             : [GridItem(.adaptive(minimum: min(lampSize, 24), maximum: lampSize), spacing: 0)]
-        GlassEffectContainer {
         LazyVGrid(columns: columns, alignment: .center, spacing: 6) {
             ForEach(0 ..< count, id: \.self) { voice in
                 Light(voice: voice, level: frame.lights[voice],
@@ -32,7 +31,6 @@ struct Lights: View {
                       wave: scopes ? Array(frame.scopes.dropFirst(voice * ChannelWaves.points).prefix(ChannelWaves.points)) : nil,
                       lamp: lamps, lampSize: lampSize, scopeHeight: scopeHeight)
             }
-        }
         }
         .frame(maxWidth: scopes ? CGFloat(min(8, max(1, count))) * 102 : CGFloat(count) * lampSize)
         .frame(maxWidth: .infinity)
@@ -60,18 +58,10 @@ private struct Light: View {
                 let size = wave == nil ? lampSize : 24
                 Lamp(level: level, kind: kind)
                     .frame(width: size, height: size)
-                    // A dome of glass over the lamp's own glass, which the glow shows through.
-                    .overlay {
-                        Circle()
-                            .fill(.clear)
-                            .frame(width: size / 2 + 2, height: size / 2 + 2)
-                            .glassEffect(.clear, in: .circle)
-                    }
             }
             if let wave {
                 Scope(wave: wave, kind: kind)
                     .frame(height: lamp ? scopeHeight - 28 : scopeHeight)
-                    .glassEffect(.regular, in: .rect(cornerRadius: 6))
             }
         }
         .saturation(muted ? 0.22 : 1)
@@ -156,10 +146,13 @@ struct Lamp: View {
             // The ring: on the web player's dark panel nearly black; on a light ground a soft grey.
             let ring = scheme == .light ? Color(white: 0.45, opacity: 0.55) : Color(red: 0.047, green: 0.051, blue: 0.063)
             context.stroke(Path(ellipseIn: glass.insetBy(dx: -0.5, dy: -0.5)), with: .color(ring), lineWidth: 1)
-            let glow = level * level.squareRoot()
+            // (On a light ground a glow that fades to nothing is mostly lost: there it comes on sooner and
+            // fuller, and its middle is a deeper colour, so that a lit lamp is plainly lit.)
+            let light = scheme == .light
+            let glow = light ? level.squareRoot() : level * level.squareRoot()
             guard glow > 0.01 else { return }
-            let radius = side / 2 * (0.5 + 0.5 * level)
-            let colour = Self.colour(kind)
+            let radius = side / 2 * (light ? 0.55 + 0.45 * level : 0.5 + 0.5 * level)
+            let colour = light ? Self.trace(kind, scheme) : Self.colour(kind)
             context.opacity = glow
             context.fill(Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)),
                          with: .radialGradient(Gradient(stops: [
@@ -181,11 +174,13 @@ struct Scope: View {
     var body: some View {
         Canvas { context, size in
             let ground = Path(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: 0.5, dy: 0.5), cornerRadius: 6)
-            // (Tinted a little over the glass behind it: pale in the light, the web player's paper in the dark.)
             if scheme == .light {
-                context.fill(ground, with: .color(Color(white: 0.92, opacity: 0.85)))
+                context.fill(ground, with: .color(Color(white: 0.955)))
+                context.stroke(ground, with: .color(Color(white: 0.78)), lineWidth: 1)
             } else {
-                context.fill(ground, with: .color(Color(red: 0.078, green: 0.086, blue: 0.102, opacity: 0.6)))
+                // (The web player's paper and line.)
+                context.fill(ground, with: .color(Color(red: 0.078, green: 0.086, blue: 0.102)))
+                context.stroke(ground, with: .color(Color(red: 0.18, green: 0.2, blue: 0.235)), lineWidth: 1)
             }
             guard wave.count > 1 else { return }
             var path = Path()
