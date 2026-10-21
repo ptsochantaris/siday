@@ -433,6 +433,14 @@ the player plays, is made after libxmp's loader of that format (https://github.c
 licence, Copyright (C) 1996-2026 Claudio Matsuoka and Hipolito Carraro Jr, the text of which is
 below, under "libxmp and OpenMPT — reading MTM, DTM and AMF files".
 
+`StartrekkerSynth.swift` and the playing of Startrekker's synthesised instruments in
+`ProTrackerReplayer.swift` are made after the 68000 code of ASREPLAY, The Synchron Assembly's replay
+routine for Audio Sculpture's and Startrekker's modules, as UADE carries it in its AudioSculpture
+player ("AudioSculpture/Startrekker4AM player V0.1.1 (Jul. 2004)", adapted for UADE by mld and shd;
+https://zakalwe.fi/uade, `amigasrc/players/uade/adsc/AudioSculpture.asm`): the layout of the file of
+instruments, the tables of waveforms and of the vibrato, and what is done on each tick. No code of it
+is carried; it is written again in Swift.
+
 Nor are the players of SoundFX modules (`Sources/SidayKit/SoundFX`) and of Oktalyzer modules
 (`Sources/SidayKit/Oktalyzer`) ports of anything: they were written for this project, to do what the
 trackers' own replay routines do, and none of those routines' code is in them. They play on the Paula

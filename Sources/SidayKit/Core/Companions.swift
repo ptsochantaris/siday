@@ -120,6 +120,9 @@ public enum CompanionFolder {
 ///   where the scores of a game share them, `mdtest.ssd`.
 /// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
 ///   `Instruments`, each named in the score.
+/// - a module of Startrekker's that has synthesised instruments keeps them in a file beside it, which
+///   Startrekker named for the module with `.nt` after it (`.as` from Audio Sculpture), and the
+///   collections as `title_nt.mod` beside `title.mod`.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
@@ -252,6 +255,11 @@ public enum Companions {
         case .sonix, .cin:
             // Named in the score, and kept, as the player looks for them, in a folder beside it.
             return [Companion(part: .instruments, names: ["Instruments"], kind: nil, required: true, folder: true)]
+        case .mod:
+            // Only a module of Startrekker's with synthesised instruments has one, which is known only once
+            // it is read: so not required, and any other module plays as it is (`StartrekkerSynth`).
+            let ending = bytes.lastIndex(of: 0x2E).map { String(decoding: bytes[($0 + 1)...], as: UTF8.self) } ?? "mod"
+            return [Companion(part: .instruments, names: ["\(stem)_nt.\(ending)", "\(fileName).nt", "\(fileName).as"], kind: nil, required: false)]
         case .rol:
             let own = Companion(part: .instruments, names: ["\(stem).bnk"], required: false)
             let standard = Companion(part: .instruments, names: ["standard.bnk"], required: false)

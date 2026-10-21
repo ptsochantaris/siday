@@ -319,7 +319,7 @@ uses is said, and only what might be heard.
 Not played:
 
 - **SID:** RSID tunes that need the C64's BASIC ROM, and Compute!'s Sidplayer (MUS) data.
-- **Amiga:** a module packed by a game's packer that ProWizard refuses; Startrekker's synthesised instruments (a module that has them says so, and plays without them); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, a Richard Joseph module without its samples, or a Sonix score with no folder of its instruments beside it; a DeliTracker custom module that calls for what DeliTracker's host does not give (a task of its own); a song that MED saved before MED4 (MED2, MED3), and
+- **Amiga:** a module packed by a game's packer that ProWizard refuses; Startrekker's synthesised instruments when the file of them is not beside the module (it says so, and plays without them); a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples are not found beside it, a Richard Joseph module without its samples, or a Sonix score with no folder of its instruments beside it; a DeliTracker custom module that calls for what DeliTracker's host does not give (a task of its own); a song that MED saved before MED4 (MED2, MED3), and
   a MED4 song whose instruments are kept in files of their own; a module of the later SoundFX, of
   31 samples.
 - **PC:** a DTM file from Digital Home Studio; the other kind of

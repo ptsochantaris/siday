@@ -497,7 +497,8 @@ public enum TuneLoader {
             }
             if !ProTrackerModule.saysWhatItIs(data), let renderer = try unpacked() { return renderer }
             do {
-                return try MODRenderer(data, options: options)
+                // (With Startrekker's synthesised instruments from the file beside it, if it has one.)
+                return try MODRenderer(data, options: options, synthesised: companions.first ?? nil)
             } catch let error as TuneError {
                 if case .unsupported = error, let more = try? XMRenderer(data, options: options) { return more }
                 if let renderer = try unpacked() { return renderer }

@@ -416,11 +416,18 @@ patterns; counted over the song, the samples follow them to the byte, and so the
 does not play them.)
 
 Startrekker, by Exolon of Fairlight, could play instruments it made itself as well as samples, from
-a waveform and an envelope, and kept them in a file of their own beside the module, the `.nt` file;
-the module has empty samples in their places. Those instruments are not played here, so a module of
-Startrekker's that plays more than one empty sample says so (as OpenMPT tells of one), and plays with
-those voices silent; its file of instruments, given as a tune, says what it is. Played without its
-instruments, a module that has nothing else is silent: four of the nine of Escape 2.
+a waveform and an envelope, and kept them in a file of their own beside the module, the `.nt` file
+(the collections have it as `title_nt.mod` beside `title.mod`; Audio Sculpture, which came after,
+called its own `.as`); the module has empty samples in their places. They are played here as
+ASREPLAY, The Synchron Assembly's replay routine for Audio Sculpture and Startrekker, plays them, as
+UADE plays them, tick for tick: one of four waveforms of 32 bytes over and over, noise made afresh on
+every tick, a level that rises and falls through five stages, a pitch that slides, and a vibrato of
+its own. OpenMPT reads them into an envelope, an automatic vibrato and a pitch envelope of its own,
+which is near but not the same: it holds a note that ASREPLAY lets die away, and its noise is the
+same on every tick. A module of Startrekker's whose file of instruments is not beside it says so,
+and plays with those voices silent (four of the nine of Escape 2 are then silent altogether); the
+file of instruments, given as a tune, says what it is. Audio Sculpture's command E, which ran a
+program of the composer's from the file, is not run; no tune to hand has one.
 
 AMOS, François Lionet's BASIC for the Amiga, kept a program's music as a bank of the program's, "AmBk"
 of the kind "Music": instruments, songs, and patterns, each a list of one voice's notes and commands

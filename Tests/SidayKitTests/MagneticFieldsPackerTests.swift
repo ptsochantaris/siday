@@ -102,7 +102,8 @@ private func cell(_ module: [UInt8], pattern: Int, row: Int, voice: Int) -> [UIn
 
 @Test func companionsAreFoundByTheNamesTheCollectionsUse() {
     func names(_ format: TuneFormat, _ file: String) -> [[String]] { Companions.wanted(for: format, fileName: file).map(\.names) }
-    #expect(names(.mod, "a.mod").isEmpty)
+    // (A module looks for Startrekker's synthesised instruments, which only one of Startrekker's has.)
+    #expect(names(.mod, "a.mod") == [["a_nt.mod", "a.mod.nt", "a.mod.as"]])
     #expect(names(.mfp, "title.mfp") == [["title.smp"]])
     #expect(names(.mfp, "KidChaos Level 1-3.mfp") == [["KidChaos Level 1-3.smp", "KidChaos Level 1_set.smp"]])
     #expect(names(.mfp, "MFP.ingame") == [["MFP.smp", "smp.ingame"]])

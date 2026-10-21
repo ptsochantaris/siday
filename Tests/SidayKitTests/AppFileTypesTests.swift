@@ -17,12 +17,13 @@ import Glibc
 //
 // writes it afresh.
 
-/// The app's Info.plist, as it is to be: what Xcode does not make of the build settings.
+/// The app's Info.plist, as it is to be: what Xcode does not make of the build settings, and as Xcode
+/// keeps it when the project is opened (with no comment, and nothing a build setting says already, such
+/// as opening documents in place).
 func appInfoPlist() -> String {
     var lines = [
         #"<?xml version="1.0" encoding="UTF-8"?>"#,
         #"<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">"#,
-        #"<!-- Written by Tests/SidayKitTests/AppFileTypesTests.swift from SidayKit's lists of extensions: do not edit. -->"#,
         #"<plist version="1.0">"#,
         "<dict>",
         "\t<key>CFBundleDocumentTypes</key>",
@@ -46,8 +47,6 @@ func appInfoPlist() -> String {
     documentType("Playlist", ["build.bru.siday.playlist.ayl", "public.m3u-playlist"])
     lines += [
         "\t</array>",
-        "\t<key>LSSupportsOpeningDocumentsInPlace</key>",
-        "\t<true/>",
         "\t<key>UIBackgroundModes</key>",
         "\t<array>",
         "\t\t<string>audio</string>",
