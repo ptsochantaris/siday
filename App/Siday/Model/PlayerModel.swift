@@ -140,6 +140,8 @@ final class PlayerModel {
     }
     /// The settings, while they are showing over everything (not on a Mac, which has a window for them).
     var showingSettings = false
+    /// True while the listener is being asked whether every tune is to be taken out of the list.
+    var askingToRemoveAll = false
     /// What the listener is choosing files for, while they are.
     var choosing: Choosing?
     enum Choosing: Identifiable {

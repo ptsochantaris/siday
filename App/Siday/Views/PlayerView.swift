@@ -34,6 +34,12 @@ struct PlayerView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             OutputBar()
         }
+        #if os(iOS)
+        // (Over the playlist, its back button shows the playlist's sign, and is a back button still.)
+        .background {
+            if oneAtATime { PlaylistBackSign().frame(width: 0, height: 0).accessibilityHidden(true) }
+        }
+        #endif
         .navigationTitle("Player")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -407,3 +413,45 @@ struct OutputBar: View {
         .foregroundStyle(.secondary)
     }
 }
+
+#if os(iOS)
+/// Gives the back button of the screen it is in the playlist's sign in place of the arrow, on an
+/// iPhone, where the player is over the playlist. SwiftUI has no way to say so, so it is said to the
+/// screen's UIKit navigation item: for that screen only, and only its sign, so that the button is
+/// the system's own still, and swiping from the edge still goes back. Should SwiftUI ever build its
+/// screens otherwise, it finds nothing to change, and the arrow stays.
+private struct PlaylistBackSign: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Finder { Finder() }
+    func updateUIViewController(_ finder: Finder, context: Context) {}
+
+    final class Finder: UIViewController {
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            mark()
+        }
+
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            mark()
+        }
+
+        private func mark() {
+            // The screen this is in: the one the navigation controller holds.
+            var screen: UIViewController? = self
+            while let place = screen, let parent = place.parent, !(parent is UINavigationController) { screen = parent }
+            guard let screen, let bar = screen.navigationController?.navigationBar,
+                  let sign = UIImage(systemName: "music.note.list") else { return }
+            let item = screen.navigationItem
+            func signed(_ appearance: UINavigationBarAppearance?) -> UINavigationBarAppearance? {
+                guard let appearance = appearance?.copy() else { return nil }
+                appearance.setBackIndicatorImage(sign, transitionMaskImage: sign)
+                return appearance
+            }
+            item.standardAppearance = signed(item.standardAppearance ?? bar.standardAppearance)
+            item.compactAppearance = signed(item.compactAppearance ?? bar.compactAppearance)
+            item.scrollEdgeAppearance = signed(item.scrollEdgeAppearance ?? bar.scrollEdgeAppearance)
+            item.compactScrollEdgeAppearance = signed(item.compactScrollEdgeAppearance ?? bar.compactScrollEdgeAppearance)
+        }
+    }
+}
+#endif

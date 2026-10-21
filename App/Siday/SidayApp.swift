@@ -95,6 +95,13 @@ struct ContentView: View {
         .onChange(of: model.choosing) { _, wanted in
             if let wanted { asked = wanted }
         }
+        // (Asked here, over everything, so that it is asked whichever part is showing.)
+        .alert("Remove all the tunes?", isPresented: $model.askingToRemoveAll) {
+            Button("Remove All", role: .destructive) { model.removeAll() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The playlist will be empty. The files themselves are not touched.")
+        }
         #if os(iOS)
         .sheet(isPresented: $model.showingSettings) {
             SettingsView().environment(model)

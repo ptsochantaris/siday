@@ -17,7 +17,7 @@ struct SidayCommands: Commands {
             Button("Add Folder…") { model.choosing = .folder }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
             Divider()
-            Button("Remove All Tunes", role: .destructive) { model.removeAll() }
+            Button("Remove All Tunes…", role: .destructive) { model.askingToRemoveAll = true }
                 .keyboardShortcut(.delete, modifiers: [.command, .shift])
                 .disabled(model.files.isEmpty)
         }

@@ -65,7 +65,7 @@ struct PlaylistView: View {
                     Label("Add", systemImage: "plus")
                 }
                 if !model.files.isEmpty {
-                    Button("Remove All", systemImage: "trash", role: .destructive) { model.removeAll() }
+                    Button("Remove All…", systemImage: "trash", role: .destructive) { model.askingToRemoveAll = true }
                 }
             }
             #if os(iOS)
@@ -126,6 +126,7 @@ struct PlaylistView: View {
 /// player; with a button to pause it or play it again where it is.
 private struct PlayingBar: View {
     @Environment(PlayerModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let playing = !(model.paused || model.finished || model.tune == nil)
@@ -134,8 +135,11 @@ private struct PlayingBar: View {
                 model.place = .player
             } label: {
                 HStack(spacing: 10) {
+                    // (Its bars light one after another while the tune plays, and stand still while
+                    // it does not: still too, for a listener who would rather things moved less.)
                     Image(systemName: "waveform")
                         .foregroundStyle(.tint)
+                        .symbolEffect(.variableColor.iterative.dimInactiveLayers.nonReversing, isActive: playing && !reduceMotion)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(model.tune.map { $0.title.isEmpty ? model.fileName : $0.title } ?? model.fileName)
