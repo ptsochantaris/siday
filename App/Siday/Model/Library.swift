@@ -99,7 +99,7 @@ nonisolated enum TuneFiles {
     private static let lock = NSLock()
 
     static func read(_ url: URL) throws -> Read {
-        let bytes = [UInt8](try Data(contentsOf: url, options: .mappedIfSafe))
+        let bytes = [UInt8](try Coordinated.data(url))
         let name = url.lastPathComponent
         guard let format = TuneFormat(fileExtension: url.pathExtension) else { return Read(bytes: bytes, companions: [], missing: nil) }
         let wanted = Companions.wanted(for: format, fileName: name)
@@ -109,7 +109,7 @@ nonisolated enum TuneFiles {
         let companions: [[UInt8]?] = wanted.map { companion in
             if companion.folder { return self.folder(companion, beside: folder, among: beside) }
             guard let place = Companions.find(companion, for: name, among: beside) else { return nil }
-            return (try? Data(contentsOf: folder.appendingPathComponent(beside.paths[place]), options: .mappedIfSafe)).map { [UInt8]($0) }
+            return (try? Coordinated.data(folder.appendingPathComponent(beside.paths[place]))).map { [UInt8]($0) }
         }
         let missing = wanted.indices.first { wanted[$0].required && companions[$0] == nil }.map { wanted[$0] }
         return Read(bytes: bytes, companions: companions, missing: missing)
@@ -124,7 +124,7 @@ nonisolated enum TuneFiles {
         let key = folder.standardizedFileURL.path
         if let known = lock.withLock({ folders[key] }) { return known }
         // (Every file, since a companion may have any name.)
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        let names = Coordinated.names(in: folder)
         let finder = FileFinder(names)
         // (A folder that cannot be read yet is not kept as empty: the listener may give it.)
         if !names.isEmpty { lock.withLock { folders[key] = finder } }
@@ -136,38 +136,58 @@ nonisolated enum TuneFiles {
         for name in companion.names {
             guard let found = beside.paths.first(where: { FileFinder.plain($0) == FileFinder.plain(name) }) else { continue }
             let inside = tunes.appendingPathComponent(found, isDirectory: true)
-            let names = ((try? FileManager.default.contentsOfDirectory(atPath: inside.path)) ?? []).sorted()
+            let names = Coordinated.names(in: inside).sorted()
             let packed: [(name: String, bytes: [UInt8])] = names.compactMap { name in
                 let file = inside.appendingPathComponent(name)
                 guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
-                      let data = try? Data(contentsOf: file, options: .mappedIfSafe) else { return nil }
+                      let data = try? Coordinated.data(file) else { return nil }
                 return (name, [UInt8](data))
             }
             if !packed.isEmpty { return CompanionFolder.pack(packed) }
         }
         return nil
     }
+}
 
-    /// The tunes and playlists in a folder and the folders inside it, in order, and any
-    /// `Songlengths.md5`; companions and other files are passed over.
-    static func contents(of folder: URL) -> (tunes: [URL], playlists: [URL], songLengths: URL?) {
-        var tunes: [URL] = []
-        var playlists: [URL] = []
-        var songLengths: URL?
-        let keys: [URLResourceKey] = [.isRegularFileKey]
-        guard let walk = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return ([], [], nil) }
-        for case let url as URL in walk {
-            guard (try? url.resourceValues(forKeys: Set(keys)))?.isRegularFile == true else { continue }
-            let ending = url.pathExtension
-            if url.lastPathComponent.lowercased() == "songlengths.md5" {
-                songLengths = url
-            } else if PlaylistFile.reads(fileExtension: ending) {
-                playlists.append(url)
-            } else if !Companions.are(fileName: url.lastPathComponent), TuneFormat(fileExtension: ending) != nil {
-                tunes.append(url)
+/// Files and folders read through file coordination on an iPhone or iPad, where one from a file
+/// provider (a share on the network, a drive in the cloud) is only a stand-in until it is asked for
+/// that way: a folder's contents are not listed, and a file's bytes are not there. On a Mac a plain
+/// read does, and is quicker.
+nonisolated enum Coordinated {
+    private static func reading<T>(_ url: URL, _ body: (URL) throws -> T) throws -> T {
+        #if os(iOS)
+        var outcome: Result<T, Error>?
+        var failure: NSError?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &failure) { url in
+            outcome = Result { try body(url) }
+        }
+        if let outcome { return try outcome.get() }
+        if let failure { throw failure }
+        #endif
+        return try body(url)
+    }
+
+    static func data(_ url: URL) throws -> Data {
+        try reading(url) { try Data(contentsOf: $0, options: .mappedIfSafe) }
+    }
+
+    /// The names in a folder; none if it cannot be read.
+    static func names(in folder: URL) -> [String] {
+        (try? reading(folder) { try FileManager.default.contentsOfDirectory(atPath: $0.path) }) ?? []
+    }
+
+    /// Every file in a folder and in the folders inside it, hidden ones passed over.
+    static func files(below folder: URL) -> [URL] {
+        var found: [URL] = []
+        var waiting = [folder]
+        while let next = waiting.popLast() {
+            let inside = (try? reading(next) {
+                try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+            }) ?? []
+            for url in inside {
+                if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true { waiting.append(url) } else { found.append(url) }
             }
         }
-        let byPath: (URL, URL) -> Bool = { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-        return (tunes.sorted(by: byPath), playlists.sorted(by: byPath), songLengths)
+        return found
     }
 }

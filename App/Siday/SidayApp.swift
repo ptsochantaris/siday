@@ -95,6 +95,11 @@ struct ContentView: View {
         .onChange(of: model.choosing) { _, wanted in
             if let wanted { asked = wanted }
         }
+        .alert("Nothing to Play", isPresented: Binding(get: { model.emptyFolder != nil }, set: { if !$0 { model.emptyFolder = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("No tunes that Siday plays were found in “\(model.emptyFolder ?? "")”, or the folder could not be looked into.")
+        }
         // (Asked here, over everything, so that it is asked whichever part is showing.)
         .alert("Remove all the tunes?", isPresented: $model.askingToRemoveAll) {
             Button("Remove All", role: .destructive) { model.removeAll() }

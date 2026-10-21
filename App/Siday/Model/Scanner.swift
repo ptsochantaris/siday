@@ -20,6 +20,8 @@ nonisolated enum Scanner {
         var list = ""
         /// HVSC's list of song lengths, if one was among them.
         var songLengths: URL?
+        /// The names of folders given that had nothing in them to play, or could not be looked into.
+        var emptyFolders: [String] = []
     }
 
     static func scan(_ urls: [URL]) -> Found {
@@ -34,7 +36,7 @@ nonisolated enum Scanner {
         }
         func playlist(_ url: URL) -> PlaylistFile? {
             guard let kind = PlaylistFile.Kind(fileExtension: url.pathExtension) else { return nil }
-            return (try? Data(contentsOf: url)).flatMap { PlaylistFile([UInt8]($0), kind: kind) }
+            return (try? Coordinated.data(url)).flatMap { PlaylistFile([UInt8]($0), kind: kind) }
         }
         func counted(_ entry: PlaylistFile.Entry) -> Bool { TuneFormat(fileExtension: entry.fileExtension) != nil }
         for url in urls {
@@ -43,10 +45,13 @@ nonisolated enum Scanner {
             if url.lastPathComponent.lowercased() == "songlengths.md5" {
                 result.songLengths = url
             } else if isDirectory.boolValue {
-                guard let walker = manager.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { continue }
                 var found: [URL] = []
                 var lists: [URL] = []
-                for case let file as URL in walker {
+                let files = Coordinated.files(below: url)
+                if !files.contains(where: { TuneFormat(fileExtension: $0.pathExtension) != nil || PlaylistFile.reads(fileExtension: $0.pathExtension) }) {
+                    result.emptyFolders.append(url.lastPathComponent)
+                }
+                for file in files {
                     if file.lastPathComponent.lowercased() == "songlengths.md5" {
                         result.songLengths = file
                     } else if TuneFormat(fileExtension: file.pathExtension) != nil, !Companions.are(fileName: file.lastPathComponent) {
@@ -132,7 +137,7 @@ nonisolated enum Scanner {
             } else if manager.fileExists(atPath: url.appendingPathComponent(part).path) {
                 url = url.appendingPathComponent(part)
             } else {
-                let here = (try? manager.contentsOfDirectory(atPath: url.path)) ?? []
+                let here = Coordinated.names(in: url)
                 let wanted = FileFinder.plain(part), loosely = FileFinder.loose(part)
                 let alike = here.filter { FileFinder.loose($0) == loosely }
                 guard let named = here.first(where: { FileFinder.plain($0) == wanted }) ?? (alike.count == 1 ? alike[0] : nil) else { return nil }
