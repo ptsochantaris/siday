@@ -8,12 +8,13 @@ import SwiftUI
 /// on an iPad's, and from a keyboard on any of them.
 struct SidayCommands: Commands {
     let model: PlayerModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("Add Files…") { show(.playlist); model.choosing = .files }
+            Button("Add Files…") { model.choosing = .files }
                 .keyboardShortcut("o")
-            Button("Add Folder…") { show(.playlist); model.choosing = .folder }
+            Button("Add Folder…") { model.choosing = .folder }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
             Divider()
             Button("Remove All Tunes", role: .destructive) { model.removeAll() }
@@ -21,10 +22,17 @@ struct SidayCommands: Commands {
                 .disabled(model.files.isEmpty)
         }
 
+        #if os(macOS)
+        // (Settings… is the Settings window's own; About is the app's own window.)
+        CommandGroup(replacing: .appInfo) {
+            Button("About Siday") { openWindow(id: "about") }
+        }
+        #else
         CommandGroup(replacing: .appSettings) {
-            Button("Settings…") { show(.settings) }
+            Button("Settings…") { model.showingSettings = true }
                 .keyboardShortcut(",")
         }
+        #endif
 
         CommandMenu("Playback") {
             Button(model.paused || model.finished ? "Play" : "Pause") { model.togglePause() }
@@ -76,11 +84,6 @@ struct SidayCommands: Commands {
         }
 
         CommandGroup(before: .toolbar) {
-            ForEach(Array(Tab.allCases.enumerated()), id: \.element) { place, tab in
-                Button(tab.title) { show(tab) }
-                    .keyboardShortcut(KeyEquivalent(Character("\(place + 1)")))
-            }
-            Divider()
             ForEach(Part.allCases) { part in
                 Toggle(part.title, isOn: Binding(get: { model.shows(part) }, set: { _ in model.toggle(part) }))
             }
@@ -97,7 +100,7 @@ struct SidayCommands: Commands {
             Divider()
             Button("About This Format") {
                 if let chapter = model.chapter {
-                    show(.player)
+                    model.place = .player
                     model.slideOver = .story(chapter)
                 }
             }
@@ -105,9 +108,5 @@ struct SidayCommands: Commands {
             .disabled(model.chapter == nil)
             Divider()
         }
-    }
-
-    private func show(_ tab: Tab) {
-        model.tab = tab
     }
 }

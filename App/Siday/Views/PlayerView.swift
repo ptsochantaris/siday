@@ -7,42 +7,62 @@ import SwiftUI
 
 /// What is playing: the tune's details, the spectrum analyser, where in it the song is, its songs, the
 /// controls, a light for each voice, and the picture to listen by.
-struct PlayerTab: View {
+struct PlayerView: View {
     @Environment(PlayerModel.self) private var model
+    @Environment(\.oneAtATime) private var oneAtATime
+
+    /// Whether what is slid over the player is a panel beside it: not on an iPhone, where it is a
+    /// sheet from below.
+    private var beside: Bool { !oneAtATime }
 
     var body: some View {
         @Bindable var model = model
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    TimelineView(.animation(minimumInterval: 1 / 60, paused: !model.hasTune)) { timeline in
-                        let frame = model.frame(at: timeline.date.timeIntervalSinceReferenceDate)
-                        NowPlaying(frame: frame)
-                    }
-                    if model.hasTune, model.shows(.picture) {
-                        PictureSection()
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                TimelineView(.animation(minimumInterval: 1 / 60, paused: !model.hasTune)) { timeline in
+                    let frame = model.frame(at: timeline.date.timeIntervalSinceReferenceDate)
+                    NowPlaying(frame: frame)
                 }
-                .padding()
-                .frame(maxWidth: 900)
-                .frame(maxWidth: .infinity)
-            }
-            .navigationTitle("Player")
-            .toolbar {
-                ToolbarItem {
-                    Menu {
-                        ForEach(Part.allCases) { part in
-                            Toggle(part.title, systemImage: part.symbol, isOn: Binding(get: { model.shows(part) }, set: { _ in model.toggle(part) }))
-                        }
-                    } label: {
-                        Label("Show", systemImage: "eye")
-                    }
+                if model.hasTune, model.shows(.picture) {
+                    PictureSection()
                 }
             }
-            .inspector(isPresented: Binding(get: { model.slideOver != nil }, set: { if !$0 { model.slideOver = nil } })) {
+            .padding()
+            .frame(maxWidth: 900)
+            .frame(maxWidth: .infinity)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            OutputBar()
+        }
+        .navigationTitle("Player")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
+            #if os(iOS)
+            ToolbarItem { SettingsButton() }
+            #endif
+            ToolbarItem {
+                Menu {
+                    ForEach(Part.allCases) { part in
+                        Toggle(part.title, systemImage: part.symbol, isOn: Binding(get: { model.shows(part) }, set: { _ in model.toggle(part) }))
+                    }
+                } label: {
+                    Label("Show", systemImage: "eye")
+                }
+            }
+        }
+        .inspector(isPresented: Binding(get: { beside && model.slideOver != nil }, set: { if !$0 { model.slideOver = nil } })) {
+            // (Made only while it is showing: its Close button would otherwise be put in the
+            // player's bar.)
+            if beside, model.slideOver != nil {
                 SlideOverView()
                     .inspectorColumnWidth(min: 280, ideal: 380, max: 560)
             }
+        }
+        .sheet(isPresented: Binding(get: { !beside && model.slideOver != nil }, set: { if !$0 { model.slideOver = nil } })) {
+            // (A sheet is put away by sliding it down or pressing beside it: it needs no button.)
+            SlideOverView(closable: false)
         }
     }
 }
@@ -50,6 +70,8 @@ struct PlayerTab: View {
 /// What is slid over the player: a format's story, or what is not played as the tune's file asks.
 struct SlideOverView: View {
     @Environment(PlayerModel.self) private var model
+    /// Whether it has a button to put it away: a panel beside the player has, a sheet has not.
+    var closable = true
 
     var body: some View {
         NavigationStack {
@@ -74,9 +96,11 @@ struct SlideOverView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { model.slideOver = nil }
-                        .keyboardShortcut(.cancelAction)
+                if closable {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", systemImage: "xmark") { model.slideOver = nil }
+                            .keyboardShortcut(.cancelAction)
+                    }
                 }
             }
             #else
@@ -208,27 +232,9 @@ struct Controls: View {
     @Environment(PlayerModel.self) private var model
 
     var body: some View {
-        @Bindable var model = model
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 20) {
-                transport
-                Spacer()
-                output
-                volume.frame(maxWidth: 160)
-            }
-            // (On two rows, each in the middle: the volume no wider than would let its row be seen
-            // to be in the middle.)
-            VStack(alignment: .center, spacing: 12) {
-                transport
-                HStack {
-                    output
-                    volume.frame(maxWidth: 220)
-                }
-            }
+        // (What the tune is heard through, and how loud, are in the bar at the foot of the player.)
+        transport
             .frame(maxWidth: .infinity)
-            // (And as far from what is under them as the two rows are from each other.)
-            .padding(.bottom, 12)
-        }
     }
 
     private var playing: Bool { !(model.paused || model.finished || model.tune == nil) }
@@ -246,34 +252,6 @@ struct Controls: View {
                 .toggleStyle(.button)
         }
         .buttonStyle(.borderless)
-    }
-
-    private var output: some View {
-        @Bindable var model = model
-        return Picker("Output", selection: $model.output) {
-            ForEach(PlayerModel.outputs, id: \.self) { style in
-                Text(style.title).tag(style)
-            }
-        }
-        // (What is chosen, "Stereo", says what it is a choice of: no name beside it.)
-        .labelsHidden()
-        .fixedSize()
-        .disabled(model.remaking)
-        .help("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out (which way round is in the settings), and a television is an early-1980s set's speaker")
-    }
-
-    private var volume: some View {
-        @Bindable var model = model
-        return Slider(value: $model.volume, in: 0 ... 1) {
-            Text("Volume")
-        } minimumValueLabel: {
-            Image(systemName: "speaker.fill").accessibilityHidden(true)
-        } maximumValueLabel: {
-            Image(systemName: "speaker.wave.3.fill").accessibilityHidden(true)
-        }
-        // (The speakers at its ends say what it is: no name beside it, as the output has none.)
-        .labelsHidden()
-        .foregroundStyle(.secondary)
     }
 }
 
@@ -379,5 +357,53 @@ struct WholeScreenPicture: View {
                     .keyboardShortcut(.cancelAction)
                     .padding()
             }
+    }
+}
+
+/// The bar at the foot of the player: what the tune is heard through, on the left, and how loud,
+/// on the right.
+struct OutputBar: View {
+    @Environment(PlayerModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 16) {
+            output
+            Spacer(minLength: 0)
+            volume
+                .frame(maxWidth: 220)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private var output: some View {
+        @Bindable var model = model
+        return Picker("Output", selection: $model.output) {
+            ForEach(PlayerModel.outputs, id: \.self) { style in
+                Text(style.title).tag(style)
+            }
+        }
+        // (What is chosen, "Stereo", says what it is a choice of: no name beside it.)
+        .labelsHidden()
+        .fixedSize()
+        .disabled(model.remaking)
+        .help("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out (which way round is in the settings), and a television is an early-1980s set's speaker")
+    }
+
+    private var volume: some View {
+        @Bindable var model = model
+        return Slider(value: $model.volume, in: 0 ... 1) {
+            Text("Volume")
+        } minimumValueLabel: {
+            Image(systemName: "speaker.fill").accessibilityHidden(true)
+        } maximumValueLabel: {
+            Image(systemName: "speaker.wave.3.fill").accessibilityHidden(true)
+        }
+        // (The speakers at its ends say what it is: no name beside it, as the output has none.)
+        .labelsHidden()
+        .foregroundStyle(.secondary)
     }
 }

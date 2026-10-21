@@ -132,8 +132,14 @@ final class PlayerModel {
     }
     /// True while the picture fills the screen.
     var pictureFillsScreen = false
-    /// The tab that is showing.
-    var tab = Tab.player
+    /// Which of the playlist and the player is showing, where there is room for only one (an iPhone):
+    /// the player, but the playlist while there is nothing in it.
+    var place = Place.player
+    enum Place {
+        case playlist, player
+    }
+    /// The settings, while they are showing over everything (not on a Mac, which has a window for them).
+    var showingSettings = false
     /// What the listener is choosing files for, while they are.
     var choosing: Choosing?
     enum Choosing: Identifiable {
@@ -210,10 +216,17 @@ final class PlayerModel {
         if ProcessInfo.processInfo.arguments.contains("-SidayFresh") {
             try? FileManager.default.removeItem(at: Library.store)
         }
-        // (And `-SidayTab settings`, say, starts on that tab.)
-        if let name = UserDefaults.standard.string(forKey: "SidayTab"), let start = Tab(rawValue: name) { tab = start }
         #endif
         restoreList()
+        if files.isEmpty { place = .playlist }
+        #if DEBUG
+        // (And `-SidayShow settings`, or `playlist`, starts with that showing.)
+        switch UserDefaults.standard.string(forKey: "SidayShow") {
+        case "settings": showingSettings = true
+        case "playlist": place = .playlist
+        default: break
+        }
+        #endif
     }
 
     // MARK: Adding
@@ -302,6 +315,7 @@ final class PlayerModel {
         } else {
             stopped()
         }
+        if files.isEmpty { self.place = .playlist }
     }
 
     func removeAll() {
@@ -315,6 +329,7 @@ final class PlayerModel {
         current = nil
         tuneFile = nil
         stopped()
+        place = .playlist
         saveList()
     }
 

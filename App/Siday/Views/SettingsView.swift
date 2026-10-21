@@ -7,8 +7,9 @@ import SwiftUI
 /// The listener's settings: the command-line player's options, in groups, each with what it does
 /// written under it. One that has been changed is marked. They are kept from one visit to the next,
 /// and a button puts them all back as they come.
-struct SettingsTab: View {
+struct SettingsView: View {
     @Environment(PlayerModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -29,6 +30,21 @@ struct SettingsTab: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
+            #if os(iOS)
+            .toolbar {
+                // (On a Mac, what the app is has a window of its own, from the app's menu.)
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        AboutList()
+                    } label: {
+                        Label("About Siday", systemImage: "info.circle")
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            #endif
         }
     }
 }
