@@ -28,7 +28,7 @@ nonisolated final class Library: @unchecked Sendable {
     /// it) as one it may go on reading. Returns its place among the roots.
     @discardableResult
     func add(_ url: URL) -> Int {
-        let url = url.standardizedFileURL
+        let url = Self.plain(url)
         if let place = roots.firstIndex(where: { $0.url == url }) { return place }
         let accessing = url.startAccessingSecurityScopedResource()
         #if os(macOS)
@@ -51,15 +51,22 @@ nonisolated final class Library: @unchecked Sendable {
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: bookmark, options: options, relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
         let accessing = url.startAccessingSecurityScopedResource()
-        if let place = roots.firstIndex(where: { $0.url == url.standardizedFileURL }) { return place }
-        roots.append(Root(url: url.standardizedFileURL, bookmark: bookmark, accessing: accessing))
+        let plain = Self.plain(url)
+        if let place = roots.firstIndex(where: { $0.url == plain }) { return place }
+        roots.append(Root(url: plain, bookmark: bookmark, accessing: accessing))
         return roots.count - 1
     }
 
-    /// True if a file can be read: it is one of the roots, or inside one that is a folder.
-    func covers(_ url: URL) -> Bool {
-        let path = url.standardizedFileURL.path
-        return roots.contains { path == $0.url.path || path.hasPrefix($0.url.path.hasSuffix("/") ? $0.url.path : $0.url.path + "/") }
+    /// A file's URL as roots and tunes are compared by: its links followed, so that one way to a file
+    /// is the same as another (`/tmp` is `/private/tmp`).
+    static func plain(_ url: URL) -> URL {
+        url.standardizedFileURL.resolvingSymlinksInPath()
+    }
+
+    /// The place of the root a file is, or is inside; nil if it is none of them.
+    func root(of url: URL) -> Int? {
+        let path = Self.plain(url).path
+        return roots.indices.first { path == roots[$0].url.path || path.hasPrefix(roots[$0].url.path.hasSuffix("/") ? roots[$0].url.path : roots[$0].url.path + "/") }
     }
 
     /// Lets go of every root but those still wanted.

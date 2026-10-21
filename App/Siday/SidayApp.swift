@@ -6,7 +6,14 @@ import SwiftUI
 
 @main
 struct SidayApp: App {
-    @State private var model = PlayerModel()
+    @State private var model: PlayerModel
+    private let nowPlaying: SystemNowPlaying
+
+    init() {
+        let model = PlayerModel()
+        _model = State(initialValue: model)
+        nowPlaying = SystemNowPlaying(model: model)
+    }
 
     var body: some Scene {
         WindowGroup {

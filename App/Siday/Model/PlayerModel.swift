@@ -611,7 +611,7 @@ final class PlayerModel {
         var roots: [Data] = []
         var tunes: [[String: Any]] = []
         for file in files {
-            guard let root = library.roots.indices.first(where: { library.roots[$0].url.path == file.url.path || file.url.path.hasPrefix(library.roots[$0].url.path + "/") }) else { continue }
+            guard let root = library.root(of: file.url) else { continue }
             let place: Int
             if let known = used[root] {
                 place = known
@@ -621,7 +621,8 @@ final class PlayerModel {
                 roots.append(library.roots[root].bookmark)
             }
             let rootPath = library.roots[root].url.path
-            let below = file.url.path == rootPath ? "" : String(file.url.path.dropFirst(rootPath.count + 1))
+            let path = Library.plain(file.url).path
+            let below = path == rootPath ? "" : String(path.dropFirst(rootPath.hasSuffix("/") ? rootPath.count : rootPath.count + 1))
             tunes.append(["root": place, "path": below, "note": file.note])
         }
         // (And the folders given for companions, which no tune came from.)
