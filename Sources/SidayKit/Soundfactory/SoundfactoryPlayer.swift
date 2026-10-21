@@ -677,8 +677,9 @@ extension SoundfactoryPlayer {
         return p
     }
 
-    /// `lbC000A84`: the voice's effects, a tick after its note has begun: its sample's loop given Paula, or
-    /// silence for one played once; then its tremolo, slide, octave, vibrato, envelope, smoothing and bending.
+    /// `lbC000A84`: the voice's effects, in the ticks it does not read its stream: two ticks after a note began,
+    /// its sample's loop given Paula, or silence for one played once (or let go, see `envelope`); then its
+    /// tremolo, slide, octave, vibrato, envelope, smoothing and bending.
     private mutating func effects<Output: TFMXOutput>(_ v: Int, _ output: inout Output) {
         let a = instrument(v)
         let flags = byte(a + 8)
