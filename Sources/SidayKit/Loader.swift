@@ -53,69 +53,66 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
     case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat
 
-    /// The format a file name's extension stands for, in any case. A MED module is as often named
-    /// for the four letters it begins with as it is called MED, and an SNDH file was once called SND.
+    /// The format a file name's extension stands for, in any case: its own name (`TuneFormat.rawValue`),
+    /// or one of the other names files of it are kept under (`otherNames`).
     public init?(fileExtension: String) {
         let name = fileExtension.lowercased()
-        if name == "mmd0" || name == "mmd1" || name == "mmd2" || name == "mmd3" || name == "mmdc" {
-            self = .med
-        } else if name == "vgz" {
-            // (A VGM file packed by gzip, which is how they are mostly kept.)
-            self = .vgm
-        } else if name == "smn" {
-            // (SidMon's, by the Amiga's name for them; one named SID is found by how it begins.)
-            self = .sid1
-        } else if name == "mug2" || name == "dmu" || name == "dmu2" {
-            // (Digital Mugician's, either of its two.)
-            self = .mug
-        } else if name == "dlm2" {
-            self = .dm2
-        } else if name == "sonic" || name == "sa-p" || name == "lion" || name == "sa_old" {
-            // (Sonic Arranger's, by the names the Amiga's players knew them by.)
-            self = .sa
-        } else if name == "cus" || name == "custom" {
-            // (DeliTracker's custom modules, by the other names they are kept under.)
-            self = .cust
-        } else if name == "avp" {
-            // (Martin Walker's, by the other name UADE knows them by.)
-            self = .mw
-        } else if name == "dwold" {
-            // (David Whittaker's, by the other name UADE knows them by.)
-            self = .dw
-        } else if name == "smus" || name == "snx" || name == "tiny" {
-            // (The Sonix Music Driver's scores, of its three kinds.)
-            self = .sonix
-        } else if name == "bp3" || name == "sndmon" {
-            // (SoundMon's, as the Amiga's players named them: bp3 for 2.2's.)
-            self = .bp
-        } else if name == "gmc" {
-            // (Game Music Creator's, which ProWizard would make a ProTracker module of, but which
-            // is played by its own player.)
-            self = .gmc
-        } else if ProWizard.extensions.contains(name) || name == "kris" || name == "abk" {
-            // (A module packed by one of the packers games and demos used, named for the packer; or
-            // one of ChipTracker's, or an AMOS music bank, which are read into a module.)
-            self = .mod
-        } else if name == "mdat" || name == "tfx" || name == "tfm" {
-            // (TFMX's notes, named for its file of them, which the samples are beside; or a module
-            // of one file.)
-            self = .tfmx
-        } else if name == "hipc" || name == "hip7" || name == "sog" || name == "soc" || name == "s7g" || name == "mcmd" {
-            // (Jochen Hippel's, by the names they are kept under: compressed, of seven voices, or
-            // with his player before them.)
-            self = .hip
-        } else if name == "fc13" || name == "fc14" || name == "fc3" || name == "fc4" || name == "smod" {
-            // (Future Composer's, by its versions.)
-            self = .fc
-        } else if name == "snd" {
-            // (As SNDH files were named before the format had a name of its own.)
-            self = .sndh
+        if let format = Self.otherNames[name] {
+            self = format
         } else if name == "masi" {
             // (Epic MegaGames' files are named PSM, and found to be theirs by how they begin.)
             return nil
         } else {
             self.init(rawValue: name)
         }
+    }
+
+    /// The names other than their own that files of a format are kept under, as their extensions.
+    static let otherNames: [String: TuneFormat] = {
+        var names: [String: TuneFormat] = [
+            // (A MED module is as often named for the four letters it begins with as it is called MED.)
+            "mmd0": .med, "mmd1": .med, "mmd2": .med, "mmd3": .med, "mmdc": .med,
+            // (A VGM file packed by gzip, which is how they are mostly kept.)
+            "vgz": .vgm,
+            // (SidMon's, by the Amiga's name for them; one named SID is found by how it begins.)
+            "smn": .sid1,
+            // (Digital Mugician's, either of its two.)
+            "mug2": .mug, "dmu": .mug, "dmu2": .mug,
+            "dlm2": .dm2,
+            // (Sonic Arranger's, by the names the Amiga's players knew them by.)
+            "sonic": .sa, "sa-p": .sa, "lion": .sa, "sa_old": .sa,
+            // (DeliTracker's custom modules, by the other names they are kept under.)
+            "cus": .cust, "custom": .cust,
+            // (Martin Walker's, and David Whittaker's, by the other names UADE knows them by.)
+            "avp": .mw, "dwold": .dw,
+            // (The Sonix Music Driver's scores, of its three kinds.)
+            "smus": .sonix, "snx": .sonix, "tiny": .sonix,
+            // (SoundMon's, as the Amiga's players named them: bp3 for 2.2's.)
+            "bp3": .bp, "sndmon": .bp,
+            // (TFMX's notes, named for its file of them, which the samples are beside; or a module
+            // of one file.)
+            "mdat": .tfmx, "tfx": .tfmx, "tfm": .tfmx,
+            // (Jochen Hippel's, by the names they are kept under: compressed, of seven voices, or
+            // with his player before them.)
+            "hipc": .hip, "hip7": .hip, "sog": .hip, "soc": .hip, "s7g": .hip, "mcmd": .hip,
+            // (Future Composer's, by its versions.)
+            "fc13": .fc, "fc14": .fc, "fc3": .fc, "fc4": .fc, "smod": .fc,
+            // (As SNDH files were named before the format had a name of its own.)
+            "snd": .sndh,
+            // (One of ChipTracker's, or an AMOS music bank, which are read into a module.)
+            "kris": .mod, "abk": .mod,
+        ]
+        // (A module packed by one of the packers games and demos used, named for the packer, which
+        // is read into a module; but for Game Music Creator's, which ProWizard would make a
+        // ProTracker module of, but which is played by its own player.)
+        for name in ProWizard.extensions where name != "gmc" { names[name] = .mod }
+        return names
+    }()
+
+    /// Every extension a tune's file can have, in lower case, in order: each format's own name, and
+    /// the other names files of it are kept under. (MASI's own name is not one: its files are PSM files.)
+    public static var fileExtensions: [String] {
+        (allCases.filter { $0 != .masi }.map { $0.rawValue } + otherNames.keys).sorted()
     }
 
     /// The format a file of this kind is, by how it begins, where two formats share a name: Pro Sound
