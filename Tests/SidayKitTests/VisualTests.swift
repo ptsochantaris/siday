@@ -937,3 +937,118 @@ private func turns(_ numbers: [Double]) -> (least: [Double], most: [Double]) {
     #expect(drops(every: 15) == 2)
     #expect(drops(every: 2) == 4)
 }
+
+/// The column the light of a picture is balanced about, counting only what is plainly lit.
+private func balancedColumn(_ visualiser: Visualiser, brighter than: UInt8 = 60) -> Double {
+    guard let pixels = visualiser.pixels else { return -1 }
+    var total = 0.0, weighted = 0.0
+    for row in 0 ..< visualiser.height {
+        for column in 0 ..< visualiser.width {
+            let at = (row * visualiser.width + column) * 4
+            let strength = Double(max(pixels[at], pixels[at + 1], pixels[at + 2]))
+            guard strength > Double(than) else { continue }
+            total += strength
+            weighted += strength * Double(column)
+        }
+    }
+    return total > 0 ? weighted / total : -1
+}
+
+@Test func petriDishWavesBeginWhereTheNotesAre() {
+    func place(of pitch: Float) -> Double {
+        let visualiser = Visualiser(mode: .petri)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        // One note, once the voice has come to its pitch, and a moment for its wave to set out.
+        watch(visualiser, from: 0.2, seconds: 0.5, levels: [1], pitches: [pitch])
+        watch(visualiser, from: 0.7, seconds: 0.4, levels: [1], pitches: [pitch], strike: true)
+        return balancedColumn(visualiser)
+    }
+    // Low notes set off their waves to the left and high ones to the right.
+    let low = place(of: 40), high = place(of: 90)
+    #expect(low > 0 && low < 50)
+    #expect(high > 110)
+}
+
+@Test func petriDishSpreadsInWaves() {
+    let visualiser = Visualiser(mode: .petri)
+    visualiser.resize(width: 160, height: 100)
+    watch(visualiser, seconds: 0.2, levels: [1], pitches: [40])
+    watch(visualiser, from: 0.2, seconds: 0.1, levels: [1], pitches: [90])
+    watch(visualiser, from: 0.3, seconds: 0.5, levels: [1], pitches: [65])
+    /// How far from where the note was struck what is lit lies, on the whole, and how much is lit.
+    func reach(_ visualiser: Visualiser) -> (distance: Double, lit: Int) {
+        guard let pixels = visualiser.pixels else { return (0, 0) }
+        var total = 0.0, lit = 0
+        for row in 0 ..< 100 {
+            for column in 0 ..< 160 {
+                let at = (row * 160 + column) * 4
+                guard max(pixels[at], pixels[at + 1], pixels[at + 2]) > 90 else { continue }
+                let dx = Double(column) - 80, dy = Double(row) - 15
+                total += (dx * dx + dy * dy).squareRoot()
+                lit += 1
+            }
+        }
+        return (lit > 0 ? total / Double(lit) : 0, lit)
+    }
+    // One note in the middle: its wave goes out as a ring, further out and wider round as time goes on.
+    watch(visualiser, from: 0.8, seconds: 0.1, levels: [1], pitches: [65], strike: true)
+    let first = reach(visualiser)
+    watch(visualiser, from: 0.9, seconds: 0.2, levels: [1], pitches: [65])
+    let second = reach(visualiser)
+    watch(visualiser, from: 1.1, seconds: 0.2, levels: [1], pitches: [65])
+    let third = reach(visualiser)
+    #expect(first.lit > 0)
+    #expect(second.distance > first.distance + 1 && third.distance > second.distance + 1)
+    #expect(third.lit > first.lit * 2)
+}
+
+@Test func petriDishFadesWhenTheMusicStops() {
+    let visualiser = Visualiser(mode: .petri)
+    visualiser.resize(width: 160, height: 100)
+    // Some seconds of notes from four voices; then the music goes on, but strikes nothing more.
+    for note in 0 ..< 16 {
+        watch(visualiser, from: Double(note) * 0.5, seconds: 0.5, levels: [1, 0.9, 0.8, 1], pitches: [45, 57, 69, 81].map { $0 + Float(note % 5) }, strike: true)
+    }
+    // (The light there is above that of the dark ground, which is the picture before anything is sown.)
+    let empty = Visualiser(mode: .petri)
+    empty.resize(width: 160, height: 100)
+    empty.paint(at: 0)
+    let ground = rows(empty).reduce(0, +)
+    let sounding = rows(visualiser).reduce(0, +) - ground
+    watch(visualiser, from: 8, seconds: 1, levels: [1, 0.9, 0.8, 1], pitches: [45, 57, 69, 81])
+    let soon = rows(visualiser).reduce(0, +) - ground
+    watch(visualiser, from: 9, seconds: 30, levels: [0, 0, 0, 0], pitches: [0, 0, 0, 0])
+    let later = rows(visualiser).reduce(0, +) - ground
+    // It lives while it is sown, and is still there a moment after; but it drains away, slowly, to
+    // nearly nothing.
+    #expect(sounding > 160 * 100 * 765 / 50)
+    #expect(soon > sounding / 3)
+    #expect(later < sounding / 20)
+}
+
+@Test func petriDishWaveTakesTheColourOfItsVoice() {
+    let visualiser = Visualiser(mode: .petri)
+    visualiser.resize(width: 200, height: 100)
+    // Two voices, far apart, one low and one high: each one's wave is the colour of its voice, and
+    // the two are not alike.
+    watch(visualiser, seconds: 0.2, levels: [1, 1], pitches: [40, 90])
+    watch(visualiser, from: 0.2, seconds: 0.5, levels: [1, 1], pitches: [40, 90], strike: true)
+    guard let pixels = visualiser.pixels else { Issue.record("no picture"); return }
+    func colour(columns: Range<Int>) -> [Double] {
+        var sums = [0.0, 0.0, 0.0], count = 0.0
+        for row in 0 ..< 100 {
+            for column in columns {
+                let at = (row * 200 + column) * 4
+                guard max(pixels[at], pixels[at + 1], pixels[at + 2]) > 80 else { continue }
+                for channel in 0 ..< 3 { sums[channel] += Double(pixels[at + channel]) }
+                count += 1
+            }
+        }
+        return sums.map { $0 / max(1, count) }
+    }
+    let left = colour(columns: 0 ..< 70), right = colour(columns: 130 ..< 200)
+    #expect(left.reduce(0, +) > 100 && right.reduce(0, +) > 100)
+    #expect(zip(left, right).reduce(0) { $0 + abs($1.0 - $1.1) } > 120)
+}

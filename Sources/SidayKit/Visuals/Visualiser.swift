@@ -110,7 +110,7 @@ protocol VisualScene: AnyObject {
 public final class Visualiser {
     /// The kinds of picture there are.
     public enum Mode: String, CaseIterable, Sendable {
-        case lava, ball, aurora, pond, flame, fountain, rain
+        case lava, ball, aurora, pond, flame, fountain, rain, petri
 
         public var title: String {
             switch self {
@@ -121,6 +121,7 @@ public final class Visualiser {
             case .flame: "Flame"
             case .fountain: "Fountain"
             case .rain: "Rain"
+            case .petri: "Petri dish"
             }
         }
     }
@@ -164,6 +165,7 @@ public final class Visualiser {
         case .flame: Flame()
         case .fountain: Fountain()
         case .rain: Rain()
+        case .petri: PetriDish()
         }
     }
 

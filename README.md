@@ -123,8 +123,8 @@ scope of that voice's own wave, as FastTracker 2 drew one for each channel: a ch
 still as two of its cycles, a sample as the last fiftieth of a second. Each voice is shown as it
 leaves its chip or its mixer, before anything the voices go through together, such as a SID's
 filter or an Amiga's. Then there is a
-picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain or rain,
-each made from what the tune's voices are doing), and the command-line player's options as
+picture to listen by (a lava lamp, a mirror ball, an aurora, a pond, a fire, a fountain, rain
+or a petri dish, each made from what the tune's voices are doing), and the command-line player's options as
 settings. A song is rendered to its end as soon as it starts, far faster than it plays, so any
 place in it can be moved to. A tune that is not played quite as its file asks has a small ≈ beside
 its name: see [Playback caveats](#playback-caveats). And the name of the tune's format, beside its
