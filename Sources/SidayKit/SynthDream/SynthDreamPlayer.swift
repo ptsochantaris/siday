@@ -70,7 +70,7 @@ struct SynthDreamPlayer: ~Copyable {
     /// nought): samples (of a length that is not nought) and synthesised.
     let sampleCount: Int
     let synthCount: Int
-    /// What is said of a file whose instruments' samples run past the sample file.
+    /// What is said of a file cut short in its tracks or patterns, or whose songs' samples run past the sample file.
     let shortfalls: [String]
 
     /// What the player keeps for each voice (`lbL000494` and the three after it, 206 bytes each), named by what
@@ -109,8 +109,8 @@ struct SynthDreamPlayer: ~Copyable {
         var left = InlineArray<4, UInt8>(repeating: 0)
         var again = InlineArray<4, UInt8>(repeating: 0)
         var lengths = InlineArray<4, UInt8>(repeating: 0)
-        /// The slide's factor (+94, $2000 for none yet), the note its table of notes adds (+96), and whether the
-        /// row is a rest (+97).
+        /// The slide's factor (+94: nought for none, $2000 as one begins), the note its table of notes adds (+96),
+        /// and whether the row is a rest (+97).
         var slide: UInt16 = 0
         var added: UInt8 = 0
         var resting = false
