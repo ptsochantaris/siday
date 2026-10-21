@@ -6,9 +6,9 @@
 // as players/BladePacker, whose source UADE also carries as amigasrc/players/wanted_team/BladePacker/src/Blade
 // Packer_v2.asm. The labels given are that source's.
 
-/// Blade Packer, Tord Jansson's packed tracker modules (from the Atari ST, where he wrote it, 1991 to 1996), whose
-/// music for Obsession (Unique Development Sweden, 1995) is among UnExoticA's: a file of patterns beside a file of
-/// samples (`<name>.smp`), each file of many songs, one after the other.
+/// Blade Packer, the packed form of tracker modules Tord Jansson made on the Atari ST and took to the Amiga and the PC
+/// (1991 to 1996, his player says), whose music for Obsession (Unique Development Sweden, 1995) is among UnExoticA's:
+/// a file of patterns beside a file of samples (`<name>.smp`), each file of many songs, one after the other.
 ///
 /// The file: "S\u{8F}NG." and a 'B' for patterns whose rows are bytes or anything else for words, a '4' for four
 /// voices or anything else for eight, and the position the song goes back to at its end ($7F for the first); then
@@ -26,13 +26,16 @@
 /// This is the player itself, as EaglePlayer's module runs it in UADE: what it tells Paula is what that player
 /// tells her, tick by tick. It sets no timer of its own (it has only `DTP_Interrupt`), and so is run by
 /// EaglePlayer's, which UADE runs from a CIA's timer of $376B: 70,940 of Paula's clocks, fifty times a second and a
-/// little less. Its replayer, made for the Atari ST, keeps a copy of Paula's registers for each of its four voices,
-/// and keeps up with where in its sample each voice is, by an estimate (a tick's worth of bytes, $1151A over the
-/// period, added each tick); and it tells Paula what is in the copy as the next tick begins: so all it plays is a
-/// tick late. A voice whose place in its sample the replayer has set anew is turned off, then all four are told
-/// their periods and volumes, and once `DMAWait` has waited for the beam to begin nine lines, those set anew are
-/// told their samples and turned on, and after another wait, their loops (or a word of silence). Its third and
-/// fourth voices are Paula's fourth and third.
+/// little less. Its replayer (whose format began on a machine with no Paula) keeps a copy of Paula's registers for
+/// each of its four voices, and keeps up with where in its sample each voice is, by an estimate (a tick's worth of
+/// bytes, $1151A over the period, added each tick); and it tells Paula what is in the copy as the next tick begins:
+/// so all it plays is a tick late. A voice whose place in its sample the replayer has set anew is turned off, then
+/// all four are told their periods and volumes, and once `DMAWait` has waited for the beam to begin nine lines,
+/// those set anew are told their samples and turned on, and after another wait, their loops (or a word of
+/// silence). Its third and fourth voices are Paula's fourth and third. A voice that has had no note yet is told a
+/// period of nought, a word of 65,536 of Paula's clocks: she turns a voice off only as its word ends, and one turned
+/// on again before then goes on as it was, to what it is told next, the loop; so its first note is not heard, as in
+/// UADE (and on the Amiga), but its loop is.
 ///
 /// Each of the player's writes is told Paula at its moment in the tick (`TFMXOutput.timed(at:)`), near where it falls
 /// in UADE's dumps.
@@ -302,9 +305,17 @@ struct BladePackerPlayer: ~Copyable {
         }
         // (The samples, from the long at the table's start, sixteen bytes each, those whose start and end differ.)
         var count = 0
-        let entries = Int(min(4096, Self.long(samples, Int(sampleTable) - samplesAt) >> 4))
-        for k in 0 ..< entries where Self.long(samples, Int(sampleTable) - samplesAt + 16 * k) != Self.long(samples, Int(sampleTable) - samplesAt + 16 * k + 4) {
+        let table = headed ? 4 : 0
+        let entries = Int(min(4096, Self.long(samples, table) >> 4))
+        var past = 0
+        for k in 0 ..< entries where Self.long(samples, table + 16 * k) != Self.long(samples, table + 16 * k + 4) {
             count += 1
+            // (Those that run past the end of the sample file are said to, as `Shortfall.CutShort` counts them: from
+            // four bytes before the table.)
+            let start = Int64(Self.long(samples, table + 16 * k)) + Int64(table - 4)
+            let length = Int64(Self.long(samples, table + 16 * k + 4)) - Int64(Self.long(samples, table + 16 * k))
+            let lost = length - max(0, min(length, Int64(samples.count) - start))
+            if length > 0, lost >= 32, lost >= 2048 || lost * 16 >= length { past += 1 }
         }
         sampleCount = count
         // (`InitPlayer`: each position whose patterns have a position jump or an 8 command begins a song at the next.)
@@ -334,7 +345,10 @@ struct BladePackerPlayer: ~Copyable {
         // (As many songs as it found, the first counted for the last.)
         if starts.count > 1 { starts.removeLast() }
         songStarts = starts
-        shortfalls = []
+        shortfalls = past == 0 ? [] : [
+            Shortfall.some(past, one: "samples runs past the end of the sample file, and is silent there.",
+                           many: "samples run past the end of the sample file, and are silent there."),
+        ]
         // (Refused only once it is all made, that it may be undone as a whole.)
         guard Self.isOne(data) else { throw .malformed("not a Blade Packer module") }
         guard let dictionaryAt else { throw .malformed("its positions or patterns have no end") }
@@ -654,9 +668,16 @@ extension BladePackerPlayer {
         if note != 0 {
             voice.vibratoAgain = 0xFF
             let base = sampleTable &- 4
-            places[v] = voice.start &+ base
-            ends[v] = sampleLong(voice.entry &+ 4) &+ base
-            loopLengths[v] = sampleLong(voice.entry &+ 8)
+            if voice.entry == 0 {
+                // (Before any instrument: the player's silence, for the start of memory it would read.)
+                places[v] = UInt32(silenceAt)
+                ends[v] = UInt32(silenceAt + 2)
+                loopLengths[v] = 0
+            } else {
+                places[v] = voice.start &+ base
+                ends[v] = sampleLong(voice.entry &+ 4) &+ base
+                loopLengths[v] = sampleLong(voice.entry &+ 8)
+            }
             let index = UInt16(truncatingIfNeeded: UInt32(voice.tuning) &* 72) &+ note
             voice.period = Self.tableWord(Int(Int16(bitPattern: index)))
         }
