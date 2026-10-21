@@ -10,12 +10,15 @@ import SwiftUI
 struct Picture: View {
     @Environment(PlayerModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// False while another picture is being painted (the one on the whole screen): there is one
+    /// painter, and a picture of another size would start it again from black on every frame.
+    var painting = true
 
     var body: some View {
         GeometryReader { space in
-            TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 10 : nil, paused: false)) { timeline in
+            TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 10 : nil, paused: !painting)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                let image = paint(space.size, at: reduceMotion ? time / 3 : time)
+                let image = painting ? paint(space.size, at: time, slowed: reduceMotion) : nil
                 if let image {
                     Image(decorative: image, scale: 1)
                         .resizable()
@@ -30,13 +33,14 @@ struct Picture: View {
         .accessibilityLabel(Text("Picture: \(model.picture.title)"))
     }
 
-    private func paint(_ space: CGSize, at seconds: Double) -> CGImage? {
+    private func paint(_ space: CGSize, at seconds: Double, slowed: Bool) -> CGImage? {
         let visualiser = model.visualiser
         let size = Visualiser.size(for: space.width, space.height)
         visualiser.resize(width: size.width, height: size.height)
-        // (What the voices are doing comes with each frame the player works out: see `Display`.)
+        // What the voices are doing comes with each frame the player works out (see `Display`), which
+        // the picture asks for too: on the whole screen it is all there is to ask.
         _ = model.frame(at: seconds)
-        visualiser.paint(at: seconds)
+        visualiser.paint(at: slowed ? seconds / 3 : seconds)
         guard let pixels = visualiser.pixels, visualiser.width > 0 else { return nil }
         let count = visualiser.width * visualiser.height * 4
         let data = Data(bytes: pixels, count: count) as CFData

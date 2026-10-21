@@ -326,7 +326,7 @@ struct PictureSection: View {
     var body: some View {
         @Bindable var model = model
         VStack(spacing: 8) {
-            Picture()
+            Picture(painting: !model.pictureFillsScreen)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .clipShape(.rect(cornerRadius: 12))
                 .onTapGesture(count: 2) { model.pictureFillsScreen = true }

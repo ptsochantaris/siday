@@ -8,13 +8,21 @@ import SwiftUI
 /// the licence it comes under.
 struct AboutTab: View {
     @Environment(\.openURL) private var openURL
+    @ScaledMetric(relativeTo: .largeTitle) private var logoSize = 96
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Siday").font(.largeTitle.weight(.bold))
+                        HStack(spacing: 16) {
+                            Image("Logo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: logoSize, height: logoSize)
+                                .accessibilityLabel("The siday logo: a chip marked SIDAY, with a stave of music")
+                            Text("Siday").font(.largeTitle.weight(.bold))
+                        }
                         Text("Chip music and modules from the ZX Spectrum, Amstrad CPC, Atari ST, 8-bit Ataris, Commodore 64, Amiga and PC.")
                         Text("SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first.")
                             .font(.footnote)
