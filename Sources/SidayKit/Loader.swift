@@ -51,7 +51,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case cust
     case dl
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
-    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat
+    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat, thm, psf
 
     /// The format a file name's extension stands for, in any case: its own name (`TuneFormat.rawValue`),
     /// or one of the other names files of it are kept under (`otherNames`).
@@ -145,7 +145,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// for EaglePlayer or DeliTracker that took its place (Infogrames', Fashion Tracker's and the rest).
     public var isPortedGamePlayer: Bool {
         switch self {
-        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat: true
+        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf: true
         default: false
         }
     }
@@ -166,7 +166,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .jt: "MON"
         case .dl: "DLN"
         case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash, .tw: "CORE"
-        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat: "DUM"
+        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf: "DUM"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -383,6 +383,16 @@ public enum TuneLoader {
                 throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0])
             }
             return try PaulaTickRenderer(PaulRobothamPlayer(data, samples: samples), options: options)
+        case .thm:
+            // Thomas Hermann's, with its samples in the file beside it, or failing that each in the
+            // folder of instruments beside it.
+            guard ThomasHermannPlayer.isOne(data) else { throw TuneError.unsupported("not a module of Thomas Hermann's") }
+            let samples = companions.first ?? nil, folder = companions.count > 1 ? companions[1] : nil
+            guard samples != nil || folder != nil else { throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0]) }
+            return try PaulaTickRenderer(ThomasHermannPlayer(data, samples: samples, instruments: folder.map(CompanionFolder.unpack) ?? []), options: options)
+        case .psf:
+            guard SoundfactoryPlayer.isOne(data) else { throw TuneError.unsupported("not a module of Soundfactory's") }
+            return try PaulaTickRenderer(SoundfactoryPlayer(data), options: options)
         case .jpo:
             return try PaulaTickRenderer(SteveTurnerPlayer(data), options: options)
         case .psa:

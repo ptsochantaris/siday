@@ -1121,6 +1121,24 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   siday takes as for ever: each time round is the song's end. Nineteen files, the same as
   UADE's to the tick for five minutes.
 
+- **Thomas Hermann** (`.thm`, with its `.smp` or its folder of instruments): his player of 1989 for
+  Magic Bytes' Beam, Blue Angel 69 and Nightdawn. The samples are in a file beside the module, or,
+  failing that, each in an IFF file in the folder `Instruments` beside it, by the name the module gives
+  it, in any case. The song runs on a timer of its own, about 43 times a second, and the slides and
+  envelopes on the game's 50 a second; Paula's interrupts end a sample played once on its third and
+  begin a loop on its second, as on the machine. Wanted Team's player writes the second timer's two
+  bytes the wrong way round, and runs the effects about 26 times a second: the game's way is followed,
+  as the game's own code (which siday also plays, as Blue Angel 69's custom module) has it, and Wanted
+  Team's is kept for comparison. Which songs a file has is known only by its size, as the player knows
+  it: Blue Angel 69's five, and three in Beam's unused music. Four files, ten songs, the same as UADE's
+  to the tick with Wanted Team's timer.
+
+- **Soundfactory** (`.psf`): Profiteam's Soundfactory 1.0 of 1989, by Zuheir Urwani and Thomas Kolbe,
+  mostly heard in the music of Oliver Becker and Michael Volz (Master Control Program). Each voice reads
+  a stream of notes and 29 commands, with calls and returns, loops, a fade and the Amiga's filter; which
+  voices a song has are its subsongs, of which Danger Castle's first has none and is passed over. One
+  file, five songs, the same as UADE's to the tick.
+
 How loud it is: at the level of modules, these are between 1.0 dB quieter and 7.3 dB louder in the middle of
 their files, and each is turned down by its own amount to the level of the rest.
 

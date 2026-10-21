@@ -118,6 +118,9 @@ public enum CompanionFolder {
 ///   own disks `SJS.title`'s in `SMP.title`).
 /// - a score of Paul Robotham's on Pete Barnett's driver, `title.dat`, has its samples in `title.ssd`, or,
 ///   where the scores of a game share them, `mdtest.ssd`.
+/// - a module of Thomas Hermann's, `title.thm`, has its samples in `title.smp` (`SMP.title` for
+///   `THM.title`), or failing that each in its own file in the folder `Instruments` beside it, by the name
+///   the module gives it, in any case.
 /// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
 ///   `Instruments`, each named in the score.
 /// - a module of Startrekker's that has synthesised instruments keeps them in a file beside it, which
@@ -252,6 +255,12 @@ public enum Companions {
             var names = ["\(stem).smp", "set.smp", "smp.set"]
             if fileName.lowercased().hasPrefix("rjp.") { names.insert("smp." + fileName.dropFirst(4), at: 1) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .thm:
+            // Its samples in one file beside it; or, failing that, each in a folder of instruments beside it.
+            var names = ["\(stem).smp"]
+            if fileName.lowercased().hasPrefix("thm.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: nil, required: false),
+                    Companion(part: .samples, names: ["Instruments"], kind: nil, required: false, folder: true)]
         case .sonix, .cin:
             // Named in the score, and kept, as the player looks for them, in a folder beside it.
             return [Companion(part: .instruments, names: ["Instruments"], kind: nil, required: true, folder: true)]
