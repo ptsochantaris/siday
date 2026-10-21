@@ -7,6 +7,8 @@ import SwiftUI
 /// What siday is, what it plays (each format's story a press away), whose work it is made from, and
 /// the licence it comes under.
 struct AboutTab: View {
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         NavigationStack {
             List {
@@ -16,12 +18,15 @@ struct AboutTab: View {
                         Text("Chip music and modules from the ZX Spectrum, Amstrad CPC, Atari ST, 8-bit Ataris, Commodore 64, Amiga and PC.")
                         Text("SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first.")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Explanation.colour)
                     }
                     .padding(.vertical, 4)
-                    Link(destination: URL(string: "https://github.com/ptsochantaris/siday")!) {
+                    Button {
+                        openURL(URL(string: "https://github.com/ptsochantaris/siday")!)
+                    } label: {
                         Label("The Source on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
+                    .accessibilityAddTraits(.isLink)
                 }
                 Section {
                     ForEach(Stories.all) { part in
@@ -40,19 +45,23 @@ struct AboutTab: View {
                             Text(part.heading)
                         }
                     }
+                    Text(TuneFormat.fileExtensions.map { $0.uppercased() }.joined(separator: ", "))
+                        .font(.footnote)
                 } header: {
                     Text("What It Plays")
-                } footer: {
-                    Text(TuneFormat.fileExtensions.map { $0.uppercased() }.joined(separator: ", "))
                 }
-                Section("Made With") {
+                .headerProminence(.increased)
+                Section {
                     NavigationLink("Credits") {
                         Document(name: "THIRD-PARTY", ending: "md", title: "Credits")
                     }
                     NavigationLink("Licence") {
                         Document(name: "LICENSE", ending: nil, title: "Licence")
                     }
+                } header: {
+                    Text("Made With")
                 }
+                .headerProminence(.increased)
             }
             .navigationTitle("About")
         }

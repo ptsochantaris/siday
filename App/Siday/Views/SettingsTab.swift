@@ -23,8 +23,8 @@ struct SettingsTab: View {
                 Section {
                     Button("Reset to Defaults", role: .destructive) { model.resetSettings() }
                         .disabled(model.settingsAreStandard)
-                } footer: {
                     Text("Settings are kept for the next time the app is opened.")
+                        .font(.footnote)
                 }
             }
             .formStyle(.grouped)
@@ -43,13 +43,30 @@ private struct SettingRow: View {
         VStack(alignment: .leading, spacing: 4) {
             switch setting.kind {
             case .choice(let choices):
-                Picker(selection: Binding(get: { Int(model.value(of: setting)) }, set: { model.set(setting, to: Double($0)) })) {
-                    ForEach(choices.indices, id: \.self) { index in
-                        Text(choices[index].title).tag(index)
+                // (The name above what is chosen, so that each has the whole width, at any size of text.)
+                label(changed)
+                // (A menu of the choices, whose button says what is chosen in words that wrap at any size.)
+                Menu {
+                    Picker(selection: Binding(get: { Int(model.value(of: setting)) }, set: { model.set(setting, to: Double($0)) })) {
+                        ForEach(choices.indices, id: \.self) { index in
+                            Text(choices[index].title).tag(index)
+                        }
+                    } label: {
+                        Text(setting.title)
                     }
+                    .pickerStyle(.inline)
                 } label: {
-                    label(changed)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(choices[Int(value)].title)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .imageScale(.small)
+                            .accessibilityHidden(true)
+                    }
                 }
+                .accessibilityLabel(Text(setting.title))
+                .accessibilityValue(Text(choices[Int(value)].title))
             case .scale(let low, let high):
                 LabeledContent {
                     Slider(value: Binding(get: { model.value(of: setting) }, set: { model.set(setting, to: $0) }), in: 0 ... 100) {
@@ -65,7 +82,7 @@ private struct SettingRow: View {
             }
             Text(setting.about)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Explanation.colour)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .contain)
@@ -83,4 +100,9 @@ private struct SettingRow: View {
             }
         }
     }
+}
+
+/// Text that explains, a little fainter than what it explains, and still dark enough to read small.
+enum Explanation {
+    static let colour = Color.primary.opacity(0.7)
 }

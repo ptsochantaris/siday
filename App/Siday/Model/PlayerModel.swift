@@ -204,6 +204,12 @@ final class PlayerModel {
         engine.setVolume(volume)
         let silent = ProcessInfo.processInfo.arguments.contains("-SidaySilent") || UserDefaults.standard.bool(forKey: "SidaySilent")
         engine.startOutput(silent: silent)
+        #if DEBUG
+        // (For trying the app out: `-SidayFresh` starts with no list.)
+        if ProcessInfo.processInfo.arguments.contains("-SidayFresh") {
+            try? FileManager.default.removeItem(at: Library.store)
+        }
+        #endif
         restoreList()
     }
 

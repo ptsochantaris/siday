@@ -1,6 +1,7 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import Foundation
 import SidayKit
 import SwiftUI
 
@@ -140,9 +141,11 @@ struct Details: View {
                     model.slideOver = .story(chapter)
                 } label: {
                     Label(tune.format, systemImage: "book")
+                        .frame(minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .font(.caption.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .help("About this format")
                 .accessibilityHint("Tells the format's story.")
             } else {
@@ -151,6 +154,8 @@ struct Details: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(tune.title.isEmpty ? model.fileName : tune.title)
                     .font(.title2.weight(.semibold))
+                    // (A file's name read out as words: its kind and underscores left out.)
+                    .accessibilityLabel(Text(tune.title.isEmpty ? spoken(model.fileName) : tune.title))
                 if !tune.shortfalls.isEmpty {
                     Button {
                         model.slideOver = .shortfalls
@@ -204,18 +209,17 @@ struct Controls: View {
     private var playing: Bool { !(model.paused || model.finished || model.tune == nil) }
 
     private var transport: some View {
-        HStack(spacing: 20) {
-            Button("Previous", systemImage: "backward.fill") { model.previous() }
+        HStack(spacing: 8) {
+            Button { model.previous() } label: { Control.label("Previous", "backward.fill") }
                 .disabled(!model.hasPrevious)
-            Button(playing ? "Pause" : "Play", systemImage: playing ? "pause.fill" : "play.fill") { model.togglePause() }
+            Button { model.togglePause() } label: { Control.label(playing ? "Pause" : "Play", playing ? "pause.fill" : "play.fill") }
                 .font(.title)
                 .contentTransition(.symbolEffect(.replace))
-            Button("Next", systemImage: "forward.fill") { model.next() }
+            Button { model.next() } label: { Control.label("Next", "forward.fill") }
                 .disabled(!model.hasNext)
-            Toggle("Shuffle", systemImage: "shuffle", isOn: Binding(get: { model.shuffled }, set: { _ in model.toggleShuffle() }))
+            Toggle(isOn: Binding(get: { model.shuffled }, set: { _ in model.toggleShuffle() })) { Control.label("Shuffle", "shuffle") }
                 .toggleStyle(.button)
         }
-        .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
     }
 
@@ -241,6 +245,22 @@ struct Controls: View {
             Image(systemName: "speaker.wave.3.fill").accessibilityHidden(true)
         }
         .foregroundStyle(.secondary)
+    }
+}
+
+/// A file's name as it is to be read out: without its ending, and with spaces for underscores.
+func spoken(_ name: String) -> String {
+    let stem = (name as NSString).deletingPathExtension
+    return (stem.isEmpty ? name : stem).replacingOccurrences(of: "_", with: " ")
+}
+
+/// A control's picture, with its name for those who cannot see it, and room enough to be pressed.
+enum Control {
+    static func label(_ title: LocalizedStringKey, _ symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .labelStyle(.iconOnly)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
     }
 }
 

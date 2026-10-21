@@ -45,7 +45,7 @@ struct PlaylistTab: View {
                     } primaryAction: { ids in
                         ids.first.map { model.play(id: $0) }
                     }
-                    .searchable(text: $model.search, prompt: Text("Search \(model.files.count) tunes"))
+                    .searchable(text: $model.search, prompt: Text("Search"))
                     #if os(macOS)
                     .onDeleteCommand { model.remove(selection) }
                     #endif
@@ -77,6 +77,7 @@ struct PlaylistTab: View {
                 VStack(alignment: .leading) {
                     Text(tune.name)
                         .fontWeight(playing ? .semibold : .regular)
+                        .accessibilityLabel(Text(spoken(tune.name)))
                     Text(tune.folder)
                         .font(.caption)
                         .foregroundStyle(.secondary)

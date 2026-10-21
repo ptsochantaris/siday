@@ -22,8 +22,8 @@ struct TimeBar: View {
             GeometryReader { space in
                 let width = max(1, space.size.width)
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.quaternary)
-                    Capsule().fill(.tertiary)
+                    Capsule().fill(Color.primary.opacity(0.45))
+                    Capsule().fill(Color.primary.opacity(0.65))
                         .frame(width: width * fraction(rendered))
                     Capsule().fill(.tint)
                         .frame(width: width * fraction(dragging ?? position))

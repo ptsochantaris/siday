@@ -13,11 +13,22 @@
 		5D0A00000000000000000173 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 5D0A00000000000000000163 /* LICENSE */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		5D0A00000000000000000081 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5D0A00000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5D0A00000000000000000021;
+			remoteInfo = Siday;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		5D0A00000000000000000011 /* Siday.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Siday.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D0A00000000000000000161 /* FORMATS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = FORMATS.md; path = ../FORMATS.md; sourceTree = "<group>"; };
 		5D0A00000000000000000162 /* THIRD-PARTY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = THIRD-PARTY.md; path = ../THIRD-PARTY.md; sourceTree = "<group>"; };
 		5D0A00000000000000000163 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE; path = ../LICENSE; sourceTree = "<group>"; };
+		5D0A00000000000000000012 /* SidayUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SidayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -39,6 +50,11 @@
 			path = Siday;
 			sourceTree = "<group>";
 		};
+		5D0A00000000000000000032 /* SidayUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SidayUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,6 +66,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5D0A00000000000000000062 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -57,6 +80,7 @@
 			isa = PBXGroup;
 			children = (
 				5D0A00000000000000000031 /* Siday */,
+				5D0A00000000000000000032 /* SidayUITests */,
 				5D0A00000000000000000003 /* Shared */,
 				5D0A00000000000000000002 /* Products */,
 			);
@@ -66,6 +90,7 @@
 			isa = PBXGroup;
 			children = (
 				5D0A00000000000000000011 /* Siday.app */,
+				5D0A00000000000000000012 /* SidayUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -106,6 +131,27 @@
 			productReference = 5D0A00000000000000000011 /* Siday.app */;
 			productType = "com.apple.product-type.application";
 		};
+		5D0A00000000000000000022 /* SidayUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5D0A00000000000000000203 /* Build configuration list for PBXNativeTarget "SidayUITests" */;
+			buildPhases = (
+				5D0A00000000000000000061 /* Sources */,
+				5D0A00000000000000000062 /* Frameworks */,
+				5D0A00000000000000000063 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5D0A00000000000000000082 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5D0A00000000000000000032 /* SidayUITests */,
+			);
+			name = SidayUITests;
+			productName = SidayUITests;
+			productReference = 5D0A00000000000000000012 /* SidayUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -118,6 +164,10 @@
 				TargetAttributes = {
 					5D0A00000000000000000021 = {
 						CreatedOnToolsVersion = 27.1;
+					};
+					5D0A00000000000000000022 = {
+						CreatedOnToolsVersion = 27.1;
+						TestTargetID = 5D0A00000000000000000021;
 					};
 				};
 			};
@@ -139,6 +189,7 @@
 			projectRoot = "";
 			targets = (
 				5D0A00000000000000000021 /* Siday */,
+				5D0A00000000000000000022 /* SidayUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -154,6 +205,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5D0A00000000000000000063 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -164,7 +222,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5D0A00000000000000000061 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5D0A00000000000000000082 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5D0A00000000000000000021 /* Siday */;
+			targetProxy = 5D0A00000000000000000081 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5D0A00000000000000000211 /* Debug */ = {
@@ -302,6 +375,50 @@
 			};
 			name = Release;
 		};
+		5D0A00000000000000000231 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X727JSJUGJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = build.bru.siday.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Siday;
+			};
+			name = Debug;
+		};
+		5D0A00000000000000000232 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X727JSJUGJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = build.bru.siday.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Siday;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -319,6 +436,15 @@
 			buildConfigurations = (
 				5D0A00000000000000000221 /* Debug */,
 				5D0A00000000000000000222 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5D0A00000000000000000203 /* Build configuration list for PBXNativeTarget "SidayUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D0A00000000000000000231 /* Debug */,
+				5D0A00000000000000000232 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
