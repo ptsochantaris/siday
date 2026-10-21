@@ -167,6 +167,8 @@ struct ThomasHermannPlayer: ~Copyable {
     private var steps: [(at: UInt64, step: Step)] = []
     /// When the song came to its end, in the dry run.
     private var endedAt: UInt64?
+    /// When the song's tick being run began.
+    private var songTickAt: UInt64 = 0
 
     /// Where in its tick, in Paula's clocks, what the player does falls in UADE: the first voice's note,
     /// the wait for the beam (`DMAWait`) before its DMA is turned on, and the next voice's note after a
@@ -182,6 +184,8 @@ struct ThomasHermannPlayer: ~Copyable {
     /// own later: the song's this much after its own, as it is started after the effects' in UADE (the
     /// median of its dumps of the music).
     static let songLate: UInt64 = 1165
+    /// The shortest tick that is run (see `run`).
+    static let shortestTick: UInt64 = 1000
 
     /// The periods of an octave (`lbW00C7A4`).
     private static let periodTable: [UInt16] = [0x1AC, 0x194, 0x17C, 0x168, 0x154, 0x140, 0x12E, 0x11E, 0x10E, 0xFE, 0xF0, 0xE2]
@@ -399,43 +403,62 @@ extension ThomasHermannPlayer {
         endedAt = nil
     }
 
-    /// Runs what falls in the time from now to the next of the two timers: the song's tick (`Play`) or the
-    /// effects' (`lbC00C9DC`), whichever is due now, what is left of the song's tick, and Paula's audio
-    /// interrupts (`lbC00CD86`), each at its moment. Returns the time run in milliseconds (unused).
+    /// Runs what falls in the time from now to the next of the two timers: the song's tick (`Play`) and the
+    /// effects' (`lbC00C9DC`) as they come, what is left of the song's tick, and Paula's audio interrupts
+    /// (`lbC00CD86`), each at its moment. (A timer that comes less than `shortestTick` after the tick's start
+    /// is run within it, at its moment, that no tick is too short to be heard.) Returns the time run in
+    /// milliseconds (unused).
     mutating func run<Output: TFMXOutput>(_ output: inout Output) -> Int {
         periodsBefore = periods
         volumesBefore = volumes
         let begin = now
         var told = UInt64.max
-        if now == nextSong {
-            play()
-            nextSong += songClocks
-        }
-        let effects = now == nextEffects
-        if effects { nextEffects += effectsClocks }
-        let end = min(nextSong, nextEffects)
-        if effects { effectsTick(at: now, begin, &told, &output) }
-        // What is left to do, in order of time, up to the next tick.
+        // The tick ends as the first timer comes that is not too soon after its start.
+        let soonest = begin + Self.shortestTick
+        let songEnd = nextSong >= soonest ? nextSong : nextSong + songClocks
+        let effectsEnd = nextEffects >= soonest ? nextEffects : nextEffects + effectsClocks
+        let end = min(songEnd, effectsEnd)
+        // What is to be done, in order of time, up to it.
         while true {
-            var soonest = end
+            var at = end
             var which = -1
-            if let first = steps.first, first.at < soonest {
-                soonest = first.at
+            if nextSong < at {
+                at = nextSong
+                which = 5
+            }
+            if nextEffects < at {
+                at = nextEffects
+                which = 6
+            }
+            if let first = steps.first, first.at < at {
+                at = first.at
                 which = 4
             }
             for v in 0 ..< 4 {
-                if let due = interruptDue(v), due < soonest {
-                    soonest = due
+                if let due = interruptDue(v), due < at {
+                    at = due
                     which = v
                 }
             }
-            if which < 0 { break }
-            if which == 4 {
+            switch which {
+            case -1: break
+            case 4:
                 let step = steps.removeFirst()
                 runStep(step.step, at: step.at, begin, &told, &output)
-            } else {
-                interrupt(which, at: soonest, begin, &told, &output)
+                continue
+            case 5:
+                play(at: at)
+                nextSong += songClocks
+                continue
+            case 6:
+                nextEffects += effectsClocks
+                effectsTick(at: at, begin, &told, &output)
+                continue
+            default:
+                interrupt(which, at: at, begin, &told, &output)
+                continue
             }
+            break
         }
         now = end
         tickClocks = Int(end - begin)
@@ -452,12 +475,13 @@ extension ThomasHermannPlayer {
 
     /// `Play`: the song's tick. With nought left of the row, its row is read; with less than nought, its
     /// notes are played; else a tick of the row goes by.
-    private mutating func play() {
+    private mutating func play(at: UInt64) {
+        songTickAt = at
         if countdown == 0 {
-            steps.append((now + Self.readClocks, .read))
+            steps.append((at + Self.readClocks, .read))
         } else if countdown & 0x80 != 0 {
             countdown = speed
-            steps.append((now + Self.firstNote, .voice(0)))
+            steps.append((at + Self.firstNote, .voice(0)))
         } else {
             countdown &-= 1
         }
@@ -494,7 +518,7 @@ extension ThomasHermannPlayer {
         if position == endPosition {
             position = loopPosition
             endings += 1
-            if endedAt == nil { endedAt = now }
+            if endedAt == nil { endedAt = songTickAt }
         } else {
             position &+= 1
         }
