@@ -28,6 +28,10 @@ struct TimeBar: View {
                     Capsule().fill(.tint)
                         .frame(width: width * fraction(dragging ?? position))
                         .opacity(position > rendered + 0.05 ? 0.5 : 1)
+                }
+                .frame(height: thickness)
+                // (Over the bar, and not in with it, which would make the bar as tall as the mark.)
+                .overlay(alignment: .leading) {
                     if let place = pointed ?? dragging {
                         Rectangle().fill(.primary).frame(width: 1, height: thickness * 2.5)
                             .offset(x: width * fraction(place))
@@ -39,7 +43,6 @@ struct TimeBar: View {
                             }
                     }
                 }
-                .frame(height: thickness)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)

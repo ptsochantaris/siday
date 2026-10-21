@@ -210,6 +210,8 @@ final class PlayerModel {
         if ProcessInfo.processInfo.arguments.contains("-SidayFresh") {
             try? FileManager.default.removeItem(at: Library.store)
         }
+        // (And `-SidayTab settings`, say, starts on that tab.)
+        if let name = UserDefaults.standard.string(forKey: "SidayTab"), let start = Tab(rawValue: name) { tab = start }
         #endif
         restoreList()
     }
@@ -497,15 +499,29 @@ final class PlayerModel {
         if let tune { playSong(tune.song + step) }
     }
 
-    /// Where the song is, as it is heard.
-    var position: Double { engine.heard.serial == runs ? engine.heard.position : 0 }
+    /// Where the song is, as it is heard; or, after a move to another place in it and until that is
+    /// heard (while paused, or while the song is still being worked out as far as there), the place
+    /// moved to.
+    var position: Double {
+        let heard = engine.heard
+        if heard.serial == runs { return heard.position }
+        if let moved, moved.serial == runs { return moved.place }
+        return 0
+    }
+
+    /// The last move to another place in a song: the run of sound it began, and the place.
+    @ObservationIgnored private var moved: (serial: Int, place: Double)?
 
     @ObservationIgnored private let display = Display()
 
     /// What the player shows for one frame of the screen, at a time in seconds by any clock that only
     /// goes forward.
     func frame(at time: Double) -> Frame {
-        display.frame(engine.heard, serial: runs, at: time, visualiser: visualiser)
+        let heard = engine.heard
+        var frame = display.frame(heard, serial: runs, at: time, visualiser: visualiser)
+        // (Until a move to another place is heard, the place moved to: see `position`.)
+        if heard.serial != runs, let moved, moved.serial == runs { frame.position = moved.place }
+        return frame
     }
 
     /// Moves to a place in the playing song, in seconds. A paused player stays paused.
@@ -519,6 +535,7 @@ final class PlayerModel {
             engine.pause(false)
         }
         runs += 1
+        moved = (runs, place)
         engine.send(.seek(position: place, serial: runs))
         nowPlayingChanged(at: place)
     }

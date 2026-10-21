@@ -212,13 +212,18 @@ struct Controls: View {
                 output
                 volume.frame(maxWidth: 160)
             }
-            VStack(alignment: .leading, spacing: 12) {
+            // (On two rows, each in the middle: the volume no wider than would let its row be seen
+            // to be in the middle.)
+            VStack(alignment: .center, spacing: 12) {
                 transport
                 HStack {
                     output
-                    volume
+                    volume.frame(maxWidth: 220)
                 }
             }
+            .frame(maxWidth: .infinity)
+            // (And as far from what is under them as the two rows are from each other.)
+            .padding(.bottom, 12)
         }
     }
 
@@ -262,6 +267,8 @@ struct Controls: View {
         } maximumValueLabel: {
             Image(systemName: "speaker.wave.3.fill").accessibilityHidden(true)
         }
+        // (The speakers at its ends say what it is: no name beside it, as the output has none.)
+        .labelsHidden()
         .foregroundStyle(.secondary)
     }
 }

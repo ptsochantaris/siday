@@ -65,6 +65,8 @@ private struct SettingRow: View {
                             .accessibilityHidden(true)
                     }
                 }
+                // (Its own arrows say it is a menu: the Mac's round button besides would be a second.)
+                .menuIndicator(.hidden)
                 .accessibilityLabel(Text(setting.title))
                 .accessibilityValue(Text(choices[Int(value)].title))
             case .scale(let low, let high):
@@ -76,6 +78,8 @@ private struct SettingRow: View {
                     } maximumValueLabel: {
                         Text(high).font(.caption)
                     }
+                    // (The row's name is beside it already; the Mac would show the slider's too.)
+                    .labelsHidden()
                 } label: {
                     label(changed)
                 }
