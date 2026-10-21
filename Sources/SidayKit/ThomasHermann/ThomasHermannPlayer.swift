@@ -30,9 +30,11 @@
 /// times a second), and the slides and envelopes on another, fifty times a second, which is how the game
 /// ran them (from the beam's frames); Wanted Team's module set its timer with the bytes of the word the
 /// wrong way round, and in UADE they are run some 26 times a second (`wantedTeamsTimer`), slower by half.
-/// Paula's audio interrupts are the player's own as well, and are followed as they fall: a sample's first
-/// interrupt (at its start, or one waiting since it was last stopped) and the next say when it has been
-/// played once, and then it is stopped, or given its loop to go on with.
+/// Paula's audio interrupts are the player's own as well, and are followed as they fall: it counts a
+/// sample's interrupts, one waiting from when the voice was turned off (Paula asks for one as she stops), its
+/// start's, and each as she comes to the end of what she is playing; at the third a sample played once is
+/// stopped, and at the second one repeated is given its loop, to go on to after what she is playing. So a
+/// sample after another on its voice is heard once before it stops or loops, and a voice's first, twice.
 ///
 /// The songs: one, but for two files the player knows by their size (Blue Angel 69's five and Beam's
 /// unused tunes' three), whose positions it has in tables of its own. A song goes round from its loop
@@ -169,10 +171,10 @@ struct ThomasHermannPlayer: ~Copyable {
     /// When the song's tick being run began.
     private var songTickAt: UInt64 = 0
 
-    /// Where in its tick, in Paula's clocks, what the player does falls in UADE: the first voice's note,
-    /// the wait for the beam (`DMAWait`) before its DMA is turned on, and the next voice's note after a
-    /// note or after none; the voices turned off as a row is read; Paula's interrupt after a voice is
-    /// started (at the beam's next line); and after she has come to the end of what she was playing.
+    /// Where in its tick, in Paula's clocks, what the player does falls in UADE (from its dumps of the
+    /// music): the first voice's note, the wait for the beam (`DMAWait`) before its DMA is turned on, and the
+    /// next voice's note after a note or after none; the voices turned off as a row is read; and Paula's
+    /// interrupt after a voice is started (at the beam's next line, half a line on the average).
     static let firstNote: UInt64 = 300
     static let noteWait: UInt64 = 2570
     static let noteClocks: UInt64 = 3055
@@ -300,7 +302,7 @@ struct ThomasHermannPlayer: ~Copyable {
             for file in files { byKey[Self.key(file.name)] = file.bytes }
             for (k, name) in Self.instrumentNames(data).enumerated() {
                 guard !name.isEmpty, let bytes = byKey[Self.key(name)] else {
-                    if !missing.contains(name) { missing.append(name) }
+                    if !name.isEmpty, !missing.contains(name) { missing.append(name) }
                     continue
                 }
                 pieces.append((at, bytes))
