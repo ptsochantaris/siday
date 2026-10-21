@@ -5,7 +5,7 @@ import Testing
 @testable import SidayKit
 
 /// A ProTracker module of one empty pattern, with a note of its one sample, a square wave, on its first row.
-private func squareModule() -> [UInt8] {
+func squareModule() -> [UInt8] {
     var file = [UInt8](repeating: 0, count: 1084)
     for (i, letter) in "square".utf8.enumerated() { file[i] = letter }
     // The first sample: 32 words long, volume 64, looped whole.
