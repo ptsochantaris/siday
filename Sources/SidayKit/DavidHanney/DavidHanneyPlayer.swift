@@ -1,17 +1,17 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Made after David Hanney's replayer of Tearaway Thomas (Global Software, 1993), as Mr.Larmer of Wanted
-// Team and DEFECT adapted it for EaglePlayer ("David Hanney player module V1.1 (28 Feb 97)", carried by
+// Made after David Hanney's replayer of Tearaway Thomas ("(c) 1992 by David Hanney", its player says), as
+// Mr.Larmer of Wanted Team and DEFECT adapted it for EaglePlayer ("David Hanney player module V1.1 (28 Feb 97)", carried by
 // UADE as players/DavidHanney). No source of it is known: this is written from a disassembly of that
 // binary, and the addresses given are of its first hunk, its code. The replayer's variables are named by
 // their offsets from its base, the 680 bytes from code $450 (`A5` while it runs); the voices' and the
 // instruments' by theirs from the starts of their own. The samples and instruments it plays are copied
 // from the binary's second hunk (`DavidHanneyData`).
 
-/// David Hanney's music for Tearaway Thomas, the only game known to have used it: four voices of the
-/// game's own instruments, which the files do not carry; thirteen of them a short wave of the replayer's
-/// own, and three of them samples.
+/// David Hanney's music for Tearaway Thomas, the only game of UnExoticA's with it: four voices of the
+/// game's sixteen instruments, which the files do not carry; thirteen of them short waves that the
+/// replayer changes as it plays them, and three of them samples.
 ///
 /// The file: 'DSNG', and then chunks, each an id and a length (a long each) before what it holds:
 /// 'SEQU' (256 bytes, the blocks in the order they are played), 'INFO' (the sequence's length, a word
@@ -67,8 +67,8 @@ struct DavidHanneyPlayer: ~Copyable {
     /// count (21), the vibrato's place (22) and ticks before it begins (23), the envelope's step (24) and
     /// level (26, four times the volume), the arpeggio (28, twelve notes up from the note) and its place
     /// (40), the note (42), the period (44), the period slid to (46) and the slide's speed (48). (Its
-    /// flag at 50, which the game's own calls clear to leave a voice to its sound effects, is always set
-    /// under EaglePlayer, and is left out.)
+    /// flag at 50, without which the voice is told nothing, is cleared and set only by the replayer's
+    /// entries at code $708 and $722, which EaglePlayer's module never calls, and is left out.)
     struct Voice {
         var location = 0
         var instrument = -1
@@ -93,18 +93,18 @@ struct DavidHanneyPlayer: ~Copyable {
 
     private var voices = InlineArray<4, Voice>(repeating: Voice())
     /// The ticks counted (`$175`), whether it plays (`$176`), the row (`$17C`), the block's last row
-    /// (`$188`), the place in the sequence (`$18A`), the block (`$18C`), the ticks to the next row
+    /// (`$188`), the place in the sequence (`$18A`), the ticks to the next row
     /// (`$18E`), the speed (`$264`) and the sequence's length (`$266`).
     private var ticks: UInt8 = 0
     private var playing = false
     private var row: UInt16 = 0
     private var lastRow: UInt16 = 0
     private var place: UInt16 = 0
-    private var block: UInt16 = 0
     private var countdown: UInt16 = 0
     private var speed: UInt16 = 0
     private var sequenceLength: UInt16 = 0
     /// Where the block's rows are (the block, or where the replayer was left looking for one it has not).
+    /// (The replayer finds it again from the block's number, `$18C`, at every row: at the same place.)
     private var blockAt = 0
     /// The song has come to the end of its sequence, and goes round from its next row.
     private var goesRound = false
@@ -120,8 +120,8 @@ struct DavidHanneyPlayer: ~Copyable {
     /// `cia_timer_base_value`), 70,940 of Paula's clocks.
     static let tickClocks = (0x376B + 1) * 5
     /// Where in the tick, in Paula's clocks, the player's writes fall in UADE (the medians of its dumps of
-    /// the game's music; UADE's EaglePlayer calls that turn a voice's DMA on wait some 2,100 clocks after
-    /// it, and the rest of the time is the replayer's own): the first voice's period (a guess: only the
+    /// the game's music; UADE's `ENPP_DMAMask` waits for the audio DMA after it turns a voice on (score.s,
+    /// `enpp_amplifier_dma`), some 2,100 clocks, and the rest of the time is the replayer's own): the first voice's period (a guess: only the
     /// distances between the writes are heard); a wave's volume after its period, and its DMA turned on
     /// after that; the next voice's first write after a wave's volume; a voice with nothing to do; a sample
     /// told to go round after it is turned on, and the next voice after that; the first note of a row
@@ -347,8 +347,7 @@ extension DavidHanneyPlayer {
 
     /// `$8B0`: block `number` from its first row.
     private mutating func startBlock(_ number: UInt16) {
-        block = UInt16(bitPattern: Int16(Int8(truncatingIfNeeded: number)))
-        blockAt = blockPlace(block) ?? chunksEnd
+        blockAt = blockPlace(number) ?? chunksEnd
         lastRow = word(blockAt) &- 1
         row = 0
     }
