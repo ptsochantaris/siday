@@ -261,7 +261,7 @@ final class PetriDish: VisualScene {
                                     }
                                     swap(&charge, &next)
                                 }
-                                if charge.baseAddress != kept.baseAddress { kept.update(fromContentsOf: charge) }
+                                if charge.baseAddress != kept.baseAddress { _ = kept.update(fromContentsOf: charge) }
                             }
                         }
                     }
