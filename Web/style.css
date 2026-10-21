@@ -363,7 +363,8 @@ button.shortfall:hover, button.shortfall.on {
   white-space: nowrap;
 }
 
-/* The spectrum analyser: bars scaled from the bottom, with the gaps of a row of lights drawn over them. */
+/* The spectrum analyser: bars scaled from the bottom, with the gaps of a row of lights drawn over them;
+   the lights that are out are there too, a whisper off the panel. */
 
 .analyser {
   position: relative;
@@ -383,6 +384,7 @@ button.shortfall:hover, button.shortfall.on {
 .band {
   position: relative;
   flex: 1;
+  background: #23272e;
 }
 
 .band .bar {
