@@ -121,6 +121,10 @@ public enum CompanionFolder {
 /// - a module of Thomas Hermann's, `title.thm`, has its samples in `title.smp` (`SMP.title` for
 ///   `THM.title`), or failing that each in its own file in the folder `Instruments` beside it, by the name
 ///   the module gives it, in any case.
+/// - a module of Synth Dream's, `title.sdr`, has its samples in `title.smp` (`SMP.title` for
+///   `SDR.title`), or, as the modules of a game share them, `set.smp` (`SMP.set`).
+/// - a module of the Blade Packer's, `title.uds`, has its samples in `title.smp` (`SMP.title` for
+///   `UDS.title`).
 /// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
 ///   `Instruments`, each named in the score.
 /// - a module of Startrekker's that has synthesised instruments keeps them in a file beside it, which
@@ -254,6 +258,16 @@ public enum Companions {
             // the Amiga's own disks `rjp.title` has them in `smp.title`.
             var names = ["\(stem).smp", "set.smp", "smp.set"]
             if fileName.lowercased().hasPrefix("rjp.") { names.insert("smp." + fileName.dropFirst(4), at: 1) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .sdr:
+            // As the player looks for them, `SMP.title` for `SDR.title` and then `SMP.set`; and as the
+            // collection keeps them, `title.smp`, or `set.smp` where a game's modules share them.
+            var names = ["\(stem).smp", "set.smp", "SMP.set"]
+            if fileName.lowercased().hasPrefix("sdr.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .uds:
+            var names = ["\(stem).smp"]
+            if fileName.lowercased().hasPrefix("uds.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
         case .thm:
             // Its samples in one file beside it; or, failing that, each in a folder of instruments beside it.

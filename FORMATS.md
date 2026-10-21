@@ -1125,6 +1125,25 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   it: Blue Angel 69's five, and three in Beam's unused music. Four files, ten songs, the same as UADE's
   to the tick with Wanted Team's timer.
 
+- **Synth Dream** (`.sdr`, with its `.smp`): the player of Laurens "Lotus" Tummers and John Tonnard,
+  of 1991, for Eclipse's Monster Business, whose eight modules share their samples in `set.smp`. Its
+  instruments are samples, or synthesised: on every tick the player copies one of sixteen square waves
+  into the voice's sixteen bytes, and each instrument has tables of volume, pitch, added note and wave,
+  each with counts and repeats. A note's last tick turns its voice off and the next note turns it on,
+  so that notes have a tick of silence between them. Where Wanted Team mended the end of a table of
+  pitch, whose test in the original hung on where in memory the player was loaded, theirs is followed.
+  Eight files, the same as UADE's to the tick.
+
+- **Blade Packer** (`.uds`, with its `.smp`): Tord "Blade" Jansson's, made on the Atari ST and taken to
+  the Amiga and the PC (1991-96), here for Unique Development's preview of Obsession (1995). The
+  patterns are packed through a dictionary of cells, and the commands are near ProTracker's, with a few
+  of its own (a slide down that goes up, a note struck again, a command that begins the song again).
+  The player keeps its own copy of the sound chip's registers and tells the chip from it at the start
+  of the next tick, so that everything is heard a tick late, as it was; and a voice that has had no
+  note yet is given a period of nought, so that its first note is not heard, as on the machine. A file
+  is many songs, one after each jump or restart in its patterns: five files, 94 songs, all but two the
+  same as UADE's to the tick, and those two but for two or three ticks of silence UADE hurries through.
+
 - **Soundfactory** (`.psf`): Profiteam's Soundfactory 1.0 of 1989, by Zuheir Urwani and Thomas Kolbe,
   mostly heard in the music of Oliver Becker and Michael Volz (Master Control Program). Each voice reads
   a stream of notes and 29 commands, with calls and returns, loops, a fade and the Amiga's filter; which

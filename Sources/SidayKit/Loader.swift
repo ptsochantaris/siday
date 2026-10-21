@@ -51,7 +51,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case cust
     case dl
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
-    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat, thm, psf
+    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat, thm, psf, sdr, uds
 
     /// The format a file name's extension stands for, in any case: its own name (`TuneFormat.rawValue`),
     /// or one of the other names files of it are kept under (`otherNames`).
@@ -145,7 +145,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// for EaglePlayer or DeliTracker that took its place (Infogrames', Fashion Tracker's and the rest).
     public var isPortedGamePlayer: Bool {
         switch self {
-        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf: true
+        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf, .sdr, .uds: true
         default: false
         }
     }
@@ -166,7 +166,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .jt: "MON"
         case .dl: "DLN"
         case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash, .tw: "CORE"
-        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf: "DUM"
+        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf, .sdr, .uds: "DUM"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
@@ -390,6 +390,13 @@ public enum TuneLoader {
             let samples = companions.first ?? nil, folder = companions.count > 1 ? companions[1] : nil
             guard samples != nil || folder != nil else { throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0]) }
             return try PaulaTickRenderer(ThomasHermannPlayer(data, samples: samples, instruments: folder.map(CompanionFolder.unpack) ?? []), options: options)
+        case .sdr, .uds:
+            // Synth Dream's and the Blade Packer's, each with its samples beside it.
+            let isOne = format == .sdr ? SynthDreamPlayer.isOne(data) : BladePackerPlayer.isOne(data)
+            guard isOne else { throw TuneError.unsupported(format == .sdr ? "not a module of Synth Dream's" : "not a module of the Blade Packer's") }
+            guard let samples = companions.first ?? nil else { throw Companions.missing(Companions.wanted(for: format, fileName: fileName(path))[0]) }
+            if format == .sdr { return try PaulaTickRenderer(SynthDreamPlayer(data, samples: samples), options: options) }
+            return try PaulaTickRenderer(BladePackerPlayer(data, samples: samples), options: options)
         case .psf:
             guard SoundfactoryPlayer.isOne(data) else { throw TuneError.unsupported("not a module of Soundfactory's") }
             return try PaulaTickRenderer(SoundfactoryPlayer(data), options: options)

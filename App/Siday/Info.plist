@@ -173,6 +173,7 @@
 				<string>build.bru.siday.tune.scn</string>
 				<string>build.bru.siday.tune.scr</string>
 				<string>build.bru.siday.tune.scumm</string>
+				<string>build.bru.siday.tune.sdr</string>
 				<string>build.bru.siday.tune.sfx</string>
 				<string>build.bru.siday.tune.sid</string>
 				<string>build.bru.siday.tune.sid1</string>
@@ -206,6 +207,7 @@
 				<string>build.bru.siday.tune.tme</string>
 				<string>build.bru.siday.tune.tp3</string>
 				<string>build.bru.siday.tune.tw</string>
+				<string>build.bru.siday.tune.uds</string>
 				<string>build.bru.siday.tune.ult</string>
 				<string>build.bru.siday.tune.vgm</string>
 				<string>build.bru.siday.tune.vgz</string>
@@ -2961,6 +2963,23 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
+			<string>SDR music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.sdr</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>sdr</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
 			<string>SFX music</string>
 			<key>UTTypeIdentifier</key>
 			<string>build.bru.siday.tune.sfx</string>
@@ -3513,6 +3532,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>tw</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>UDS music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.uds</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>uds</string>
 				</array>
 			</dict>
 		</dict>
