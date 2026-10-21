@@ -3,6 +3,7 @@
 
 import SidayKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct SidayApp: App {
@@ -22,6 +23,7 @@ struct SidayApp: App {
                 .onOpenURL { url in model.add([url]) }
                 .task { openGivenOnLaunch() }
         }
+        .commands { SidayCommands(model: model) }
     }
 
     /// For trying the app out: `-SidayOpen PATH` adds what is at the path, as if it had been chosen.
@@ -63,10 +65,12 @@ enum Tab: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @Environment(PlayerModel.self) private var model
-    @State private var tab = Tab.player
+    /// What the file picker was last opened for: kept, since its answer comes once it has closed.
+    @State private var asked = PlayerModel.Choosing.files
 
     var body: some View {
-        TabView(selection: $tab) {
+        @Bindable var model = model
+        TabView(selection: $model.tab) {
             SwiftUI.Tab(Tab.player.title, systemImage: Tab.player.symbol, value: Tab.player) {
                 PlayerTab()
             }
@@ -84,6 +88,19 @@ struct ContentView: View {
         .dropDestination(for: URL.self) { urls, _ in
             model.add(urls)
             return !urls.isEmpty
+        }
+        .fileImporter(isPresented: Binding(get: { model.choosing != nil }, set: { if !$0 { model.choosing = nil } }),
+                      allowedContentTypes: (model.choosing ?? asked) == .files ? [.data] : [.folder],
+                      allowsMultipleSelection: (model.choosing ?? asked) == .files) { result in
+            guard let urls = try? result.get() else { return }
+            if asked == .wanted, let folder = urls.first {
+                model.gaveFolder(folder)
+            } else {
+                model.add(urls)
+            }
+        }
+        .onChange(of: model.choosing) { _, wanted in
+            if let wanted { asked = wanted }
         }
         #if os(iOS)
         .fullScreenCover(isPresented: Binding(get: { model.pictureFillsScreen }, set: { model.pictureFillsScreen = $0 })) {

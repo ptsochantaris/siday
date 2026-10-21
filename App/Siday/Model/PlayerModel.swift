@@ -121,6 +121,8 @@ final class PlayerModel {
     private(set) var rendered = 0.0
     /// True while the song is being made again, for a voice left out or brought back.
     private(set) var remaking = false
+    /// How many voices of the tune have a light.
+    private(set) var voiceCount = 0
     /// What is slid over the player for a moment: a format's story, or what is not played as the
     /// playing tune's file asks.
     var slideOver: SlideOver?
@@ -130,6 +132,16 @@ final class PlayerModel {
     }
     /// True while the picture fills the screen.
     var pictureFillsScreen = false
+    /// The tab that is showing.
+    var tab = Tab.player
+    /// What the listener is choosing files for, while they are.
+    var choosing: Choosing?
+    enum Choosing: Identifiable {
+        /// Tunes, playlists or a list of song lengths to add; a folder of them; or the folder that
+        /// something wanted is in.
+        case files, folder, wanted
+        var id: Self { self }
+    }
     private(set) var shuffled = false
     /// The order tunes are played in: places in `files`.
     private var order: [Int] = []
@@ -358,6 +370,8 @@ final class PlayerModel {
         switch news {
         case let .ended(tune, serial):
             if tune == asked, serial == runs { songEnded() }
+        case let .voices(count):
+            if count != voiceCount { voiceCount = count }
         case let .keeper(event):
             switch event {
             case let .loaded(tune, plays, problem, info, songs, song, length, _, levelKey):
@@ -500,6 +514,16 @@ final class PlayerModel {
         runs += 1
         engine.send(.seek(position: place, serial: runs))
         nowPlayingChanged(at: place)
+    }
+
+    /// Moves through the song by so many seconds, forward or back.
+    func skip(_ seconds: Double) {
+        seek(to: position + seconds)
+    }
+
+    /// The player's own volume, a step up or down.
+    func nudgeVolume(_ step: Double) {
+        volume = max(0, min(1, volume + step))
     }
 
     func togglePause() {

@@ -8,12 +8,6 @@ import UniformTypeIdentifiers
 struct PlaylistTab: View {
     @Environment(PlayerModel.self) private var model
     @State private var selection = Set<Int>()
-    @State private var choosing: Choosing?
-
-    enum Choosing: Identifiable {
-        case files, folder, wanted
-        var id: Self { self }
-    }
 
     var body: some View {
         @Bindable var model = model
@@ -25,15 +19,15 @@ struct PlaylistTab: View {
                     } description: {
                         Text("Add tunes, a whole folder of them, or a playlist with its tunes, or drop them here.")
                     } actions: {
-                        Button("Add Files…") { choosing = .files }
-                        Button("Add Folder…") { choosing = .folder }
+                        Button("Add Files…") { model.choosing = .files }
+                        Button("Add Folder…") { model.choosing = .folder }
                     }
                 } else {
                     List(selection: $selection) {
                         if let notice = model.notice {
                             Section {
                                 Text(notice)
-                                Button("Choose Folder…") { choosing = .wanted }
+                                Button("Choose Folder…") { model.choosing = .wanted }
                             }
                         }
                         ForEach(model.listed) { tune in
@@ -61,8 +55,8 @@ struct PlaylistTab: View {
             .toolbar {
                 ToolbarItemGroup {
                     Menu {
-                        Button("Add Files…", systemImage: "doc.badge.plus") { choosing = .files }
-                        Button("Add Folder…", systemImage: "folder.badge.plus") { choosing = .folder }
+                        Button("Add Files…", systemImage: "doc.badge.plus") { model.choosing = .files }
+                        Button("Add Folder…", systemImage: "folder.badge.plus") { model.choosing = .folder }
                     } label: {
                         Label("Add", systemImage: "plus")
                     }
@@ -70,16 +64,6 @@ struct PlaylistTab: View {
                         Button("Remove All", systemImage: "trash", role: .destructive) { model.removeAll() }
                     }
                 }
-            }
-        }
-        .fileImporter(isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }),
-                      allowedContentTypes: choosing == .files ? [.data] : [.folder],
-                      allowsMultipleSelection: choosing == .files) { result in
-            guard let urls = try? result.get() else { return }
-            if choosing == .wanted, let folder = urls.first {
-                model.gaveFolder(folder)
-            } else {
-                model.add(urls)
             }
         }
     }

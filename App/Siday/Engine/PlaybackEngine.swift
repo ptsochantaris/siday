@@ -84,6 +84,8 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     enum News: Sendable {
         case keeper(SongKeeper.Event)
         case ended(tune: Int, serial: Int)
+        /// How many voices have a light now.
+        case voices(Int)
     }
 
     private let ring = SoundRing()
@@ -227,6 +229,8 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             newRun(serial + 1)
             keeper.stop()
             now.withLock { $0 = Heard() }
+            voicesTold = 0
+            Task { @MainActor [tell] in tell(.voices(0)) }
         }
     }
 
@@ -261,6 +265,8 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     private var history: [(sent: SongKeeper.Sent, end: Int)] = []
     /// The run whose last chunk has been heard, once it has.
     private var ended: Int?
+    /// How many voices with a light the main thread was last told of.
+    private var voicesTold = 0
 
     private func show(heardAt frame: Int, dry: Bool) {
         // (The chunk being heard is the first that ends after the frame being heard.)
@@ -272,6 +278,11 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             var heard = Heard(chunk.sent)
             heard.resting = resting
             now.withLock { $0 = heard }
+            if heard.levels.count != voicesTold {
+                voicesTold = heard.levels.count
+                let news = News.voices(voicesTold)
+                Task { @MainActor [tell] in tell(news) }
+            }
         }
         // The song's last chunk has been read, and has come out of the speaker: the song is over.
         if chunk.sent.last, dry, ended != serial, ring.read.load(ordering: .acquiring) >= chunk.end {
