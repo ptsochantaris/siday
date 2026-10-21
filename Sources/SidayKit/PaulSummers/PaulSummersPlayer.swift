@@ -30,8 +30,9 @@
 /// from a CIA's timer of $376B: 70,940 of Paula's clocks, fifty times a second and a little less); and a song may
 /// play an extra tick every so many (a top byte from 1 to $7F), or leave one out (from $80, every so many less one).
 /// A note's sample is begun (its period, length and place told Paula, `DMAWait` waited for, its voice turned on,
-/// and the wait again) and then a sample of silence told her as what follows it, so that it is heard once; it
-/// ends with its length, as the voice is turned off.
+/// and the wait again: nine of the beam's lines each) and then a sample of silence told her as what follows it, so
+/// that it is heard once; it ends with its length, as the voice is turned off. Each of the player's writes is told
+/// Paula at its moment in the tick (`TFMXOutput.timed(at:)`), near where it falls in UADE's dumps.
 ///
 /// Wanted Team's player tells Paula the silence after a note's sample on the fourth voice only if a bit of what it
 /// keeps of the first voice's room for its calls is clear (it means to look at a bit of its own for each voice,
@@ -102,9 +103,17 @@ struct PaulSummersPlayer: ~Copyable {
     /// Which voices the song has (those whose places are in the file), and the song's timer.
     private var started: UInt8 = 0
     private var timer = 0
-    /// What Paula's period and volume registers were last given, for each voice.
+    /// What Paula's period and volume registers were last given, for each voice, and what they held as the tick just
+    /// run began (what `PaulaTickRenderer` sets Paula to then, before the tick's writes are told at their moments).
     private var periods = InlineArray<4, UInt16>(repeating: 0)
     private var volumes = InlineArray<4, UInt16>(repeating: 0)
+    private var periodsBefore = InlineArray<4, UInt16>(repeating: 0)
+    private var volumesBefore = InlineArray<4, UInt16>(repeating: 0)
+    /// Paula's clocks since the song began, at the tick's start (kept within a whole number of the beam's lines, of
+    /// 227 clocks and of 227.5: a count of every clock would outgrow a whole number in a browser); and how far into
+    /// the tick the player's next write falls.
+    private var clock = 0
+    private var moment = 0
 
     private(set) var endings = 0
     private(set) var stops = 0
@@ -115,6 +124,20 @@ struct PaulSummersPlayer: ~Copyable {
     /// A place that is nowhere in the file: where a voice's table of instruments is before it is given one (the
     /// player's nought, Amiga's memory at nought, which is not the file's).
     static let nowhere = -0x4000_0000
+    /// Where in the tick, in Paula's clocks, the player's writes fall in UADE (near its dumps): the first after the
+    /// interrupt begins (a guess: only the distances between them are heard), how long the song's beginning takes,
+    /// and each voice's tick before its writes.
+    static let firstWrite = 300
+    static let beginClocks = 460
+    static let voiceClocks = 240
+
+    /// When `DMAWait` begun at the moment it is in the tick returns: once the beam's line (227 of Paula's clocks) has
+    /// changed nine times, the first at the next line's start; and some 80 clocks for the code around it.
+    private func afterWait(_ at: Int) -> Int {
+        let now = clock + at
+        return (now / 227 + 9) * 227 + 80 - clock
+    }
+
     /// UADE's timer for a player that sets none.
     static let defaultTimer = 0x376B
     /// A song that has not come to its end in an hour is taken never to; and once the songs played through to
@@ -261,6 +284,9 @@ struct PaulSummersPlayer: ~Copyable {
         for v in 0 ..< 4 { voices[v].flags = 0x88 }
         periods = .init(repeating: 0)
         volumes = .init(repeating: 0)
+        periodsBefore = periods
+        volumesBefore = volumes
+        clock = 0
         endings = 0
         stops = 0
         stopped = false
@@ -306,6 +332,10 @@ struct PaulSummersPlayer: ~Copyable {
     /// Runs the player for a tick (`Interrupt`), telling `output` what Paula is to do, in the order the player tells
     /// her. Returns the tick's length in milliseconds.
     mutating func run<Output: TFMXOutput>(_ output: inout Output) -> Int {
+        periodsBefore = periods
+        volumesBefore = volumes
+        moment = Self.firstWrite
+        defer { clock = (clock + tickClocks) % 103_285 }
         // ($7BE) The tempo's change: a tick played twice every so many, or one left out.
         var times = 1
         if tempo != 0 {
@@ -346,6 +376,8 @@ struct PaulSummersPlayer: ~Copyable {
     /// `lbC000408` ($7F4): the song begun, if it is to be, and each voice's tick.
     private mutating func play<Output: TFMXOutput>(_ output: inout Output) {
         if Int16(bitPattern: songWord) < 0 {
+            output.timed(at: moment)
+            moment += Self.beginClocks
             for v in 0 ..< 4 { output.off(v) }
             songWord &= 15
             let entry = songsAt &+ 20 &* Int(songWord)
@@ -372,6 +404,8 @@ struct PaulSummersPlayer: ~Copyable {
 
     /// A voice's tick ($8A6 to $A60).
     private mutating func tick<Output: TFMXOutput>(_ v: Int, _ output: inout Output) {
+        moment += Self.voiceClocks
+        output.timed(at: moment)
         if voices[v].flags & 0x80 != 0 {
             // Its end: the voice turned off once.
             if voices[v].flags & 0x40 == 0 {
@@ -538,9 +572,14 @@ struct PaulSummersPlayer: ~Copyable {
         let note = value &- Int(word(entry &+ 8))
         voices[v].note = note
         let (period, _) = periodLongs(note)
+        output.timed(at: moment)
         place(v, entry &+ long(entry), word(entry &+ 6), &output)
         writePeriod(v, UInt16(truncatingIfNeeded: period >> 16), &output)
+        moment = afterWait(moment)
+        output.timed(at: moment)
         output.on(v)
+        moment = afterWait(moment)
+        output.timed(at: moment)
         // (Wanted Team's player looks for the fourth voice at a byte of what it keeps of the first's room for calls,
         // as UADE has it at $F6 into a page of memory, less the room taken.)
         if wantedTeamsWay, v == 3, (0xF6 &- 4 &* voices[0].depth) & 0x40 != 0 { return }
@@ -610,10 +649,14 @@ struct PaulSummersPlayer: ~Copyable {
         return depth >= 0 && depth < 32 ? voices[v].room[depth] : 0
     }
 
+    /// Paula's period for the voice as the tick just run began (its writes in the tick are told at their moments).
+    func period(_ voice: Int) -> UInt16 { periodsBefore[voice] }
+    /// Paula's volume for the voice as the tick just run began.
+    func volume(_ voice: Int) -> UInt16 { volumesBefore[voice] }
     /// What the player last gave Paula's period register for the voice.
-    func period(_ voice: Int) -> UInt16 { periods[voice] }
+    func periodWritten(_ voice: Int) -> UInt16 { periods[voice] }
     /// What the player last gave Paula's volume register for the voice.
-    func volume(_ voice: Int) -> UInt16 { volumes[voice] }
+    func volumeWritten(_ voice: Int) -> UInt16 { volumes[voice] }
 }
 
 /// Paul Summers's music, played on Paula by `PaulaTickRenderer`.

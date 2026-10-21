@@ -102,7 +102,7 @@ private func file(tempo: UInt8 = 0) -> [UInt8] {
     #expect(first.events == begun + [
         "off 0", "buffer 0 \(sampleAt) 8", "on 0", "buffer 0 \(player.silenceAt) 1", "off 1", "off 1", "off 2", "off 3",
     ])
-    #expect(player.period(0) == 0x194 && player.volume(0) == 48)
+    #expect(player.periodWritten(0) == 0x194 && player.volumeWritten(0) == 48)
     var events: [[String]] = []
     for _ in 0 ..< 3 {
         var recorder = Recorder()
@@ -110,7 +110,7 @@ private func file(tempo: UInt8 = 0) -> [UInt8] {
         events.append(recorder.events)
     }
     #expect(events == [[], ["off 0"], ["off 0", "buffer 0 \(sampleAt) 8", "on 0", "buffer 0 \(player.silenceAt) 1", "off 1"]])
-    #expect(player.period(0) == 0x1AC)
+    #expect(player.periodWritten(0) == 0x1AC)
 }
 
 /// The song comes to its end when every voice has come to its end or jumped back: voice 0 jumps back on its sixth
