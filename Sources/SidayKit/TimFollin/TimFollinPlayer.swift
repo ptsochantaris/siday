@@ -6,8 +6,9 @@
 // amigasrc/players/other/timfollin/DP_TimFollin.asm. UADE's binary is a later build than that source (it has its
 // own `DTP_SubSongRange`, and takes the song from DeliTracker's number as it is): where they differ, the binary is
 // followed, and the addresses given are of its code hunk; the labels are the source's. Its replay routine is the
-// one the game Puzznic carries in its own file (at $1233C of MUZ0.tf its routine that starts a voice's wave again
-// is the same, byte for byte, as the player's at $942).
+// game's own, as Puzznic's file carries it with its code (its routine that begins a voice's wave again, at $12326 of
+// MUZ0.tf, writes from the instrument's third byte on, as the player's does at $942, which only adds a check that
+// the voice has an instrument).
 
 /// Tim Follin's music as Ghouls 'n Ghosts, Sly Spy and Puzznic carried it on the Amiga: data for a player of four
 /// voices, each a stream of bytes that the voice reads as it goes, of notes and of commands that set how the notes
@@ -41,15 +42,18 @@
 ///
 /// The player has no end of its own; here a song comes to its end once every voice has either come to its end or
 /// gone back to a place it has been, by a jump back or by a call made again before it has returned (as each of
-/// UnExoticA's songs that goes round does, Puzznic's fifth by calls), and stops if every voice has come to its end.
-/// (Puzznic's fifth song's calls, which never return, go on past the player's room for them: in UADE, as it goes
-/// round for the seventh time, into the player's song number (and so its instruments are another song's), and as
-/// it goes round for the eighth, into the count of its fade, after which it begins song nought, and is silent from
-/// 7 minutes 11 seconds. Here they are not kept, and the song goes on round as it began.) Where the player would read outside the file it reads nought; a byte from $93 up,
+/// UnExoticA's songs that goes round does: Puzznic's fifth by calls, and so it is heard round twice before its end),
+/// and stops if every voice has come to its end.
+///
+/// The player keeps the voices' calls in four longs each, one after another, and one long more after them: a voice's
+/// fifth call goes into the next one's room, as the player's does, and one past them all is not kept. (Puzznic's
+/// fifth song's calls, which never return, go on past them: in UADE, as it goes round for the seventh time, into
+/// the player's song number, and so its instruments are another song's, and as it goes round for the eighth, into
+/// the count of its fade, after which it begins song nought, and is silent from 7 minutes 11 seconds. Here the song
+/// goes on round as it began.) Where the player would read outside the file it reads nought; a byte from $93 up,
 /// which the player would take as a command past its table of them (and go astray), is taken as the voice's end;
-/// and a call nested deeper than the player has room for (four calls a voice, and one more for the last) is not
-/// kept (see above). A voice that reads 65,536 bytes in a tick without coming to a note is taken to have come to its end
-/// (only a broken file has one, which the player would read on through memory).
+/// and a voice that reads 65,536 bytes in a tick without coming to a note is taken to have come to its end (only a
+/// broken file has one, which the player would read on through memory).
 struct TimFollinPlayer: ~Copyable {
     /// The file, as the player has changed it, and what follows it, as Paula reads them.
     let memory: UnsafeMutablePointer<UInt8>
@@ -197,7 +201,7 @@ struct TimFollinPlayer: ~Copyable {
     }
 
     private static func word(_ data: [UInt8], _ at: Int) -> UInt16 {
-        at >= 0 && at + 1 < data.count ? UInt16(data[at]) << 8 | UInt16(data[at + 1]) : 0
+        at >= 0 && at < data.count - 1 ? UInt16(data[at]) << 8 | UInt16(data[at + 1]) : 0
     }
 
     private static func long(_ data: [UInt8], _ at: Int) -> Int {
@@ -205,7 +209,7 @@ struct TimFollinPlayer: ~Copyable {
     }
 
     private static func put(_ data: inout [UInt8], _ at: Int, _ value: Int) {
-        guard at >= 0, at + 3 < data.count else { return }
+        guard at >= 0, at < data.count - 3 else { return }
         let bits = UInt32(truncatingIfNeeded: value)
         for i in 0 ..< 4 { data[at + i] = UInt8(truncatingIfNeeded: bits >> UInt32(24 - 8 * i)) }
     }

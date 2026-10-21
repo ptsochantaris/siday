@@ -164,7 +164,7 @@ struct ActionAmicsPlayer: ~Copyable {
     }
 
     private static func long(_ data: [UInt8], _ at: Int) -> Int {
-        guard at >= 0, at + 3 < data.count else { return 0 }
+        guard at >= 0, at < data.count - 3 else { return 0 }
         return Int(Int32(bitPattern: UInt32(data[at]) << 24 | UInt32(data[at + 1]) << 16 | UInt32(data[at + 2]) << 8 | UInt32(data[at + 3])))
     }
 
@@ -192,13 +192,13 @@ struct ActionAmicsPlayer: ~Copyable {
         sampleCount = count
         var total = 0
         for i in 0 ..< count {
-            let at = samples - Self.base + 64 * i + 4
-            total &+= at + 1 < data.count ? (Int(data[at]) << 8 | Int(data[at + 1])) * 2 : 0
+            let at = samples &- Self.base &+ 64 * i &+ 4
+            total &+= at >= 0 && at < data.count - 1 ? (Int(data[at]) << 8 | Int(data[at + 1])) * 2 : 0
         }
-        var address = Self.long(data, parts[1] - Self.base) &+ Self.base &- total
+        var address = Self.long(data, parts[1] &- Self.base) &+ Self.base &- total
         for i in 0 ..< count {
-            let at = samples - Self.base + 64 * i
-            guard at + 5 < loaded.count else { break }
+            let at = samples &- Self.base &+ 64 * i
+            guard at >= 0, at < loaded.count - 5 else { continue }
             let bits = UInt32(truncatingIfNeeded: address)
             loaded[at] = UInt8(bits >> 24)
             loaded[at + 1] = UInt8(truncatingIfNeeded: bits >> 16)
@@ -210,8 +210,8 @@ struct ActionAmicsPlayer: ~Copyable {
         // The songs, to the last that is not the tool's empty one.
         var last = 0
         for i in 0 ..< 32 {
-            let at = parts[11] - Self.base + 4 * i
-            guard at + 3 < data.count else { break }
+            let at = parts[11] &- Self.base &+ 4 * i
+            guard at >= 0, at < data.count - 3 else { break }
             if data[at] != 0 || data[at + 1] != 0 || data[at + 2] != 0 || data[at + 3] != 4 { last = i }
         }
         songCount = last + 1

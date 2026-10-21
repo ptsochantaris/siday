@@ -158,7 +158,7 @@ struct PaulSummersPlayer: ~Copyable {
     }
 
     private static func word(_ data: [UInt8], _ at: Int) -> UInt16 {
-        at >= 0 && at + 1 < data.count ? UInt16(data[at]) << 8 | UInt16(data[at + 1]) : 0
+        at >= 0 && at < data.count - 1 ? UInt16(data[at]) << 8 | UInt16(data[at + 1]) : 0
     }
 
     private static func long(_ data: [UInt8], _ at: Int) -> UInt32 { UInt32(word(data, at)) << 16 | UInt32(word(data, at + 2)) }
