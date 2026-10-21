@@ -7,8 +7,7 @@
 // amigasrc/players/wanted_team/SynthDream/src/Synth Dream_v2.asm. The labels given are that source's.
 
 /// Synth Dream, the music system of Laurens Tummers and John Tonnard, whose music for Monster Business (Eclipse,
-/// 1991) is among UnExoticA's: a file of eight songs' worth of tables beside a file of samples, `set.smp`, that
-/// all of them share.
+/// 1991) is among UnExoticA's: eight files of a song each, beside the file of samples they share, `set.smp`.
 ///
 /// The file: the place of its instruments (from its start, as every place in it is), of a table of the places of
 /// volume tables and of one of pitch tables; then the songs, sixteen bytes each (the places of their four voices'
@@ -39,7 +38,11 @@
 /// it last did, as the player tells EaglePlayer so; once all four have stopped, it stops. Where the player would
 /// read past the file it reads nought, and past its own tables nought; a voice whose patterns are all empty, for
 /// which it would go round for ever within a tick, is stopped, as is one that comes to a command the player does
-/// not have; and a slide over no ticks (a division by nought, which would crash the machine) does not move.
+/// not have; and a slide over no ticks (a division by nought, which would crash the machine) does not move. A word
+/// at an odd place in the player's tables, which a fine tuning or a slide's step can ask for (and which would stop
+/// a 68000), is read as a later processor reads it. Wanted Team's player looks for the end of a pitch table where
+/// it is, as the game's could not (it adds only the low word of the file's place to the table's, so that where it
+/// looks depends on where the file was loaded): this is done as Wanted Team's does it.
 struct SynthDreamPlayer: ~Copyable {
     /// The file, the samples, the voices' waves and what follows them, as Paula reads them.
     let memory: UnsafeMutablePointer<UInt8>
@@ -56,7 +59,6 @@ struct SynthDreamPlayer: ~Copyable {
     static let mixingSpace = 2048
 
     private let fileSize: Int
-    private let sampleFileSize: Int
     /// Where the instruments (`lbL0007CE`), the volume tables' places (`lbL0007D2`) and the pitch tables'
     /// (`lbL0007D6`) are: the file's first three longs.
     private let instruments: UInt32
@@ -229,13 +231,86 @@ struct SynthDreamPlayer: ~Copyable {
         return true
     }
 
+    /// How many words follow each command (`lbW000C40`'s), in its number's order.
+    private static let argumentCounts: [Int] = [0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 5, 3, 4, 1, 6, 6, 2, 0, 0, 2, 2, 2]
+
+    /// Which of its words is the instrument, for each command that chooses one.
+    private static func instrumentArgument(_ command: Int) -> Int? {
+        switch command {
+        case 4: 0
+        case 7, 9: 1
+        case 11, 13: 2
+        case 14: 3
+        case 16, 17: 5
+        default: nil
+        }
+    }
+
+    /// What its songs' tracks and patterns are found to have (only for saying so): whether the file ends before
+    /// they do, and the places of the instruments they choose (each track's instrument played as another taken
+    /// as it is).
+    private static func survey(_ data: [UInt8], songs: Int) -> (cut: Bool, chosen: [UInt32]) {
+        var seen: [(pattern: Int, from: UInt8, to: UInt8)] = []
+        var chosen: [UInt32] = []
+        var cut = false
+        let instruments = long(data, 0)
+        for s in 0 ..< songs {
+            for v in 0 ..< 4 {
+                var entry = Int(long(data, 12 + 16 * s + 4 * v))
+                for _ in 0 ..< 1024 {
+                    guard entry < data.count else {
+                        cut = true
+                        break
+                    }
+                    if data[entry] >= 0xFE { break }
+                    guard entry + 12 <= data.count else {
+                        cut = true
+                        break
+                    }
+                    let pattern = Int(long(data, entry)), from = data[entry + 6], to = data[entry + 7]
+                    entry += 12
+                    guard !seen.contains(where: { $0.pattern == pattern && $0.from == from && $0.to == to }), seen.count < 4096 else { continue }
+                    seen.append((pattern, from, to))
+                    // Its rows, each a command, its words and any of those from $24 that follow it, to its $FF, or to
+                    // a command the player does not have (past which it reads nothing).
+                    var at = pattern
+                    rows: for _ in 0 ..< 0x1_0000 {
+                        guard at < data.count else {
+                            cut = true
+                            break
+                        }
+                        if data[at] == 0xFF { break }
+                        var first = true
+                        while first || (word(data, at) >= 0x24 && word(data, at) < 0x8024) {
+                            first = false
+                            let what = word(data, at)
+                            guard what & 1 == 0, what <= 0x2E else { break rows }
+                            let command = Int(what >> 1)
+                            if let k = instrumentArgument(command) {
+                                var number = word(data, at + 2 + 2 * k)
+                                if UInt8(number & 0xFF) == from { number = number & 0xFF00 | UInt16(to) }
+                                let place = plus(instruments, number &<< 5)
+                                if !chosen.contains(place), chosen.count < 4096 { chosen.append(place) }
+                            }
+                            at += 2 + 2 * argumentCounts[command]
+                            guard at <= data.count else {
+                                cut = true
+                                break rows
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return (cut, chosen)
+    }
+
     /// Reads the file and its samples (the sample file, `set.smp` beside it) and starts the song asked for (of
     /// `songCount`, nought the first). A file given no samples (an empty file) is refused, as the player refuses it
     /// when its `ExtLoad` finds no sample file beside it; and one shorter than the long its `InitPlayer` checks
     /// its length against (the second of the volume tables' places), as that does.
     init(_ data: [UInt8], samples: [UInt8], song: Int = 0) throws(TuneError) {
         fileSize = data.count
-        sampleFileSize = samples.count
         func aligned(_ n: Int) -> Int { (n + 15) & ~15 }
         samplesAt = aligned(max(data.count, 16))
         wavesAt = aligned(samplesAt + samples.count)
@@ -252,25 +327,38 @@ struct SynthDreamPlayer: ~Copyable {
         songCount = max(1, min(256, (Int(volumeTables) - 12) >> 4))
         // (The instruments, to the first whose first byte is not nought; of them those with a table of waves,
         // and of the rest those whose length is not nought.)
-        var samplesCounted = 0, synths = 0, needed: UInt64 = 0, past = 0
+        var samplesCounted = 0, synths = 0
         var at = Int(instruments)
-        while at >= 0, at < data.count, data[at] == 0, synths + samplesCounted < 4096 {
+        while at >= 0, at < data.count, data[at] == 0 {
             if Self.long(data, at + 16) != 0 {
                 synths += 1
             } else if Self.word(data, at + 24) != 0 {
                 samplesCounted += 1
-                let end = UInt64(Self.long(data, at + 20)) + 2 * UInt64(Self.word(data, at + 24))
-                needed = max(needed, end)
-                if end > UInt64(samples.count) { past += 1 }
             }
             at += 32
         }
         sampleCount = samplesCounted
         synthCount = synths
-        shortfalls = past == 0 || samples.isEmpty ? [] : [
-            Shortfall.some(past, one: "samples runs past the end of the sample file, and is silent there.",
-                           many: "samples run past the end of the sample file, and are silent there."),
-        ]
+        // (Of the sampled instruments the songs choose, those that run past the end of the sample file are said to,
+        // as `Shortfall.CutShort` counts them.)
+        let found = Self.survey(data, songs: songCount)
+        var past = 0
+        for place in found.chosen where Int(exactly: place).map({ $0 + 32 <= data.count }) ?? false {
+            let entry = Int(place)
+            guard Self.long(data, entry + 16) == 0 else { continue }
+            let start = Int64(Self.long(data, entry + 20)), length = 2 * Int64(Self.word(data, entry + 24))
+            let lost = length - max(0, min(length, Int64(samples.count) - start))
+            if lost >= 32, lost >= 2048 || lost * 16 >= length { past += 1 }
+        }
+        var said: [String] = []
+        if found.cut {
+            said.append(Shortfall.cutShort("Its tracks and patterns are not all there; what is missing of them is read as noughts."))
+        }
+        if past > 0, !samples.isEmpty {
+            said.append(Shortfall.some(past, one: "samples runs past the end of the sample file, and is silent there.",
+                                       many: "samples run past the end of the sample file, and are silent there."))
+        }
+        shortfalls = said
         // (Refused only once it is all made, that it may be undone as a whole.)
         guard Self.isOne(data) else { throw .malformed("not a Synth Dream file") }
         guard Int64(data.count) > Int64(Int32(bitPattern: Self.long(data, Int(volumeTables) + 4))) else {
