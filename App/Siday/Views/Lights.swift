@@ -121,9 +121,9 @@ struct Lamp: View {
     private static func glass(_ kind: VoiceKind, _ scheme: ColorScheme) -> [Color] {
         if scheme == .light {
             switch kind {
-            case .chip: return [Color(red: 0.93, green: 0.74, blue: 0.71), Color(red: 0.78, green: 0.52, blue: 0.48)]
-            case .sample: return [Color(red: 0.72, green: 0.79, blue: 0.93), Color(red: 0.50, green: 0.59, blue: 0.80)]
-            case .speaker: return [Color(red: 0.91, green: 0.72, blue: 0.86), Color(red: 0.76, green: 0.50, blue: 0.69)]
+            case .chip: return [Color(red: 0.97, green: 0.87, blue: 0.85), Color(red: 0.88, green: 0.72, blue: 0.70)]
+            case .sample: return [Color(red: 0.86, green: 0.90, blue: 0.97), Color(red: 0.71, green: 0.77, blue: 0.89)]
+            case .speaker: return [Color(red: 0.96, green: 0.86, blue: 0.93), Color(red: 0.87, green: 0.71, blue: 0.83)]
             }
         }
         switch kind {
@@ -146,13 +146,10 @@ struct Lamp: View {
             // The ring: on the web player's dark panel nearly black; on a light ground a soft grey.
             let ring = scheme == .light ? Color(white: 0.45, opacity: 0.55) : Color(red: 0.047, green: 0.051, blue: 0.063)
             context.stroke(Path(ellipseIn: glass.insetBy(dx: -0.5, dy: -0.5)), with: .color(ring), lineWidth: 1)
-            // (On a light ground a glow that fades to nothing is mostly lost: there it comes on sooner and
-            // fuller, and its middle is a deeper colour, so that a lit lamp is plainly lit.)
-            let light = scheme == .light
-            let glow = light ? level.squareRoot() : level * level.squareRoot()
+            let glow = level * level.squareRoot()
             guard glow > 0.01 else { return }
-            let radius = side / 2 * (light ? 0.55 + 0.45 * level : 0.5 + 0.5 * level)
-            let colour = light ? Self.trace(kind, scheme) : Self.colour(kind)
+            let radius = side / 2 * (0.5 + 0.5 * level)
+            let colour = Self.colour(kind)
             context.opacity = glow
             context.fill(Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)),
                          with: .radialGradient(Gradient(stops: [
