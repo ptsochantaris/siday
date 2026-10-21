@@ -6,10 +6,25 @@ import SwiftUI
 
 @main
 struct SidayApp: App {
+    @State private var model = PlayerModel()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(model)
+                .onOpenURL { url in model.add([url]) }
+                .task { openGivenOnLaunch() }
         }
+    }
+
+    /// For trying the app out: `-SidayOpen PATH` adds what is at the path, as if it had been chosen.
+    private func openGivenOnLaunch() {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let place = arguments.firstIndex(of: "-SidayOpen"), place + 1 < arguments.count {
+            model.add([URL(fileURLWithPath: arguments[place + 1])])
+        }
+        #endif
     }
 }
 
@@ -40,16 +55,28 @@ enum Tab: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
+    @Environment(PlayerModel.self) private var model
     @State private var tab = Tab.player
 
     var body: some View {
         TabView(selection: $tab) {
-            ForEach(Tab.allCases) { tab in
-                SwiftUI.Tab(tab.title, systemImage: tab.symbol, value: tab) {
-                    Text("\(TuneFormat.fileExtensions.count) kinds of file")
-                }
+            SwiftUI.Tab(Tab.player.title, systemImage: Tab.player.symbol, value: Tab.player) {
+                PlayerTab()
+            }
+            SwiftUI.Tab(Tab.playlist.title, systemImage: Tab.playlist.symbol, value: Tab.playlist) {
+                PlaylistTab()
+            }
+            SwiftUI.Tab(Tab.settings.title, systemImage: Tab.settings.symbol, value: Tab.settings) {
+                Text("Settings")
+            }
+            SwiftUI.Tab(Tab.about.title, systemImage: Tab.about.symbol, value: Tab.about) {
+                Text("\(TuneFormat.fileExtensions.count) kinds of file")
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .dropDestination(for: URL.self) { urls, _ in
+            model.add(urls)
+            return !urls.isEmpty
+        }
     }
 }
