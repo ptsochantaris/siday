@@ -55,6 +55,9 @@ public struct PlaylistFile: Sendable {
         /// M3U8, which is the same in Unicode.
         case m3u
 
+        /// Every extension a playlist's file can have, in lower case.
+        public static let fileExtensions = ["ayl", "m3u", "m3u8"]
+
         /// The kind of playlist a file of this extension, in any case, is; nil if it is none.
         public init?(fileExtension: String) {
             switch fileExtension.lowercased() {

@@ -4,7 +4,7 @@ import PackageDescription
 // SidayKit: every player and chip, and nothing else. It depends on no other package and uses no
 // Foundation, so it builds wherever Swift does, and this repository can be added to another package
 // as it is. The front ends are packages of their own beside it, each depending on this one: the
-// command-line player in CLI/ and the web player in Web/.
+// command-line player in CLI/ and the web player in Web/; and the app, an Xcode project in App/.
 let package = Package(
     name: "siday",
     platforms: [.macOS(.v26), .iOS(.v26)],

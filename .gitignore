@@ -4,3 +4,4 @@
 *.xcodeproj
 xcuserdata/
 Embedded/build/
+!App/Siday.xcodeproj
