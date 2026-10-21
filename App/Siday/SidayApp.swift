@@ -74,10 +74,10 @@ struct ContentView: View {
                 PlaylistTab()
             }
             SwiftUI.Tab(Tab.settings.title, systemImage: Tab.settings.symbol, value: Tab.settings) {
-                Text("Settings")
+                SettingsTab()
             }
             SwiftUI.Tab(Tab.about.title, systemImage: Tab.about.symbol, value: Tab.about) {
-                Text("\(TuneFormat.fileExtensions.count) kinds of file")
+                AboutTab()
             }
         }
         .tabViewStyle(.sidebarAdaptable)
@@ -85,5 +85,16 @@ struct ContentView: View {
             model.add(urls)
             return !urls.isEmpty
         }
+        #if os(iOS)
+        .fullScreenCover(isPresented: Binding(get: { model.pictureFillsScreen }, set: { model.pictureFillsScreen = $0 })) {
+            WholeScreenPicture().environment(model)
+        }
+        #else
+        .overlay {
+            if model.pictureFillsScreen {
+                WholeScreenPicture()
+            }
+        }
+        #endif
     }
 }

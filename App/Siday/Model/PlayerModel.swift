@@ -121,8 +121,15 @@ final class PlayerModel {
     private(set) var rendered = 0.0
     /// True while the song is being made again, for a voice left out or brought back.
     private(set) var remaking = false
-    /// True while what is not played as the playing tune's file asks is to be shown.
-    var shortfallsShown = false
+    /// What is slid over the player for a moment: a format's story, or what is not played as the
+    /// playing tune's file asks.
+    var slideOver: SlideOver?
+    enum SlideOver: Hashable {
+        case story(String)
+        case shortfalls
+    }
+    /// True while the picture fills the screen.
+    var pictureFillsScreen = false
     private(set) var shuffled = false
     /// The order tunes are played in: places in `files`.
     private var order: [Int] = []
@@ -471,6 +478,14 @@ final class PlayerModel {
 
     /// Where the song is, as it is heard.
     var position: Double { engine.heard.serial == runs ? engine.heard.position : 0 }
+
+    @ObservationIgnored private let display = Display()
+
+    /// What the player shows for one frame of the screen, at a time in seconds by any clock that only
+    /// goes forward.
+    func frame(at time: Double) -> Frame {
+        display.frame(engine.heard, serial: runs, at: time, visualiser: visualiser)
+    }
 
     /// Moves to a place in the playing song, in seconds. A paused player stays paused.
     func seek(to seconds: Double) {
