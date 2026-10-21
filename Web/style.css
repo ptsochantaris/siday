@@ -658,23 +658,28 @@ button:disabled {
    panel, where lamps look best. Without the lamps, the scope has the whole of its place. */
 /* A scope is no wider than a few times its height, so that a tune of one voice or four has a row
    of small pictures in the middle, and not a line across the panel to vie with the time bar. */
+/* The rows are as nearly the same as can be (`--across` to a row, or `--across-narrow` on a narrow
+   screen), and each is in the middle, the last too: the place is no wider than that many scopes,
+   and each scope takes its share of it. */
 .lights.scoped {
-  display: grid;
-  grid-template-columns: repeat(var(--across), minmax(0, 96px));
-  justify-content: center;
+  --row: var(--across);
+  flex-wrap: wrap;
   gap: 6px;
   height: auto;
-  margin-top: 6px;
+  width: 100%;
+  max-width: calc(var(--row) * 96px + (var(--row) - 1) * 6px);
+  margin: 6px auto 0;
 }
 
 @media (max-width: 560px) {
   .lights.scoped {
-    grid-template-columns: repeat(var(--across-narrow), minmax(0, 96px));
+    --row: var(--across-narrow);
   }
 }
 
 .lights.scoped .light {
   --trace: #ff4a30;
+  flex: 0 0 calc((100% - (var(--row) - 1) * 6px) / var(--row));
   aspect-ratio: auto;
   height: 76px;
   border-radius: 6px;
