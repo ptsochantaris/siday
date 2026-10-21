@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // Derived from pt2-clone, Copyright (c) Olav Sørensen, used under the BSD 3-Clause licence
-// (see THIRD-PARTY.md): his C port of the replayer of ProTracker 2.3D.
+// (see THIRD-PARTY.md): his C port of the replayer of ProTracker 2.3D. What it does for Startrekker's
+// synthesised instruments is made after ASREPLAY's 68000 code instead (see `StartrekkerSynth`).
 
 /// The periods of three octaves of notes, sixteen times over: once for each fine tuning from none,
 /// up to +7, and from -8 back up to -1. Each list ends in a zero. An arpeggio on a sample tuned to -1
@@ -249,6 +250,13 @@ struct ProTrackerReplayer: ~Copyable {
     private mutating func slideUp(_ c: Int) {
         channels[c].period &-= Int16(UInt8(truncatingIfNeeded: channels[c].command) & slideMask)
         slideMask = 0xFF
+        if channels[c].synthesised {
+            // A synthesised instrument's period, moved down by its octaves, can be more than twelve
+            // bits, and ASREPLAY slides the whole of it (`mt_portup`).
+            if channels[c].period < 113 { channels[c].period = 113 }
+            setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
+            return
+        }
         // ProTracker forgets that a period can go below nothing here, and does not stop it.
         if channels[c].period & 0xFFF < 113 { channels[c].period = (channels[c].period & Int16(bitPattern: 0xF000)) | 113 }
         setPaulaPeriod(c, UInt16(bitPattern: channels[c].period) & 0xFFF)
@@ -257,6 +265,12 @@ struct ProTrackerReplayer: ~Copyable {
     private mutating func slideDown(_ c: Int) {
         channels[c].period &+= Int16(UInt8(truncatingIfNeeded: channels[c].command) & slideMask)
         slideMask = 0xFF
+        if channels[c].synthesised {
+            // (And `mt_portdown`, which stops at 856 a period that is longer to begin with.)
+            if channels[c].period >= 856 { channels[c].period = 856 }
+            setPaulaPeriod(c, UInt16(bitPattern: channels[c].period))
+            return
+        }
         if channels[c].period & 0xFFF > 856 { channels[c].period = (channels[c].period & Int16(bitPattern: 0xF000)) | 856 }
         setPaulaPeriod(c, UInt16(bitPattern: channels[c].period) & 0xFFF)
     }

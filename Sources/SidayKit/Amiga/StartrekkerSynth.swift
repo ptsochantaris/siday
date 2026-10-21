@@ -1,21 +1,24 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Made after the 68000 code of ASREPLAY, The Synchron Assembly's replay routine for Audio Sculpture's
+// modules and Startrekker's, as UADE carries it in its AudioSculpture player ("AudioSculpture/
+// Startrekker4AM player V0.1.1 (Jul. 2004)", adapted for UADE by mld and shd, whose source UADE also
+// carries as amigasrc/players/uade/adsc/AudioSculpture.asm). The labels given are that source's.
 
 /// Startrekker's synthesised instruments, which it kept in a file of their own beside the module
-/// (its ".nt"; Audio Sculpture, which came after it, called its own ".as"), and left the samples of
-/// empty in the module. The file begins "ST1.2 ModuleINFO", "ST1.3 ModuleINFO" or "AudioSculpture10",
-/// and from its 144th byte has a record of 120 bytes for each of the 31 samples, of which those
-/// marked "AM" are synthesised: a waveform of 32 bytes, one of four, played over and over, with a
-/// volume that rises and falls through five stages, a pitch that slides, and a vibrato of its own.
-/// (Audio Sculpture kept code for its command E after the records, which no tune here uses and no
-/// player but Audio Sculpture's own could run.)
+/// (its ".nt"; Audio Sculpture, which came after it and reads its modules, called its own ".as"),
+/// leaving their samples empty in the module. The file begins "ST1.2 ModuleINFO", "ST1.3 ModuleINFO"
+/// or "AudioSculpture10", and from its 144th byte has a record of 120 bytes for each of the 31
+/// samples, of which those marked "AM" are synthesised: a waveform of 32 bytes, one of four, played
+/// over and over, with a level that rises and falls through five stages, a pitch that slides, and a
+/// vibrato of its own. (After the records Audio Sculpture kept 68000 code for its command E to run,
+/// which no tune in the collection uses, and which is not run here: the command is left out of
+/// Startrekker's modules as they are read.)
 ///
-/// They are played as the routine its makers gave away to play their modules with plays them,
-/// ASREPLAY by The Synchron Assembly, of which UADE keeps the source in its AudioSculpture player
-/// (`amigasrc/players/uade/adsc/AudioSculpture.asm`), and plays every Startrekker module with
-/// synthesised instruments by. The names of its routines and its tables are given where each
-/// thing is done. (OpenMPT reads the instruments too, into an envelope, an automatic vibrato and a
-/// pitch envelope of its own: near, but not the same.)
+/// They are played as ASREPLAY plays them, which is how UADE plays a module of Startrekker's that
+/// has them. (OpenMPT reads them too, into an envelope, an automatic vibrato and a pitch envelope of
+/// its own: near, but not the same.)
 struct StartrekkerSynth {
     /// One record. The levels go from nothing to 255 or so; each speed is how much the level moves on
     /// each tick until it comes to the stage's level.
