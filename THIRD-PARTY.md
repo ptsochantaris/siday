@@ -234,6 +234,22 @@ carried here but its tables of periods, and, for Paul Shields' player, the seven
 its replayer plays, which Wanted Team's source keeps as data (one of them 400 bytes of the game's player's
 own code, played as noise).
 
+`Sources/SidayKit/TimFollin`, `PaulSummers`, `ActionAmics` and `DavidHanney` are made after players
+carried by UADE as well, read in their source where there is one and in their 68000 code where there is
+not: Andy Silva's "Follin Player II" for DeliTracker ("Tim Follin / Mike D., adapted by Andy Silva",
+`amigasrc/players/other/timfollin/DP_TimFollin.asm`, and the newer `players/TimFollin`); Wanted Team's
+"Paul Summers player module V1.2 (2 Nov 2003)" ("(c) 1989-90 by Paul Summers & Mike Chilton", whose
+V1.1 is in `amigasrc/players/wanted_team/PaulSummers`); "Action Amics SoundTools V0.1 player module
+V1.1 (05 April 93)" (`players/ActionAmics`, "Testversion by Turbo/IFT & Eagleeye/DEFECT"); and "David
+Hanney player module V1.1 (28 Feb 97)" (`players/DavidHanney`, "(c) 1992 by David Hanney, adapted by
+Mr.Larmer/Wanted Team & DEFECT"). None of their code is carried, but for the tables of periods, and, for
+David Hanney's, the whole of that player's data: Tearaway Thomas's music files carry neither samples nor
+instruments, which were in the game and are kept only there, in the player's second hunk (HUNK_DATA,
+5,540 bytes from the file's byte $E98, in UADE 3.05's `players/DavidHanney` of 9,280 bytes, SHA-256
+1691e2912938304d52713afd162f01836b3e6fed92a786c88af92485c3ac2e3f): three samples and sixteen
+instruments, thirteen of them short waves of the game's own. They are carried as they are, in
+`DavidHanneyData.swift`.
+
 ## PumaTracker, Pierre Adane's packer, Game Music Creator and Images Music System
 
 `Sources/SidayKit/Puma`, `PAP`, `GMC` and `IMS` play these four kinds of game music as their own

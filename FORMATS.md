@@ -1144,6 +1144,35 @@ play one sample on two voices a little apart in pitch, and how far apart they st
   is many songs, one after each jump or restart in its patterns: five files, 94 songs, all but two the
   same as UADE's to the tick, and those two but for two or three ticks of silence UADE hurries through.
 
+- **Tim Follin** (`.tf`): his music for Ghouls 'n Ghosts, Sly Spy: Secret Agent and Puzznic, played as
+  Andy Silva's Follin Player II for DeliTracker plays it. Each voice reads a stream of notes and commands,
+  with calls, jumps and loops, and the player writes waves of changing width into its samples as they
+  play. Puzznic's file is the game's own, with its code; the others are the music alone, behind the head
+  of an Atari ST program. The player has no song end of its own: a song ends here when every voice has
+  stopped or gone back. One of Puzznic's songs calls without returning, which in the player fills up its
+  stack until, after seven times round, it falls silent; here the calls that would overflow are left
+  out, and the song goes round as it began. Thirteen files, twenty songs, the same as UADE's to the tick.
+  A file is taken for Tim Follin's by its name: the player's own check takes some of Ron Klaren's too.
+
+- **Paul Summers** (`.snk`): the music drivers of Paul Summers's and Mike Chilton's games of 1989-90,
+  Fighting Soccer, Postman Pat, Everton F.C. Intelligensia's jingles and P47 Thunderbolt, each file the
+  game's own driver, from which the player finds its samples, songs and periods. Each song has its own
+  timer. Where Wanted Team's player reads the wrong byte, and so lets the fourth voice's samples go round
+  for the whole of a note, and slows Everton's jingles by one tick in every few, the games' drivers are
+  followed, which do neither; Wanted Team's way is kept for comparison. Four files, 23 songs, the same as
+  UADE's to the tick when played Wanted Team's way.
+
+- **Action Amics** (`.ast`): Action Amics' SoundTools, here Eike Steffen's music for Dyna Blaster,
+  played as its player for EaglePlayer plays it, read in that player's 68000 code: instruments with
+  envelopes and runs of samples, notes and pitches, and a stretch of a sample that can be turned upside
+  down a byte at a time. Of its 32 songs, the 20 before the tool's empty ones are played: all twenty the
+  same as UADE's to the tick.
+
+- **David Hanney** (`.dh`): his music for Tearaway Thomas, whose files carry only the notes; the
+  game's three samples and sixteen instruments, thirteen of them short waves that the player changes as
+  they play, are carried in siday as Wanted Team's player for EaglePlayer kept them, and the player is
+  made after a reading of its 68000 code. Eight files, the same as UADE's to the tick.
+
 - **Soundfactory** (`.psf`): Profiteam's Soundfactory 1.0 of 1989, by Zuheir Urwani and Thomas Kolbe,
   mostly heard in the music of Oliver Becker and Michael Volz (Master Control Program). Each voice reads
   a stream of notes and 29 commands, with calls and returns, loops, a fade and the Amiga's filter; which
