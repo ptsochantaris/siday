@@ -427,7 +427,12 @@ which is near but not the same: it holds a note that ASREPLAY lets die away, and
 same on every tick. A module of Startrekker's whose file of instruments is not beside it says so,
 and plays with those voices silent (four of the nine of Escape 2 are then silent altogether); the
 file of instruments, given as a tune, says what it is. Audio Sculpture's command E, which ran a
-program of the composer's from the file, is not run; no tune to hand has one.
+program of the composer's from the file, is not run; no tune to hand has one. As that routine does,
+a module of Startrekker's goes round to the place in its order that it names, and not to its start
+(154 of them name one), and takes a speed of nothing as the fastest, one, where ProTracker stops the
+song: the four that have it use it so, for a row or two, and play on. That routine also leaves a
+sample silent whose byte of finetune is not nothing, which would silence seven modules, one of them
+altogether: those are played.
 
 AMOS, François Lionet's BASIC for the Amiga, kept a program's music as a bank of the program's, "AmBk"
 of the kind "Music": instruments, songs, and patterns, each a list of one voice's notes and commands

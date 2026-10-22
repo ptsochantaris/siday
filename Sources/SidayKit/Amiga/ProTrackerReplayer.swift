@@ -712,7 +712,7 @@ struct ProTrackerReplayer: ~Copyable {
         jumping = false
         position = (position &+ 1) & 127
         if Int(position) >= module.songLength {
-            position = 0
+            position = Int16(module.restartPosition)
             wrapped = true
         }
         pattern = Int8(truncatingIfNeeded: module.orders[Int(position)])

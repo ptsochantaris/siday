@@ -68,6 +68,9 @@ final class ProTrackerModule {
     let title: String
     private(set) var samples = [Sample](repeating: Sample(), count: 31)
     let songLength: Int
+    /// Where in the order the song begins again when it comes to its end: the start, but for a module of
+    /// Startrekker's, whose player goes to the place the module names (ProTracker's does not).
+    let restartPosition: Int
     private(set) var orders = [UInt8](repeating: 0, count: 128)
     /// 125 but for a few of the oldest files, which give a tempo of their own.
     let initialTempo: Int
@@ -234,8 +237,10 @@ final class ProTrackerModule {
             if kind == .proTracker, songLength == 129 { songLength = 127 }
             guard songLength >= 1, songLength <= 129 else { throw TuneError.malformed("not a module") }
         }
+        let restart = kind == .startrekker ? Int(file[p]) : 0
         p += 1
         self.songLength = songLength
+        restartPosition = restart < songLength ? restart : 0
         initialTempo = tempo
 
         var patternCount = 0
@@ -302,8 +307,11 @@ final class ProTrackerModule {
                         note.command = 0
                         note.parameter = 0
                     }
-                    // Startrekker has no tempo, only a speed, of 31 at the most.
+                    // Startrekker has no tempo, only a speed, of 31 at the most; and a speed of nothing is
+                    // the fastest, one, and does not stop the song, as it does in ProTracker (the tunes that
+                    // have it use it so, for a row or two).
                     if note.command == 0xF, note.parameter > 0x1F { note.parameter = 0x1F }
+                    if note.command == 0xF, note.parameter == 0 { note.parameter = 1 }
                 case nil:
                     if !late {
                         // The first Soundtracker: 1 is an arpeggio, and 2 slides the pitch either way.
