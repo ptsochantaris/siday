@@ -187,15 +187,17 @@ package struct OPL3Chip: ~Copyable {
     // MARK: Envelope generator
 
     // (These two are given the chip's tables rather than the chip: called by a method of a chip, which is
-    // not to be copied, where the compiler did not put them inline, each call copied the whole of it.)
-    @inline(__always) private static func OPL3_EnvelopeCalcExp(_ level: UInt32, _ exprom: UnsafeMutablePointer<UInt16>) -> Int16 {
+    // not to be copied, where the compiler did not put them inline, each call copied the whole of it.
+    // They and the envelope's and the phase's steps are `@inline(always)`: with `@inline(__always)`
+    // `envelope_sin` was left as a call from `OPL3_ProcessSlot`. That itself is better called.)
+    @inline(always) private static func OPL3_EnvelopeCalcExp(_ level: UInt32, _ exprom: UnsafeMutablePointer<UInt16>) -> Int16 {
         let level = min(level, 0x1FFF)
         return Int16(truncatingIfNeeded: (Int32(exprom[Int(level & 0xFF)]) << 1) >> Int32(level >> 8))
     }
 
     /// One sample of one of the chip's eight waveforms, at a level. The first four are the OPL2's: a
     /// sine, its upper half, both halves turned upwards, and the rising quarters.
-    @inline(__always) private static func envelope_sin(_ waveform: UInt8, _ phase: UInt16, _ envelope: UInt16,
+    @inline(always) private static func envelope_sin(_ waveform: UInt8, _ phase: UInt16, _ envelope: UInt16,
                                                        _ logsinrom: UnsafeMutablePointer<UInt16>, _ exprom: UnsafeMutablePointer<UInt16>) -> Int16
     {
         var phase = phase & 0x3FF
@@ -250,7 +252,7 @@ package struct OPL3Chip: ~Copyable {
         slot.pointee.eg_ksl = UInt8(truncatingIfNeeded: max(0, ksl))
     }
 
-    @inline(__always) private mutating func OPL3_EnvelopeCalc(_ slot: UnsafeMutablePointer<Slot>) {
+    @inline(always) private mutating func OPL3_EnvelopeCalc(_ slot: UnsafeMutablePointer<Slot>) {
         let rout = slot.pointee.eg_rout, gen = slot.pointee.eg_gen, key = slot.pointee.key != 0
         // How much quieter the higher notes are made, by a shift of 8 (not at all), 1, 2 or 0.
         let kslShift = (0x0002_0108 >> (Int(slot.pointee.reg_ksl) << 3)) & 0xFF
@@ -327,7 +329,7 @@ package struct OPL3Chip: ~Copyable {
 
     // MARK: Phase generator
 
-    @inline(__always) private mutating func OPL3_PhaseGenerate(_ slot: UnsafeMutablePointer<Slot>) {
+    @inline(always) private mutating func OPL3_PhaseGenerate(_ slot: UnsafeMutablePointer<Slot>) {
         let channel = slot.pointee.channel
         var f_num = channel.pointee.f_num
         if slot.pointee.reg_vib != 0 {
@@ -414,11 +416,33 @@ package struct OPL3Chip: ~Copyable {
         let fb = slot.pointee.channel.pointee.fb
         slot.pointee.fbmod.pointee = fb != 0x00 ? Int16(truncatingIfNeeded: (Int32(slot.pointee.prout) + Int32(out)) >> Int32(0x09 - fb)) : 0
         slot.pointee.prout = out
+        // An operator at rest: let go, and its envelope as low as it goes. (This is not in the
+        // original; it changes no number.) The envelope stays where it is, as OPL3_EnvelopeCalc
+        // would leave it, and what it would make the operator give out is so quiet that the
+        // waveform's table makes nought of it, whatever the operator's level and tremolo: all that
+        // is left is the waveform's sign at its phase, nought or minus one. The phase goes on as ever.
+        if slot.pointee.eg_gen == Self.envelope_gen_num_release, slot.pointee.key == 0, slot.pointee.eg_rout == 0x1FF {
+            slot.pointee.pg_reset = false
+            OPL3_PhaseGenerate(slot)
+            let phase = UInt16(truncatingIfNeeded: Int32(slot.pointee.pg_phase_out) + Int32(slot.pointee.mod.pointee))
+            slot.pointee.out.pointee = Self.restingSign(slot.pointee.reg_wf, phase)
+            return
+        }
         OPL3_EnvelopeCalc(slot)
         OPL3_PhaseGenerate(slot)
         slot.pointee.out.pointee = Self.envelope_sin(slot.pointee.reg_wf,
                                                      UInt16(truncatingIfNeeded: Int32(slot.pointee.pg_phase_out) + Int32(slot.pointee.mod.pointee)),
                                                      slot.pointee.eg_out, logsinrom, exprom)
+    }
+
+    /// What `envelope_sin` gives at the quietest of levels, where every waveform's table gives nought:
+    /// minus one where the waveform is below the middle, and nought elsewhere.
+    @inline(__always) private static func restingSign(_ waveform: UInt8, _ phase: UInt16) -> Int16 {
+        switch waveform {
+        case 0, 6, 7: phase & 0x200 != 0 ? -1 : 0
+        case 4: phase & 0x300 == 0x100 ? -1 : 0
+        default: 0
+        }
     }
 
     // MARK: Channel
