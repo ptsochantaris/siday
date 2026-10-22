@@ -3,6 +3,7 @@
 
 import Testing
 @testable import SidayKit
+@testable import SidayFoundation
 
 /// A playlist as Ay_Emul writes one: lines that end as Windows ends them.
 private func list(_ lines: [String], version: String = "1.6") -> [UInt8] {

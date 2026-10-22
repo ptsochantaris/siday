@@ -8,6 +8,7 @@ import Darwin
 import Glibc
 #endif
 @testable import SidayKit
+@testable import SidayFoundation
 
 // The app's Info.plist says which files it opens, by their extensions, and those are SidayKit's:
 // every one a tune or a playlist can have. So the file is written from SidayKit's lists, by this

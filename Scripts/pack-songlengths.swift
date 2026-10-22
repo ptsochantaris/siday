@@ -5,7 +5,7 @@
 //
 //     swift Scripts/pack-songlengths.swift <path to Songlengths.md5> <HVSC release number>
 //
-// It writes Sources/SidayKit/SidayC64/SIDFile/SongLengthsData.swift, which is to be committed. Run it from the
+// It writes Sources/SidayC64/SIDFile/SongLengthsData.swift, which is to be committed. Run it from the
 // top of the repository when a new release of the collection comes out. Setting SIDAY_SONGLENGTHS to
 // the same file and running `swift test` then checks every entry of the table against the file.
 //
@@ -124,7 +124,7 @@ enum SongLengthsData {
 }
 
 """
-let output = "Sources/SidayKit/SidayC64/SIDFile/SongLengthsData.swift"
+let output = "Sources/SidayC64/SIDFile/SongLengthsData.swift"
 do {
     try source.write(toFile: output, atomically: true, encoding: .utf8)
 } catch {

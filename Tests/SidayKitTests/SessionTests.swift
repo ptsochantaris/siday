@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
 import Testing
 
 // How a tune's silences are taken: a pause is played, and an end is an end.

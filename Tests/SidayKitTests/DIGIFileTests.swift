@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
+@testable import SidayTrackers
 import Testing
 
 // Fast checks of DIGI Booster's modules, which FastTracker 2's replayer plays. The thorough check is

@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// An aurora: the tune as bands of light drifting across a night sky. What each voice plays is drawn
 /// at the right-hand edge, higher for a higher note and brighter for a louder one, and the whole
 /// drifts away to the left, spreading and fading as it goes. A voice with no pitch, a drum or a

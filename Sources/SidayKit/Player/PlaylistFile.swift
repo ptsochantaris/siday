@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// A playlist: a file that is not a tune but a list of tunes, to be played in the order it has them.
 ///
 /// Two kinds are read, both text. Ay_Emul's (AYL) is a line that says what the file is, and then the

@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
+@testable import SidayChips
+@testable import SidayFoundation
 import Testing
 
 // Checks of the emulated Amiga that composers' own players are run on, with little programs assembled

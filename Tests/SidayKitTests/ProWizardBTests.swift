@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaTrackers
 import Testing
 
 // Checks of the unpacking of NoisePacker's three versions, Novotrade's packer, AC1D's and Digital

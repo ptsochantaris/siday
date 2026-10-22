@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
+@testable import SidayTrackers
 import Testing
 
 // Fast checks of Epic MegaGames' MASI files, which Scream Tracker 3's replayer plays, and which share

@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// A lava lamp. Each voice is a blob of wax in a lit liquid: it swells as the voice gets louder,
 /// floats higher the higher its note, and sinks back to the pool at the bottom when the voice falls
 /// silent. Blobs that meet run into one another, as wax does.

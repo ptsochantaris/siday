@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
 import Testing
 
 // VGM files for the FM chips. The thorough check is made outside the package: `siday --raw out.raw

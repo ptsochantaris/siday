@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaTrackers
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of the reading of Magnetic Fields Packer songs, and of the finding of the files tunes

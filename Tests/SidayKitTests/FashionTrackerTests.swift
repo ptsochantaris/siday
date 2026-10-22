@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaComposers
+@testable import SidayChips
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of Fashion Tracker's player, on a tiny file made here as the games' are: the beginning of

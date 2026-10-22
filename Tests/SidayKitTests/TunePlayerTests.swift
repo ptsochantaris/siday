@@ -3,6 +3,7 @@
 
 import Testing
 @testable import SidayKit
+@testable import SidayFoundation
 
 /// A ProTracker module of one empty pattern, with a note of its one sample, a square wave, on its first row.
 func squareModule() -> [UInt8] {

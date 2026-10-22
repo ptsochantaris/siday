@@ -6,7 +6,7 @@
 //
 //     swift Scripts/m68000-steps.swift
 //
-// It writes Sources/SidayKit/SidayM68000/M68000Steps.swift, which is to be committed with this whenever
+// It writes Sources/SidayM68000/M68000Steps.swift, which is to be committed with this whenever
 // this changes. Run it from the top of the repository.
 //
 // The steps are kept out of SidayKit's module for its users (`@export(interface)`): the web player's
@@ -254,5 +254,5 @@ extension M68000 {
 \(functions.dropLast(1))}
 
 """
-try swift.write(toFile: "Sources/SidayKit/SidayM68000/M68000Steps.swift", atomically: true, encoding: .utf8)
+try swift.write(toFile: "Sources/SidayM68000/M68000Steps.swift", atomically: true, encoding: .utf8)
 print("\(cases.count) steps")

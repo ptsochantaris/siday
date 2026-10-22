@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayTrackers
 import Testing
 
 // ModPlug's reverb, set beside what OpenMPT's own class (`CReverb`, libopenmpt 0.8.9) makes of the same

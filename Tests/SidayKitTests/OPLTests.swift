@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayChips
 import Testing
 
 // The OPL3 is a port of Nuked OPL3, and is to give the numbers that gives.

@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaComposers
+@testable import SidayChips
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of the player of Images Music System, on tiny modules made here. The thorough check is

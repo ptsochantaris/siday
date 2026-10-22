@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaComposers
+@testable import SidayChips
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of Synth Dream's player, on tiny files made here as its are. The thorough check is made outside the

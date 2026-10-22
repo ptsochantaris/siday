@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
+@testable import SidayChips
 import Testing
 
 // Fast checks of the player of Dave Lowe's modules of code, on a tiny module assembled here by hand:

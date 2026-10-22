@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 // What a player with a screen does between a file and the sound it hands to be heard: the web player's
 // engine and the app both play tunes through this. It loads a tune and starts its songs; makes its
 // sound a block at a time, as the command-line player renders it; finishes what it made on its way

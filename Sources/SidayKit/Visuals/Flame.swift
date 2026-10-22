@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// A row of lamps on fire. Each voice is a round lamp, the voices in a row from side to side a
 /// little above the bottom of the picture (the less above it the smaller they are, which is the
 /// more of them there are), as the lights of the player are; a lamp is as large as its

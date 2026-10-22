@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// What a tune is heard through: the one choice of how its sound is put out, for both front ends.
 ///
 /// It is a single list and not a stereo setting beside a television one, because the two do not

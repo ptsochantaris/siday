@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaTrackers
 import Testing
 
 // Checks of the unpacking of modules packed by The Player 4.x, 5.0a, 6.0a and 6.1a. Each packed file

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaTrackers
+@testable import SidayFoundation
 import Testing
 
 // Checks of the reading of MED4 files into MMD0 modules. The thorough check is made outside the

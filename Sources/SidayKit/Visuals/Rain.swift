@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// Rain. Every note that is struck is a drop that falls from the top of the picture, straight down,
 /// at a place along it come by chance and nothing to do with its voice. Where it meets the bottom it
 /// bounces: as high as the note is loud, to the side the note is heard from, or as chance has it if

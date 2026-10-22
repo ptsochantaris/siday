@@ -3,6 +3,7 @@
 
 import Testing
 @testable import SidayKit
+@testable import SidayFoundation
 
 @Test func aCompanionFolderIsPackedAndUnpackedWithItsNames() {
     let files: [(name: String, bytes: [UInt8])] = [("Keyboard .instr", [1, 2, 3]), ("SNARE2_R8.ss", Array(repeating: 7, count: 300)), ("empty.instr", [])]

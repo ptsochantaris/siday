@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
+@testable import SidayChips
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of the players of the Maniacs of Noise's drivers, on tiny modules assembled here by hand:

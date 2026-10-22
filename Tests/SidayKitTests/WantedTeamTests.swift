@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
+@testable import SidayChips
 import Testing
 
 // Fast checks of Wanted Team's recipe (`WantedTeamPlayer`) and the formats played by it, on tiny modules

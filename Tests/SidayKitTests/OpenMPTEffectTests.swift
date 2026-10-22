@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayTrackers
 import Testing
 
 // OpenMPT's own effects, which a file of ModPlug Tracker's or OpenMPT's is heard through. Each is

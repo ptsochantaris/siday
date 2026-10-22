@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// The kind of television a tune can be played through.
 public enum TelevisionSet: String, Sendable, CaseIterable {
     /// A small portable in a moulded plastic case: a three-inch paper cone behind a slotted grille.

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
+@testable import SidayM68000
 import Testing
 
 // The 68000 runs most of its opcodes by steps made for their addressing modes (M68000Steps.swift, made

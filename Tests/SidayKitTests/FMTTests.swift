@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayChips
+@testable import SidayEightBit
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of FMT files, the songs of Davey W Taylor's FM Tracker, on files made here. There is

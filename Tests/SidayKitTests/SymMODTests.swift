@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
+@testable import SidayTrackers
 import Testing
 
 // Fast checks of Symphonie's modules, which are read as OpenMPT reads them and played by Impulse

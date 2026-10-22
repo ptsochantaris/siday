@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 // What the web player's engine does around its tune player, for a player with a screen to do it in
 // Swift: the app's. (It is Web/engine.js, as nearly as the one language can be put in the other, and
 // the two are to be kept in step.)

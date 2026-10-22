@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// A petri dish, and life of a kind in it that lives in waves, set off by the music. A note being struck charges the
 /// picture where the note is: low notes to the left and high ones to the right (with the ends of the
 /// tune's range drawn in: see `VisualFrame.place`), each voice along a line of its own. From there a

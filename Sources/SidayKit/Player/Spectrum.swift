@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// The bars of a spectrum analyser: how much of the sound just played lies in each of a row of
 /// frequency bands, low to high, with the falling bars and the caps that sit on them a moment longer.
 ///

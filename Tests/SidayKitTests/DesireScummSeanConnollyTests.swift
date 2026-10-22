@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
+@testable import SidayChips
 import Testing
 
 // Fast checks of the recipes for Desire's music, SCUMM's sounds and Sean Connolly's music, on tiny modules

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaTrackers
+@testable import SidayFoundation
 import Testing
 
 // Checks of the Amiga's music read since the survey of what was not played: AMOS's music banks, MED modules packed for a game, Promizer 1.8a, SoundTracker 2.6, The Player's

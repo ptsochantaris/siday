@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
+@testable import SidayTrackers
 import Testing
 
 // Fast checks of zlib's DEFLATE and of the J2B files of Jazz Jackrabbit 2, which Impulse Tracker's

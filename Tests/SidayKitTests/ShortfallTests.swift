@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
+@testable import SidayTrackers
 import Testing
 
 // What a file asks for that is not played as it asks (`TuneInfo.shortfalls`): the wording that the

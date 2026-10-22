@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayEightBit
+@testable import SidayFoundation
 import Testing
 
 // SAP files, for the 8-bit Ataris' POKEY. The thorough check is made outside the package: `siday

@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// A fountain of lights. Every note that is struck sends one up from the middle of the bottom of
 /// the picture, as a firework goes up, to come down at a place along it come by chance and nothing
 /// to do with its voice: as high as the note is loud, and in the colour of the note, as a lamp of the flame is (red for the

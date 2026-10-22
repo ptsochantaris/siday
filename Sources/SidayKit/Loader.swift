@@ -1,6 +1,15 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayAmigaComposers
+import SidayAmigaMachine
+import SidayAmigaTrackers
+import SidayAtari
+import SidayC64
+import SidayEightBit
+import SidayFoundation
+import SidayTrackers
+
 public extension TuneFormat {
     /// The format a file of this kind is, by how it begins, where two formats share a name: Pro Sound
     /// Maker's files for the ZX Spectrum and Epic MegaGames' MASI files are both PSM files, and the
@@ -9,9 +18,9 @@ public extension TuneFormat {
     /// file, as much of it as there is up to `leadingBytes`.)
     func refined(byLeading leading: [UInt8]) -> TuneFormat {
         switch self {
-        case .psm: MASIFile.isOne(leading) ? .masi : self
+        case .psm: TrackerPlayers.isMASI(leading) ? .masi : self
         // (SidMon's own check looks for its code further in too; those found begin with it.)
-        case .sid: SidMon1Player.isOne(leading) ? .sid1 : self
+        case .sid: AmigaComposerPlayers.isSidMon1(leading) ? .sid1 : self
         default: self
         }
     }

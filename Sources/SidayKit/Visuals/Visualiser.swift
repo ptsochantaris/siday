@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 // Pictures to listen by: something to watch that moves with a tune and is made from what the tune's
 // voices are doing, each one's loudness and pitch and the notes it starts, and not from the sound
 // they add up to. They are painted here, into a small picture that whoever shows it stretches to fit.

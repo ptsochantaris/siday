@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 // How long a tune is played and how it ends: the same rules for every front end.
 
 public struct PlaybackPolicy: Sendable {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
 import Testing
 
 // Paula's voices, moved on a voice at a time and many words at once (`AmigaAudioDMA.run(to:)`), against

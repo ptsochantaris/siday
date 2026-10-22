@@ -5,7 +5,7 @@
 //
 //     swift Scripts/pack-bank.swift <AdLib's own STANDARD.BNK> <other banks…> [--last <banks…>]
 //
-// It writes Sources/SidayKit/SidayEightBit/OPL/AdLibBankData.swift, which is to be committed. Run it from the top
+// It writes Sources/SidayEightBit/OPL/AdLibBankData.swift, which is to be committed. Run it from the top
 // of the repository.
 //
 // A ROL file names its instruments and leaves the sounds to a bank beside it, and banks went from
@@ -148,6 +148,6 @@ enum AdLibBankData {
 }
 
 """
-try! output.write(toFile: "Sources/SidayKit/SidayEightBit/OPL/AdLibBankData.swift", atomically: true, encoding: .utf8)
+try! output.write(toFile: "Sources/SidayEightBit/OPL/AdLibBankData.swift", atomically: true, encoding: .utf8)
 print("\(names.count) names (\(own) AdLib's own, \(voted) from the other banks, \(names.count - own - voted) from the last), "
     + "\(sounds.count) different sounds, \(table.count) bytes")

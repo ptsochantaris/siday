@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
+@testable import SidayChips
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of the player of Special FX's modules, on a tiny module assembled here by hand: a driver

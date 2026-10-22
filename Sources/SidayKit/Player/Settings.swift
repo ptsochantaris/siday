@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// The choices a listener has about how tunes are played, other than what they are heard through
 /// (which is `OutputStyle`): the command-line player's options, set out for a front end that has no
 /// command line and shows them as a panel of settings instead.

@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// A mirror ball, turning slowly at the top of a dark room and throwing its spots of light across
 /// the wall behind it. The spots lie in rows, one for each ring of mirrors on the ball. Each voice
 /// has a height on the wall that is its own, the first voice at the top, and lights the rows about

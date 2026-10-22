@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaMachine
+@testable import SidayChips
 import Testing
 
 // Fast checks of Steve Barrett's, Rob Hubbard's (of 1989 to 1991, and on Steve Bak's replayer) and Frederic

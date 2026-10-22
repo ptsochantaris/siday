@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayC64
 import Testing
 
 /// Flat 64 KB of RAM that records each bus cycle.

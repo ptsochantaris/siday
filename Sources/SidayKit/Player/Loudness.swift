@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// How loud a stretch of sound is heard, and how near it comes to the top: its integrated loudness as
 /// ITU-R BS.1770-4 measures it (the measure EBU R128 and the ReplayGain of today are built on), and its
 /// true peak, the highest the waveform reaches between the samples as well as at them.

@@ -5,7 +5,7 @@ version; see `LICENSE`. It is built on the work of others, used under the terms 
 
 ## reSIDfp — the SID chip
 
-`Sources/SidayKit/SidayC64/SIDChipFP` is a Swift port of reSIDfp, the MOS 6581/8580 SID emulator engine of
+`Sources/SidayC64/SIDChipFP` is a Swift port of reSIDfp, the MOS 6581/8580 SID emulator engine of
 libsidplayfp 2.16.1. It is the default SID engine.
 
 - Copyright 2011-2025 Leandro Nini <drfiemost@users.sourceforge.net>
@@ -19,7 +19,7 @@ libsidplayfp 2.16.1. It is the default SID engine.
 
 ## reSID — the other SID chip
 
-`Sources/SidayKit/SidayC64/SIDChip` is a Swift port of reSID 1.0, a MOS 6581/8580 SID emulator engine, kept as
+`Sources/SidayC64/SIDChip` is a Swift port of reSID 1.0, a MOS 6581/8580 SID emulator engine, kept as
 `--sid-engine resid`.
 
 - Copyright (C) 2010 Dag Lem <resid@nimrod.no>
@@ -28,10 +28,10 @@ libsidplayfp 2.16.1. It is the default SID engine.
 
 ## libsidplayfp — C64 start-up
 
-`Sources/SidayKit/SidayC64/C64/PSIDDriver.swift` contains libsidplayfp's PSID driver (`psiddrv.a65`) in assembled
-form, and `Sources/SidayKit/SidayC64/C64/PowerOnMemory.swift` its power-on memory pattern (`poweron.bin`). The
-ROM stand-ins, start-up state and timer and video timing rules in `Sources/SidayKit/SidayC64/C64` and
-`Sources/SidayKit/SidayC64/SIDFile/SIDRenderer.swift` follow libsidplayfp's behaviour.
+`Sources/SidayC64/C64/PSIDDriver.swift` contains libsidplayfp's PSID driver (`psiddrv.a65`) in assembled
+form, and `Sources/SidayC64/C64/PowerOnMemory.swift` its power-on memory pattern (`poweron.bin`). The
+ROM stand-ins, start-up state and timer and video timing rules in `Sources/SidayC64/C64` and
+`Sources/SidayC64/SIDFile/SIDRenderer.swift` follow libsidplayfp's behaviour.
 
 - Driver: Copyright 2014 Leandro Nini, Copyright 2001-2004 Simon White, Copyright 2000 Dag Lem
 - Power-on pattern and its loader: Copyright 2011-2015 Leandro Nini, Copyright 2007-2010 Antti Lankila,
@@ -41,9 +41,9 @@ ROM stand-ins, start-up state and timer and video timing rules in `Sources/Siday
 
 ## Ay_Emul — tracker players, register recordings and AY files
 
-The players in `Sources/SidayKit/SidayEightBit/Trackers`, the VTX and YM handling in `Sources/SidayKit/SidayEightBit/Dumps` and the
-machine rules in `Sources/SidayKit/SidayEightBit/AYFile` are ported from, or follow, the source code of Ay_Emul
-("AY-3-8910/12 Emulator").
+The players in `Sources/SidayEightBit/Trackers`, the VTX and YM handling in `Sources/SidayEightBit/Dumps`
+and the machine rules in `Sources/SidayEightBit/AYFile` are ported from, or follow, the source code of
+Ay_Emul ("AY-3-8910/12 Emulator").
 
 - (c) 1999-2026 Sergey Vladimirovich Bulba <svbulba@gmail.com>
 - Terms, from the source archive's readme: "You can use this source code freely, only do references to
@@ -52,7 +52,7 @@ machine rules in `Sources/SidayKit/SidayEightBit/AYFile` are ported from, or fol
 
 ## ayumi — the AY/YM chip
 
-`Sources/SidayKit/SidayEightBit/AYChip` is a Swift port of ayumi (https://github.com/true-grue/ayumi). Its
+`Sources/SidayEightBit/AYChip` is a Swift port of ayumi (https://github.com/true-grue/ayumi). Its
 `ChipOversampler.swift` is ayumi's way of bringing the chip's sound to the player's rate, taken out
 of the chip for the other chips that make square waves and steps (the SN76489's, and a DAC's).
 
@@ -82,7 +82,7 @@ THE SOFTWARE.
 
 ## AtariAudio — the Atari ST
 
-`Sources/SidayKit/SidayAtari` is a Swift port of AtariAudio 1.26 (https://github.com/arnaud-carre/AtariAudio):
+`Sources/SidayAtari` is a Swift port of AtariAudio 1.26 (https://github.com/arnaud-carre/AtariAudio):
 the machine as a tune needs it (`STMachine.swift`), its YM2149 (`STSoundChip.swift`), its timer chip
 (`MFP.swift`), the STE's sample player (`STESound.swift`), the reading of an SNDH file's header, and
 the playing of Atari ST YM files with their effects (`STYMRenderer.swift`) and of digi-mix and YM
@@ -91,7 +91,7 @@ that YM2 files call on by number.
 `STMixTable.swift` is AtariAudio's table of how an Atari ST mixes its sound chip's three channels,
 which its source says was measured and generated on real hardware by Paulo Simões and filled in
 between the measured levels by Arnaud Carré. The 68000 is not AtariAudio's (it uses Musashi): it was
-written for this project, and is in `Sources/SidayKit/SidayM68000`.
+written for this project, and is in `Sources/SidayM68000`.
 
 ```
 MIT License
@@ -119,12 +119,12 @@ SOFTWARE.
 
 ## ASAP — the 8-bit Ataris
 
-`Sources/SidayKit/SidayEightBit/POKEY` and `Sources/SidayKit/SidayEightBit/SAP` are a Swift port of the emulation in ASAP 8.0.0
-(Another Slight Atari Player, https://asap.sourceforge.net/, source at
-https://github.com/pfusik/asap): its POKEY (`POKEY.swift`), with its band-limited steps and the
-levels of its DAC; its 6502 (`SAP6502.swift`); the machine around them and the calling of a SAP
-file's code (`SAPMachine.swift`); and the reading of a SAP file's header (`SAPFile.swift`). Of the
-other formats ASAP reads, and the trackers' players it carries for them, nothing is used.
+`Sources/SidayEightBit/POKEY` and `Sources/SidayEightBit/SAP` are a Swift port of the emulation in ASAP
+8.0.0 (Another Slight Atari Player, https://asap.sourceforge.net/, source at
+https://github.com/pfusik/asap): its POKEY (`POKEY.swift`), with its band-limited steps and the levels of
+its DAC; its 6502 (`SAP6502.swift`); the machine around them and the calling of a SAP file's code
+(`SAPMachine.swift`); and the reading of a SAP file's header (`SAPFile.swift`). Of the other formats ASAP
+reads, and the trackers' players it carries for them, nothing is used.
 
 - Copyright (C) 2005-2026 Piotr Fusik
 - GNU General Public License, version 2 or later
@@ -132,23 +132,23 @@ other formats ASAP reads, and the trackers' players it carries for them, nothing
 
 ## ProWizard — modules packed by games' packers
 
-`Sources/SidayKit/SidayAmigaTrackers/Packers/ProWizard` is a Swift port of the part of ProWizard, as libxmp 4.6.3 keeps
-it (`src/loaders/prowizard`), that unpacks the modules of The Player 4.x, 5.0a, 6.0a and 6.1a,
+`Sources/SidayAmigaTrackers/Packers/ProWizard` is a Swift port of the part of ProWizard, as libxmp 4.6.3
+keeps it (`src/loaders/prowizard`), that unpacks the modules of The Player 4.x, 5.0a, 6.0a and 6.1a,
 NoisePacker 1 to 3, ProRunner 1.0 and 2.0, ProPacker 2.1 and 3.0, Pha Packer, Tracker Packer 3, AC1D
 Packer, the Novotrade Packer, Digital Illusions' packer, Promizer 1.8a (`pm18a.c`, Copyright (C) 1997
 Asle / ReDoX, modified by Claudio Matsuoka and Alice Rowan) and Game Music Creator, and the finding of a
 file's packer (`prowiz.c`), with libxmp's reading of a file (`hio.c`, `dataio.c`) as far as they need it.
 Beside them, after libxmp's loaders of the same 4.6.3 (same licence): `IceTracker.swift`, which reads
-SoundTracker 2.6 and Ice Tracker modules (`ice_load.c`), and `Sources/SidayKit/SidayAmigaTrackers/OctaMED/MMDCFile.swift`,
-which unpacks MED modules packed by MMDC (`mmd1_load.c`). Where these unpack what ProWizard does not, or
-otherwise than it, they do as UADE's converter does, Deli-Wizard ("Deli-Wizard genie module v2.20 by
-Gryzor", "written by Nicolas FRANCK in 1994-95", carried in UADE's `amigasrc/players/tracker/converter`):
-The Player 6.0a's packed samples, Promizer's patterns, NoisePacker 3's test, ProRunner's "+SNT", and the
-patterns of SoundTracker 2.6; and `ChannelPlayer.swift` unpacks the one packer only Deli-Wizard knows,
-Channel Player's (`CheckChan`, `ConvertChan`). Its code was read for that, and nothing of it is carried
-here but the table of steps of the packed samples and the table of periods. Deli-Wizard's COPYING says
-it is not under the GPL; its README, by Nicolas Franck, asks to be told of a tool that uses it on another
-system.
+SoundTracker 2.6 and Ice Tracker modules (`ice_load.c`), and
+`Sources/SidayAmigaTrackers/OctaMED/MMDCFile.swift`, which unpacks MED modules packed by MMDC
+(`mmd1_load.c`). Where these unpack what ProWizard does not, or otherwise than it, they do as UADE's
+converter does, Deli-Wizard ("Deli-Wizard genie module v2.20 by Gryzor", "written by Nicolas FRANCK in
+1994-95", carried in UADE's `amigasrc/players/tracker/converter`): The Player 6.0a's packed samples,
+Promizer's patterns, NoisePacker 3's test, ProRunner's "+SNT", and the patterns of SoundTracker 2.6; and
+`ChannelPlayer.swift` unpacks the one packer only Deli-Wizard knows, Channel Player's (`CheckChan`,
+`ConvertChan`). Its code was read for that, and nothing of it is carried here but the table of steps of
+the packed samples and the table of periods. Deli-Wizard's COPYING says it is not under the GPL; its
+README, by Nicolas Franck, asks to be told of a tool that uses it on another system.
 
 - Copyright (C) 1997-1999 Sylvain "Asle" Chipaux
 - Copyright (C) 1996-2021 Claudio Matsuoka and Hipolito Carraro Jr
@@ -176,120 +176,121 @@ THE SOFTWARE.
 
 ## AMOS music banks
 
-`Sources/SidayKit/SidayAmigaTrackers/Amiga/AMOSBankFile.swift` reads an AMOS music bank into a ProTracker module as UADE's
-player of them does, step for step: "Amos Music Bank Player (Dec 2004)", which says "François Lionet,
-adapted by DEFECT, just cut,copy'n pasted for UADE by mld/uade team" (`amigasrc/players/ambk/AMOS.s` in
-UADE).
+`Sources/SidayAmigaTrackers/Amiga/AMOSBankFile.swift` reads an AMOS music bank into a ProTracker module
+as UADE's player of them does, step for step: "Amos Music Bank Player (Dec 2004)", which says "François
+Lionet, adapted by DEFECT, just cut,copy'n pasted for UADE by mld/uade team"
+(`amigasrc/players/ambk/AMOS.s` in UADE).
 
 - GNU General Public License, version 2 or later
 - Source: https://gitlab.com/uade-music-player/uade
 
 ## ChipTracker
 
-`Sources/SidayKit/SidayAmigaTrackers/Amiga/ChipTrackerFile.swift` reads ChipTracker's modules as its own replayer does,
-as Wanted Team keep it in their player of the files for EaglePlayer ("ChipTracker player module
+`Sources/SidayAmigaTrackers/Amiga/ChipTrackerFile.swift` reads ChipTracker's modules as its own replayer
+does, as Wanted Team keep it in their player of the files for EaglePlayer ("ChipTracker player module
 V1.2", 2007, carried by UADE as `ChipTracker`; it says of itself "(c) 1991 by Krister 'Kris' Wombell,
 adapted by Wanted Team"). Its 68000 code was read for that, and nothing of it is carried here but its
 table of periods.
 
 ## libtfmxaudiodecoder — TFMX
 
-`Sources/SidayKit/SidayAmigaComposers/TFMX` plays Chris Hülsbeck's TFMX with a Swift port of the player of it in
-libtfmxaudiodecoder (`src/Chris/`, with what it uses of the library's checksum, byte order and
-buffer code), and `Sources/SidayKit/SidayAmigaComposers/Hippel` Jochen Hippel's TFMX and Future Composer with a port of
-its player of those (`src/Jochen/`, its tables generated from the source), both at its commit
-dcec102 of 2026-09-26.
+`Sources/SidayAmigaComposers/TFMX` plays Chris Hülsbeck's TFMX with a Swift port of the player of it in
+libtfmxaudiodecoder (`src/Chris/`, with what it uses of the library's checksum, byte order and buffer
+code), and `Sources/SidayAmigaComposers/Hippel` Jochen Hippel's TFMX and Future Composer with a port of
+its player of those (`src/Jochen/`, its tables generated from the source), both at its commit dcec102 of
+2026-09-26.
 
 - Copyright (C) Michael Schwendt
 - GNU General Public License, version 2 or later
 - Source: https://github.com/mschwendt/libtfmxaudiodecoder
 
 Where Chris Hülsbeck's players did otherwise than the library (`TFMXOriginalPlayers.swift` and the
-branches that follow it), how long the player's ticks are (`TFMXTiming`) and how TFMX 7V's voices
-are mixed (`TFMXSevenVoices`) are as Chris Hülsbeck's players have them, read in Wanted Team's players of the
-files for EaglePlayer, carried by UADE as `TFMX`, `TFMX-Pro` and `TFMX-7V` ("TFMX player module
-V1.3", "TFMX Pro player module V1.3" and "TFMX 7V player module V1.1", 2002; they say of themselves
-"(c) 1988-90", "(c) 1990-94" and "(c) 1991-94 by Chris H"). Their 68000 code
-was read for that, and nothing of it is carried here but what it does and its constants: the timer's
-dividends, the rate, buffer and period of the mixing, its table of volumes, and the few bytes of a
-few modules that the players mend as they load them. Which player a module is played as is chosen as
-UADE chooses it, by a port of the TFMX test in UADE's `amifilemagic.c` (Copyright (C) 2000-2005 Heikki
-Orsila and Michael Doering; "dual licensed under the GNU GPL and the Public Domain";
-https://gitlab.com/uade-music-player/uade). Jochen Hippel's TFMX 7V is mixed as
-Wanted Team's player of it has it ("Jochen Hippel 7V player module V1.1", 2009, carried by UADE as
-`JochenHippel-7V`; it says of itself "(c) 1990-91 Jochen 'Mad Max' Hippel"), read in the same way
+branches that follow it), how long the player's ticks are (`TFMXTiming`) and how TFMX 7V's voices are
+mixed (`TFMXSevenVoices`) are as Chris Hülsbeck's players have them, read in Wanted Team's players of the
+files for EaglePlayer, carried by UADE as `TFMX`, `TFMX-Pro` and `TFMX-7V` ("TFMX player module V1.3",
+"TFMX Pro player module V1.3" and "TFMX 7V player module V1.1", 2002; they say of themselves "(c)
+1988-90", "(c) 1990-94" and "(c) 1991-94 by Chris H"). Their 68000 code was read for that, and nothing of
+it is carried here but what it does and its constants: the timer's dividends, the rate, buffer and period
+of the mixing, its table of volumes, and the few bytes of a few modules that the players mend as they
+load them. Which player a module is played as is chosen as UADE chooses it, by a port of the TFMX test in
+UADE's `amifilemagic.c` (Copyright (C) 2000-2005 Heikki Orsila and Michael Doering; "dual licensed under
+the GNU GPL and the Public Domain"; https://gitlab.com/uade-music-player/uade). Jochen Hippel's TFMX 7V
+is mixed as Wanted Team's player of it has it ("Jochen Hippel 7V player module V1.1", 2009, carried by
+UADE as `JochenHippel-7V`; it says of itself "(c) 1990-91 Jochen 'Mad Max' Hippel"), read in the same way
 for the same kinds of constants; the rate it mixes at is the one UADE runs it at.
 
 ## Infogrames, Fashion Tracker, the Peter Verswyvelen Packer, the Alcatraz Packer and others
 
-`Sources/SidayKit/SidayAmigaComposers/Infogrames`, `FashionTracker`, `PeterVerswyvelenPacker`, `AlcatrazPacker`,
-`DigitalSonix`, `AndrewParton`, `EditeurMusicalSequentiel`, `ForgottenWorlds`, `Leggless`, `JamCracker`, `AMComposer`, `ProfessionalSoundArtists`, `MusicalEnlightenment`, `SteveTurner`, `Cinemaware`, `PaulShields`, `SoundPlayer`, `PaulRobotham`, `ThomasHermann`, `Soundfactory`, `SynthDream` and `BladePacker` play
-these formats as the players of them carried by UADE do: Andy Silva's DeliTracker player for Infogrames'
-music (read in UADE's `amigasrc/players/uade/infogrames`, whose licence is not given), and Wanted Team's
-players for EaglePlayer of the others (`FashionTracker-v1.0`, `PeterVerswyvelenPacker`,
-`Alcatraz_Packer`, `DigitalSonixChrome_v1.asm`, `Andrew Parton`, `EMS`, `LME`, `AMComposer`, `PSA`, `TME`, `SteveTurner`, `Cinemaware`, `PaulShields`, `SoundPlayer`, `PaulRobotham`, `ThomasHermann`, `Soundfactory`, `SynthDream`, `BladePacker` in
-`amigasrc/players/wanted_team`), and Psygore's for Forgotten Worlds (UADE's `players/ForgottenWorlds_Game`,
-read in its 68000 code), and Buggs/DEFECT's for JamCracker (`amigasrc/players/defect/jamcracker`). Their code was read for that, and nothing of it is
-carried here but its tables of periods, and, for Paul Shields' player, the seven waves of its own that
-its replayer plays, which Wanted Team's source keeps as data (one of them 400 bytes of the game's player's
-own code, played as noise).
+`Sources/SidayAmigaComposers/Infogrames`, `FashionTracker`, `PeterVerswyvelenPacker`, `AlcatrazPacker`,
+`DigitalSonix`, `AndrewParton`, `EditeurMusicalSequentiel`, `ForgottenWorlds`, `Leggless`, `JamCracker`,
+`AMComposer`, `ProfessionalSoundArtists`, `MusicalEnlightenment`, `SteveTurner`, `Cinemaware`,
+`PaulShields`, `SoundPlayer`, `PaulRobotham`, `ThomasHermann`, `Soundfactory`, `SynthDream` and
+`BladePacker` play these formats as the players of them carried by UADE do: Andy Silva's DeliTracker
+player for Infogrames' music (read in UADE's `amigasrc/players/uade/infogrames`, whose licence is not
+given), and Wanted Team's players for EaglePlayer of the others (`FashionTracker-v1.0`,
+`PeterVerswyvelenPacker`, `Alcatraz_Packer`, `DigitalSonixChrome_v1.asm`, `Andrew Parton`, `EMS`, `LME`,
+`AMComposer`, `PSA`, `TME`, `SteveTurner`, `Cinemaware`, `PaulShields`, `SoundPlayer`, `PaulRobotham`,
+`ThomasHermann`, `Soundfactory`, `SynthDream`, `BladePacker` in `amigasrc/players/wanted_team`), and
+Psygore's for Forgotten Worlds (UADE's `players/ForgottenWorlds_Game`, read in its 68000 code), and
+Buggs/DEFECT's for JamCracker (`amigasrc/players/defect/jamcracker`). Their code was read for that, and
+nothing of it is carried here but its tables of periods, and, for Paul Shields' player, the seven waves
+of its own that its replayer plays, which Wanted Team's source keeps as data (one of them 400 bytes of
+the game's player's own code, played as noise).
 
-`Sources/SidayKit/SidayAmigaComposers/TimFollin`, `PaulSummers`, `ActionAmics` and `DavidHanney` are made after players
-carried by UADE as well, read in their source where there is one and in their 68000 code where there is
-not: Andy Silva's "Follin Player II" for DeliTracker ("Tim Follin / Mike D., adapted by Andy Silva",
-`amigasrc/players/other/timfollin/DP_TimFollin.asm`, and the newer `players/TimFollin`); Wanted Team's
-"Paul Summers player module V1.2 (2 Nov 2003)" ("(c) 1989-90 by Paul Summers & Mike Chilton", whose
-V1.1 is in `amigasrc/players/wanted_team/PaulSummers`); "Action Amics SoundTools V0.1 player module
+`Sources/SidayAmigaComposers/TimFollin`, `PaulSummers`, `ActionAmics` and `DavidHanney` are made after
+players carried by UADE as well, read in their source where there is one and in their 68000 code where
+there is not: Andy Silva's "Follin Player II" for DeliTracker ("Tim Follin / Mike D., adapted by Andy
+Silva", `amigasrc/players/other/timfollin/DP_TimFollin.asm`, and the newer `players/TimFollin`); Wanted
+Team's "Paul Summers player module V1.2 (2 Nov 2003)" ("(c) 1989-90 by Paul Summers & Mike Chilton",
+whose V1.1 is in `amigasrc/players/wanted_team/PaulSummers`); "Action Amics SoundTools V0.1 player module
 V1.1 (05 April 93)" (`players/ActionAmics`, "Testversion by Turbo/IFT & Eagleeye/DEFECT"); and "David
 Hanney player module V1.1 (28 Feb 97)" (`players/DavidHanney`, "(c) 1992 by David Hanney, adapted by
 Mr.Larmer/Wanted Team & DEFECT"). None of their code is carried, but for the tables of periods, and, for
 David Hanney's, the whole of that player's data: Tearaway Thomas's music files carry neither samples nor
 instruments, which were in the game and are kept only there, in the player's second hunk (HUNK_DATA,
 5,540 bytes from the file's byte $E98, in UADE 3.05's `players/DavidHanney` of 9,280 bytes, SHA-256
-1691e2912938304d52713afd162f01836b3e6fed92a786c88af92485c3ac2e3f): three samples and sixteen
-instruments, thirteen of them short waves of the game's own. They are carried as they are, in
-`DavidHanneyData.swift`.
+1691e2912938304d52713afd162f01836b3e6fed92a786c88af92485c3ac2e3f): three samples and sixteen instruments,
+thirteen of them short waves of the game's own. They are carried as they are, in `DavidHanneyData.swift`.
 
 ## PumaTracker, Pierre Adane's packer, Game Music Creator and Images Music System
 
-`Sources/SidayKit/SidayAmigaComposers/Puma`, `PAP`, `GMC` and `IMS` play these four kinds of game music as their own
-players did, as kept for EaglePlayer and DeliTracker and carried by UADE: "PumaTracker player module
-V1.1" (2006, `PumaTracker`; "(c) 1991 by Jean-Charles Meyrignac & Pierre-Eric Loriaux, adapted by
-WT"), "Pierre Adane Packer player module V1.1" (2001, `PierreAdane`; "(c) 1990 by Pierre Adane,
-adapted by Mr.Larmer/Wanted Team"), "Game Music Creator player module V1.6" (1993, `GMC`; Andreas
-Tadic's, "adapted by Delirium & (much more) by Buggs") and "Images Music System player module V1.2"
-(2001, `ImagesMusicSystem`; "(c) 1990 by Images Software, adapted by Wanted Team"). Their 68000 code
-was read for that, and nothing of it is carried here but what it does and its tables: PumaTracker's
-periods and its 42 waveforms (`PumaTables.swift`, taken from the player; the same bytes as OpenMPT's
-`Load_puma.cpp` has, BSD licence, Copyright (c) 2004-2026, OpenMPT Project Developers and
-Contributors), Pierre Adane's and Images Music System's periods, and the list of Beast Busters' songs
-that Wanted Team made.
+`Sources/SidayAmigaComposers/Puma`, `PAP`, `GMC` and `IMS` play these four kinds of game music as their
+own players did, as kept for EaglePlayer and DeliTracker and carried by UADE: "PumaTracker player module
+V1.1" (2006, `PumaTracker`; "(c) 1991 by Jean-Charles Meyrignac & Pierre-Eric Loriaux, adapted by WT"),
+"Pierre Adane Packer player module V1.1" (2001, `PierreAdane`; "(c) 1990 by Pierre Adane, adapted by
+Mr.Larmer/Wanted Team"), "Game Music Creator player module V1.6" (1993, `GMC`; Andreas Tadic's, "adapted
+by Delirium & (much more) by Buggs") and "Images Music System player module V1.2" (2001,
+`ImagesMusicSystem`; "(c) 1990 by Images Software, adapted by Wanted Team"). Their 68000 code was read
+for that, and nothing of it is carried here but what it does and its tables: PumaTracker's periods and
+its 42 waveforms (`PumaTables.swift`, taken from the player; the same bytes as OpenMPT's `Load_puma.cpp`
+has, BSD licence, Copyright (c) 2004-2026, OpenMPT Project Developers and Contributors), Pierre Adane's
+and Images Music System's periods, and the list of Beast Busters' songs that Wanted Team made.
 
 ## SoundMon
 
-`Sources/SidayKit/SidayAmigaComposers/SoundMon` plays Brian Postma's SoundMon as his replay routines of SoundMon 2.0 and
-2.2 do, which he placed into the public domain, as mld adapted them for UADE ("SoundMon 2.0 player
-module" and "SoundMon 2.2 player module", Jul 2004, carried by UADE as `SoundMon2.0` and
-`SoundMon2.2`, with their source in `amigasrc/players/uade/soundmon`). Their code was read for that,
-and nothing of it is carried here but what it does and its tables of periods and of vibrato.
+`Sources/SidayAmigaComposers/SoundMon` plays Brian Postma's SoundMon as his replay routines of SoundMon
+2.0 and 2.2 do, which he placed into the public domain, as mld adapted them for UADE ("SoundMon 2.0
+player module" and "SoundMon 2.2 player module", Jul 2004, carried by UADE as `SoundMon2.0` and
+`SoundMon2.2`, with their source in `amigasrc/players/uade/soundmon`). Their code was read for that, and
+nothing of it is carried here but what it does and its tables of periods and of vibrato.
 
 ## SidMon, Digital Mugician, Delta Music and Sonic Arranger
 
-`Sources/SidayKit/SidayAmigaComposers/SidMon`, `Mugician`, `DeltaMusic` and `SonicArranger` play these formats as their
-own players do, as UADE runs them: "SIDMon 1.0 player module for UADE" (2001, by mld; the player says
-"SID-MON BY R.v.VLIET (c) 1988"), "Sidmon-II Eagleplayer V1.8" (1993, adapted by Defect), Wanted
-Team's "Mugician player module V1.1" and "Mugician II player module V1.7" ("(c) 1990-94" and
-"(c) 1991-94 Reinier 'Rhino' van Vliet", with their source in UADE's `amigasrc/players/wanted_team`),
-"Deltamusic V2.0 player module V1.2" (1993, adapted by Eagleeye), Wanted Team's "Sonic Arranger 2.18
-player module V1.0" ("(c) 1991-95 by Carsten Schlote, Branko Mikić & Carsten Herbst") and
-"SonicArranger(pc)all versions player module V1.0" (1993, by Turbo of Infect). Their code, and the
-replay routines that SidMon's, Delta Music's and some of Sonic Arranger's files carry in front of their
-music, were read for that, and nothing of them is carried here but what they do and their tables.
+`Sources/SidayAmigaComposers/SidMon`, `Mugician`, `DeltaMusic` and `SonicArranger` play these formats as
+their own players do, as UADE runs them: "SIDMon 1.0 player module for UADE" (2001, by mld; the player
+says "SID-MON BY R.v.VLIET (c) 1988"), "Sidmon-II Eagleplayer V1.8" (1993, adapted by Defect), Wanted
+Team's "Mugician player module V1.1" and "Mugician II player module V1.7" ("(c) 1990-94" and "(c) 1991-94
+Reinier 'Rhino' van Vliet", with their source in UADE's `amigasrc/players/wanted_team`), "Deltamusic V2.0
+player module V1.2" (1993, adapted by Eagleeye), Wanted Team's "Sonic Arranger 2.18 player module V1.0"
+("(c) 1991-95 by Carsten Schlote, Branko Mikić & Carsten Herbst") and "SonicArranger(pc)all versions
+player module V1.0" (1993, by Turbo of Infect). Their code, and the replay routines that SidMon's, Delta
+Music's and some of Sonic Arranger's files carry in front of their music, were read for that, and nothing
+of them is carried here but what they do and their tables.
 
 ## MaxTrax
 
-`Sources/SidayKit/SidayAmigaComposers/MaxTrax` is a Swift port of the MaxTrax Music Driver (`max.asm`, `shared.asm`,
-`driver.i`), as UADE carries its source (`amigasrc/players/other/max_trax`).
+`Sources/SidayAmigaComposers/MaxTrax` is a Swift port of the MaxTrax Music Driver (`max.asm`,
+`shared.asm`, `driver.i`), as UADE carries its source (`amigasrc/players/other/max_trax`).
 
 - Written by Talin (David Joiner) and Joe Pearce; licensed to game developers by The Dreamers Guild
 - GNU Lesser General Public License, version 2.1 or later
@@ -301,19 +302,19 @@ Kyrandia's game gives its scores are taken (`engines/kyra/sound/sound_amiga_lok.
 
 ## Sonix Music Driver
 
-`Sources/SidayKit/SidayAmigaComposers/Sonix` plays the Sonix Music Driver's scores as Mark Riley's players of them do
-("Sonix Music Driver (C) Copyright 1987-91 Mark Riley, All Rights Reserved"), as Wanted Team keep
-three of them in their player of the scores for EaglePlayer ("Sonix Music Driver player module
-V2.0", 2004, carried by UADE as `SonixMusicDriver`, with its source in `amigasrc/players/wanted_team`;
-it says of itself "(c) 1987-91 by Mark Riley, adapted by Wanted Team"): version 2.3c, from Dynamix's
-Rise of the Dragon, 2.0b, from Melbourne House's Magic Johnson's Basketball, and 2.0f, from
-Synergistic's Vengeance of Excalibur. Their 68000 code was read for that, and nothing of it is
-carried here but what it does and its tables: of the steps of an octave and of pitch bends, of tempos, of
-the lengths of notes and rests, and of the filters a synthesised instrument is passed through.
+`Sources/SidayAmigaComposers/Sonix` plays the Sonix Music Driver's scores as Mark Riley's players of them
+do ("Sonix Music Driver (C) Copyright 1987-91 Mark Riley, All Rights Reserved"), as Wanted Team keep
+three of them in their player of the scores for EaglePlayer ("Sonix Music Driver player module V2.0",
+2004, carried by UADE as `SonixMusicDriver`, with its source in `amigasrc/players/wanted_team`; it says
+of itself "(c) 1987-91 by Mark Riley, adapted by Wanted Team"): version 2.3c, from Dynamix's Rise of the
+Dragon, 2.0b, from Melbourne House's Magic Johnson's Basketball, and 2.0f, from Synergistic's Vengeance
+of Excalibur. Their 68000 code was read for that, and nothing of it is carried here but what it does and
+its tables: of the steps of an octave and of pitch bends, of tempos, of the lengths of notes and rests,
+and of the filters a synthesised instrument is passed through.
 
 ## Wanted Team's players, and more composers' drivers
 
-`Sources/SidayKit/SidayAmigaMachine/WantedTeam` finds, mends and calls the drivers of 28 more of the Amiga's
+`Sources/SidayAmigaMachine/WantedTeam` finds, mends and calls the drivers of 28 more of the Amiga's
 composers and studios, which are in the files themselves, on siday's own Amiga, as the players of them
 for EaglePlayer that UADE carries do: Wanted Team's (in `amigasrc/players/wanted_team`, where their
 source is given, or in UADE's `players`, read in their 68000 code where it is not: Fred Gray, Howie
@@ -327,20 +328,20 @@ siday, and their tables of patterns to find written out.
 
 ## David Whittaker
 
-`Sources/SidayKit/SidayAmigaMachine/Whittaker` finds, mends and calls David Whittaker's drivers, which are in the files
-themselves and are run as they are on siday's own Amiga (`Sources/SidayKit/SidayAmigaMachine/AmigaMachine`), as Wanted
-Team's player of them for EaglePlayer does ("David Whittaker player module V1.0", 2000, carried by UADE
-as `DavidWhittaker`; it says of itself "(c) 1987-94 by David Whittaker & Rob Hubbard, adapted by
-Wanted Team"). Its 68000 code was read for that, and nothing of it is carried here but what it does:
-the hooks it puts into a driver are written afresh, in a few instructions of 68000 code of siday's
-own. The first bytes of the Amiga's memory are laid out as UADE's host for the players, its sound core
-`score`, lays them out (`amigasrc/score/score.s`, Copyright Heikki Orsila, GNU Lesser General Public
-License; https://gitlab.com/uade-music-player/uade), whose layout was read for that and nothing of
-whose code is carried here.
+`Sources/SidayAmigaMachine/Whittaker` finds, mends and calls David Whittaker's drivers, which are in the
+files themselves and are run as they are on siday's own Amiga (`Sources/SidayAmigaMachine/AmigaMachine`),
+as Wanted Team's player of them for EaglePlayer does ("David Whittaker player module V1.0", 2000, carried
+by UADE as `DavidWhittaker`; it says of itself "(c) 1987-94 by David Whittaker & Rob Hubbard, adapted by
+Wanted Team"). Its 68000 code was read for that, and nothing of it is carried here but what it does: the
+hooks it puts into a driver are written afresh, in a few instructions of 68000 code of siday's own. The
+first bytes of the Amiga's memory are laid out as UADE's host for the players, its sound core `score`,
+lays them out (`amigasrc/score/score.s`, Copyright Heikki Orsila, GNU Lesser General Public License;
+https://gitlab.com/uade-music-player/uade), whose layout was read for that and nothing of whose code is
+carried here.
 
 ## Ben Daglish
 
-`Sources/SidayKit/SidayAmigaMachine/Daglish` finds, mends and calls Ben Daglish's drivers, which are in the files
+`Sources/SidayAmigaMachine/Daglish` finds, mends and calls Ben Daglish's drivers, which are in the files
 themselves and are run as they are on siday's own Amiga, as Wanted Team's player of them for
 EaglePlayer does ("Benn Daglish player module V1.2", 2004, carried by UADE as `BenDaglish`, with its
 source in `amigasrc/players/wanted_team`; "(c) 1988-92 by Colin Dooley & Ben(n) Daglish, adapted by
@@ -351,8 +352,8 @@ General Public License), which was read for that.
 
 ## Martin Walker
 
-`Sources/SidayKit/SidayAmigaMachine/MartinWalker` finds, mends and calls Martin Walker's drivers, which are in the files
-themselves and are run as they are on siday's own Amiga, as Wanted Team's player of them for
+`Sources/SidayAmigaMachine/MartinWalker` finds, mends and calls Martin Walker's drivers, which are in the
+files themselves and are run as they are on siday's own Amiga, as Wanted Team's player of them for
 EaglePlayer does ("Martin Walker player module V1.1", 2001, carried by UADE as `MartinWalker`, with its
 source in `amigasrc/players/wanted_team`; "(c) 1990-94 by Martin Walker, adapted by Wanted Team"). Its
 code was read for that, and nothing of it is carried here but what it does: the hooks it puts into a
@@ -360,62 +361,61 @@ driver are written afresh, in 68000 code of siday's own.
 
 ## Special FX
 
-`Sources/SidayKit/SidayAmigaMachine/SpecialFX` moves, mends and calls Special FX's driver, which is in each file itself
-and is run as it is on siday's own Amiga, as Wanted Team's player of it for EaglePlayer does ("Special
-FX player module V1.1", 2007, carried by UADE as `Special-FX`, with its source in
-`amigasrc/players/wanted_team`; "(c) 1989-91 by Matthew Cannon & Jonathan Dunn, adapted by Wanted
-Team"). Its code was read for that, and nothing of it is carried here but what it does: the hooks it
-puts into the driver are written afresh, in 68000 code of siday's own that does as theirs does.
+`Sources/SidayAmigaMachine/SpecialFX` moves, mends and calls Special FX's driver, which is in each file
+itself and is run as it is on siday's own Amiga, as Wanted Team's player of it for EaglePlayer does
+("Special FX player module V1.1", 2007, carried by UADE as `Special-FX`, with its source in
+`amigasrc/players/wanted_team`; "(c) 1989-91 by Matthew Cannon & Jonathan Dunn, adapted by Wanted Team").
+Its code was read for that, and nothing of it is carried here but what it does: the hooks it puts into
+the driver are written afresh, in 68000 code of siday's own that does as theirs does.
 
 ## The Maniacs of Noise
 
-`Sources/SidayKit/SidayAmigaMachine/ManiacsOfNoise` calls the Maniacs of Noise's drivers, which are in the files
-themselves and are run as they are on siday's own Amiga: Charles Deenen's later one as UADE's own
-player of it does ("MON player module V0.1 for UADE", 2002, Copyright Heikki Orsila, GNU Lesser General
-Public License; "based on replayer by Frederick Hahn and Maniacs of Noise/Charles Deenen"; its source
-in UADE's `amigasrc/players/uade/mon/ManiacsOfNoise.asm`), and Jeroen Tel's and Charles Deenen's earlier one as Wanted Team's
-player of it for EaglePlayer does ("Jeroen Tel player module V1.0", 2004, carried by UADE as
-`JeroenTel`; "(c) 1989-90 by Jeroen Tel & Charles Deenen, adapted by Wanted Team"). Their code was read
-for that, and nothing of it is carried here but what it does: where Wanted Team's player changes the
+`Sources/SidayAmigaMachine/ManiacsOfNoise` calls the Maniacs of Noise's drivers, which are in the files
+themselves and are run as they are on siday's own Amiga: Charles Deenen's later one as UADE's own player
+of it does ("MON player module V0.1 for UADE", 2002, Copyright Heikki Orsila, GNU Lesser General Public
+License; "based on replayer by Frederick Hahn and Maniacs of Noise/Charles Deenen"; its source in UADE's
+`amigasrc/players/uade/mon/ManiacsOfNoise.asm`), and Jeroen Tel's and Charles Deenen's earlier one as
+Wanted Team's player of it for EaglePlayer does ("Jeroen Tel player module V1.0", 2004, carried by UADE
+as `JeroenTel`; "(c) 1989-90 by Jeroen Tel & Charles Deenen, adapted by Wanted Team"). Their code was
+read for that, and nothing of it is carried here but what it does: where Wanted Team's player changes the
 driver, the change is made afresh in 68000 code of siday's own.
 
 ## DeliTracker's custom modules, and Dave Lowe's earlier music
 
-`Sources/SidayKit/SidayAmigaMachine/AmigaMachine/DeliTrackerHost.swift` hosts DeliTracker's custom modules
-(`Sources/SidayKit/SidayAmigaMachine/DeliCustom`) as UADE's host for the players does, in its order and at its
-addresses: its sound core `score` (`amigasrc/score/score.s`, Copyright Heikki Orsila, GNU Lesser
-General Public License; https://gitlab.com/uade-music-player/uade), with the DeliTracker and
-EaglePlayer include files beside it, was read for that, and nothing of its code is carried here. When
-the sound chip asks for an interrupt is as UADE's emulation of the hardware has it (`src/audio.c`,
-`src/custom.c`, from UAE, GNU General Public License), which was read for that. DeliTracker is Frank
-Riffel's and Peter Kunath's. Dave Lowe's earlier music (`Sources/SidayKit/SidayAmigaMachine/DaveLoweCode`) is loaded and
-called as Wanted Team's player of it does ("Dave Lowe", carried by UADE as `DaveLowe`, with its source
-in `amigasrc/players/wanted_team`), whose code was read for that.
+`Sources/SidayAmigaMachine/AmigaMachine/DeliTrackerHost.swift` hosts DeliTracker's custom modules
+(`Sources/SidayAmigaMachine/DeliCustom`) as UADE's host for the players does, in its order and at its
+addresses: its sound core `score` (`amigasrc/score/score.s`, Copyright Heikki Orsila, GNU Lesser General
+Public License; https://gitlab.com/uade-music-player/uade), with the DeliTracker and EaglePlayer include
+files beside it, was read for that, and nothing of its code is carried here. When the sound chip asks for
+an interrupt is as UADE's emulation of the hardware has it (`src/audio.c`, `src/custom.c`, from UAE, GNU
+General Public License), which was read for that. DeliTracker is Frank Riffel's and Peter Kunath's. Dave
+Lowe's earlier music (`Sources/SidayAmigaMachine/DaveLoweCode`) is loaded and called as Wanted Team's
+player of it does ("Dave Lowe", carried by UADE as `DaveLowe`, with its source in
+`amigasrc/players/wanted_team`), whose code was read for that.
 
 ## Richard Joseph's player and Dave Lowe's
 
-`Sources/SidayKit/SidayAmigaComposers/RichardJoseph` and `DaveLowe` play these composers' music as their own players do,
-as Wanted Team keep them for EaglePlayer, carried by UADE with their source in
+`Sources/SidayAmigaComposers/RichardJoseph` and `DaveLowe` play these composers' music as their own
+players do, as Wanted Team keep them for EaglePlayer, carried by UADE with their source in
 `amigasrc/players/wanted_team`: "Richard Joseph Player V1.7A module replayer V1.1" (2001,
 `RichardJoseph_Player`; "(c) 1992-93 by Richard Joseph & Andi Smithers, adapted by Wanted Team") and
 "Dave Lowe New" (V1.1, 2001, `DaveLoweNew`; "(c) 1993-95 Dave Lowe from Uncle Art, adapted by Wanted
-Team"). Their 68000 code was read for that, and nothing of it is carried here but what it does and
-its tables, and the bytes of the few modules that the players mend as they load them.
+Team"). Their 68000 code was read for that, and nothing of it is carried here but what it does and its
+tables, and the bytes of the few modules that the players mend as they load them.
 
 ## Magnetic Fields Packer
 
-`Sources/SidayKit/SidayAmigaTrackers/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields Packer as
-libxmp 4.6.3 reads them (`src/loaders/mfp_load.c`, Copyright (C) 1996-2021 Claudio Matsuoka and
-Hipolito Carraro Jr, under the MIT licence given above for ProWizard), but for the table that says
-where each voice's notes begin, which is read as the format's replayer reads it (and as libxmp has
-since 4.7.1): Wanted Team's player
-of the files for EaglePlayer ("Magnetic Fields Packer player module V1.3", 2003, carried by UADE as
-`MagneticFieldsPacker`; it says of itself "(c) 1994-95 by Shaun Southern, adapted by Mr.Larmer/Wanted
-Team"), with which it was compared. Nothing of that player is carried here.
+`Sources/SidayAmigaTrackers/Amiga/MagneticFieldsPacker.swift` reads the songs of the Magnetic Fields
+Packer as libxmp 4.6.3 reads them (`src/loaders/mfp_load.c`, Copyright (C) 1996-2021 Claudio Matsuoka and
+Hipolito Carraro Jr, under the MIT licence given above for ProWizard), but for the table that says where
+each voice's notes begin, which is read as the format's replayer reads it (and as libxmp has since
+4.7.1): Wanted Team's player of the files for EaglePlayer ("Magnetic Fields Packer player module V1.3",
+2003, carried by UADE as `MagneticFieldsPacker`; it says of itself "(c) 1994-95 by Shaun Southern,
+adapted by Mr.Larmer/Wanted Team"), with which it was compared. Nothing of that player is carried here.
 
 ## Sierra AGI sounds
 
-`Sources/SidayKit/SidayEightBit/AGI` plays the sounds of Sierra On-Line's AGI games as the company's interpreter
+`Sources/SidayEightBit/AGI` plays the sounds of Sierra On-Line's AGI games as the company's interpreter
 for the Amiga did, by the two routines Wanted Team kept in their player of the sounds for
 EaglePlayer ("Sierra AGI player module V1.0", 2006, on Aminet as `mus/play/EP_SierraAGI.lha`, and
 carried by UADE as `Sierra-AGI`; it says of itself "(c) 1986-88 by Sierra On-Line, adapted by Wanted
@@ -427,21 +427,21 @@ II show it (https://vgmrips.net/); the chip is MAME's (below).
 
 ## pt2-clone — the Amiga
 
-`Sources/SidayKit/SidayAmigaTrackers/Amiga` is a Swift port of the playing parts of pt2-clone 1.92
+`Sources/SidayAmigaTrackers/Amiga` is a Swift port of the playing parts of pt2-clone 1.92
 (https://github.com/8bitbubsy/pt2-clone), Olav Sørensen's re-creation of ProTracker 2.3D: its replayer,
 which is a C port of ProTracker's own (`ProTrackerReplayer.swift`), its reading of 31-sample and
-15-sample modules (`ProTrackerModule.swift`), and its emulation of Paula with the Amiga's filters and
-its way of halving the sample rate (`Paula.swift`, in `Sources/SidayKit/SidayChips/Paula`). The band-limited
-steps in Paula's output (`PaulaStep.swift`) are credited in its source to aciddose, who wrote them for that project.
-`Sources/SidayKit/SidayAmigaTrackers/Packers/PowerPacker.swift` follows the depacker in the same source, which says it is
-taken from Heikki Orsila's amigadepack.
+15-sample modules (`ProTrackerModule.swift`), and its emulation of Paula with the Amiga's filters and its
+way of halving the sample rate (`Paula.swift`, in `Sources/SidayChips/Paula`). The band-limited steps in
+Paula's output (`PaulaStep.swift`) are credited in its source to aciddose, who wrote them for that
+project. `Sources/SidayAmigaTrackers/Packers/PowerPacker.swift` follows the depacker in the same source,
+which says it is taken from Heikki Orsila's amigadepack.
 
-The player of MED modules (`Sources/SidayKit/SidayAmigaTrackers/OctaMED`) is not a port of anything: it was written for
-this project, to do what OctaMED's own players do, and none of their code is in it; nor is its
-mixer for OctaMED Soundstudio's mixing mode taken from anywhere. Its modules for the Amiga's voices
-play on the Paula above, its renderer (`MEDRenderer.swift`) is made after `MODRenderer.swift`, and
-its table of periods is built from the table in `ProTrackerReplayer.swift`, so those parts of it
-stand on pt2-clone as the rest of this folder does.
+The player of MED modules (`Sources/SidayAmigaTrackers/OctaMED`) is not a port of anything: it was
+written for this project, to do what OctaMED's own players do, and none of their code is in it; nor is
+its mixer for OctaMED Soundstudio's mixing mode taken from anywhere. Its modules for the Amiga's voices
+play on the Paula above, its renderer (`MEDRenderer.swift`) is made after `MODRenderer.swift`, and its
+table of periods is built from the table in `ProTrackerReplayer.swift`, so those parts of it stand on
+pt2-clone as the rest of this folder does.
 
 `MED4File.swift`, which reads a MED4 file, the songs of MED 2.10 to 3.00, into the MMD0 module
 the player plays, is made after libxmp's loader of that format (https://github.com/libxmp/libxmp,
@@ -457,12 +457,12 @@ https://zakalwe.fi/uade, `amigasrc/players/uade/adsc/AudioSculpture.asm`): the l
 instruments, the tables of waveforms and of the vibrato, and what is done on each tick. No code of it
 is carried; it is written again in Swift.
 
-Nor are the players of SoundFX modules (`Sources/SidayKit/SidayAmigaTrackers/SoundFX`) and of Oktalyzer modules
-(`Sources/SidayKit/SidayAmigaTrackers/Oktalyzer`) ports of anything: they were written for this project, to do what the
-trackers' own replay routines do, and none of those routines' code is in them. They play on the Paula
-above, their renderers are made after `MODRenderer.swift`, and their periods are the table in
-`ProTrackerReplayer.swift` (with, for SoundFX, the periods its routine has below that table's
-lowest), so those parts of them stand on pt2-clone as the rest of this folder does.
+Nor are the players of SoundFX modules (`Sources/SidayAmigaTrackers/SoundFX`) and of Oktalyzer modules
+(`Sources/SidayAmigaTrackers/Oktalyzer`) ports of anything: they were written for this project, to do
+what the trackers' own replay routines do, and none of those routines' code is in them. They play on the
+Paula above, their renderers are made after `MODRenderer.swift`, and their periods are the table in
+`ProTrackerReplayer.swift` (with, for SoundFX, the periods its routine has below that table's lowest), so
+those parts of them stand on pt2-clone as the rest of this folder does.
 
 ```
 BSD 3-Clause License
@@ -498,7 +498,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## ahx2play — AHX
 
-`Sources/SidayKit/SidayAmigaTrackers/AHX` is a Swift port of ahx2play (https://github.com/8bitbubsy/ahx2play), Olav
+`Sources/SidayAmigaTrackers/AHX` is a Swift port of ahx2play (https://github.com/8bitbubsy/ahx2play), Olav
 Sørensen's C port of the replayer of AHX 2.3d-sp3, made from that tracker's own source: the replayer
 (`AHXReplayer.swift`), the making of the tracker's waves and of its filtered copies of them
 (`AHXWaves.swift`), the reading of AHX files (`AHXModule.swift`), and its way of writing its output,
@@ -539,7 +539,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## HivelyTracker — HVL
 
-`Sources/SidayKit/SidayAmigaTrackers/Hively` is a Swift port of the replayer of HivelyTracker 1.9
+`Sources/SidayAmigaTrackers/Hively` is a Swift port of the replayer of HivelyTracker 1.9
 (https://github.com/pete-gordon/hivelytracker), by Pete Gordon and those who have worked on it since:
 the replayer and its mixer (`HVLReplayer.swift`), with the tables of how much of a voice goes to each
 side as the replayer works them out, and the reading of HVL files and of AHX files as that replayer
@@ -580,7 +580,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## libdigibooster3 — DBM files
 
-`Sources/SidayKit/SidayAmigaTrackers/DigiBooster` is a Swift port of libdigibooster3 1.2, DigiBooster 3's replayer,
+`Sources/SidayAmigaTrackers/DigiBooster` is a Swift port of libdigibooster3 1.2, DigiBooster 3's replayer,
 which its makers published in 2014 as "the official loader/replayer portable library for
 DigiBooster 3 music modules": its `player.c` (`DBMPlayer.swift`), with its tables
 (`DBMTables.swift`); its `dsp_wavetable.c`, `dsp_linresampler.c`, `dsp_panoramizer.c` and
@@ -615,10 +615,10 @@ software, even if advised of the possibility of such damage.
 
 ## ft2play — FastTracker 2
 
-`Sources/SidayKit/SidayTrackers/FastTracker` is a Swift port of ft2play (https://github.com/8bitbubsy/ft2play), Olav
-Sørensen's C port of the replayer and mixer of FastTracker 2.09, made directly from that tracker's
-assembly and Pascal: the replayer (`FT2Replayer.swift`), the mixer (`FT2Player.swift`), the reading of
-XM files and of MOD files as FastTracker reads them (`FT2Module.swift`), and FastTracker's tables
+`Sources/SidayTrackers/FastTracker` is a Swift port of ft2play (https://github.com/8bitbubsy/ft2play),
+Olav Sørensen's C port of the replayer and mixer of FastTracker 2.09, made directly from that tracker's
+assembly and Pascal: the replayer (`FT2Replayer.swift`), the mixer (`FT2Player.swift`), the reading of XM
+files and of MOD files as FastTracker reads them (`FT2Module.swift`), and FastTracker's tables
 (`FT2Tables.swift`).
 
 ```
@@ -655,7 +655,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## libxmp and OpenMPT — reading MTM, DTM and AMF files
 
-No code of either player is in this one, but the three loaders in `Sources/SidayKit/SidayTrackers/FastTracker` that
+No code of either player is in this one, but the three loaders in `Sources/SidayTrackers/FastTracker` that
 read the modules of MultiTracker, Digital Tracker and DSMI into what FastTracker 2's replayer plays
 (`MTMFile.swift`, `DTMFile.swift`, `AMFFile.swift`) were written from theirs: from libxmp
 (https://github.com/libxmp/libxmp), `src/loaders/mtm_load.c`, `dt_load.c` and `amf_load.c`, and from
@@ -720,14 +720,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## st3play — Scream Tracker 3
 
-`Sources/SidayKit/SidayTrackers/ScreamTracker` is a Swift port of st3play (https://github.com/8bitbubsy/st3play),
-Olav Sørensen's C port of the replayer of Scream Tracker 3.21, made from that tracker's own assembly
-and C: the replayer (`ST3Player.swift`, `ST3Effects.swift`), the reading of S3M files
-(`ST3Module.swift`), Scream Tracker's driver for the Gravis Ultrasound with st3play's emulation of
-that card's sound chip, its mixing for the Sound Blaster Pro, and the windowed sinc that brings either
-card's rate to the player's (`ST3Cards.swift`, and `ST3Sinc.swift` in `Sources/SidayKit/SidayFoundation`), and Scream Tracker's driver for
-the AdLib card (`ST3AdLib.swift`). st3play's own OPL2 emulator is not ported: the AdLib card's chip
-here is Nuked OPL3, below.
+`Sources/SidayTrackers/ScreamTracker` is a Swift port of st3play (https://github.com/8bitbubsy/st3play),
+Olav Sørensen's C port of the replayer of Scream Tracker 3.21, made from that tracker's own assembly and
+C: the replayer (`ST3Player.swift`, `ST3Effects.swift`), the reading of S3M files (`ST3Module.swift`),
+Scream Tracker's driver for the Gravis Ultrasound with st3play's emulation of that card's sound chip, its
+mixing for the Sound Blaster Pro, and the windowed sinc that brings either card's rate to the player's
+(`ST3Cards.swift`, and `ST3Sinc.swift` in `Sources/SidayFoundation`), and Scream Tracker's driver for the
+AdLib card (`ST3AdLib.swift`). st3play's own OPL2 emulator is not ported: the AdLib card's chip here is
+Nuked OPL3, below.
 
 ```
 BSD 3-Clause License
@@ -763,7 +763,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## st2play — Scream Tracker 2
 
-`Sources/SidayKit/SidayTrackers/ScreamTracker2` is a Swift port of st2play (https://github.com/viiri/st2play), a C
+`Sources/SidayTrackers/ScreamTracker2` is a Swift port of st2play (https://github.com/viiri/st2play), a C
 port of the replayer and the mixing of Scream Tracker 2: `ST2Player.swift` is the `st2play.c` of its
 branch for version 2.3, and `ST2Module.swift` its `stmload.c`. Changed from the original: carried
 over from C to Swift; a pattern, a place in the list or a sample that a file has none of is read as
@@ -779,7 +779,7 @@ file; and the player is told which rows it has played, so that a tune's length c
   files", with what that licence means for this project as a whole
 - Source: https://github.com/viiri/st2play
 
-`Sources/SidayKit/SidayTrackers/ScreamTracker2/STXFile.swift`, which reads an STX file into the STM file it was
+`Sources/SidayTrackers/ScreamTracker2/STXFile.swift`, which reads an STX file into the STM file it was
 made from, is made after the STX loaders of OpenMPT (https://openmpt.org, `soundlib/Load_stm.cpp`)
 and libxmp (https://github.com/libxmp/libxmp, `src/loaders/stx_load.c`): the layout of the file, its
 two versions, and the checks a file is held to. Under the licences set out above, under "libxmp and
@@ -787,19 +787,18 @@ OpenMPT — reading MTM, DTM and AMF files".
 
 ## it2play — Impulse Tracker 2
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker` is a Swift port of it2play (https://github.com/8bitbubsy/it2play),
+`Sources/SidayTrackers/ImpulseTracker` is a Swift port of it2play (https://github.com/8bitbubsy/it2play),
 Olav Sørensen's C port of the replayer of Impulse Tracker 2.15, made from that tracker's own assembly:
-the replayer (`IT2Player.swift`, `IT2Effects.swift`, `IT2Tables.swift`), the reading of IT files and
-the unpacking of their compressed samples (`IT2Module.swift`), and the sound driver it2play adds to
-Impulse Tracker's own, which mixes in floating point through a windowed sinc and has the resonant
-filter (`IT2Mixer.swift`). Impulse Tracker's own drivers, and it2play's reading of S3M and MMCMP
-files, are not ported (MMCMP is unpacked as below). (`IT2ForeignModule.swift`, `GDMFile.swift`, `PTMFile.swift` and `ULTFile.swift`
-in that folder are not from it2play: they are what gives that replayer three other kinds of file to
-play, and are below.
-Nor are `MPTMFile.swift`, `IT2OpenMPT.swift` and `IT2AdLib.swift`, which give it OpenMPT's own kind
-of file, and what that kind of file asks of it that an IT file does not; they are below too, and the
-few lines in the replayer and its mixer that are there for them say so where they stand. Nor are
-`MDLFile.swift` and `IT2Digitrakker.swift`, for Digitrakker's files, below as well, nor
+the replayer (`IT2Player.swift`, `IT2Effects.swift`, `IT2Tables.swift`), the reading of IT files and the
+unpacking of their compressed samples (`IT2Module.swift`), and the sound driver it2play adds to Impulse
+Tracker's own, which mixes in floating point through a windowed sinc and has the resonant filter
+(`IT2Mixer.swift`). Impulse Tracker's own drivers, and it2play's reading of S3M and MMCMP files, are not
+ported (MMCMP is unpacked as below). (`IT2ForeignModule.swift`, `GDMFile.swift`, `PTMFile.swift` and
+`ULTFile.swift` in that folder are not from it2play: they are what gives that replayer three other kinds
+of file to play, and are below. Nor are `MPTMFile.swift`, `IT2OpenMPT.swift` and `IT2AdLib.swift`, which
+give it OpenMPT's own kind of file, and what that kind of file asks of it that an IT file does not; they
+are below too, and the few lines in the replayer and its mixer that are there for them say so where they
+stand. Nor are `MDLFile.swift` and `IT2Digitrakker.swift`, for Digitrakker's files, below as well, nor
 `DMFFile.swift` and `IT2XTracker.swift`, for X-Tracker's.)
 
 ```
@@ -837,7 +836,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ## libxmp and OpenMPT — 669 and FAR files
 
 No code of either player is in this one, but the reading and the playing of 669 files
-(`Sources/SidayKit/SidayTrackers/Composer669`) were written with theirs open: libxmp's `src/loaders/669_load.c`
+(`Sources/SidayTrackers/Composer669`) were written with theirs open: libxmp's `src/loaders/669_load.c`
 and the 669 effects in its `src/effects.c`, and OpenMPT's `soundlib/Load_669.cpp` and what its
 `Snd_fx.cpp` and `Sndmix.cpp` do for a module of that kind. The checks a file is held to before it
 is taken for a 669 file, how far each command moves a note's pitch, the tempo, and how far to each
@@ -846,7 +845,7 @@ Composer 669 and UNIS 669, the Swift and the README say which is followed and wh
 under the licences set out above, under "libxmp and OpenMPT — reading MTM, DTM and AMF files", and
 below, under "OpenMPT — FM Tracker files".
 
-The reading and the playing of FAR files (`Sources/SidayKit/SidayTrackers/Farandole`) were written the same way,
+The reading and the playing of FAR files (`Sources/SidayTrackers/Farandole`) were written the same way,
 with libxmp's `src/loaders/far_load.c` and `src/far_extras.c` open, and OpenMPT's
 `soundlib/Load_far.cpp`: how the program kept time, how far each command moves a pitch or a volume,
 and when a note is struck again are as libxmp has them, whose authors found them out from
@@ -854,7 +853,7 @@ Farandole Composer itself. No code of either is in it. Under the same licences.
 
 ## libxmp and OpenMPT — GDM, PTM and ULT files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/GDMFile.swift`, `PTMFile.swift` and `ULTFile.swift`, which read GDM,
+`Sources/SidayTrackers/ImpulseTracker/GDMFile.swift`, `PTMFile.swift` and `ULTFile.swift`, which read GDM,
 PTM and ULT files into the shape Impulse Tracker's replayer plays, are made after the loaders of
 those formats in libxmp (https://github.com/libxmp/libxmp, `src/loaders/gdm_load.c`, `ptm_load.c`
 and `ult_load.c`) and in OpenMPT (https://openmpt.org, `soundlib/Load_gdm.cpp`, `Load_ptm.cpp` and
@@ -866,7 +865,7 @@ Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque
 
 ## OpenMPT — C67 files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/C67File.swift`, which reads a Composer 670 module into the shape
+`Sources/SidayTrackers/ImpulseTracker/C67File.swift`, which reads a Composer 670 module into the shape
 Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 (`soundlib/Load_c67.cpp`): the layout of the file, the checks it is held to, and what its notes and
 volumes are taken to mean. It is used under OpenMPT's licence, the BSD 3-Clause, set out below under
@@ -874,7 +873,7 @@ volumes are taken to mean. It is used under OpenMPT's licence, the BSD 3-Clause,
 
 ## OpenMPT — MT2 files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/MT2File.swift`, which reads a MadTracker 2 module into the shape
+`Sources/SidayTrackers/ImpulseTracker/MT2File.swift`, which reads a MadTracker 2 module into the shape
 Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 (`soundlib/Load_mt2.cpp`, by Olivier Lapicque and the OpenMPT developers, with the way its samples
 are packed from `soundlib/SampleIO.cpp`): the layout of the file, the checks it is held to, and what
@@ -888,7 +887,7 @@ out below under "OpenMPT — FM Tracker files".
 
 ## OpenMPT — SymMOD files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/SymMODFile.swift`, `SymMODSamples.swift`, `SymMODModule.swift` and
+`Sources/SidayTrackers/ImpulseTracker/SymMODFile.swift`, `SymMODSamples.swift`, `SymMODModule.swift` and
 `SymMODRenderer.swift`, which read a module of Symphonie's or Symphonie Pro's into the shape Impulse
 Tracker's replayer plays, are made after OpenMPT's loader of that format (`soundlib/Load_symmod.cpp`,
 by Devin Acker and the OpenMPT developers, which follows Patrick Meng's own Java player and
@@ -910,7 +909,7 @@ out below under "OpenMPT — FM Tracker files".
 
 ## OpenMPT — IMF files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/IMFFile.swift`, which reads an Imago Orpheus module into the shape
+`Sources/SidayTrackers/ImpulseTracker/IMFFile.swift`, which reads an Imago Orpheus module into the shape
 Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 (`soundlib/Load_imf.cpp`, which Storlek wrote for Schism Tracker and the OpenMPT developers took up):
 the layout of the file, the checks it is held to, and what its commands, instruments, envelopes and
@@ -924,20 +923,20 @@ and the filter's cutoffs in `soundlib/Snd_flt.cpp`). They are used under OpenMPT
 
 ## OpenMPT — AMS files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/AMSFile.swift`, which reads a module of Velvet Studio's or of Extreme's
-Tracker into the shape Impulse Tracker's replayer plays, is made after OpenMPT's loader of those formats
-(`soundlib/Load_ams.cpp`): the layout of both kinds of file, the checks they are held to, what their
-commands, instruments, envelopes, shadows and samples are taken to mean, how a note's commands are put
-into one cell, and how a packed sample is unpacked (`AMSUnpack`), with how a ProTracker command is
-taken (`soundlib/MODTools.cpp`, `soundlib/modcommand.cpp`). The lines in `IT2OpenMPTForeign.swift` and
+`Sources/SidayTrackers/ImpulseTracker/AMSFile.swift`, which reads a module of Velvet Studio's or of
+Extreme's Tracker into the shape Impulse Tracker's replayer plays, is made after OpenMPT's loader of
+those formats (`soundlib/Load_ams.cpp`): the layout of both kinds of file, the checks they are held to,
+what their commands, instruments, envelopes, shadows and samples are taken to mean, how a note's commands
+are put into one cell, and how a packed sample is unpacked (`AMSUnpack`), with how a ProTracker command
+is taken (`soundlib/MODTools.cpp`, `soundlib/modcommand.cpp`). The lines in `IT2OpenMPTForeign.swift` and
 in the replayer that are marked as Velvet Studio's follow what OpenMPT's player does for these files
 (`soundlib/Snd_fx.cpp`, `soundlib/Sndmix.cpp`): their envelope for pitch, their key let go, and their
-samples played backwards. They are used under OpenMPT's licence, the BSD 3-Clause, set out below
-under "OpenMPT — FM Tracker files".
+samples played backwards. They are used under OpenMPT's licence, the BSD 3-Clause, set out below under
+"OpenMPT — FM Tracker files".
 
 ## libxmp and OpenMPT — MDL files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/MDLFile.swift`, which reads a Digitrakker module into the shape
+`Sources/SidayTrackers/ImpulseTracker/MDLFile.swift`, which reads a Digitrakker module into the shape
 Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 (`soundlib/Load_mdl.cpp`: the layout of the file, what its commands are taken to mean, how two of
 them share a note, and how a packed sample is unpacked, in `soundlib/SampleIO.cpp`) and libxmp's
@@ -950,7 +949,7 @@ reading MTM, DTM and AMF files", and below, under "OpenMPT — FM Tracker files"
 
 ## OpenMPT — J2B files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/J2BFile.swift`, which reads a Jazz Jackrabbit 2 module of the Galaxy
+`Sources/SidayTrackers/ImpulseTracker/J2BFile.swift`, which reads a Jazz Jackrabbit 2 module of the Galaxy
 Sound System into the shape Impulse Tracker's replayer plays, is made after OpenMPT's loader of that
 format (`soundlib/load_j2b.cpp`, by Johannes Schultz, largely after the J2B loader of kode54's DUMB):
 the header around the packed file and the checks it is held to, the layout of the two kinds of RIFF
@@ -961,7 +960,7 @@ under "OpenMPT — FM Tracker files".
 
 ## OpenMPT — DMF files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/DMFFile.swift`, which reads an X-Tracker module into the shape
+`Sources/SidayTrackers/ImpulseTracker/DMFFile.swift`, which reads an X-Tracker module into the shape
 Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 (`soundlib/Load_dmf.cpp`: the layout of the file and the lengths its early versions wrote wrongly,
 how its patterns are made for each place in the list, how its tempo, timings and commands are taken
@@ -976,7 +975,7 @@ licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
 
 ## OpenMPT — PLM files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/PLMFile.swift`, which reads a Disorder Tracker 2 module into the
+`Sources/SidayTrackers/ImpulseTracker/PLMFile.swift`, which reads a Disorder Tracker 2 module into the
 shape Impulse Tracker's replayer plays, is made after OpenMPT's loader of that format
 (`soundlib/Load_plm.cpp`): the layout of the file, how its patterns are laid on its song and the
 song cut into patterns, and what its commands are taken to mean. `IT2DisorderTracker.swift`, and the
@@ -986,7 +985,7 @@ lines in `IT2Effects.swift` that are there for these files and say so, follow wh
 
 ## OpenMPT — DSM files
 
-`Sources/SidayKit/SidayTrackers/ScreamTracker/DSMFile.swift`, which reads a DSM file of the Digital Sound Interface
+`Sources/SidayTrackers/ScreamTracker/DSMFile.swift`, which reads a DSM file of the Digital Sound Interface
 Kit into an S3M file for Scream Tracker 3's replayer, is made after OpenMPT's loader of that format
 (`soundlib/Load_dsm.cpp`): the layout of the file, how its samples are kept, and what its commands
 are taken to mean. The lines in `ST3Player.swift` that are there for these files and say so follow
@@ -995,7 +994,7 @@ used under OpenMPT's licence, the BSD 3-Clause, set out below under "OpenMPT —
 
 ## OpenMPT — MASI files
 
-`Sources/SidayKit/SidayTrackers/ScreamTracker/MASIFile.swift`, which reads a PSM file of Epic MegaGames' MASI, of
+`Sources/SidayTrackers/ScreamTracker/MASIFile.swift`, which reads a PSM file of Epic MegaGames' MASI, of
 the older kind and the newer, into an S3M file for Scream Tracker 3's replayer, is made after
 OpenMPT's loader of that format (`soundlib/Load_psm.cpp`): the layout of both kinds of file and of
 Sinaria's, the program each song of a newer file is, how the samples are kept, and what the commands
@@ -1006,7 +1005,7 @@ OpenMPT's licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker
 
 ## OpenMPT — DIGI files
 
-`Sources/SidayKit/SidayTrackers/FastTracker/DIGIFile.swift`, which reads a DIGI Booster module into what
+`Sources/SidayTrackers/FastTracker/DIGIFile.swift`, which reads a DIGI Booster module into what
 FastTracker 2's replayer plays, is made after OpenMPT's loader of that format (`soundlib/Load_digi.cpp`):
 the layout of the file, how its patterns are packed or not, and what its commands are taken to mean.
 `FT2DigiBooster.swift`, and the lines in `FT2Replayer.swift` and `FT2Player.swift` that are there
@@ -1016,7 +1015,7 @@ licence, the BSD 3-Clause, set out below under "OpenMPT — FM Tracker files".
 
 ## OpenMPT — MPTM files
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,
+`Sources/SidayTrackers/ImpulseTracker/MPTMFile.swift` reads an MPTM file, OpenMPT's own kind of module,
 as OpenMPT (https://openmpt.org) reads it: the parts of the file that are OpenMPT's own and no IT
 file has (`soundlib/Load_it.cpp`, `ITTools.cpp`, `InstrumentExtensions.cpp`, `ModSequence.cpp`,
 `pattern.cpp`, `patternContainer.cpp`, `tuning.cpp`, `tuningCollection.cpp` and
@@ -1043,36 +1042,36 @@ Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
 
 ## OpenMPT — commands of later trackers in IT, S3M and XM files
 
-A file of one of the old trackers' kinds that a later tracker made may have commands its own
-tracker never had. Some of them are played, by OpenMPT's rules (`soundlib/Snd_fx.cpp`,
-`Sndmix.cpp`): in an IT file, a sample played backwards and a macro sent a little at a time over a
-row (`IT2OpenMPT.swift`, as for an MPTM file); and such a file, and an MPTM file, is heard through
-ModPlug Tracker's own filter where it was made with it (`setOwnFilter` and the rule for when a voice
-has it in `Sources/SidayKit/SidayTrackers/ImpulseTracker/IT2Mixer.swift`, after `SetupChannelFilter` in
-`soundlib/Snd_flt.cpp` and `HandleNoteChangeFilter` in `Sndmix.cpp`; the signs by which a file is
-known for one, and the ways of playing it asks for, in `modPlugWays` and `ModPlugWays` in
-`IT2Module.swift`, after `soundlib/Load_it.cpp` and `UpgradeModule.cpp`), with its filter moved at
-random from note to note (`ApplyRandomValues` in `IT2Player.swift`, after `NoteChange` in
-`Snd_fx.cpp`) and its envelopes carried on and started again by ModPlug Tracker's rules
-(`InstrumentChange` there), with its voices read between a sample's points in OpenMPT's ways, by
-the instrument's choice or the song's or else OpenMPT's own (`Sources/SidayKit/SidayTrackers/ImpulseTracker/IT2Resampling.swift`
-and the tables it gives `IT2Mixer.swift`, after `soundlib/IntMixer.h` and `Sndmix.cpp`, with the
-curve of `soundlib/Tables.cpp` and the windowed sinc of `WindowedFIR.cpp`; the same for an MPTM
-file), and what it says of its instruments found where OpenMPT finds it (`extrasPlace` in
-`IT2Module.swift`, after `soundlib/Load_it.cpp`); in an S3M file, a channel's volume, a slide of it and
-a slide of the whole tune's (`laterCommand` in `Sources/SidayKit/SidayTrackers/ScreamTracker/ST3Effects.swift`);
-in an XM file, a sweep from side to side (`sweepFromSideToSide` in
-`Sources/SidayKit/SidayTrackers/FastTracker/FT2Replayer.swift`, with its two tables of 64 numbers in
-`FT2Tables.swift`, which are OpenMPT's `ModSinusTable` and `ModRandomTable` from
-`soundlib/Tables.cpp`) and a channel's filter, set by macros (`sendFilterMacro` there, and
-`setFilter` and the filter's line in the mixer in `FT2Player.swift`, after `soundlib/Snd_flt.cpp`
-and the mixer's own filter, and `dieAway` there, after `EndChannelOfs` and `StereoFill` in
-`soundlib/MixerLoops.cpp`, with its voices read between a sample's points through OpenMPT's ways,
-as for an IT file of theirs (`FT2Edges` there, after `PrecomputeLoops` in `soundlib/ModSample.cpp`)). The first of the signs by which an XM file is taken not to be FastTracker's
-own are those of `soundlib/Load_xm.cpp`. Changed from the original: carried over from C++ to Swift,
-and each set into another tracker's replayer, which plays the rest as that tracker would. Used
-under the BSD 3-Clause licence set out below, under "OpenMPT — FM Tracker files": Copyright (c)
-2004-2026 OpenMPT Project Developers and Contributors and Copyright (c) 1997-2003 Olivier Lapicque.
+A file of one of the old trackers' kinds that a later tracker made may have commands its own tracker
+never had. Some of them are played, by OpenMPT's rules (`soundlib/Snd_fx.cpp`, `Sndmix.cpp`): in an IT
+file, a sample played backwards and a macro sent a little at a time over a row (`IT2OpenMPT.swift`, as
+for an MPTM file); and such a file, and an MPTM file, is heard through ModPlug Tracker's own filter where
+it was made with it (`setOwnFilter` and the rule for when a voice has it in
+`Sources/SidayTrackers/ImpulseTracker/IT2Mixer.swift`, after `SetupChannelFilter` in
+`soundlib/Snd_flt.cpp` and `HandleNoteChangeFilter` in `Sndmix.cpp`; the signs by which a file is known
+for one, and the ways of playing it asks for, in `modPlugWays` and `ModPlugWays` in `IT2Module.swift`,
+after `soundlib/Load_it.cpp` and `UpgradeModule.cpp`), with its filter moved at random from note to note
+(`ApplyRandomValues` in `IT2Player.swift`, after `NoteChange` in `Snd_fx.cpp`) and its envelopes carried
+on and started again by ModPlug Tracker's rules (`InstrumentChange` there), with its voices read between
+a sample's points in OpenMPT's ways, by the instrument's choice or the song's or else OpenMPT's own
+(`Sources/SidayTrackers/ImpulseTracker/IT2Resampling.swift` and the tables it gives `IT2Mixer.swift`,
+after `soundlib/IntMixer.h` and `Sndmix.cpp`, with the curve of `soundlib/Tables.cpp` and the windowed
+sinc of `WindowedFIR.cpp`; the same for an MPTM file), and what it says of its instruments found where
+OpenMPT finds it (`extrasPlace` in `IT2Module.swift`, after `soundlib/Load_it.cpp`); in an S3M file, a
+channel's volume, a slide of it and a slide of the whole tune's (`laterCommand` in
+`Sources/SidayTrackers/ScreamTracker/ST3Effects.swift`); in an XM file, a sweep from side to side
+(`sweepFromSideToSide` in `Sources/SidayTrackers/FastTracker/FT2Replayer.swift`, with its two tables of
+64 numbers in `FT2Tables.swift`, which are OpenMPT's `ModSinusTable` and `ModRandomTable` from
+`soundlib/Tables.cpp`) and a channel's filter, set by macros (`sendFilterMacro` there, and `setFilter`
+and the filter's line in the mixer in `FT2Player.swift`, after `soundlib/Snd_flt.cpp` and the mixer's own
+filter, and `dieAway` there, after `EndChannelOfs` and `StereoFill` in `soundlib/MixerLoops.cpp`, with
+its voices read between a sample's points through OpenMPT's ways, as for an IT file of theirs (`FT2Edges`
+there, after `PrecomputeLoops` in `soundlib/ModSample.cpp`)). The first of the signs by which an XM file
+is taken not to be FastTracker's own are those of `soundlib/Load_xm.cpp`. Changed from the original:
+carried over from C++ to Swift, and each set into another tracker's replayer, which plays the rest as
+that tracker would. Used under the BSD 3-Clause licence set out below, under "OpenMPT — FM Tracker
+files": Copyright (c) 2004-2026 OpenMPT Project Developers and Contributors and Copyright (c) 1997-2003
+Olivier Lapicque.
 
 ## OpenMPT — FM instruments and built-in plug-ins
 
@@ -1080,7 +1079,7 @@ Three more things in this player are made from OpenMPT (https://openmpt.org), an
 of OpenMPT and of ModPlug Tracker before it: MPTM files, and IT files that say one of the two made
 them.
 
-`Sources/SidayKit/SidayTrackers/ImpulseTracker/IT2AdLib.swift` plays an instrument that is a patch for the AdLib's
+`Sources/SidayTrackers/ImpulseTracker/IT2AdLib.swift` plays an instrument that is a patch for the AdLib's
 FM chip as OpenMPT plays one: how it gives the chip's eighteen voices out to notes, and what it sets
 the chip's registers to for a note's patch, pitch, level and side (`soundlib/OPL.cpp` and `OPL.h`),
 and when it does each (`soundlib/Snd_fx.cpp`, `soundlib/Sndmix.cpp`). Changed from the original:
@@ -1089,7 +1088,7 @@ a tick, from what Impulse Tracker's replayer has made of its voices by then, so 
 left set as OpenMPT leaves it; the chip itself is Nuked OPL3 (below) where OpenMPT's is Opal; and a
 note's pitch is Impulse Tracker's replayer's, which is not in every case OpenMPT's.
 
-`Sources/SidayKit/SidayTrackers/OpenMPT` has OpenMPT's own effects, which are its remakes of the effects that came
+`Sources/SidayTrackers/OpenMPT` has OpenMPT's own effects, which are its remakes of the effects that came
 with Windows as DirectX Media Objects, and three more: `OpenMPTEcho.swift`, `OpenMPTChorus.swift` (the
 chorus and both flangers), `OpenMPTGargle.swift`, `OpenMPTWavesReverb.swift`,
 `OpenMPTI3DL2Reverb.swift`, `OpenMPTDistortion.swift`, `OpenMPTParamEq.swift` and
@@ -1130,7 +1129,7 @@ Olivier Lapicque.
 
 ## Nuked OPL3 — the FM chip of the AdLib and Sound Blaster cards
 
-`Sources/SidayKit/SidayChips/OPL3/OPL3Chip.swift` and `OPL3Tables.swift` are a Swift port of Nuked OPL3 1.8, an
+`Sources/SidayChips/OPL3/OPL3Chip.swift` and `OPL3Tables.swift` are a Swift port of Nuked OPL3 1.8, an
 emulator of the Yamaha YMF262 (OPL3), which also plays what was written for the YM3812 (OPL2). The
 port leaves out the original's own resampling and its optional stereo extension, and adds one
 shortcut that changes no number: the operators of the chip's second register set are not worked
@@ -1147,12 +1146,12 @@ through until something is written there.
 
 ## SAASound — the SAA1099
 
-`Sources/SidayKit/SidayEightBit/SAA1099/SAA1099.swift` is a Swift port of SAASound (https://github.com/stripwax/SAASound),
-Dave Hooper's emulation of the Philips SAA1099: its oscillators and when what is written to them is
-taken up, its noise, its envelopes, and how a channel's mixer, volume and envelope make its level.
-It is stepped at a rate of its own and not as SAASound steps it, and two things are otherwise than in
-SAASound: each channel swings either side of nought, and an offset written on its own is not held
-for a half of the wave more (see FORMATS.md, under VGM).
+`Sources/SidayEightBit/SAA1099/SAA1099.swift` is a Swift port of SAASound
+(https://github.com/stripwax/SAASound), Dave Hooper's emulation of the Philips SAA1099: its oscillators
+and when what is written to them is taken up, its noise, its envelopes, and how a channel's mixer, volume
+and envelope make its level. It is stepped at a rate of its own and not as SAASound steps it, and two
+things are otherwise than in SAASound: each channel swings either side of nought, and an offset written
+on its own is not held for a half of the wave more (see FORMATS.md, under VGM).
 
 ```
 SAASound - a portable Phillips SAA 1099 sound chip emulator
@@ -1189,7 +1188,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## MAME — the SN76489
 
-`Sources/SidayKit/SidayChips/SN76489/SN76489.swift` is a Swift port of MAME's emulation of Texas Instruments'
+`Sources/SidayChips/SN76489/SN76489.swift` is a Swift port of MAME's emulation of Texas Instruments'
 SN76489 and the chips made like it (`sn76496.c`), as libvgm has it (https://github.com/ValleyBell/libvgm,
 `emu/cores/sn76496.c`): its registers, its tones, its noise in each chip's kind, and its volumes. The
 way what the chip makes is brought to the player's rate is not MAME's but ayumi's (see above), and
@@ -1233,7 +1232,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## fmdrv — Creative's driver for CMF files
 
-`Sources/SidayKit/SidayEightBit/OPL/SBFMDriver.swift` and `SBFMTables.swift` are a Swift port of fmdrv
+`Sources/SidayEightBit/OPL/SBFMDriver.swift` and `SBFMTables.swift` are a Swift port of fmdrv
 (https://github.com/viiri/fmdrv), a C port of SBFMDRV, the driver for the FM chip that came with the
 Sound Blaster. Changed from the original: carried over from C to Swift; made to stop at the end of a
 file's music, where the original reads on; made to leave alone a tune that has no instruments, where
@@ -1452,7 +1451,7 @@ Apache License
 
 ## AdPlug — ROL files and AdLib's sound driver
 
-`Sources/SidayKit/SidayEightBit/OPL/ROLTune.swift` is a Swift port of AdPlug's ROL player (`rol.cpp`), and
+`Sources/SidayEightBit/OPL/ROLTune.swift` is a Swift port of AdPlug's ROL player (`rol.cpp`), and
 `AdLibDriver.swift` of the sound driver under it (`composer.cpp`), which follows the `ADLIB.C` of
 AdLib's programming kit. The port finds an instrument in any of several banks and in one of its own,
 where AdPlug reads one bank file.
@@ -1466,7 +1465,7 @@ where AdPlug reads one bank file.
 
 ## AdLib instrument banks
 
-`Sources/SidayKit/SidayEightBit/OPL/AdLibBankData.swift` holds 9,683 instruments for the FM chip by name, each as
+`Sources/SidayEightBit/OPL/AdLibBankData.swift` holds 9,683 instruments for the FM chip by name, each as
 the eleven numbers the chip is given for it, packed by `Scripts/pack-bank.swift` from bank files
 (`.BNK`):
 
@@ -1482,7 +1481,7 @@ among the people who wrote and played these tunes, and have been ever since.
 
 ## OpenMPT — FM Tracker files
 
-`Sources/SidayKit/SidayEightBit/OPL/FMTTune.swift` reads the songs of Davey W Taylor's FM Tracker as OpenMPT's
+`Sources/SidayEightBit/OPL/FMTTune.swift` reads the songs of Davey W Taylor's FM Tracker as OpenMPT's
 loader for them does (`soundlib/Load_fmt.cpp`), and plays them as OpenMPT plays the module that
 loader makes: the sums by which a note becomes the chip's octave and number
 (`CSoundFile::GetPeriodFromNote` and `GetFreqFromPeriod` in `Snd_fx.cpp`, `CSoundFile::ReadNote` in
@@ -1527,12 +1526,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Ice 2.4 — unpacking SNDH files
 
-`Sources/SidayKit/SidayAtari/ICE.swift` follows the "Ice 2_40 depacker, universal C version" that Hans
+`Sources/SidayAtari/ICE.swift` follows the "Ice 2_40 depacker, universal C version" that Hans
 Wessels placed in the public domain in 2007, as it is distributed with AtariAudio.
 
 ## superzazu/z80 — Z80 cycle counts
 
-The cycle-count tables in `Sources/SidayKit/SidayEightBit/Z80/Z80.swift` follow those of superzazu/z80
+The cycle-count tables in `Sources/SidayEightBit/Z80/Z80.swift` follow those of superzazu/z80
 (https://github.com/superzazu/z80), which the core was also checked against.
 
 ```
@@ -1561,8 +1560,8 @@ SOFTWARE.
 
 ## ancient — unpacking XPK, MMCMP and zlib's DEFLATE
 
-`Sources/SidayKit/SidayAmigaTrackers/Packers/XPK.swift` (XPK files, and their SQSH, NUKE and DUKE packers),
-`Sources/SidayKit/SidayAmigaTrackers/Packers/MMCMP.swift` and `Sources/SidayKit/SidayFoundation/Inflate.swift` (DEFLATE and
+`Sources/SidayAmigaTrackers/Packers/XPK.swift` (XPK files, and their SQSH, NUKE and DUKE packers),
+`Sources/SidayAmigaTrackers/Packers/MMCMP.swift` and `Sources/SidayFoundation/Inflate.swift` (DEFLATE and
 the zlib stream around it, which J2B files are packed with; written also after RFC 1950 and RFC 1951,
 which describe them) follow the decompressors in ancient (https://github.com/temisu/ancient) by
 Teemu Suutari:
@@ -1597,12 +1596,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## ar002 — LH5 unpacking
 
-`Sources/SidayKit/SidayFoundation/LH5.swift` follows the decoder in ar002 by Haruhiko Okumura, which its author
+`Sources/SidayFoundation/LH5.swift` follows the decoder in ar002 by Haruhiko Okumura, which its author
 placed in the public domain.
 
 ## High Voltage SID Collection — song lengths
 
-`Sources/SidayKit/SidayC64/SIDFile/SongLengthsData.swift` holds the play time of every song of every tune in
+`Sources/SidayC64/SIDFile/SongLengthsData.swift` holds the play time of every song of every tune in
 release 85 of the [High Voltage SID Collection](https://www.hvsc.c64.org), packed from the
 `Songlengths.md5` in its `DOCUMENTS` folder by `Scripts/pack-songlengths.swift`. The times are the work
 of the collection's team. The table has the times and part of each SID file's MD5, and nothing of the

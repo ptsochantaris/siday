@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayC64
+@testable import SidayFoundation
 import Foundation
 import Testing
 

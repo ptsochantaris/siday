@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayAmigaComposers
+@testable import SidayChips
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of Paul Shields' player, on tiny files made here as the games' are, in each of the three layouts. The

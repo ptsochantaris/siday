@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayFoundation
 import Testing
 
 // Fast checks of the C67 files that Impulse Tracker's replayer plays, with the FM chip beside it.

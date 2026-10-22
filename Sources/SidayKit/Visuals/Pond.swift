@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// A pond at night, seen from above. A note being struck is a drop falling into it: low notes to
 /// the left and high ones to the right (with the ends of the tune's range drawn in, so that its
 /// melodies are spread wide: see `VisualFrame.place`), each voice along a line of its own, and

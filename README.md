@@ -248,7 +248,7 @@ its own line as it starts.
   newer release's lengths, and it also finds a tune by its path inside HVSC when its content differs.
   A SID tune in neither gets `--default-time`.
 - When a new release comes out, `swift Scripts/pack-songlengths.swift <its Songlengths.md5> <its
-  number>` rebuilds the table in `Sources/SidayKit/SidayC64/SIDFile/SongLengthsData.swift`, and
+  number>` rebuilds the table in `Sources/SidayC64/SIDFile/SongLengthsData.swift`, and
   `SIDAY_SONGLENGTHS=<that file> swift test` checks every entry of it against the file.
 - A CMF or ROL file ends where its music does, with a second after it for the last notes to die away.
 - An FMT file went round for ever in its tracker. It is played through once, and given the same second.
@@ -304,10 +304,10 @@ figures are typical ones, chosen to be judged by ear, and are all in one place
 
 An AY file can only ask for its music routine once per 1/50 s. A few games drove their music from a
 free-running loop instead, and their rips approximate that rate, not always well. Files known to be off
-are corrected by content (`Sources/SidayKit/SidayEightBit/AYFile/AYFileCorrections.swift`) and show "timing corrected"
-when they play; so far those are the Exolon 128K title tune, which the rip plays 14% fast, and the Kenny
-Dalglish Soccer Match menu tune, which it plays 5% slow. Giving
-`--frame-rate` plays any file exactly as written.
+are corrected by content (`Sources/SidayEightBit/AYFile/AYFileCorrections.swift`) and show "timing
+corrected" when they play; so far those are the Exolon 128K title tune, which the rip plays 14% fast, and
+the Kenny Dalglish Soccer Match menu tune, which it plays 5% slow. Giving `--frame-rate` plays any file
+exactly as written.
 
 ## Playback caveats
 
@@ -377,15 +377,19 @@ Played, with a difference:
 
 ## How it is built
 
-The repository is three packages and an app. At the top is SidayKit, in `Sources/SidayKit`, which holds all
-emulation. It has no dependencies and uses none of Foundation: it is given a file's bytes and gives
-back samples, so it builds wherever Swift does, WebAssembly and Embedded Swift included (see
-`Embedded/`), and another package can depend on this repository for it alone. `CLI/` is the player
-for macOS: reading files, Core Audio output, terminal keys and options (via swift-argument-parser).
-`Web/` is the web player, and `App/` the app, whose list of the kinds of file it opens is written from
-SidayKit's by a test (`SIDAY_WRITE_APP_TYPES=1 swift test --filter appOpensEveryKindOfFile`). `swift
-test` at the top tests SidayKit, `swift test --package-path CLI` the command-line player, and the
-app's scheme in Xcode its accessibility in every part of it.
+The repository is three packages and an app. At the top is SidayKit, which holds all emulation. It has no
+dependencies and uses none of Foundation: it is given a file's bytes and gives back samples, so it builds
+wherever Swift does, WebAssembly and Embedded Swift included, and another package can depend on this
+repository for it alone. It is built as modules, compiled side by side: `Sources/SidayFoundation`, what
+every player is made with; `SidayChips` and `SidayM68000`, the chips and the processor that several
+families share; a module for each family of players (`SidayAmigaTrackers`, `SidayAmigaComposers`,
+`SidayAmigaMachine`, `SidayTrackers`, `SidayC64`, `SidayEightBit` and `SidayAtari`); and
+`Sources/SidayKit`, the loader and the player around it, which is the library that is imported, and
+brings the rest with it. `CLI/` is the player for macOS: reading files, Core Audio output, terminal keys
+and options (via swift-argument-parser). `Web/` is the web player, and `App/` the app, whose list of the
+kinds of file it opens is written from SidayKit's by a test (`SIDAY_WRITE_APP_TYPES=1 swift test --filter
+appOpensEveryKindOfFile`). `swift test` at the top tests SidayKit, `swift test --package-path CLI` the
+command-line player, and the app's scheme in Xcode its accessibility in every part of it.
 
 | Part | Based on | Checked against |
 |---|---|---|

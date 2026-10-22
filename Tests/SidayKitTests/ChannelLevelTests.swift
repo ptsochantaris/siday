@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 @testable import SidayKit
+@testable import SidayEightBit
+@testable import SidayFoundation
 import Testing
 
 // How loud each voice of a tune is, for the lights.
