@@ -11,6 +11,8 @@ import SidayFoundation
 package enum AmigaTrackerPlayers {
     /// - Parameter widerModule: the player for a module of more voices than the Amiga's four, which is
     ///   a PC tracker's (FastTracker 2's, `TrackerPlayers`), or nil if it is not one.
+    // (Compiled here, and only called from elsewhere: see `TuneLoader`.)
+    @export(interface)
     package static func player(_ data: [UInt8], format: TuneFormat, path: String?, options: LoadOptions,
                                companions: [[UInt8]?], widerModule: ([UInt8]) -> (any Renderer)?) throws -> (any Renderer)? {
         switch format {

@@ -36,6 +36,12 @@ public enum TuneLoader {
     ///   database by content is looked up by its place in the HVSC collection instead.
     /// - Parameter companions: the files the tune needs beside its own, for a kind that does: one for
     ///   each that `Companions.wanted(for:fileName:)` gives, in its order, nil for one that was not found.
+    //
+    // (This and each family's `player` are compiled in their own modules and only called from others.
+    // In the web player's Embedded Swift any other function is compiled again in every module that
+    // calls it, and from these every player there is can be reached: SidayKit, and each module of the
+    // web player's that loads a tune, took minutes to build, each of them making every player anew.)
+    @export(interface)
     public static func load(_ data: [UInt8], format: TuneFormat, path: String? = nil, options: LoadOptions = LoadOptions(),
                             companions: [[UInt8]?] = []) throws -> any Renderer {
         guard !data.isEmpty else { throw TuneError.malformed("empty file") }

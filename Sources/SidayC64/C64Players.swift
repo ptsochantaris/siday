@@ -8,6 +8,8 @@ import SidayFoundation
 /// The loader asks each family in turn for a player (`TuneLoader`): nil is for a tune of a format
 /// that is not this family's.
 package enum C64Players {
+    // (Compiled here, and only called from elsewhere: see `TuneLoader`.)
+    @export(interface)
     package static func player(_ data: [UInt8], format: TuneFormat, path: String?, options: LoadOptions,
                                companions: [[UInt8]?]) throws -> (any Renderer)? {
         switch format {

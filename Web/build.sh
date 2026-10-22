@@ -15,24 +15,29 @@ common=(--package-path $package --swift-sdk $sdk --toolset $PWD/toolset.json)
 
 mkdir -p generated
 
-# The audio half: SidayKit alone, for the audio worklet.
-swift build $common -c release --product SidayWebAudio
-built="$(swift build $common -c release --product SidayWebAudio --show-bin-path)/SidayWebAudio.wasm"
+# Both are built by JavaScriptKit's packaging command, the page first. It builds with settings of its
+# own, and a build goes on from the one before it only if that was made with the same settings and
+# for as much: a module built with `swift build` would be made again, and so would the page after
+# the audio half, which needs less than the page does, but not the audio half after the page.
+output=$package/.build/plugins/PackageToJS/outputs
+
+# The page. The packaging command writes the module and the JavaScript that connects it to the browser;
+# siday.js loads them. It puts the module through wasm-opt too, if it is there, which nearly halves it.
+optimise=()
+command -v wasm-opt > /dev/null || optimise=(--no-optimize)
+swift package $common js --configuration release --product SidayWeb --output $output/siday-web $optimise
+cp $output/siday-web/SidayWeb.wasm $output/siday-web/instantiate.js $output/siday-web/runtime.js $output/siday-web/bridge-js.js generated/
+
+# The audio half: SidayKit alone, for the audio worklet, which needs none of the JavaScript.
 # With wasm-opt (from Binaryen) installed, the module goes through it and comes out a tenth smaller.
 # It renders no faster for it, and the sound is the same to the sample; without it, it is used as built.
+swift package $common js --configuration release --product SidayWebAudio --output $output/siday-web-audio --no-optimize
+built=$output/siday-web-audio/SidayWebAudio.wasm
 if command -v wasm-opt > /dev/null; then
   wasm-opt -Os --strip-debug --strip-producers $built -o generated/SidayWebAudio.wasm
 else
   cp $built generated/
 fi
-
-# The page. JavaScriptKit's packaging command writes the module and the JavaScript that connects it to
-# the browser; siday.js loads them. It puts the module through wasm-opt too, if it is there, which nearly halves it.
-output=$package/.build/plugins/PackageToJS/outputs/siday-web
-optimise=()
-command -v wasm-opt > /dev/null || optimise=(--no-optimize)
-swift package $common js --configuration release --product SidayWeb --output $output $optimise
-cp $output/SidayWeb.wasm $output/instantiate.js $output/runtime.js $output/bridge-js.js generated/
 # And FORMATS.md, of which the page shows the part on a format when the format's name is pressed.
 cp ../FORMATS.md generated/
 

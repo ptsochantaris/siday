@@ -14,6 +14,8 @@ package enum AmigaComposerPlayers {
     /// is named as a SID file (`TuneFormat.refined(byLeading:)`).
     package static func isSidMon1(_ leading: [UInt8]) -> Bool { SidMon1Player.isOne(leading) }
 
+    // (Compiled here, and only called from elsewhere: see `TuneLoader`.)
+    @export(interface)
     package static func player(_ data: [UInt8], format: TuneFormat, path: String?, options: LoadOptions,
                                companions: [[UInt8]?]) throws -> (any Renderer)? {
         switch format {

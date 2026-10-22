@@ -13,6 +13,8 @@ package enum TrackerPlayers {
     /// (`TuneFormat.refined(byLeading:)`).
     package static func isMASI(_ leading: [UInt8]) -> Bool { MASIFile.isOne(leading) }
 
+    // (Compiled here, and only called from elsewhere: see `TuneLoader`.)
+    @export(interface)
     package static func player(_ data: [UInt8], format: TuneFormat, path: String?, options: LoadOptions,
                                companions: [[UInt8]?]) throws -> (any Renderer)? {
         switch format {
