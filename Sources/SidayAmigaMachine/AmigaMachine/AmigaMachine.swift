@@ -262,13 +262,24 @@ struct AmigaMachine: ~Copyable {
             // between looks (a write may have set one going sooner); a few instructions at a time while
             // one is asked for that the mask holds back, to take it as soon as the mask comes down.
             let most = level > 0 ? 64 : exact != nil ? 1 << 30 : 1024
-            let span = Int(min(next - time, UInt64(most / 2))) * 2
-            switch cpu.resume(cycles: cpu.cycles + max(2, span)) {
-            case .outOfTime: continue
-            case .stopped: waiting = true
-            case .reset: return .returned
-            case let .trap(number): return .trap(number)
-            case .illegal: return .failed
+            var span = max(2, Int(min(next - time, UInt64(most / 2))) * 2)
+            while true {
+                switch cpu.resume(cycles: cpu.cycles + span) {
+                case .outOfTime: break
+                case .stopped: waiting = true
+                case .reset: return .returned
+                case let .trap(number): return .trap(number)
+                case .illegal: return .failed
+                }
+                // While one is asked for that the mask holds back, the slices go on here as the loop would
+                // give them, without the rest of it, which would find what it found before: nothing can ask
+                // before `next`, and the chips are brought up to the time as well later as now. They go on
+                // until the mask comes down, the processor writes something that may ask, or the end or
+                // `next` is near.
+                guard level > 0, !waiting, !chips.wroteInterrupts, !cpu.lets(level: level) else { break }
+                let time = now
+                guard time < end, time < next, next - time >= UInt64(most / 2) else { break }
+                span = most
             }
         }
     }

@@ -78,7 +78,7 @@ package enum M68000Stop: Equatable, Sendable {
 /// the run's own, three words that go from one instruction's step to the next in the host's registers;
 /// between runs it is kept in the processor.
 @usableFromInline struct M68000Pace {
-    var pc: UInt32 = 0
+    @usableFromInline var pc: UInt32 = 0
     /// The condition codes, X N Z V C from bit 4 down as the status register has them, and above them
     /// two of the run's own: that the processor has reached the bus, and that it is to stop. (A word of
     /// its own, rather than half of one shared with `pc`, which would cost a shift and a mask at each step.)
@@ -171,7 +171,8 @@ public struct M68000: ~Copyable {
     /// Why the processor stopped, once it has.
     private var stop: M68000Stop?
 
-    package var pc: UInt32 {
+    /// (Inlinable, as `cycles` is: asked from another module, a processor is copied to be asked.)
+    @inlinable public var pc: UInt32 {
         get { pace.pc }
         set { pace.pc = newValue }
     }
@@ -485,7 +486,7 @@ public struct M68000: ~Copyable {
     /// the place to come back to go on the supervisor's stack, the mask is raised to the level, and it
     /// goes on from the level's autovector. It takes the 68000's 44 cycles. True if it was taken.
     package mutating func interrupt(level: Int) -> Bool {
-        guard level >= 1, level <= 7, UInt32(level) > interruptMask || level == 7 else { return false }
+        guard lets(level: level) else { return false }
         var k = pace
         let used = k.cycles
         exception(24 &+ UInt32(level), returningTo: k.pc, &k)
@@ -493,6 +494,12 @@ public struct M68000: ~Copyable {
         k.cycles = used &+ 44
         pace = k
         return true
+    }
+
+    /// Whether the mask lets an interrupt at `level` through, as `interrupt(level:)` would take it.
+    /// (Mutating, though it changes nothing: asked from another module, a processor is copied to be asked.)
+    package mutating func lets(level: Int) -> Bool {
+        level >= 1 && level <= 7 && (UInt32(level) > interruptMask || level == 7)
     }
 
     /// Counts cycles that pass with the processor doing nothing, as it waits after a STOP.
