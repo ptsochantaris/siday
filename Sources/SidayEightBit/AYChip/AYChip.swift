@@ -281,16 +281,19 @@ struct AYChip: ~Copyable {
     /// What each channel is putting out now, from its place in the DAC table: as `updateMixer` works
     /// it out, without moving anything on. For the channels' scopes, so asked for only when they are
     /// drawn, once an output sample, and not in the chip's own steps. (A muted channel is told too.)
-    func channelOutputs() -> (Float, Float, Float) {
+    ///
+    /// (Mutating, though it changes nothing, and the table read here and not in `index`: a method
+    /// that only reads the chip, or a function inside one, is handed a copy of the table first.)
+    mutating func channelOutputs() -> (Float, Float, Float) {
         let n = noise & 1, e = envelope
-        func out(_ ch: AYToneChannel) -> Float {
+        func index(_ ch: AYToneChannel) -> Int {
             // A tone above 18 kHz holds the channel open, as the lights take it (see `takeLevels`):
             // read once an output sample, it would come out as a tone it is not.
             let tone = ch.period < 6 && ch.toneOff == 0 && ch.noiseOff != 0 ? 1 : ch.tone
-            let index = (0 &- ((tone | ch.toneOff) & (n | ch.noiseOff))) & (ch.envelopeOn ? e : ch.volume &* 2 &+ 1)
-            return Float(dac[unchecked: index])
+            return (0 &- ((tone | ch.toneOff) & (n | ch.noiseOff))) & (ch.envelopeOn ? e : ch.volume &* 2 &+ 1)
         }
-        return (out(a), out(b), out(c))
+        let ia = index(a), ib = index(b), ic = index(c)
+        return (Float(dac[unchecked: ia]), Float(dac[unchecked: ib]), Float(dac[unchecked: ic]))
     }
 
     /// Where each channel lies between the two sides, from -1 on the left to 1 on the right: where

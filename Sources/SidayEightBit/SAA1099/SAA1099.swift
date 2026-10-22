@@ -403,7 +403,10 @@ struct SAA1099Chip {
     /// What a channel puts out now on the louder of its two sides, as `step` works it out, from -240
     /// to 240 at its loudest: for the channel's scope, read once one of the player's samples is
     /// made, so that the chip itself does nothing more. A channel left out of the sound is told too.
-    func channelOutput(_ channel: Int) -> Int {
+    ///
+    /// (Mutating, though it changes nothing: a method that only reads a chip kept in a class is handed
+    /// a copy of it first.)
+    mutating func channelOutput(_ channel: Int) -> Int {
         guard enabled, !sync else { return 0 }
         let amp = amps[channel], level = amp.intermediate
         let left = amp.left >= amp.right
