@@ -248,7 +248,7 @@ its own line as it starts.
   newer release's lengths, and it also finds a tune by its path inside HVSC when its content differs.
   A SID tune in neither gets `--default-time`.
 - When a new release comes out, `swift Scripts/pack-songlengths.swift <its Songlengths.md5> <its
-  number>` rebuilds the table in `Sources/SidayKit/SIDFile/SongLengthsData.swift`, and
+  number>` rebuilds the table in `Sources/SidayKit/SidayC64/SIDFile/SongLengthsData.swift`, and
   `SIDAY_SONGLENGTHS=<that file> swift test` checks every entry of it against the file.
 - A CMF or ROL file ends where its music does, with a second after it for the last notes to die away.
 - An FMT file went round for ever in its tracker. It is played through once, and given the same second.
@@ -298,13 +298,13 @@ loudspeaker, which is why it is a choice alongside mono and stereo and not on to
 `plastic` is a small portable, thin and forward. `wood` is a large set in a veneered cabinet, fuller and
 rounder. The level in the middle of the range is kept where it was. No particular set was measured: the
 figures are typical ones, chosen to be judged by ear, and are all in one place
-(`Sources/SidayKit/Core/Television.swift`).
+(`Sources/SidayKit/Player/Television.swift`).
 
 ### AY files ripped at the wrong speed
 
 An AY file can only ask for its music routine once per 1/50 s. A few games drove their music from a
 free-running loop instead, and their rips approximate that rate, not always well. Files known to be off
-are corrected by content (`Sources/SidayKit/AYFile/AYFileCorrections.swift`) and show "timing corrected"
+are corrected by content (`Sources/SidayKit/SidayEightBit/AYFile/AYFileCorrections.swift`) and show "timing corrected"
 when they play; so far those are the Exolon 128K title tune, which the rip plays 14% fast, and the Kenny
 Dalglish Soccer Match menu tune, which it plays 5% slow. Giving
 `--frame-rate` plays any file exactly as written.

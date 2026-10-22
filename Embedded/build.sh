@@ -10,7 +10,7 @@ TOOLCHAIN=${TOOLCHAIN:-$(swiftly use --print-location)/usr}
 # Only the C library, start-up object and compiler builtins are taken from the WebAssembly SDK.
 VERSION=${TOOLCHAIN:h:t:r}
 SDK=${WASM_SDK:-$HOME/Library/org.swift.swiftpm/swift-sdks/${VERSION}_wasm.artifactbundle/${VERSION}_wasm/wasm32-unknown-wasip1}
-FLAGS=(-enable-experimental-feature Embedded -enable-experimental-feature Extern -wmo -O -parse-as-library)
+FLAGS=(-enable-experimental-feature Embedded -enable-experimental-feature Extern -wmo -O -parse-as-library -package-name siday)
 SOURCES=(../Sources/SidayKit/**/*.swift Files.swift)
 mkdir -p build
 
