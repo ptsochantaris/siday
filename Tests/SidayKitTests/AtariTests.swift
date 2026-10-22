@@ -12,10 +12,10 @@ import Testing
 private final class RecordingBus: M68000Bus {
     var writes: [(address: UInt32, value: UInt32)] = []
 
-    func read8(_: UInt32) -> UInt8 { 0xFF }
-    func read16(_: UInt32) -> UInt16 { 0xFFFF }
-    func write8(_ address: UInt32, _ value: UInt8) { writes.append((address, UInt32(value))) }
-    func write16(_ address: UInt32, _ value: UInt16) { writes.append((address, UInt32(value))) }
+    override func read8(_: UInt32) -> UInt8 { 0xFF }
+    override func read16(_: UInt32) -> UInt16 { 0xFFFF }
+    override func write8(_ address: UInt32, _ value: UInt8) { writes.append((address, UInt32(value))) }
+    override func write16(_ address: UInt32, _ value: UInt16) { writes.append((address, UInt32(value))) }
 }
 
 /// A 68000 with 64 KB of memory and a program at 0x1000, run from reset until it stops.

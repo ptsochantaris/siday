@@ -53,7 +53,13 @@ final class STHardware: M68000Bus {
         self.blitter = blitter
     }
 
-    func read8(_ address: UInt32) -> UInt8 {
+    // (The processor asks with the time, which the ST's hardware does not need.)
+    override func read8(_ address: UInt32, at _: Int) -> UInt8 { read8(address) }
+    override func read16(_ address: UInt32, at _: Int) -> UInt16 { read16(address) }
+    override func write8(_ address: UInt32, _ value: UInt8, at _: Int) { write8(address, value) }
+    override func write16(_ address: UInt32, _ value: UInt16, at _: Int) { write16(address, value) }
+
+    override func read8(_ address: UInt32) -> UInt8 {
         switch address {
         case 0xFF8800 ..< 0xFF8900: chip.readPort(address & 255)
         // A colour screen, at fifty frames a second.
@@ -68,7 +74,7 @@ final class STHardware: M68000Bus {
         }
     }
 
-    func read16(_ address: UInt32) -> UInt16 {
+    override func read16(_ address: UInt32) -> UInt16 {
         switch address {
         case 0xFF8800 ..< 0xFF8900: UInt16(chip.readPort(address & 0xFE)) << 8
         case 0xFFFA00 ..< 0xFFFA26: timers.read16(address - 0xFFFA00)
@@ -79,7 +85,7 @@ final class STHardware: M68000Bus {
         }
     }
 
-    func write8(_ address: UInt32, _ value: UInt8) {
+    override func write8(_ address: UInt32, _ value: UInt8) {
         switch address {
         // The chip's two ports each appear twice over.
         case 0xFF8800 ..< 0xFF8900: chip.writePort(address & 0xFE, value)
@@ -90,7 +96,7 @@ final class STHardware: M68000Bus {
         }
     }
 
-    func write16(_ address: UInt32, _ value: UInt16) {
+    override func write16(_ address: UInt32, _ value: UInt16) {
         switch address {
         case 0xFF8800 ..< 0xFF8900: chip.writePort(address & 0xFE, UInt8(truncatingIfNeeded: value >> 8))
         case 0xFFFA00 ..< 0xFFFA26: timers.write16(address - 0xFFFA00, value)
@@ -128,7 +134,7 @@ final class STMachine {
     // (Not checked as it is used for being used twice over at once, which the compiler cannot prove of a
     // class's properties: the processor reaches only the hardware as it runs, which cannot reach the
     // machine, and what it stops for is answered once it has stopped.)
-    @exclusivity(unchecked) private var cpu: M68000<STHardware>
+    @exclusivity(unchecked) private var cpu: M68000
     private var heap: UInt32 = 0
     /// The system's own way of feeding the sound chip from a list, which a few tunes use: where it
     /// has got to, the value it is stepping, and how many ticks it is waiting.

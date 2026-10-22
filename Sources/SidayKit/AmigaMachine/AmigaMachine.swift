@@ -60,7 +60,7 @@ struct AmigaMachine: ~Copyable {
     let memory: UnsafeMutablePointer<UInt8>
     let memorySize: Int
     let chips: AmigaChips
-    var cpu: M68000<AmigaChips>
+    var cpu: M68000
     /// True while the processor waits, after a STOP, for an interrupt (see `run(until:)`).
     private(set) var waiting = false
     /// The processor's cycles it has spent waiting so, all told.

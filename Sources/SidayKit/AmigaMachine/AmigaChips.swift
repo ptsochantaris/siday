@@ -76,7 +76,7 @@ final class AmigaChips: M68000Bus {
     /// and requests, the DMA, Paula's voices, or a CIA. The processor stops after the instruction that
     /// made it (`M68000Bus.asksToBeLookedAt`), and the machine looks, as UAE does after the next.
     var wroteInterrupts = false
-    var asksToBeLookedAt: Bool { wroteInterrupts }
+    override var asksToBeLookedAt: Bool { wroteInterrupts }
 
     /// A short frame's lines.
     static let shortFrameLines = 312
@@ -87,7 +87,7 @@ final class AmigaChips: M68000Bus {
     /// When each voice asks for its interrupt (while `interrupts` is on).
     @exclusivity(unchecked) private var audio = AmigaAudioDMA()
 
-    init() {
+    override init() {
         writes.reserveCapacity(256)
     }
 
@@ -208,12 +208,12 @@ final class AmigaChips: M68000Bus {
 
     // MARK: The bus
 
-    func read8(_ address: UInt32) -> UInt8 { read8(address, at: 0) }
-    func read16(_ address: UInt32) -> UInt16 { read16(address, at: 0) }
-    func write8(_ address: UInt32, _ value: UInt8) { write8(address, value, at: 0) }
-    func write16(_ address: UInt32, _ value: UInt16) { write16(address, value, at: 0) }
+    override func read8(_ address: UInt32) -> UInt8 { read8(address, at: 0) }
+    override func read16(_ address: UInt32) -> UInt16 { read16(address, at: 0) }
+    override func write8(_ address: UInt32, _ value: UInt8) { write8(address, value, at: 0) }
+    override func write16(_ address: UInt32, _ value: UInt16) { write16(address, value, at: 0) }
 
-    func read8(_ address: UInt32, at cycles: Int) -> UInt8 {
+    override func read8(_ address: UInt32, at cycles: Int) -> UInt8 {
         if address & 0xFFF000 == Self.custom {
             let word = readCustom(UInt16(address & 0xFFE), at: cycles)
             return UInt8(truncatingIfNeeded: address & 1 == 0 ? word >> 8 : word)
@@ -231,7 +231,7 @@ final class AmigaChips: M68000Bus {
         return 0
     }
 
-    func read16(_ address: UInt32, at cycles: Int) -> UInt16 {
+    override func read16(_ address: UInt32, at cycles: Int) -> UInt16 {
         if address & 0xFFF000 == Self.custom { return readCustom(UInt16(address & 0xFFE), at: cycles) }
         if address & 0xFF0000 == 0xBF0000 {
             // The high byte from CIA-B, the low from CIA-A.
@@ -240,7 +240,7 @@ final class AmigaChips: M68000Bus {
         return 0
     }
 
-    func write8(_ address: UInt32, _ value: UInt8, at cycles: Int) {
+    override func write8(_ address: UInt32, _ value: UInt8, at cycles: Int) {
         if address & 0xFFF000 == Self.custom {
             // The 68000 puts a byte on both halves of the bus, and the chips take the whole word.
             writeCustom(UInt16(address & 0xFFE), UInt16(value) << 8 | UInt16(value), at: cycles)
@@ -265,7 +265,7 @@ final class AmigaChips: M68000Bus {
         }
     }
 
-    func write16(_ address: UInt32, _ value: UInt16, at cycles: Int) {
+    override func write16(_ address: UInt32, _ value: UInt16, at cycles: Int) {
         if address & 0xFFF000 == Self.custom {
             writeCustom(UInt16(address & 0xFFE), value, at: cycles)
             return
