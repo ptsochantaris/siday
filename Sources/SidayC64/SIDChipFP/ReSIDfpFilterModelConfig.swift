@@ -44,10 +44,11 @@ import SidayFoundation
 
 // Swift traps when a floating-point value does not fit the integer type; C++ leaves it undefined.
 // These do what the arm64 conversion instruction does (saturate, NaN gives 0), so the two agree
-// even at the edges.
+// even at the edges. (The first test is the one Swift's own conversion makes, so that the compiler
+// makes it once; between it and the C++ range, the conversion gives the same.)
 
 @inline(__always) func residfp_int(_ d: Double) -> Int32 {
-    if _fastPath(d > -2_147_483_648.0 && d < 2_147_483_647.0) { return Int32(d) }
+    if _fastPath(d > -2_147_483_649.0 && d < 2_147_483_648.0) { return Int32(d) }
     if d >= 2_147_483_647.0 { return Int32.max }
     if d <= -2_147_483_648.0 { return Int32.min }
     return 0

@@ -214,7 +214,35 @@ extension ReSIDfpChip {
             return (out &+ (1 << 14)) >> 15
         }
 
-        @inline(__always)
+        /// convolve(a, b1, bLength) and convolve(a, b2, bLength) in one pass over `a`.
+        ///
+        /// (This, `fir` and both `input`s are `@inline(always)`, as the chip's clocking loops are: with
+        /// `@inline(__always)` the compiler leaves `input` as a call from the loops, which costs more
+        /// than the pass saves.)
+        @inline(always)
+        static func convolve(_ a: UnsafePointer<Int32>, _ b1: UnsafePointer<Int16>, _ b2: UnsafePointer<Int16>, _ bLength: Int) -> (Int32, Int32) {
+            var sums1 = SIMD8<Int32>.zero, sums2 = SIMD8<Int32>.zero
+            var i = 0
+            let a8 = UnsafeRawPointer(a), b18 = UnsafeRawPointer(b1), b28 = UnsafeRawPointer(b2)
+            while i &+ 8 <= bLength {
+                let x = a8.loadUnaligned(fromByteOffset: i &* 4, as: SIMD8<Int32>.self)
+                let y1 = SIMD8<Int32>(truncatingIfNeeded: b18.loadUnaligned(fromByteOffset: i &* 2, as: SIMD8<Int16>.self))
+                let y2 = SIMD8<Int32>(truncatingIfNeeded: b28.loadUnaligned(fromByteOffset: i &* 2, as: SIMD8<Int16>.self))
+                sums1 &+= x &* y1
+                sums2 &+= x &* y2
+                i &+= 8
+            }
+            var out1 = sums1.wrappedSum(), out2 = sums2.wrappedSum()
+            while i < bLength {
+                out1 &+= a[i] &* Int32(b1[i])
+                out2 &+= a[i] &* Int32(b2[i])
+                i &+= 1
+            }
+
+            return ((out1 &+ (1 << 14)) >> 15, (out2 &+ (1 << 14)) >> 15)
+        }
+
+        @inline(always)
         func fir(_ subcycle: Int32) -> Int32 {
             // Find the first of the nearest fir tables close to the phase
             var firTableFirst = (subcycle &* firRES) >> 10
@@ -223,17 +251,20 @@ extension ReSIDfpChip {
             // Find firN most recent samples, plus one extra in case the FIR wraps.
             var sampleStart = sampleIndex &- firN &+ SincResampler.RINGSIZE &- 1
 
-            let v1 = SincResampler.convolve(sample + Int(sampleStart), firTable + Int(firTableFirst &* firN), Int(firN))
+            let v1: Int32, v2: Int32
 
             // Use next FIR table, wrap around to first FIR table using
             // previous sample.
-            firTableFirst &+= 1
-            if _slowPath(firTableFirst == firRES) {
+            if _fastPath(firTableFirst &+ 1 != firRES) {
+                // Both from the same samples, taken together.
+                let first = firTable + Int(firTableFirst &* firN)
+                (v1, v2) = SincResampler.convolve(sample + Int(sampleStart), first, first + Int(firN), Int(firN))
+            } else {
+                v1 = SincResampler.convolve(sample + Int(sampleStart), firTable + Int(firTableFirst &* firN), Int(firN))
                 firTableFirst = 0
                 sampleStart &+= 1
+                v2 = SincResampler.convolve(sample + Int(sampleStart), firTable + Int(firTableFirst &* firN), Int(firN))
             }
-
-            let v2 = SincResampler.convolve(sample + Int(sampleStart), firTable + Int(firTableFirst &* firN), Int(firN))
 
             // Linear interpolation between the sinc tables yields good
             // approximation for the exact value.
@@ -364,7 +395,7 @@ extension ReSIDfpChip {
 
         var bytes: Int { Int(firRES) * Int(firN) * 2 + Int(SincResampler.RINGSIZE) * 2 * 4 }
 
-        @inline(__always)
+        @inline(always)
         mutating func input(_ input: Int32) -> Bool {
             var ready = false
 
@@ -436,7 +467,7 @@ extension ReSIDfpChip {
             s2.deallocate()
         }
 
-        @inline(__always)
+        @inline(always)
         mutating func input(_ sample: Int32) -> Bool {
             s1.input(sample) && s2.input(s1.output())
         }
