@@ -282,6 +282,20 @@ final class AmigaChips: M68000Bus {
         }
     }
 
+    /// The line the beam is on, as VPOSR and the upper byte of VHPOSR give it, changes only as a line
+    /// begins; nothing else that is read is told of.
+    override func unchanged(_ address: UInt32, word: Bool, from cycles: Int) -> Int? {
+        guard address & 0xFFF000 == Self.custom else { return nil }
+        switch address & 0xFFF {
+        case 0x004, 0x005: break
+        case 0x006 where !word: break
+        default: return nil
+        }
+        let line = UInt64(Self.lineClocks)
+        let next = (now(cycles) / line + 1) * line
+        return Int(clamping: (next &- clock) &* 2)
+    }
+
     // MARK: The custom chips
 
     private func readCustom(_ register: UInt16, at cycles: Int) -> UInt16 {

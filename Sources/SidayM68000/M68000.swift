@@ -46,6 +46,12 @@ open class M68000Bus {
     open func write8(_ address: UInt32, _ value: UInt8, at _: Int) { write8(address, value) }
     open func write16(_ address: UInt32, _ value: UInt16, at _: Int) { write16(address, value) }
 
+    /// For a loop that waits on what is read from `address` (a byte, or a `word`) at `cycles` (see
+    /// `M68000.skipPolling`): the cycles before which every read of it gives the same, and leaves the
+    /// hardware as the last of them would (each brings it up to its time, and a later one brings it as
+    /// far). Nil where that cannot be told, as it is by default.
+    open func unchanged(_ address: UInt32, word: Bool, from cycles: Int) -> Int? { nil }
+
     /// True when what the processor has just done may have asked for an interrupt (for hardware that
     /// interrupts it, as the Amiga's does): the processor stops after the instruction, for its host to
     /// look. A bus that never interrupts leaves it false. It can only become true when the processor
@@ -152,6 +158,10 @@ public struct M68000: ~Copyable {
     @usableFromInline var pace: M68000Pace
     private var supervisor = true
     private var trace = false
+    /// While it runs, the cycles it has been given (`resume`), and the loop waiting on memory that it was
+    /// last seen to go round (`skipPolling`): where, and when.
+    private var runBudget = 0
+    private var polling: (top: UInt32, cycles: Int) = (.max, 0)
     private var interruptMask: UInt32 = 7
     /// The stack pointer that is not in use: the user's in supervisor mode, the supervisor's in user mode.
     private var otherStack: UInt32 = 0
@@ -383,6 +393,8 @@ public struct M68000: ~Copyable {
         // (Whether the bus asks to be looked at is asked after the first instruction, for what it may
         // have come to before the processor was set going, and then after each that reaches it.)
         k.reachedBus = true
+        runBudget = budget
+        polling = (.max, 0)
         while k.cycles < budget {
             let start = k.pc
             let op = fetch16(&k)
@@ -405,10 +417,46 @@ public struct M68000: ~Copyable {
         return .outOfTime
     }
 
+    /// Goes round a loop that waits for something to change, as many times as it is sure not to, at once:
+    /// a CMP.B, CMP.W, TST.B or TST.W of an absolute address, and a branch back to it. While the address
+    /// reads the same each time round is the one before again: the same registers and flags, and the
+    /// same number of cycles. Nothing but the processor changes its own memory while it runs, and
+    /// nothing in the loop does; for the bus's, the bus says until when it reads the same
+    /// (`M68000Bus.unchanged`). The program counter is at the top of the loop, which has been gone round
+    /// once since `polling` was set, if it was (the loop is only left by its branch not being taken,
+    /// which clears it). It is gone round every time but the last that begins
+    /// before the end of the run (`runBudget`) and reads before the address may change, which is left
+    /// to be run.
+    @inline(never) private mutating func skipPolling(_ k: inout M68000Pace) {
+        let top = k.pc & 0xFF_FFFF
+        guard !trace, top < ramSize &- 8 else { return }
+        let word = UInt32(UInt16(bigEndian: UnsafeRawPointer(ram + Int(top)).loadUnaligned(as: UInt16.self)))
+        let isByte = word & 0xF1FF == 0xB039 || word == 0x4A39
+        guard isByte || word & 0xF1FF == 0xB079 || word == 0x4A79 else { return }
+        let address = UInt32(bigEndian: UnsafeRawPointer(ram + Int(top) + 2).loadUnaligned(as: UInt32.self)) & 0xFF_FFFF
+        guard isByte || address & 1 == 0 else { return }
+        if polling.top == top, polling.cycles < k.cycles {
+            let period = k.cycles &- polling.cycles
+            var last = runBudget &- 1
+            if address >= (isByte ? ramSize : ramSize &- 1) {
+                // (The last read was made after the time round before this one began.)
+                guard let unchanged = bus.unchanged(address, word: !isByte, from: polling.cycles) else {
+                    polling = (top, k.cycles)
+                    return
+                }
+                last = min(last, unchanged &- 1)
+            }
+            let times = (last &- k.cycles) / period
+            if times > 0 { k.cycles &+= times &* period }
+        }
+        polling = (top, k.cycles)
+    }
+
     /// Runs the one instruction at the program counter, by the step that works out its modes as it runs
     /// if `general`, or else as `resume` runs it: for the tests, which see that the two agree.
     @export(interface) mutating func runOne(general: Bool) -> M68000Stop {
         stop = nil
+        runBudget = 0
         var k = pace
         let start = k.pc
         let op = fetch16(&k)
@@ -864,6 +912,11 @@ public struct M68000: ~Copyable {
             k.pc = base &+ displacement
         } else if condition(code, k) {
             k.pc = base &+ displacement
+            // A BNE.S or BEQ.S back over the six bytes before it may be a loop waiting on memory.
+            if code == 6 || code == 7, op & 0xFF == 0xF8 { skipPolling(&k) }
+        } else if code == 6 || code == 7, op & 0xFF == 0xF8 {
+            // Such a loop is left only this way: if it is come back to, it is seen anew.
+            polling.top = .max
         }
     }
 

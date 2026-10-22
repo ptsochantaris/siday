@@ -73,7 +73,8 @@ func amigaAudioDMAGoesAsItsSteps(seed: Int) {
         stepped.runByStepping(to: time, intreq: &steppedRequests, adkcon: adkcon)
         #expect(fast == stepped)
         #expect(fastRequests == steppedRequests)
-        #expect(fast.nextEvent == stepped.nextEvent)
+        let fastNext = fast.nextEvent, steppedNext = stepped.nextEvent
+        #expect(fastNext == steppedNext)
         if fast != stepped || fastRequests != steppedRequests { return }
         // When the next of some of the voices asks for its interrupt, against the steps that ask for it.
         let wanted = UInt16(random.below(16)) << 7

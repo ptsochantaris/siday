@@ -202,7 +202,10 @@ struct AmigaAudioDMA: Equatable {
     /// When the first of the voices `wanted` (by their bits in INTREQ) whose request is clear in `intreq`
     /// next asks for its interrupt, if one does by `limit`: as `run(to:)` would find it. Nil for none.
     /// (No voice whose period modulates another's is to be among them: see `canTellRequests`.)
-    func nextRequest(of wanted: UInt16, intreq: UInt16, adkcon: UInt16, by limit: UInt64) -> UInt64? {
+    ///
+    /// (This and `nextEvent` are mutating, though they change nothing: asked of the chips' copy, a
+    /// method that only reads it is handed a copy of all of it first.)
+    mutating func nextRequest(of wanted: UInt16, intreq: UInt16, adkcon: UInt16, by limit: UInt64) -> UInt64? {
         var soonest: UInt64?
         for v in 0 ..< 4 {
             let bit = UInt16(0x80) << UInt16(v)
@@ -225,23 +228,25 @@ struct AmigaAudioDMA: Equatable {
 
     /// The soonest a voice could next ask for its interrupt: nil while none is playing.
     var nextEvent: UInt64? {
-        var soonest: UInt64?
-        for v in 0 ..< 4 where voices[v].state != 0 {
-            let voice = voices[v]
-            let t: UInt64
-            switch voice.state {
-            case 1, 5:
-                t = voice.due
-            default:
-                // A word's second byte ends it, and asks for the interrupt once the block has been taken
-                // up again (or with each word, once its DMA is off); otherwise a fetch at the next line
-                // may take it up.
-                let wordEnds = voice.state == 3 ? voice.due : voice.due + voice.period
-                t = voice.reloaded || !voice.dma ? wordEnds : min(wordEnds, nextLine)
+        mutating get {
+            var soonest: UInt64?
+            for v in 0 ..< 4 where voices[v].state != 0 {
+                let voice = voices[v]
+                let t: UInt64
+                switch voice.state {
+                case 1, 5:
+                    t = voice.due
+                default:
+                    // A word's second byte ends it, and asks for the interrupt once the block has been taken
+                    // up again (or with each word, once its DMA is off); otherwise a fetch at the next line
+                    // may take it up.
+                    let wordEnds = voice.state == 3 ? voice.due : voice.due + voice.period
+                    t = voice.reloaded || !voice.dma ? wordEnds : min(wordEnds, nextLine)
+                }
+                soonest = min(soonest ?? t, t)
             }
-            soonest = min(soonest ?? t, t)
+            return soonest
         }
-        return soonest
     }
 
     /// UAE's `audio_handler`. A voice whose volume or period modulates another's plays nothing of its own.
