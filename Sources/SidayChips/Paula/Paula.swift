@@ -39,7 +39,8 @@ package struct Paula: ~Copyable {
         var storedLength: UInt16 = 0
         var storedVolume: Float = 0, storedDelta: Float = 0
 
-        // The band-limited steps still being played out.
+        // The band-limited steps still being played out: from `stepIndex`, which is under 16, to 16 on,
+        // where the last laid over ends, and noughts beyond that.
         var stepIndex = 0, stepsLeft = 0
         var steps = InlineArray<32, Float>(repeating: 0)
         var lastLevel: Float = 0
@@ -95,21 +96,37 @@ package struct Paula: ~Copyable {
         }
 
         /// Lays a step over the samples to come. `offset` is how far into the current sample it fell.
+        /// `table` is the step's points a row of sixteen to each place between two (see `Paula.init`), and
+        /// all sixteen are laid at once, each worked out as it would be alone.
         @inline(__always) private mutating func addStep(at offset: Float, of amplitude: Float, _ table: UnsafePointer<Float>) {
             var f = offset * 16
             let whole = Int(f)
             f -= Float(whole)
-            var source = whole
-            var i = stepIndex
-            var n = 0
-            while n < 16 {
-                let a = table[source], b = table[source &+ 1]
-                steps[unchecked: i] += amplitude * (a + ((b - a) * f))
-                source &+= 16
-                i = (i &+ 1) & 31
-                n &+= 1
+            let rows = UnsafeRawPointer(table), row = MemoryLayout<SIMD16<Float>>.size
+            let a = rows.loadUnaligned(fromByteOffset: whole &* row, as: SIMD16<Float>.self)
+            let b = rows.loadUnaligned(fromByteOffset: (whole &+ 1) &* row, as: SIMD16<Float>.self)
+            let step = amplitude * (a + ((b - a) * f))
+            let at = stepIndex &* MemoryLayout<Float>.size
+            withUnsafeMutableBytes(of: &steps) { steps in
+                steps.storeBytes(of: steps.loadUnaligned(fromByteOffset: at, as: SIMD16<Float>.self) + step, toByteOffset: at, as: SIMD16<Float>.self)
             }
             stepsLeft = 16
+        }
+
+        /// The next of the steps' samples, taken out. At the sixteenth, what is left is moved back to the start.
+        @inline(__always) private mutating func takeStep() -> Float {
+            let sample = steps[unchecked: stepIndex]
+            steps[unchecked: stepIndex] = 0
+            stepIndex &+= 1
+            if stepIndex == 16 {
+                stepIndex = 0
+                withUnsafeMutableBytes(of: &steps) { steps in
+                    let half = MemoryLayout<SIMD16<Float>>.size
+                    steps.storeBytes(of: steps.loadUnaligned(fromByteOffset: half, as: SIMD16<Float>.self), toByteOffset: 0, as: SIMD16<Float>.self)
+                    steps.storeBytes(of: SIMD16<Float>(), toByteOffset: half, as: SIMD16<Float>.self)
+                }
+            }
+            return sample
         }
 
         /// Adds `count` samples of this voice to `output`, and keeps them in `waves` as voice `number`
@@ -129,9 +146,7 @@ package struct Paula: ~Copyable {
                 }
                 var sample = level
                 if stepsLeft > 0 {
-                    sample += steps[unchecked: stepIndex]
-                    steps[unchecked: stepIndex] = 0
-                    stepIndex = (stepIndex &+ 1) & 31
+                    sample += takeStep()
                     stepsLeft -= 1
                 }
                 if !muted { output[j] += sample }
@@ -217,6 +232,8 @@ package struct Paula: ~Copyable {
     private let memorySize: Int
     /// Where in that memory a voice with nothing to play is pointed: a stretch of silence.
     private let silence: Int
+    /// The band-limited step (`paulaBandLimitedStep`), its points taken a sixteenth of a crossing
+    /// apart, laid out by where they fall between two: row `w` is points `w`, `w + 16`, `w + 32` and on.
     private let table: UnsafeMutablePointer<Float>
     private let periodToDelta: Float
 
@@ -230,8 +247,10 @@ package struct Paula: ~Copyable {
         memorySize = size
         self.silence = silence
         periodToDelta = Float(Self.clockHz / rate)
-        table = .allocate(capacity: paulaBandLimitedStep.count)
-        for i in 0 ..< paulaBandLimitedStep.count { table[i] = paulaBandLimitedStep[i] }
+        table = .allocate(capacity: 17 * 16)
+        for w in 0 ... 16 {
+            for n in 0 ..< 16 { table[w * 16 + n] = paulaBandLimitedStep[w + 16 * n] }
+        }
 
         // The parts on the board, from the Amiga 500 (rev 6A) and the Amiga 1200 (rev 1D4). The 1200
         // has a low-pass too, but it only begins at 34 kHz and is left out.
