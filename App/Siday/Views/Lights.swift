@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import SidayKit
+import SidayPlayer
 import SwiftUI
 
 /// A light for each voice of the tune: a chip's channels, a module's tracks. Each is the lamp of an

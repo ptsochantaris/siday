@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-// The player's engine, in a worker of its own. It holds the SidayWebAudio WebAssembly module (SidayKit
+// The player's engine, in a worker of its own. It holds the SidayWebAudio WebAssembly module (SidayPlayer
 // and nothing else), loads the tunes the page sends, and hands their sound in chunks to the audio
 // thread (worklet.js), a little ahead of what is being heard. It is the arrangement the command-line
 // player has: one thread makes the sound and another only plays it.

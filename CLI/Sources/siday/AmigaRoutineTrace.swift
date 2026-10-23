@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 
 /// What a SoundFX or an Oktalyzer module's player tells the sound chip, a line a tick, for setting
 /// beside what the tracker's own routine tells it: nil for a tune of another kind, or if it has not

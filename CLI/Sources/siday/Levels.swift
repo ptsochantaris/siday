@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 import Synchronization
 
 /// How loud each song is, for levelling (see `SongLevel`): found by playing the song through,

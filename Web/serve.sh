@@ -10,7 +10,7 @@ cd ${0:h}
 port=${1:-8000}
 
 # Rebuilt when there is nothing built yet, or when a source is newer than what was built.
-sources=(Package.swift toolset.json ../Package.swift ../Sources/SidayKit Sources/SidayWeb Sources/SidayWebAudio)
+sources=(Package.swift toolset.json ../Package.swift ../Sources Sources/SidayWeb Sources/SidayWebAudio)
 if [[ ! -f generated/SidayWeb.wasm || ! -f generated/SidayWebAudio.wasm || -n "$(find $sources -newer generated/SidayWeb.wasm -print -quit)" ]]; then
   ./build.sh
 fi

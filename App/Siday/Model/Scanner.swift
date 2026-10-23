@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 
 /// Finds the tunes in what the listener gives the app: files, folders, playlists. It is the
 /// command-line player's way (CLI/Sources/siday/Session.swift), which the two are to keep to: a

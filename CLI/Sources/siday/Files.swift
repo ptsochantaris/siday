@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 import Synchronization
 
 // SidayKit works on bytes and reads no files. This is the part of loading that needs a file system:

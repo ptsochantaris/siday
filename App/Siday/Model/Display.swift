@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 
 /// What the player shows at one moment, for one frame of the screen.
 struct Frame {

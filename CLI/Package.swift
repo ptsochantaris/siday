@@ -1,7 +1,7 @@
 // swift-tools-version: 6.4
 import PackageDescription
 
-// The command-line player, `siday`, built on SidayKit, which is the package at the top of this
+// The command-line player, `siday`, built on SidayPlayer, from the package at the top of this
 // repository.
 let package = Package(
     name: "siday-cli",
@@ -17,7 +17,7 @@ let package = Package(
         .executableTarget(
             name: "siday",
             dependencies: [
-                .product(name: "SidayKit", package: "siday"),
+                .product(name: "SidayPlayer", package: "siday"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),

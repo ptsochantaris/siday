@@ -1,7 +1,7 @@
 // swift-tools-version: 6.4
 import PackageDescription
 
-// The web player, built on SidayKit, which is the package at the top of this repository. It is two
+// The web player, built on SidayPlayer, from the package at the top of this repository. It is two
 // WebAssembly modules, made by build.sh: see the files beside this one, which are the site.
 let package = Package(
     name: "siday-web",
@@ -12,16 +12,16 @@ let package = Package(
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.59.0"),
     ],
     targets: [
-        // Its audio half: SidayKit in a worker, with no user interface and no JavaScript library.
+        // Its audio half: SidayPlayer in a worker, with no user interface and no JavaScript library.
         .executableTarget(
             name: "SidayWebAudio",
-            dependencies: [.product(name: "SidayKit", package: "siday")]
+            dependencies: [.product(name: "SidayPlayer", package: "siday")]
         ),
         // And the page: the playlist and controls, in ElementaryUI.
         .executableTarget(
             name: "SidayWeb",
             dependencies: [
-                .product(name: "SidayKit", package: "siday"),
+                .product(name: "SidayPlayer", package: "siday"),
                 .product(name: "ElementaryUI", package: "elementary-ui"),
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
             ],

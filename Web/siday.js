@@ -33,12 +33,12 @@ let asked = 0;
 /// Counts runs of sound: one starts with each tune, and with each move to another place in one. Word
 /// of any but the latest is dropped, here and on the audio thread.
 let serial = 0;
-/// What tunes are heard through: an output style, by its place in SidayKit's list of them, and the
+/// What tunes are heard through: an output style, by its place in SidayPlayer's list of them, and the
 /// name of the one kept from the last visit.
 let style = 0;
 const rememberedStyle = kept("siday.output") ?? "";
 let songLengths;
-/// The listener's settings: a number for each of SidayKit's, as the Swift side last gave them, and
+/// The listener's settings: a number for each of SidayPlayer's, as the Swift side last gave them, and
 /// what is waiting to pass a change of them on to the engine.
 let settings;
 let settling;

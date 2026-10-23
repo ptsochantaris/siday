@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 
 /// What FORMATS.md says of each format, carried in the player (see `Scripts/pack-formats.swift`),
 /// for `--about` and the `i` key: found by its heading, as the web player finds it, and set out for

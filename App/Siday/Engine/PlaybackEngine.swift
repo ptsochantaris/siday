@@ -3,7 +3,7 @@
 
 import AVFoundation
 import Foundation
-import SidayKit
+import SidayPlayer
 import Synchronization
 
 /// What is being heard at this moment, for the screen to show: where in the song, the spectrum
@@ -63,7 +63,7 @@ nonisolated enum VoiceKind: Sendable, Equatable {
     case speaker
 }
 
-/// The app's sound: SidayKit's `SongKeeper` on a thread of its own, which renders each song whole and
+/// The app's sound: SidayPlayer's `SongKeeper` on a thread of its own, which renders each song whole and
 /// sends it a little ahead into a `SoundRing`, and the system's audio output, which plays from that.
 /// It is the arrangement the web player has, of a worker and an audio thread: nothing is loaded or
 /// rendered on the audio thread itself.

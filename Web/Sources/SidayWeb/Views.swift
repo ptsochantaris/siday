@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import ElementaryUI
-import SidayKit
+import SidayPlayer
 
 @View
 struct PlayerView {

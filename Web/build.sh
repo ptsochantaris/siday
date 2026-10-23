@@ -5,7 +5,7 @@
 #   ./build.sh          then serve this folder, for instance:  python3 -m http.server --directory Web 8000
 set -e
 cd ${0:h}
-# This folder is a package of its own (Package.swift), built on SidayKit in the one above it.
+# This folder is a package of its own (Package.swift), built on SidayPlayer in the one above it.
 package=$PWD
 
 # Embedded Swift for both: small modules, and no Swift runtime to download.
@@ -28,7 +28,7 @@ command -v wasm-opt > /dev/null || optimise=(--no-optimize)
 swift package $common js --configuration release --product SidayWeb --output $output/siday-web $optimise
 cp $output/siday-web/SidayWeb.wasm $output/siday-web/instantiate.js $output/siday-web/runtime.js $output/siday-web/bridge-js.js generated/
 
-# The audio half: SidayKit alone, for the audio worklet, which needs none of the JavaScript.
+# The audio half: SidayPlayer alone, for the audio worklet, which needs none of the JavaScript.
 # With wasm-opt (from Binaryen) installed, the module goes through it and comes out a tenth smaller.
 # It renders no faster for it, and the sound is the same to the sample; without it, it is used as built.
 swift package $common js --configuration release --product SidayWebAudio --output $output/siday-web-audio --no-optimize

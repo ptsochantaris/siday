@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import SidayFoundation
+import SidayKit
 
 // What a player with a screen does between a file and the sound it hands to be heard: the web player's
 // engine and the app both play tunes through this. It loads a tune and starts its songs; makes its

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Reactivity
-import SidayKit
+import SidayPlayer
 
 /// What is known about the tune that is playing.
 struct Tune {

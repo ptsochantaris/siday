@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import SidayKit
+import SidayPlayer
 import SwiftUI
 
 /// What siday is, what it plays (each format's story a press away), whose work it is made from, and

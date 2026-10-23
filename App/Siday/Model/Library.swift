@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 
 /// The files and folders the listener has given the app, which it may read: a sandboxed app sees only
 /// those. Each is kept as a bookmark, so that the list of tunes is there again the next time the app

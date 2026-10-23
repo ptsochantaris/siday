@@ -3,6 +3,7 @@
 
 import Testing
 @testable import SidayKit
+@testable import SidayPlayer
 
 /// A keeper with the test module loaded, as tune 1, run 1.
 private func loaded() -> SongKeeper {

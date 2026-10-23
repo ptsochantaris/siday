@@ -149,18 +149,18 @@ shows what is installed), and nothing else: no Node, no packages to install. If 
 `wasm-opt` is installed, both modules go through it and come out smaller. The folder is the whole
 site, static files that any web server can serve.
 
-The page is two WebAssembly modules, about 1.5 MB compressed. `SidayWebAudio` is SidayKit and
+The page is two WebAssembly modules, about 1.5 MB compressed. `SidayWebAudio` is SidayPlayer and
 nothing else: it runs in a worker, which renders the whole of a song and keeps it, and the audio
 thread only plays what it is sent, so nothing the page does can hold the sound up. `SidayWeb` is
 the page itself, written in [ElementaryUI](https://elementary.codes). Between them is `siday.js`,
 for what only a browser has: the chosen files and the audio graph.
 
-The web player is a package of its own, in `Web/`, built on SidayKit: `Web/build.sh` builds it, and
+The web player is a package of its own, in `Web/`, built on SidayPlayer: `Web/build.sh` builds it, and
 `Web/serve.sh` builds it if it needs to and serves it on this Mac only.
 
 ## On a Mac, iPhone or iPad
 
-Siday is also an app, for macOS and iOS 26 or later, in `App/`: an Xcode project on SidayKit, written
+Siday is also an app, for macOS and iOS 26 or later, in `App/`: an Xcode project on SidayPlayer, written
 in SwiftUI. It has what the web page has: the playlist beside the player (on an iPhone, one at a
 time), the settings, and what siday plays with each format's story. It opens every kind of file siday plays, from the Finder or the
 Files app, by drag and drop, or with Add Files and Add Folder, and keeps its list from one day to the
@@ -298,7 +298,7 @@ loudspeaker, which is why it is a choice alongside mono and stereo and not on to
 `plastic` is a small portable, thin and forward. `wood` is a large set in a veneered cabinet, fuller and
 rounder. The level in the middle of the range is kept where it was. No particular set was measured: the
 figures are typical ones, chosen to be judged by ear, and are all in one place
-(`Sources/SidayKit/Player/Television.swift`).
+(`Sources/SidayPlayer/Player/Television.swift`).
 
 ### AY files ripped at the wrong speed
 
@@ -377,18 +377,21 @@ Played, with a difference:
 
 ## How it is built
 
-The repository is three packages and an app. At the top is SidayKit, which holds all emulation. It has no
-dependencies and uses none of Foundation: it is given a file's bytes and gives back samples, so it builds
-wherever Swift does, WebAssembly and Embedded Swift included, and another package can depend on this
-repository for it alone. It is built as modules, compiled side by side: `Sources/SidayFoundation`, what
-every player is made with; `SidayChips` and `SidayM68000`, the chips and the processor that several
+The repository is three packages and an app. At the top are SidayKit, which holds all emulation, and
+SidayPlayer, which the three front ends share. They have no dependencies and use none of Foundation:
+SidayKit is given a file's bytes and gives back samples, and both build wherever Swift does, WebAssembly
+and Embedded Swift included, so another package can depend on this repository for them alone. SidayKit
+is built as modules, compiled side by side: `Sources/SidayFoundation`, what every player is made with; `SidayChips` and `SidayM68000`, the chips and the processor that several
 families share; a module for each family of players (`SidayAmigaTrackers`, `SidayAmigaComposers`,
 `SidayAmigaMachine`, `SidayTrackers`, `SidayC64`, `SidayEightBit` and `SidayAtari`); and
-`Sources/SidayKit`, the loader and the player around it, which is the library that is imported, and
-brings the rest with it. `CLI/` is the player for macOS: reading files, Core Audio output, terminal keys
+`Sources/SidayKit`, the loader, which brings the rest with it. `Sources/SidayPlayer` is what lies
+between a tune and a listener, the same for every front end: how long a song is played and how it ends,
+the settings, the levelling, the television and the analyser, a song kept whole to move about in, the
+playlists and the pictures to listen by. It is the library the front ends import, and brings SidayKit
+with it. `CLI/` is the player for macOS: reading files, Core Audio output, terminal keys
 and options (via swift-argument-parser). `Web/` is the web player, and `App/` the app, whose list of the
 kinds of file it opens is written from SidayKit's by a test (`SIDAY_WRITE_APP_TYPES=1 swift test --filter
-appOpensEveryKindOfFile`). `swift test` at the top tests SidayKit, `swift test --package-path CLI` the
+appOpensEveryKindOfFile`). `swift test` at the top tests SidayKit and SidayPlayer, `swift test --package-path CLI` the
 command-line player, and the app's scheme in Xcode its accessibility in every part of it.
 
 | Part | Based on | Checked against |

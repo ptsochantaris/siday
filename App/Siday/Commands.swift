@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import SidayKit
+import SidayPlayer
 import SwiftUI
 
 /// Everything the app does, in its menus, with the keys of a Mac's music player: on a Mac's menu bar,

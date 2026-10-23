@@ -3,7 +3,7 @@
 
 import Foundation
 import Observation
-import SidayKit
+import SidayPlayer
 
 /// What is known about the tune that is playing.
 struct Tune: Equatable {

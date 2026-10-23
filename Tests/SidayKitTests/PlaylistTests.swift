@@ -3,6 +3,7 @@
 
 import Testing
 @testable import SidayKit
+@testable import SidayPlayer
 @testable import SidayFoundation
 
 /// A playlist as Ay_Emul writes one: lines that end as Windows ends them.

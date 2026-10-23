@@ -1,10 +1,10 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import SidayKit
+import SidayPlayer
 import SwiftUI
 
-/// The picture to listen by, painted from what the voices are doing (see SidayKit's `Visualiser`), small
+/// The picture to listen by, painted from what the voices are doing (see SidayPlayer's `Visualiser`), small
 /// and stretched soft over its place. It is calm: slower still if the listener would rather things
 /// moved less.
 struct Picture: View {

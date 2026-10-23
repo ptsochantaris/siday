@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import ArgumentParser
-import SidayKit
+import SidayPlayer
 import Foundation
 import Synchronization
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
-import SidayKit
+import SidayPlayer
 import SwiftUI
 
 /// What is playing: the tune's details, the spectrum analyser, where in it the song is, its songs, the

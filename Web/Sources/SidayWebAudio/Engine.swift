@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import SidayKit
+import SidayPlayer
 
 // The web player's engine. It is a WebAssembly module of its own, with no user interface and no
 // JavaScript library: a worker (Web/engine.js) hands it the bytes of a tune and asks it for samples,
@@ -14,7 +14,7 @@ import SidayKit
 // the way or taken out of it at any moment; a change between mono and stereo is a change to what the
 // chip makes, and the song has to be rendered again (`setOutput` says when).
 
-/// The one tune player of the module (see SidayKit's `TunePlayer`), and what `siday_pull` last made:
+/// The one tune player of the module (see SidayPlayer's `TunePlayer`), and what `siday_pull` last made:
 /// interleaved stereo, the size of block a browser's audio thread works in.
 private let quantumFrames = 128
 nonisolated(unsafe) private let player = TunePlayer()
@@ -117,7 +117,7 @@ public func sidaySelect(_ subsong: Int32) {
     player.select(Int(subsong))
 }
 
-/// The listener's settings: `count` numbers at `values`, one for each of SidayKit's settings in the
+/// The listener's settings: `count` numbers at `values`, one for each of SidayPlayer's settings in the
 /// order it lists them. Returns 1 if the tune that is loaded has to be loaded again (`siday_load`) to
 /// be heard as they now are: a setting has changed that has to do with a tune of its kind.
 @_expose(wasm, "siday_set_settings")
@@ -126,7 +126,7 @@ public func sidaySetSettings(_ values: UnsafePointer<Double>, _ count: Int32) ->
     player.setSettings(Array(UnsafeBufferPointer(start: values, count: Int(count)))) ? 1 : 0
 }
 
-/// What tunes are heard through: an output style, by its place in the order SidayKit lists them.
+/// What tunes are heard through: an output style, by its place in the order SidayPlayer lists them.
 /// Returns 1 if the tune that is loaded has to be loaded again (`siday_load`) to be heard that way,
 /// which is so when the change is between mono and stereo, or one stereo and the other, and the tune
 /// is one that stereo makes a difference to. A television is put in or taken out as the tune plays.

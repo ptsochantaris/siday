@@ -8,6 +8,7 @@ import Darwin
 import Glibc
 #endif
 @testable import SidayKit
+@testable import SidayPlayer
 @testable import SidayFoundation
 
 // The app's Info.plist says which files it opens, by their extensions, and those are SidayKit's:
