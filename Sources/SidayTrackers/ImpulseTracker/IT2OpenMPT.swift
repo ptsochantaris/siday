@@ -427,6 +427,19 @@ extension IT2Player {
         }
     }
 
+    /// What `openMPTRow` does of vibrato, for an IT file of ModPlug Tracker's or OpenMPT's with
+    /// OpenMPT's own vibrato (see `IT2Player.ownVibrato`): a note that is not slid to starts the
+    /// vibrato's wave a quarter of the way along (but at its start, with "old effects"), and the
+    /// tremolo's at its start.
+    func ownVibratoRow(_ hc: IT2HostPointer) {
+        let mask = hc.pointee.NotePackMask
+        guard mask & 0x11 != 0, hc.pointee.RawNote < 120 else { return }
+        let slides = mask & 0x88 != 0 && (hc.pointee.Cmd == 7 || hc.pointee.Cmd == 12) || mask & 0x44 != 0 && hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
+        if slides, hc.pointee.Flags & HF_CHAN_ON != 0 { return }
+        hc.pointee.OpenMPTVibratoPos = module.Flags & ITF_OLD_EFFECTS != 0 ? 0 : 0x10
+        hc.pointee.OpenMPTTremoloPos = 0
+    }
+
     private func beginCut(_ hc: IT2HostPointer) {
         hc.pointee.MiscEfxData[0] = 0xC0
         hc.pointee.MiscEfxData[1] = hc.pointee.MiscEfxData[2]
@@ -796,7 +809,8 @@ extension IT2Player {
         hc.pointee.Tuned.againAtRow = true
     }
 
-    /// A tick of vibrato in an MPTM file that does not ask for Impulse Tracker's ways with vibrato:
+    /// A tick of vibrato in a file that does not ask for Impulse Tracker's ways with vibrato (see
+    /// `IT2Player.ownVibrato`):
     /// OpenMPT's own, which is ProTracker's wave of 64 steps, of 127 a side and divided by twice as
     /// much, read and then moved on (but on a row's first tick with "old effects"), and the other
     /// way about from Impulse Tracker's.
@@ -842,7 +856,9 @@ extension IT2Player {
     /// steps.
     func openMPTOwnAutoVibrato(_ sc: IT2SlavePointer, _ smp: IT2Sample) {
         let full = Int(smp.AutoVibratoDepth) * 256
-        let depth = min(Int(sc.pointee.AutoVibratoDepth) + Int(smp.AutoVibratoRate) * 2, full)
+        // (How fast it comes in as an older OpenMPT meant it, in a file of its: see `IT2Module`.)
+        let rate = smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate
+        let depth = min(Int(sc.pointee.AutoVibratoDepth) + Int(rate) * 2, full)
         sc.pointee.AutoVibratoDepth = UInt16(depth)
         sc.pointee.AutoVibratoPos &+= smp.AutoVibratoSpeed
         let position = Int(sc.pointee.AutoVibratoPos)

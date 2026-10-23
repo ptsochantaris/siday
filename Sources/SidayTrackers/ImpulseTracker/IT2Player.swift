@@ -983,7 +983,7 @@ final class IT2Player {
         // or when a note that is put off comes.)
         if tunings, !delaysNote(hc) { openMPTTunedRow(hc) }
         if module.openMPTForeign { foreignRow(hc) }
-        if module.openMPT != nil, !delaysNote(hc) { openMPTRow(hc) }
+        if module.openMPT != nil, !delaysNote(hc) { openMPTRow(hc) } else if ownVibrato, !delaysNote(hc) { ownVibratoRow(hc) }
         if module.playsAsXTracker, !delaysNote(hc) { xTrackerRow(hc) }
         InitCommand(hc)
         // (And for a module of Digitrakker's, a place between the speakers that had no room.)
@@ -1214,6 +1214,7 @@ final class IT2Player {
         if tunings, sc.pointee.Ins != 0xFF, sc.pointee.InsPtr?.Tuning != nil { return openMPTTunedAutoVibrato(sc, smp) }
         if module.madTracker { return madTrackerAutoVibrato(sc, smp) }
         if let song = module.openMPT { return song.itVibrato ? openMPTAutoVibrato(sc, smp) : openMPTOwnAutoVibrato(sc, smp) }
+        if ownVibrato { return openMPTOwnAutoVibrato(sc, smp) }
         sc.pointee.AutoVibratoDepth &+= UInt16(asImpulseTracker ? smp.AutoVibratoRate : smp.AutoVibratoRateAsModPlug ?? smp.AutoVibratoRate)
         if sc.pointee.AutoVibratoDepth >> 8 > UInt16(smp.AutoVibratoDepth) {
             sc.pointee.AutoVibratoDepth = (UInt16(smp.AutoVibratoDepth) << 8) | (sc.pointee.AutoVibratoDepth & 0xFF)
@@ -1543,6 +1544,10 @@ final class IT2Player {
     /// and for one of ModPlug Tracker 1.0's (see `IT2Module.byModPlugOne`) or an older Schism Tracker's
     /// (see `IT2Module.schismPeriods`).
     let pitchesArePeriods: Bool
+    /// True if vibrato, tremolo and a sample's own vibrato are OpenMPT's own (see `openMPTOwnVibrato`):
+    /// as an MPTM file says, or a file of ModPlug Tracker's or OpenMPT's that does not ask for
+    /// Impulse Tracker's (see `IT2Module.ModPlugWays.itVibrato`).
+    let ownVibrato: Bool
     var surroundPanning = false, filterWaits = false
 
     /// How a channel is given a place between the speakers.
@@ -1626,6 +1631,7 @@ final class IT2Player {
         playsBackwards = module.openMPT != nil || !module.madeByImpulseTracker && !asImpulseTracker
         smoothMacros = module.openMPT != nil || module.madeByModPlug && !asImpulseTracker
         speakerCommands = smoothMacros
+        ownVibrato = module.openMPT.map { !$0.itVibrato } ?? (module.madeByModPlug && !asImpulseTracker && !module.modPlug.itVibrato)
         pitchesArePeriods = module.openMPT?.pitchesArePeriods
             ?? (!asImpulseTracker && (module.madeByModPlug && module.modPlug.pitchesArePeriods || module.byModPlugOne || module.schismPeriods))
         oldFilterSwing = module.modPlug.oldFilterSwing

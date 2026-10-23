@@ -434,6 +434,13 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     #expect(!Ways(asked: asked([7]), savedWith: 0x0130_0100, wideRange: false, linearSlides: false).pitchesArePeriods)
     #expect(Ways(asked: asked([]), savedWith: 0x0130_0100, wideRange: false, linearSlides: false).pitchesArePeriods)
     #expect(!Ways().pitchesArePeriods)
+    // Vibrato is OpenMPT's own in a file of ModPlug Tracker's, and Impulse Tracker's where a file
+    // asks for it, as "compatible play" does from 1.17.03.02.
+    #expect(!Ways(asked: asked([]), savedWith: 0x0116_0000, wideRange: false, linearSlides: true).itVibrato)
+    #expect(Ways(asked: asked([21]), savedWith: 0x0128_0000, wideRange: false, linearSlides: true).itVibrato)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0118_0000, wideRange: false, linearSlides: true).itVibrato)
+    #expect(!Ways(asked: asked([0]), savedWith: 0x0117_0200, wideRange: false, linearSlides: true).itVibrato)
+    #expect(Ways().itVibrato)
     // And so they are in a Schism Tracker's file from before 29 January 2015, or before 2 May 2021
     // without linear slides (as this one is), by the day its version says it was made.
     func bySchism(_ version: Int, days: Int = 0, linear: Bool = false) throws -> Bool {

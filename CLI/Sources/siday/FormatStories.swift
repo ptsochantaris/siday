@@ -2498,7 +2498,10 @@ Tracker's ways, as OpenMPT plays them, but for their pitches: 66 are nearer libo
 further. So, as OpenMPT has it, are those of a Schism Tracker that kept periods too, before it went
 over to rates on 29 January 2015, or on 2 May 2021 for a song without linear slides, by the day its
 version says it was made: 470 files to hand, 236 nearer libopenmpt for it and 23 further, their
-spectra alike to 0.997 for the middle one where they were 0.989. And in a file of a tracker
+spectra alike to 0.997 for the middle one where they were 0.989. And vibrato, tremolo and a sample's own
+vibrato are OpenMPT's own in such a file that does not ask for Impulse Tracker's, as they are in an
+MPTM file: ProTracker's waves of 64 steps, the vibrato's begun a quarter of the way along at each
+note. Of 131 files to hand whose sound that changes in libopenmpt, 44 are nearer it and 7 further. And in a file of a tracker
 that had no filter, Impulse Tracker before 2.14 or ModPlug Tracker 1.0 before its sixth alpha, Zxx
 is nothing, as it was to them (six files to hand have it, and one sounds different for it).
 

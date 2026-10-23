@@ -149,8 +149,9 @@ public extension SongLevel {
     /// MPTM files kept where a channel is put, as they had it; 12: ModPlug's reverb in a later
     /// tracker's S3M file on a Sound Blaster too; 13: pitches kept as periods in ModPlug Tracker's
     /// and older OpenMPT's IT files, and Zxx nothing in those of trackers that had no filter; 14: and in
-    /// older Schism Tracker's.)
-    static let soundVersion = 14
+    /// older Schism Tracker's; 15: OpenMPT's own vibrato in ModPlug Tracker's and OpenMPT's IT files
+    /// that do not ask for Impulse Tracker's.)
+    static let soundVersion = 15
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {

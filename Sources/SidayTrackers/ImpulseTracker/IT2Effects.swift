@@ -1542,7 +1542,7 @@ extension IT2Player {
     /// bits, as the original's is. (OpenMPT divides it towards nought, where Impulse Tracker rounds.)
     func CommandH5(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ VibratoData: Int8) {
         if tuning(of: hc) != nil { return openMPTTunedVibrato(hc, VibratoData) }
-        if module.openMPT?.itVibrato == false { return openMPTOwnVibrato(hc, sc) }
+        if ownVibrato { return openMPTOwnVibrato(hc, sc) }
         let bent = (Int(VibratoData) * Int(Int8(bitPattern: hc.pointee.VibratoDepth))) << 2
         var VibratoData = Int8(truncatingIfNeeded: module.openMPT != nil || module.playsAsXTracker ? bent / 256 : (bent + 128) >> 8)
         if module.Flags & ITF_OLD_EFFECTS != 0 { VibratoData = 0 &- VibratoData }
@@ -1755,7 +1755,7 @@ extension IT2Player {
 
     /// Moves the volume by a step of the tremolo's wave times its depth, for this tick only.
     func CommandR2(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ TremoloData: Int8) {
-        if module.openMPT?.itVibrato == false { return openMPTOwnTremolo(hc, sc) }
+        if ownVibrato { return openMPTOwnTremolo(hc, sc) }
         let TremoloData = Int8(truncatingIfNeeded: (((Int(TremoloData) * Int(Int8(bitPattern: hc.pointee.TremoloDepth))) << 2) + 128) >> 8)
 
         var vol = Int16(sc.pointee.Vol) + Int16(TremoloData)
@@ -1811,7 +1811,7 @@ extension IT2Player {
 
             hc.pointee.Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX)
             if tunings { openMPTTunedRow(hc) }
-            if module.openMPT != nil { openMPTRow(hc) }
+            if module.openMPT != nil { openMPTRow(hc) } else if ownVibrato { ownVibratoRow(hc) }
             if module.playsAsXTracker { xTrackerRow(hc) }
             InitNoCommand(hc)
             hc.pointee.Flags |= HF_ROW_UPDATED

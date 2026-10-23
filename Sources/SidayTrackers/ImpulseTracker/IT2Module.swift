@@ -174,6 +174,9 @@ final class IT2Module {
         /// until its version 1.24 for a song with linear slides and 1.30 for one without (see
         /// `IT2Periods.swift`); false for one in Hertz, as Impulse Tracker keeps it.
         var pitchesArePeriods = false
+        /// True if vibrato, tremolo and a sample's own vibrato are Impulse Tracker's; false for
+        /// OpenMPT's own, which are ProTracker's waves of 64 steps (see `IT2Player.ownVibrato`).
+        var itVibrato = true
 
         init() {}
 
@@ -202,6 +205,7 @@ final class IT2Module {
                 hertz = false
             }
             pitchesArePeriods = !hertz
+            itVibrato = asks(Self.itVibrato, since: 0x0117_0302)
         }
 
         /// OpenMPT's numbers for the ways of playing that are looked at: "compatible play", its
@@ -209,7 +213,7 @@ final class IT2Module {
         /// an envelope starts again, with an instrument named beside a slide to a note, and with
         /// the filter, and with a place for a channel in surround.
         static let compatiblePlay = 0, oldSwing = 1, envelopeReset = 19, portamentoInstrument = 32, filterBehaviour = 36
-        static let panOverride = 10, noSurroundPan = 37, periodsAreHertz = 7
+        static let panOverride = 10, noSurroundPan = 37, periodsAreHertz = 7, itVibrato = 21
     }
 
     let modPlug: ModPlugWays
