@@ -4,29 +4,105 @@
 import SidayPlayer
 
 // The web player's engine. It is a WebAssembly module of its own, with no user interface and no
-// JavaScript library: a worker (Web/engine.js) hands it the bytes of a tune and asks it for samples,
-// through the functions exported at the foot of this file, and passes them on to the audio thread.
+// JavaScript library: a worker (Web/engine.js) hands it what the page asks for, through the functions
+// exported at the foot of this file, and passes on what it has for the audio thread and the page.
 //
-// The worker renders a whole song as fast as it can and keeps it, so that the listener can move about
-// in it. What it keeps is the tune as the chip made it. The television, if the sound is going through
-// one, and the spectrum analyser, which shows what is being heard, are applied to each piece as it is
-// sent to be played: `pull` makes the sound and `present` finishes it. So a television can be put in
-// the way or taken out of it at any moment; a change between mono and stereo is a change to what the
-// chip makes, and the song has to be rendered again (`setOutput` says when).
+// It is SidayPlayer's `SongKeeper`, as the app's engine has it: a song is rendered whole as fast as
+// it can be and kept, so that the listener can move about in it, and sent to be heard in chunks, a
+// little ahead. The worker gives it its turns, and the time; the chunks and the news it leaves are
+// taken from it a message at a time, as bytes (see `Packed`), and the worker sends them on.
 
-/// The one tune player of the module (see SidayPlayer's `TunePlayer`), and what `siday_pull` last made:
-/// interleaved stereo, the size of block a browser's audio thread works in.
-private let quantumFrames = 128
-nonisolated(unsafe) private let player = TunePlayer()
-nonisolated(unsafe) private let output = UnsafeMutablePointer<Float>.allocate(capacity: quantumFrames * 2)
-/// What `siday_level_key` and `siday_level` last handed out, kept for the page to read.
-nonisolated(unsafe) private var levelBytes: [UInt8] = []
-/// What `siday_measure` last found, for the worker to read (`siday_measured`).
-nonisolated(unsafe) private var measuredBytes: [UInt8] = []
+nonisolated(unsafe) private let keeper = SongKeeper()
+/// The files the tune next loaded or played through needs beside its own, as `siday_companion` gave them.
+nonisolated(unsafe) private var companions: [[UInt8]?] = []
+/// What was last handed out for the worker to read: a message, and a chunk's sound.
+nonisolated(unsafe) private var packed: [UInt8] = []
+nonisolated(unsafe) private let samples = UnsafeMutablePointer<Float>.allocate(capacity: SongKeeper.chunkFrames * 2)
+
+/// A message for the worker to read, as bytes, one thing after another: a number as eight bytes, a
+/// float; and a run of bytes, or a text in UTF-8, as its length in four, an integer, and then the
+/// bytes; -1 for none. Both little-endian, as WebAssembly is.
+private struct Packed {
+    var bytes: [UInt8] = []
+
+    mutating func add(_ number: Double) {
+        var bits = number.bitPattern
+        for _ in 0 ..< 8 {
+            bytes.append(UInt8(truncatingIfNeeded: bits))
+            bits >>= 8
+        }
+    }
+
+    mutating func add(_ run: [UInt8]?) {
+        var bits = UInt32(bitPattern: Int32(run?.count ?? -1))
+        for _ in 0 ..< 4 {
+            bytes.append(UInt8(truncatingIfNeeded: bits))
+            bits >>= 8
+        }
+        if let run { bytes += run }
+    }
+
+    mutating func add(_ text: String) {
+        add(Array(text.utf8))
+    }
+}
+
+/// An event, for the worker to tell the page of: first its kind, a number, as `siday_take_event` has
+/// them, and the tune it is of.
+private func pack(_ event: SongKeeper.Event) -> Packed {
+    var message = Packed()
+    switch event {
+    case let .loaded(tune, plays, problem, info, songs, song, length, _, levelKey):
+        // (The songs are counted as the file has them: one, for a file of one song, which is not listed.)
+        message.add(1)
+        message.add(Double(tune))
+        message.add(plays ? 1 : 0)
+        message.add(Double(songs.isEmpty ? (plays ? 1 : 0) : songs.count))
+        message.add(Double(song))
+        message.add(length)
+        message.add(info.map { TunePlayer.details(of: $0, songs: songs) } ?? problem ?? "")
+        message.add(levelKey)
+    case let .level(tune, key, text):
+        message.add(2)
+        message.add(Double(tune))
+        message.add(key)
+        message.add(text)
+    case let .rendered(tune, seconds, length):
+        message.add(3)
+        message.add(Double(tune))
+        message.add(seconds)
+        message.add(length)
+    case let .remaking(tune, busy):
+        message.add(4)
+        message.add(Double(tune))
+        message.add(busy ? 1 : 0)
+    case let .muted(tune, marks):
+        message.add(5)
+        message.add(Double(tune))
+        message.add(marks)
+    case let .measure(tune, _, _, _):
+        // (The file is the one the worker has just given to `siday_load`, and has still.)
+        message.add(6)
+        message.add(Double(tune))
+    case let .songs(tune, songs):
+        message.add(7)
+        message.add(Double(tune))
+        message.add(keeper.player.renderer.map { TunePlayer.details(of: $0.info, songs: songs) } ?? "")
+    }
+    return message
+}
+
+private func bytes(_ data: UnsafePointer<UInt8>, _ length: Int32) -> [UInt8] {
+    Array(UnsafeBufferPointer(start: data, count: Int(max(0, length))))
+}
+
+private func text(_ data: UnsafePointer<UInt8>, _ length: Int32) -> String {
+    String(decoding: UnsafeBufferPointer(start: data, count: Int(max(0, length))), as: UTF8.self)
+}
 
 // MARK: Exports
 
-// Memory for the page to put a file in before calling `siday_load`.
+// Memory for the worker to put a file in before calling `siday_load`.
 @_expose(wasm, "siday_alloc")
 @_cdecl("siday_alloc")
 public func sidayAlloc(_ size: Int32) -> UnsafeMutableRawPointer {
@@ -39,305 +115,196 @@ public func sidayFree(_ pointer: UnsafeMutableRawPointer) {
     pointer.deallocate()
 }
 
-/// Loads the tune in `data`; `name` is its file name or path, in UTF-8. Returns 1 if it will play.
-@_expose(wasm, "siday_load")
-@_cdecl("siday_load")
-public func sidayLoad(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: UnsafePointer<UInt8>, _ nameLength: Int32) -> Int32 {
-    let bytes = Array(UnsafeBufferPointer(start: data, count: Int(length)))
-    let name = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self)
-    return player.load(bytes, name: name) ? 1 : 0
-}
-
-/// 1 while some of the loaded tune's songs have still to be played through to find how long they are
-/// (`SongInfo.pending`). The worker has another instance of this module play them all through
-/// (`siday_measure`), so as not to hold up the sound, and gives what it found to `siday_adopt`.
-@_expose(wasm, "siday_songs_pending")
-@_cdecl("siday_songs_pending")
-public func sidaySongsPending() -> Int32 {
-    player.songsPending ? 1 : 0
-}
-
-/// Plays every song of the tune in `data` through, to find how long each is, as `siday_load` would load
-/// it (with the files beside it given before, as for that). Returns how many bytes of what was found
-/// `siday_measured` hands out, for `siday_adopt`: none, for a tune that is not played through.
-@_expose(wasm, "siday_measure")
-@_cdecl("siday_measure")
-public func sidayMeasure(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: UnsafePointer<UInt8>, _ nameLength: Int32) -> Int32 {
-    let bytes = Array(UnsafeBufferPointer(start: data, count: Int(length)))
-    let name = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self)
-    // (The digest it is kept under, in UTF-8, which has no nought in it, a nought, and the finding.)
-    measuredBytes = player.measure(bytes, name: name).map { Array($0.key.utf8) + [0] + $0.measures.bytes } ?? []
-    return Int32(measuredBytes.count)
-}
-
-@_expose(wasm, "siday_measured")
-@_cdecl("siday_measured")
-public func sidayMeasured() -> UnsafePointer<UInt8>? {
-    measuredBytes.withUnsafeBufferPointer { $0.baseAddress }
-}
-
-/// Takes what `siday_measure` found, from another instance of the module, and keeps it. Returns 1 if
-/// it is of the tune that is loaded and said what was not known: how long the rest of its songs are,
-/// which `siday_text` now says.
-@_expose(wasm, "siday_adopt")
-@_cdecl("siday_adopt")
-public func sidayAdopt(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
-    let bytes = Array(UnsafeBufferPointer(start: data, count: Int(length)))
-    guard let split = bytes.firstIndex(of: 0), let measures = SongMeasures(bytes: Array(bytes[(split + 1)...])) else { return 0 }
-    return player.adopt(measures, key: String(decoding: bytes[..<split], as: UTF8.self)) ? 1 : 0
-}
-
-/// The files the tune next loaded needs beside its own, given one at a time before `siday_load`, in
-/// the order `Companions.wanted` has them: `found` 0 for one that was not found, and a `length` of
-/// -1 forgets those given before.
+/// The files the tune next loaded needs beside its own, given one at a time before `siday_load` (or
+/// `siday_measure`), in the order `Companions.wanted` has them: `found` 0 for one that was not found,
+/// and a `length` of -1 forgets those given before.
 @_expose(wasm, "siday_companion")
 @_cdecl("siday_companion")
 public func sidayCompanion(_ data: UnsafePointer<UInt8>?, _ length: Int32, _ found: Int32) {
     if length < 0 {
-        player.companions = []
+        companions = []
     } else if found == 0 {
-        player.companions.append(nil)
+        companions.append(nil)
     } else {
-        player.companions.append(data.map { Array(UnsafeBufferPointer(start: $0, count: Int(length))) } ?? [])
+        companions.append(data.map { bytes($0, length) } ?? [])
     }
+}
+
+/// Loads the tune in `data`, the page's `tune`th request to play; `name` is its file name or path, in
+/// UTF-8. It starts on `subsong`, or on the song the file asks to be played first, for a negative one,
+/// and sends what it renders of it as the run of sound `serial`. `now` is the time, in seconds.
+@_expose(wasm, "siday_load")
+@_cdecl("siday_load")
+public func sidayLoad(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: UnsafePointer<UInt8>, _ nameLength: Int32,
+                      _ tune: Int32, _ serial: Int32, _ subsong: Int32, _ now: Double) {
+    keeper.load(tune: Int(tune), serial: Int(serial), name: text(name, nameLength), bytes: bytes(data, length),
+                companions: companions, subsong: Int(subsong), now: now)
+}
+
+/// The listener has moved to `position` in the song, in seconds: sent as the run of sound `serial`.
+@_expose(wasm, "siday_seek")
+@_cdecl("siday_seek")
+public func sidaySeek(_ position: Double, _ serial: Int32, _ now: Double) {
+    keeper.seek(to: position, serial: Int(serial), now: now)
+}
+
+/// The listener has pressed a voice's light, by its place among those that are shown: with `solo` 1,
+/// to hear it alone (see `SongKeeper.mute`).
+@_expose(wasm, "siday_mute")
+@_cdecl("siday_mute")
+public func sidayMute(_ light: Int32, _ solo: Int32) {
+    keeper.mute(light: Int(light), solo: solo != 0)
+}
+
+/// What tunes are heard through: an output style, by its place in the order SidayPlayer lists them.
+@_expose(wasm, "siday_set_output")
+@_cdecl("siday_set_output")
+public func sidaySetOutput(_ style: Int32) {
+    let styles = OutputStyle.allCases
+    guard styles.indices.contains(Int(style)) else { return }
+    keeper.setOutput(styles[Int(style)])
+}
+
+/// The listener's settings: `count` numbers at `values`, one for each of SidayPlayer's settings in the
+/// order it lists them.
+@_expose(wasm, "siday_set_settings")
+@_cdecl("siday_set_settings")
+public func sidaySetSettings(_ values: UnsafePointer<Double>, _ count: Int32) {
+    keeper.setSettings(Array(UnsafeBufferPointer(start: values, count: Int(count))))
 }
 
 /// HVSC's Songlengths.md5, for the SID tunes loaded after it. A length of zero forgets it.
 @_expose(wasm, "siday_set_songlengths")
 @_cdecl("siday_set_songlengths")
 public func sidaySetSongLengths(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
-    let database = SongLengthDatabase(Array(UnsafeBufferPointer(start: data, count: Int(length))))
-    player.setSongLengths(database.isEmpty ? nil : database)
+    let database = SongLengthDatabase(bytes(data, length))
+    keeper.setSongLengths(database.isEmpty ? nil : database)
     return database.isEmpty ? 0 : 1
 }
 
-@_expose(wasm, "siday_select")
-@_cdecl("siday_select")
-public func sidaySelect(_ subsong: Int32) {
-    player.select(Int(subsong))
+/// The level the page kept under `key` (see `SongLevel.key`), as the news of a song's level gave it,
+/// both in UTF-8; none (a length of 0), if none was kept.
+@_expose(wasm, "siday_set_kept_level")
+@_cdecl("siday_set_kept_level")
+public func sidaySetKeptLevel(_ key: UnsafePointer<UInt8>, _ keyLength: Int32, _ level: UnsafePointer<UInt8>, _ levelLength: Int32, _ now: Double) {
+    keeper.setKeptLevel(key: text(key, keyLength), text: levelLength > 0 ? text(level, levelLength) : nil, now: now)
 }
 
-/// The listener's settings: `count` numbers at `values`, one for each of SidayPlayer's settings in the
-/// order it lists them. Returns 1 if the tune that is loaded has to be loaded again (`siday_load`) to
-/// be heard as they now are: a setting has changed that has to do with a tune of its kind.
-@_expose(wasm, "siday_set_settings")
-@_cdecl("siday_set_settings")
-public func sidaySetSettings(_ values: UnsafePointer<Double>, _ count: Int32) -> Int32 {
-    player.setSettings(Array(UnsafeBufferPointer(start: values, count: Int(count)))) ? 1 : 0
+/// The tune has been taken out of the list, and nothing follows it: the song is let go.
+@_expose(wasm, "siday_stop")
+@_cdecl("siday_stop")
+public func sidayStop() {
+    keeper.stop()
 }
 
-/// What tunes are heard through: an output style, by its place in the order SidayPlayer lists them.
-/// Returns 1 if the tune that is loaded has to be loaded again (`siday_load`) to be heard that way,
-/// which is so when the change is between mono and stereo, or one stereo and the other, and the tune
-/// is one that stereo makes a difference to. A television is put in or taken out as the tune plays.
-@_expose(wasm, "siday_set_output")
-@_cdecl("siday_set_output")
-public func sidaySetOutput(_ style: Int32) -> Int32 {
-    let styles = OutputStyle.allCases
-    guard styles.indices.contains(Int(style)) else { return 0 }
-    return player.setOutput(styles[Int(style)]) ? 1 : 0
+/// From the audio thread: a chunk of the run of sound `serial` has been heard.
+@_expose(wasm, "siday_played")
+@_cdecl("siday_played")
+public func sidayPlayed(_ serial: Int32, _ now: Double) {
+    keeper.played(serial: Int(serial), now: now)
 }
 
-/// Renders the next 128 frames into the buffer at `siday_output`, as the chip made them. Returns 0
-/// once the tune is over.
-/// Says which voices are to be left out when the tune is next loaded: a byte for each voice, 1 for
-/// one not to be heard; no bytes for every voice heard. Returns 1 if the tune can be loaded so at
-/// once, and 0 if its song must first be played to the end with every voice heard.
-@_expose(wasm, "siday_set_muted")
-@_cdecl("siday_set_muted")
-public func sidaySetMuted(_ marks: UnsafePointer<UInt8>?, _ count: Int32) -> Int32 {
-    var muted: [Bool] = []
-    if let marks { for index in 0 ..< Int(max(0, count)) { muted.append(marks[index] != 0) } }
-    return player.setMuted(muted) ? 1 : 0
+/// Renders up to `chunks` chunks of the song and sends what is due (none, to send only). Returns 1 if
+/// there is more to render.
+@_expose(wasm, "siday_work")
+@_cdecl("siday_work")
+public func sidayWork(_ chunks: Int32, _ now: Double) -> Int32 {
+    keeper.work(chunks: Int(chunks), now: now) ? 1 : 0
 }
 
-/// What the song's level is kept under (see `SongLevel.key`), in UTF-8, `siday_level_key_length`
-/// bytes of it: the same for the same song of the same file played the same way.
-@_expose(wasm, "siday_level_key")
-@_cdecl("siday_level_key")
-public func sidayLevelKey() -> UnsafePointer<UInt8>? {
-    levelBytes = Array(player.levelKey.utf8)
-    return levelBytes.withUnsafeBufferPointer { $0.baseAddress }
+/// 1 while there is more of the song to render.
+@_expose(wasm, "siday_working")
+@_cdecl("siday_working")
+public func sidayWorking() -> Int32 {
+    keeper.isWorking ? 1 : 0
 }
 
-@_expose(wasm, "siday_level_key_length")
-@_cdecl("siday_level_key_length")
-public func sidayLevelKeyLength() -> Int32 {
-    Int32(player.levelKey.utf8.count)
+/// When `siday_work` is to be called again, in seconds, though there is nothing to render; -1 if
+/// it need not be.
+@_expose(wasm, "siday_wakes_at")
+@_cdecl("siday_wakes_at")
+public func sidayWakesAt() -> Double {
+    keeper.wakesAt ?? -1
 }
 
-/// The song's level as it was found by measuring it here (see `SongLevel.text`), to be kept, in
-/// UTF-8, `siday_level_length` bytes; none until it has been.
-@_expose(wasm, "siday_level")
-@_cdecl("siday_level")
-public func sidayLevel() -> UnsafePointer<UInt8>? {
-    levelBytes = player.levelFound ? Array((player.level?.text ?? "").utf8) : []
-    return levelBytes.withUnsafeBufferPointer { $0.baseAddress }
+/// Takes the next chunk of sound there is to be heard, if there is one, and returns the length of a
+/// message at `siday_packed` (or 0, for none): the run of sound it is of, the tune, the place in the
+/// song it reaches, in seconds, and 1 if it is the song's last, as numbers; then the analyser's bars
+/// and their caps, the voices' lights, five rows of them and a sixth for those left out (see
+/// `SongKeeper.Sent`), and their scopes, or none. Its sound is at `siday_samples`, interleaved stereo,
+/// `SongKeeper.chunkFrames` frames.
+@_expose(wasm, "siday_take_sent")
+@_cdecl("siday_take_sent")
+public func sidayTakeSent() -> Int32 {
+    guard !keeper.outbox.isEmpty else { return 0 }
+    let sent = keeper.outbox.removeFirst()
+    sent.samples.withUnsafeBufferPointer { samples.update(from: $0.baseAddress!, count: min($0.count, SongKeeper.chunkFrames * 2)) }
+    var message = Packed()
+    message.add(Double(sent.serial))
+    message.add(Double(sent.tune))
+    message.add(sent.position)
+    message.add(sent.last ? 1 : 0)
+    message.add(sent.bars)
+    message.add(sent.voices)
+    message.add(sent.scopes)
+    packed = message.bytes
+    return Int32(packed.count)
 }
 
-@_expose(wasm, "siday_level_length")
-@_cdecl("siday_level_length")
-public func sidayLevelLength() -> Int32 {
-    player.levelFound ? Int32((player.level?.text ?? "").utf8.count) : 0
+@_expose(wasm, "siday_samples")
+@_cdecl("siday_samples")
+public func sidaySamples() -> UnsafeMutablePointer<Float> {
+    samples
 }
 
-/// Gives the song the level that was kept for it, as `siday_level` gave it. Returns 1 if it was one.
-@_expose(wasm, "siday_set_level")
-@_cdecl("siday_set_level")
-public func sidaySetLevel(_ text: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
-    guard let level = SongLevel(text: String(decoding: UnsafeBufferPointer(start: text, count: Int(length)), as: UTF8.self)) else { return 0 }
-    player.setLevel(level)
-    return 1
+/// Takes the next piece of news there is for the page, if there is one, and returns the length of a
+/// message at `siday_packed` (or 0, for none). Its first number is its kind, the second the tune it is
+/// of, and the rest as follows (see `SongKeeper.Event`):
+///   1 loaded: 1 if it plays, its songs, the one playing, how long it is to be played, in seconds;
+///     its details (`TunePlayer.details`), or why it does not play; what its level is kept under.
+///   2 level: what it is kept under, and the level.
+///   3 rendered: how much there is to move about in, and the length that was found, or 0.
+///   4 remaking: 1 while the song is being made again, and 0 once it has been.
+///   5 muted: a byte for each voice with a light, 1 for one left out.
+///   6 measure: the songs of the tune just loaded are to be played through by another instance of
+///     this module (`siday_measure`), and what it finds given to `siday_adopt`.
+///   7 songs: its details, now that how long each of its songs is is known.
+@_expose(wasm, "siday_take_event")
+@_cdecl("siday_take_event")
+public func sidayTakeEvent() -> Int32 {
+    guard !keeper.events.isEmpty else { return 0 }
+    packed = pack(keeper.events.removeFirst()).bytes
+    return Int32(packed.count)
 }
 
-/// How far the song is turned up or down to be as loud as the rest, in dB; not a number while that
-/// is not known, or songs are not levelled.
-@_expose(wasm, "siday_level_change")
-@_cdecl("siday_level_change")
-public func sidayLevelChange() -> Double {
-    player.levelChange
+@_expose(wasm, "siday_packed")
+@_cdecl("siday_packed")
+public func sidayPacked() -> UnsafePointer<UInt8>? {
+    packed.withUnsafeBufferPointer { $0.baseAddress }
 }
 
-/// 1 if the song is not to be heard until it is levelled: songs are levelled, and its level is not
-/// known yet, from what was kept or from measuring it whole.
-@_expose(wasm, "siday_waits_for_level")
-@_cdecl("siday_waits_for_level")
-public func sidayWaitsForLevel() -> Int32 {
-    player.waitsForLevel ? 1 : 0
+/// Plays every song of the tune in `data` through, to find how long each is, as `siday_load` would load
+/// it (with the files beside it given before, as for that). Returns how many bytes of what was found
+/// there are at `siday_packed`, for `siday_adopt` in another instance: none, for a tune that is not
+/// played through.
+@_expose(wasm, "siday_measure")
+@_cdecl("siday_measure")
+public func sidayMeasure(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: UnsafePointer<UInt8>, _ nameLength: Int32) -> Int32 {
+    keeper.player.companions = companions
+    // (The digest it is kept under, in UTF-8, which has no nought in it, a nought, and the finding.)
+    packed = keeper.player.measure(bytes(data, length), name: text(name, nameLength)).map { Array($0.key.utf8) + [0] + $0.measures.bytes } ?? []
+    return Int32(packed.count)
 }
 
-/// The song can wait no longer: it starts at about its level, by as much of it as has been measured.
-@_expose(wasm, "siday_start_at_provisional_level")
-@_cdecl("siday_start_at_provisional_level")
-public func sidayStartAtProvisionalLevel() {
-    player.startAtProvisionalLevel()
+/// Takes what `siday_measure` found of the songs of the `tune`th tune, in another instance of the
+/// module, and keeps it: the page is told of them, if it is the tune that is loaded.
+@_expose(wasm, "siday_adopt")
+@_cdecl("siday_adopt")
+public func sidayAdopt(_ data: UnsafePointer<UInt8>, _ length: Int32, _ tune: Int32) {
+    let found = bytes(data, length)
+    guard let split = found.firstIndex(of: 0), let measures = SongMeasures(bytes: Array(found[(split + 1)...])) else { return }
+    keeper.adopt(tune: Int(tune), key: String(decoding: found[..<split], as: UTF8.self), measures: measures)
 }
-
-@_expose(wasm, "siday_pull")
-@_cdecl("siday_pull")
-public func sidayPull() -> Int32 {
-    player.pull(into: output, frames: quantumFrames) ? 1 : 0
-}
-
-@_expose(wasm, "siday_output")
-@_cdecl("siday_output")
-public func sidayOutput() -> UnsafeMutablePointer<Float> {
-    output
-}
-
-/// Finishes `frames` frames of rendered sound at `samples`, in place, on their way to being heard:
-/// the television, if one is on, and the spectrum analyser. They can be any part of the song, in any
-/// order; call `siday_settle` first when they do not follow the last ones.
-@_expose(wasm, "siday_present")
-@_cdecl("siday_present")
-public func sidayPresent(_ samples: UnsafeMutablePointer<Float>, _ frames: Int32) {
-    player.present(samples, frames: Int(frames))
-}
-
-@_expose(wasm, "siday_settle")
-@_cdecl("siday_settle")
-public func sidaySettle() {
-    player.settle()
-}
-
-/// The spectrum analyser's bars for the sound presented so far: `siday_spectrum_bands` bars, low to high,
-/// and then as many caps, each a byte from 0 to 255. Call it as often as the bars are drawn.
-@_expose(wasm, "siday_spectrum")
-@_cdecl("siday_spectrum")
-public func sidaySpectrum() -> UnsafePointer<UInt8>? {
-    player.analyse()
-    return player.bars.withUnsafeBufferPointer { $0.baseAddress }
-}
-
-@_expose(wasm, "siday_spectrum_bands")
-@_cdecl("siday_spectrum_bands")
-public func sidaySpectrumBands() -> Int32 {
-    Int32(player.bars.count / 2)
-}
-
-/// What is known of each voice of the tune, for the sound rendered since this was last called. There
-/// are `siday_lights_count` voices, and five bytes for each, kept as five rows: first a light for
-/// each voice, from 0, dark, to 255; then each voice's pitch in half semitones, 120 being middle C,
-/// or 0 for a voice with none; then 1 for each voice a note was started on; then the side each is
-/// heard from, 1 for the left, 128 for the middle, 255 for the right; then 1 for each voice that is
-/// playing a sample, and 0 for one whose sound a chip makes of itself. Nil if there are no voices.
-@_expose(wasm, "siday_lights")
-@_cdecl("siday_lights")
-public func sidayLights() -> UnsafePointer<UInt8>? {
-    player.takeVoices()
-    return player.voicesTaken.withUnsafeBufferPointer { $0.baseAddress }
-}
-
-/// Each voice's scope, as the sound rendered so far ends (see `ChannelWaves.take`): 64 bytes for each
-/// of the `siday_lights_count` voices, one voice after another, 128 for the middle, 1 at the bottom
-/// and 255 at the top. Flat for a tune whose player does not keep its voices' sound. Nil if there
-/// are no voices.
-@_expose(wasm, "siday_scopes")
-@_cdecl("siday_scopes")
-public func sidayScopes() -> UnsafePointer<UInt8>? {
-    player.takeScopes()
-    return player.scopes.withUnsafeBufferPointer { $0.baseAddress }
-}
-
-/// How many voices the loaded tune has lights for: an AY chip's three channels, a module's tracks.
-@_expose(wasm, "siday_lights_count")
-@_cdecl("siday_lights_count")
-public func sidayLightsCount() -> Int32 { Int32(player.voiceCount) }
-
-/// How many of them, the first, every tune of the kind has. The rest are for voices a tune may never
-/// use (a beeper, the samples played on a SID's volume), and are worth showing once they have lit.
-@_expose(wasm, "siday_lights_always")
-@_cdecl("siday_lights_always")
-public func sidayLightsAlways() -> Int32 { Int32(player.lightsAlwaysShown) }
-
-@_expose(wasm, "siday_text")
-@_cdecl("siday_text")
-public func sidayText() -> UnsafePointer<UInt8>? {
-    player.text.withUnsafeBufferPointer { $0.baseAddress }
-}
-
-@_expose(wasm, "siday_text_length")
-@_cdecl("siday_text_length")
-public func sidayTextLength() -> Int32 {
-    Int32(player.text.count)
-}
-
-@_expose(wasm, "siday_subsongs")
-@_cdecl("siday_subsongs")
-public func sidaySubsongs() -> Int32 { Int32(player.subsongCount) }
-
-@_expose(wasm, "siday_subsong")
-@_cdecl("siday_subsong")
-public func sidaySubsong() -> Int32 { Int32(player.subsong) }
-
-@_expose(wasm, "siday_length")
-@_cdecl("siday_length")
-public func sidayLength() -> Double { player.length }
-
-/// 1 when the file says how long the song is; 0 when `siday_length` is only the time it is allowed.
-@_expose(wasm, "siday_length_known")
-@_cdecl("siday_length_known")
-public func sidayLengthKnown() -> Int32 { player.lengthIsKnown ? 1 : 0 }
-
-/// Once a song is over and it ended on its own terms: how long it played for, up to where its ending
-/// began (see `TuneSession.playedLength`); 0 before then, or if it ended by falling silent.
-@_expose(wasm, "siday_played_length")
-@_cdecl("siday_played_length")
-public func sidayPlayedLength() -> Double { player.playedLength }
-
-/// Once a song is over: the seconds of silence at its end that showed it was, if that is how it
-/// ended, and 0 if not. They are no part of the song.
-@_expose(wasm, "siday_silence")
-@_cdecl("siday_silence")
-public func sidaySilence() -> Double { player.silenceAtEnd }
-
-@_expose(wasm, "siday_position")
-@_cdecl("siday_position")
-public func sidayPosition() -> Double { player.position }
-
-@_expose(wasm, "siday_state")
-@_cdecl("siday_state")
-public func sidayState() -> Int32 { Int32(player.state) }
 
 @main struct Main {
     /// Nothing to do: the module waits to be called.

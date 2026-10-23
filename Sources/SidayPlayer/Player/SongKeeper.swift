@@ -3,9 +3,8 @@
 
 import SidayFoundation
 
-// What the web player's engine does around its tune player, for a player with a screen to do it in
-// Swift: the app's. (It is Web/engine.js, as nearly as the one language can be put in the other, and
-// the two are to be kept in step.)
+// What a player with a screen does around its tune player: the web player's engine (in a worker, in
+// the audio module: Web/engine.js only carries messages to it and from it) and the app's.
 //
 // A song is rendered to its end as fast as the machine will go, and kept, so the listener can move
 // to any place in it: these tunes are programs, and the only way to the middle of one is through
@@ -17,7 +16,8 @@ import SidayFoundation
 // own, and only from that one: `work` renders a little and sends what is due, `played` says a chunk
 // that was sent has been heard, and the rest are what the listener asks for. What it has to hand
 // over is left in `outbox` (sound to be heard) and `events` (news for the screen), for the front
-// end to take. Where it waits for a while, it is told the time by the front end, in seconds.
+// end to take. Where it waits for a while, it is told the time by the front end, in seconds, and
+// says until when (`wakesAt`).
 
 /// The song as far as it has been rendered: the sound of each chunk, as the chip made it, and what
 /// its voices were doing in it. It says of itself which voices were left out of it, and once all of
@@ -142,7 +142,9 @@ public final class SongKeeper {
     public private(set) var shown: [Bool] = []
     /// True when there is no more of the song to render.
     private var complete = true
-    /// The song's length in seconds, once all of it is rendered, if that is how it was found out.
+    /// The song's length in seconds, once all of it is rendered, if that is how it was found out: the
+    /// file did not say, and the song came to an end before the time it was allowed; or the file did
+    /// say, and the song fell silent for good before then. Otherwise 0.
     private var found = 0.0
     /// True while what is heard is not yet what the listener last asked for.
     private var remaking = false
@@ -155,8 +157,13 @@ public final class SongKeeper {
     /// Chunks handed over that have not yet been heard.
     private var waiting = 0
     /// Until when sending waits, after a song is loaded and while songs are levelled, for the song's
-    /// level (see Web/engine.js); nil once the level is known, or the song is on its way.
+    /// level: first a moment for the front end to say what level was kept for it, so that a song
+    /// measured before starts at its level; and then, if none was, up to a second more while it is
+    /// measured as it is rendered. A song that is measured whole in that time starts at its level; one
+    /// that is not starts at about it, by as much of it as has been measured, and glides to it once
+    /// the whole of it has been. Nil once the level is known, or the song is on its way.
     private var levelWait: Double?
+    /// True once the moment for the front end to answer is over, and the song is being measured.
     private var measuring = false
     private let scratch = UnsafeMutablePointer<Float>.allocate(capacity: SongKeeper.chunkFrames * 2)
 
@@ -297,6 +304,10 @@ public final class SongKeeper {
     /// True while there is more of the song to render.
     public var isWorking: Bool { !complete }
 
+    /// When `work` is to be called again, if it is not called before, though there is nothing to
+    /// render: sending waits until then for the song's level (see `levelWait`). Nil if it does not.
+    public var wakesAt: Double? { levelWait }
+
     /// Renders up to `chunks` chunks of the song, sending what is due between them, and says how much
     /// there is to move about in. Returns true if there is more to render.
     @discardableResult
@@ -363,7 +374,12 @@ public final class SongKeeper {
     }
 
     /// Renders the playing song again from its start, because what it is heard through, or a setting,
-    /// has changed in a way that changes what is made (see Web/engine.js).
+    /// has changed in a way that changes what is made. What was being heard goes on being heard, as it
+    /// was, until the new rendering has got as far as the listener is; and the screen is told of the
+    /// tune again, since how long it is to be played may have changed. It is the song that was
+    /// playing, whichever the file would now be started at. And it is rendered whole first, whatever
+    /// voices are left out: how it ends may have changed, and that has to be known before it can be
+    /// rendered without them.
     private func again() {
         guard hasSong else { return }
         if player.subsongCount > 0 { file?.subsong = player.subsong }
@@ -442,10 +458,13 @@ public final class SongKeeper {
         }
         // Where the file gave no length the screen was told the time the tune would be allowed. If the
         // tune did not need it all, its real length is the sound it made. So it is for a tune whose
-        // length is known but which fell silent before it.
+        // length is known but which fell silent before it: a module with nothing but empty rows
+        // before it goes round.
         let length = end - silence
         found = (!player.lengthIsKnown || silence > 0) && length > 0 && length < player.length ? length : 0
-        // So it is too for a tune that goes round, whose length was reckoned from its first time round.
+        // So it is too for a tune that goes round, whose length was reckoned from its first time round:
+        // one that goes back to a place after its beginning is shorter each time after, and one taken
+        // to go round may simply end. Where its ending began is its length.
         let played = player.playedLength
         if found == 0, played > 0, abs(played - player.length) > 0.5 { found = played }
         kept.done = true

@@ -258,23 +258,25 @@ public final class TunePlayer {
     /// Says what the tune is in `text`.
     private func describe() {
         guard let renderer else { return }
-        // One line each: format, title, author, detail. Then a line for each song when there are several:
-        // its length in milliseconds, if that is known, or a question mark while it is still to be
-        // found (`SongInfo.pending`), a tab, a 1 if there is known to be nothing
-        // in it and a 0 if not, a tab, and its name, if it has one. Then a
-        // line for each thing the file asks for that is not played as it asks (`TuneInfo.shortfalls`):
-        // an exclamation mark, which no song's line begins with, and the sentence. The page takes
-        // them apart again.
-        let info = renderer.info
+        text = Array(Self.details(of: renderer.info, songs: renderer.subsongCount > 1 ? renderer.songs : []).utf8)
+    }
+
+    /// What a tune is, in words for the page. One line each: format, title, author, detail. Then a
+    /// line for each song when there are several: its length in milliseconds, if that is known, or a
+    /// question mark while it is still to be found (`SongInfo.pending`), a tab, a 1 if there is known
+    /// to be nothing in it and a 0 if not, a tab, and its name, if it has one. Then a line for each
+    /// thing the file asks for that is not played as it asks (`TuneInfo.shortfalls`): an exclamation
+    /// mark, which no song's line begins with, and the sentence. The page takes them apart again.
+    public static func details(of info: TuneInfo, songs: [SongInfo]) -> String {
         func tidy(_ field: String) -> String { String(field.map { $0.isNewline || $0 == "\t" ? " " : $0 }) }
         var lines = [info.format, info.title, info.author, info.detail].map(tidy)
-        if renderer.subsongCount > 1 {
-            for song in renderer.songs {
+        if songs.count > 1 {
+            for song in songs {
                 lines.append("\(song.pending ? "?" : song.length.map { String(Int($0 * 1000)) } ?? "")\t\(song.empty ? 1 : 0)\t\(tidy(song.title))")
             }
         }
         for shortfall in info.shortfalls { lines.append("!" + tidy(shortfall)) }
-        text = Array(lines.joined(separator: "\n").utf8)
+        return lines.joined(separator: "\n")
     }
 
     public init() {
