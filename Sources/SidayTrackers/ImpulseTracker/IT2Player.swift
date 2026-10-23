@@ -844,7 +844,7 @@ final class IT2Player {
     ///   only where pitches are periods (see `openMPTPeriodSlide`).
     func PitchSlideUp(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ SlideValue: Int16, lasting: Bool = true) {
         if module.madTracker { return madTrackerSlide(sc, Int(SlideValue)) }
-        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodSlide(sc, Int(SlideValue), lasting: lasting) }
+        if pitchesArePeriods { return openMPTPeriodSlide(sc, Int(SlideValue), lasting: lasting) }
         if openMPTHertz, module.Flags & ITF_LINEAR_FRQ != 0 { return openMPTFrequencySlide(sc, Int(SlideValue)) }
         if module.Flags & ITF_LINEAR_FRQ != 0 {
             PitchSlideUpLinear(hc, sc, SlideValue)
@@ -1307,7 +1307,7 @@ final class IT2Player {
                     digitrakkerPitchEnvelope(sc)
                 } else if ins.Tuning != nil, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     if ins.PitchEnv.Flags & ENVF_ENABLED != 0 { openMPTTunedPitchEnvelope(sc) }
-                } else if module.openMPT?.pitchesArePeriods == true, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
+                } else if pitchesArePeriods, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     openMPTPeriodPitchEnvelope(sc)
                 } else if module.velvetStudio, ins.PitchEnv.Flags & ENVF_TYPE_FILTER == 0 {
                     // (Velvet Studio's goes a sixteenth of a semitone at a time, two semitones at the most.)
@@ -1538,6 +1538,10 @@ final class IT2Player {
     /// that back; after S9D a note begins with no filter, unless its instrument has one of its own,
     /// until a macro or an envelope sets it (`filterWaits`), and S9C puts that back.
     let speakerCommands: Bool
+    /// True if a note's pitch is kept as a period (see `IT2Periods.swift`): as an MPTM file says, or
+    /// as a file of ModPlug Tracker's or OpenMPT's says (see `IT2Module.ModPlugWays.pitchesArePeriods`),
+    /// and for one of ModPlug Tracker 1.0's (see `IT2Module.byModPlugOne`).
+    let pitchesArePeriods: Bool
     var surroundPanning = false, filterWaits = false
 
     /// How a channel is given a place between the speakers.
@@ -1621,6 +1625,8 @@ final class IT2Player {
         playsBackwards = module.openMPT != nil || !module.madeByImpulseTracker && !asImpulseTracker
         smoothMacros = module.openMPT != nil || module.madeByModPlug && !asImpulseTracker
         speakerCommands = smoothMacros
+        pitchesArePeriods = module.openMPT?.pitchesArePeriods
+            ?? (!asImpulseTracker && (module.madeByModPlug && module.modPlug.pitchesArePeriods || module.byModPlugOne))
         oldFilterSwing = module.modPlug.oldFilterSwing
         ownEnvelopeCarry = module.modPlug.ownEnvelopeCarry && !asImpulseTracker
         slideRestartsEnvelopes = module.modPlug.slideRestartsEnvelopes && !asImpulseTracker
@@ -1664,6 +1670,10 @@ final class IT2Player {
             for i in 0 ..< min(own.count, MIDIDataArea.count) { MIDIDataArea[i] = own[i] }
         } else {
             Music_SetDefaultMIDIDataArea()
+        }
+        // (In a file of a tracker that had no filter, Z and SFx send nothing: see `IT2Module.hadNoFilter`.)
+        if module.hadNoFilter, !asImpulseTracker {
+            for i in 9 * 32 ..< MIDIDataArea.count { MIDIDataArea[i] = 0 }
         }
 
         // Music_Stop

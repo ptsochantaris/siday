@@ -359,7 +359,7 @@ extension IT2Player {
                 sc.pointee.PanSet = pan
                 sc.pointee.Flags |= SF_RECALC_PAN
             }
-            let periods = module.openMPT?.pitchesArePeriods == true && module.Flags & ITF_LINEAR_FRQ != 0
+            let periods = pitchesArePeriods && module.Flags & ITF_LINEAR_FRQ != 0
             let period = periods ? rememberedPeriod(sc, base: openMPTBase(sc)) : nil
             var instrumentVolume: UInt8 = 128
             if module.Flags & ITF_INSTR_MODE != 0, hc.pointee.Ins != 0, hc.pointee.Ins != 255 {
@@ -857,7 +857,7 @@ extension IT2Player {
         default: wave = -Int(it2FineSineData[position])
         }
         var n = wave * depth / 256
-        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodOwnAutoVibrato(sc, by: n) }
+        if pitchesArePeriods { return openMPTPeriodOwnAutoVibrato(sc, by: n) }
         // (OpenMPT's own tables, for an MPTM file's; Impulse Tracker's for an IT file's.)
         let first: Int, second: Int
         if n < 0 {
@@ -894,7 +894,7 @@ extension IT2Player {
         }
         wave = wave * (depth / 256) / 64
         guard wave != 0 else { return }
-        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodAutoVibrato(sc, steps: wave) }
+        if pitchesArePeriods { return openMPTPeriodAutoVibrato(sc, steps: wave) }
         // (In 256ths of the rate, as OpenMPT reckons it.)
         let steps = abs(wave), rate = Int64(sc.pointee.Frequency) * 256
         func step(_ factor: UInt32) -> Int64 { rate * Int64(factor) / 65536 - rate }

@@ -2475,6 +2475,22 @@ first 45 seconds, 426 nearer libopenmpt and 16 further in one way or another; an
 of those 680 sits between the speakers is as like libopenmpt's as 0.968 for the middle one, where
 it was 0.878.
 
+And a note's pitch is kept as ModPlug Tracker kept it. Impulse Tracker keeps it as the rate the
+sample is played at, so many times a second; ModPlug Tracker kept it as a period, as the Amiga's
+trackers did, a whole number that slides and vibratos move and that the rate is worked out from, so
+that a high note's pitch is coarser and moves in larger steps. OpenMPT went over to rates in its
+version 1.24 for a song with linear slides, and in 1.30 for one without, and keeps periods for a
+file of ModPlug Tracker's or of an OpenMPT before then, unless it asks for rates; so does this (with
+OpenMPT's own arithmetic, as for an MPTM file: see below). Of 534 IT files to hand whose sound that
+changes in libopenmpt, a sample of the 7,403 it keeps periods for, 286 are nearer it and 25 further
+in one way or another, and their spectra are alike to 0.994 for the middle one, where they were
+0.985. And the 117 files of ModPlug Tracker 1.0, from before it wrote a version of its own, which
+said Impulse Tracker 2.14 or 2.02 made them, are known as OpenMPT knows them, and played in Impulse
+Tracker's ways, as OpenMPT plays them, but for their pitches: 66 are nearer libopenmpt for it and 6
+further. And in a file of a tracker
+that had no filter, Impulse Tracker before 2.14 or ModPlug Tracker 1.0 before its sixth alpha, Zxx
+is nothing, as it was to them (six files to hand have it, and one sounds different for it).
+
 And an older OpenMPT meant something else by four of a file's numbers, which it changes when it
 reads such a file, so that the file sounds as it did. A sample's own vibrato that says nought for
 how fast it comes in comes in at once, in a file from before 1.20: to Impulse Tracker nought is

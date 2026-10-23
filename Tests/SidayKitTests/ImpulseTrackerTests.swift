@@ -141,6 +141,16 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
     #expect(abs(crossings(closed[9600...]) * 10 / 8 - 261) <= 3)
     #expect(loudness(closed[9600...]) < loudness(open[9600...]) * 0.7)
     #expect(loudness(closed[9600...]) > loudness(open[9600...]) * 0.05)
+    // In a file of a tracker that had no filter it is nothing: one of ModPlug Tracker 1.0's early
+    // alphas, which wrote no rows to highlight, or of Impulse Tracker before 2.14.
+    var alpha = it(row: [0x81, 0x0B, 60, 1, 26, 0x08])
+    alpha[0x1E ... 0x1F] = [0, 0]
+    var older = it(row: [0x81, 0x0B, 60, 1, 26, 0x08])
+    older[0x28 ... 0x2B] = [0x10, 0x02, 0x00, 0x02]
+    for file in [alpha, older] {
+        let heard = stereo(try TuneLoader.load(file, format: .it), seconds: 1).left
+        #expect(abs(loudness(heard[9600...]) - loudness(open[9600...])) < loudness(open[9600...]) * 0.02)
+    }
 }
 
 @Test func itFilesThatAreOddOrNotITAtAll() throws {
@@ -406,14 +416,24 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     // version before 1.26, asks for whatever of Impulse Tracker's ways that version had.
     typealias Ways = IT2Module.ModPlugWays
     func asked(_ behaviours: [Int]) -> [Bool] { (0 ..< 64).map { behaviours.contains($0) } }
-    #expect(Ways(asked: asked([0]), savedWith: 0x0122_0000, wideRange: false).filter == .impulseTrackers)
-    #expect(Ways(asked: asked([0]), savedWith: 0x0119_0400, wideRange: false).filter == .openMPTs)
-    #expect(Ways(asked: asked([0]), savedWith: 0x0128_0000, wideRange: false).filter == .openMPTs)
-    #expect(Ways(asked: asked([0, 36]), savedWith: 0x0128_0000, wideRange: false).filter == .impulseTrackers)
-    #expect(Ways(asked: asked([0]), savedWith: 0x0118_0000, wideRange: false).ownEnvelopeCarry == false)
-    #expect(Ways(asked: asked([]), savedWith: 0x0118_0000, wideRange: false).ownEnvelopeCarry)
-    #expect(Ways(asked: asked([0]), savedWith: 0x0118_0000, wideRange: false).slideRestartsEnvelopes)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0122_0000, wideRange: false, linearSlides: true).filter == .impulseTrackers)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0119_0400, wideRange: false, linearSlides: true).filter == .openMPTs)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0128_0000, wideRange: false, linearSlides: true).filter == .openMPTs)
+    #expect(Ways(asked: asked([0, 36]), savedWith: 0x0128_0000, wideRange: false, linearSlides: true).filter == .impulseTrackers)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0118_0000, wideRange: false, linearSlides: true).ownEnvelopeCarry == false)
+    #expect(Ways(asked: asked([]), savedWith: 0x0118_0000, wideRange: false, linearSlides: true).ownEnvelopeCarry)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0118_0000, wideRange: false, linearSlides: true).slideRestartsEnvelopes)
     #expect(Ways().filter == .impulseTrackers && !Ways().ownEnvelopeCarry && !Ways().slideRestartsEnvelopes)
+    // A note's pitch is a period in a file of ModPlug Tracker's, and one of OpenMPT's before 1.24
+    // (1.30 without linear slides), unless it asks for Hertz; in Hertz with "compatible play"
+    // from 1.24 to 1.26, and in Impulse Tracker's.
+    #expect(Ways(asked: asked([]), savedWith: 0x0116_0000, wideRange: false, linearSlides: true).pitchesArePeriods)
+    #expect(Ways(asked: asked([7]), savedWith: 0x0122_0000, wideRange: false, linearSlides: true).pitchesArePeriods)
+    #expect(!Ways(asked: asked([0]), savedWith: 0x0125_0000, wideRange: false, linearSlides: true).pitchesArePeriods)
+    #expect(Ways(asked: asked([0]), savedWith: 0x0125_0000, wideRange: false, linearSlides: false).pitchesArePeriods)
+    #expect(!Ways(asked: asked([7]), savedWith: 0x0130_0100, wideRange: false, linearSlides: false).pitchesArePeriods)
+    #expect(Ways(asked: asked([]), savedWith: 0x0130_0100, wideRange: false, linearSlides: false).pitchesArePeriods)
+    #expect(!Ways().pitchesArePeriods)
 }
 
 @Test func itFromModPlugTrackerIsHeardThroughModPlugTrackersFilter() throws {

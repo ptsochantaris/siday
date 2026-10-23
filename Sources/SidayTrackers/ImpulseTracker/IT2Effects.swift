@@ -128,7 +128,7 @@ extension IT2Player {
             let ratio = tuning.ratio(Int(note) - 60)
             return openMPTTunedFrequency(s, fine ? ratio * Float(1 << OpenMPTAdLib.fineShift) : ratio)
         }
-        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodFrequency(sc, note) }
+        if pitchesArePeriods { return openMPTPeriodFrequency(sc, note) }
         return Int32(truncatingIfNeeded: (UInt64(s?.C5Speed ?? 0) &* UInt64(it2PitchTable[Int(note)])) >> (fine ? 16 - OpenMPTAdLib.fineShift : 16))
     }
 
@@ -1613,7 +1613,7 @@ extension IT2Player {
             digitrakkerArpeggio(sc, semitones: arpNote - 60)
             return
         }
-        if module.openMPT?.pitchesArePeriods == true { return openMPTPeriodArpeggio(sc, semitones: arpNote - 60) }
+        if pitchesArePeriods { return openMPTPeriodArpeggio(sc, semitones: arpNote - 60) }
         if openMPTHertz { return openMPTFrequencyArpeggio(sc, semitones: arpNote - 60) }
         let multiplier = arpNote < it2PitchTable.count ? it2PitchTable[arpNote] : 0
 

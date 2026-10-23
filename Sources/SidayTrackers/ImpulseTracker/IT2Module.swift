@@ -106,6 +106,14 @@ final class IT2Module {
     /// What wrote the file, as far as its header says. (Other programs write Impulse Tracker's own
     /// numbers there, so this is what the file claims and no more.)
     let madeWith: String
+    /// True for a file of ModPlug Tracker 1.0's (see `byModPlugOne(_:)`), which OpenMPT plays in all
+    /// of Impulse Tracker's ways, as it knows the file only once it has chosen them, but for the
+    /// pitches, which it keeps as periods, as ModPlug Tracker did before OpenMPT 1.24.
+    let byModPlugOne: Bool
+    /// True for a file of a tracker that had no filter, whose Zxx was nothing, as OpenMPT knows one:
+    /// Impulse Tracker before 2.14 (the file says that made it, and that so old a version can read
+    /// it), or ModPlug Tracker 1.0 before its sixth alpha.
+    let hadNoFilter: Bool
     /// True for a file that says ModPlug Tracker or OpenMPT made it. Those trackers played some
     /// things otherwise than Impulse Tracker, and a file of theirs is played as they played it
     /// where that is known to matter: an instrument with a MIDI channel plays its sample.
@@ -159,12 +167,16 @@ final class IT2Module {
         /// True if a channel in surround is heard in the middle wherever it is, as Impulse Tracker
         /// has it; false for ModPlug Tracker's way, in which it is heard where it is put.
         var surroundInTheMiddle = true
+        /// True if a note's pitch is kept as a period, as ModPlug Tracker kept it and OpenMPT did
+        /// until its version 1.24 for a song with linear slides and 1.30 for one without (see
+        /// `IT2Periods.swift`); false for one in Hertz, as Impulse Tracker keeps it.
+        var pitchesArePeriods = false
 
         init() {}
 
         /// Those of a file that lists these of Impulse Tracker's ways (see `ModPlugExtras.behaviours`)
         /// and was last saved by this version of OpenMPT, a byte for each of its four parts.
-        init(asked behaviours: [Bool], savedWith: Int, wideRange: Bool) {
+        init(asked behaviours: [Bool], savedWith: Int, wideRange: Bool, linearSlides: Bool) {
             func listed(_ behaviour: Int) -> Bool { behaviour < behaviours.count && behaviours[behaviour] }
             // (Before there was a way to ask for each by itself, they all came with "compatible
             // play", each from the version of OpenMPT that first had it.)
@@ -178,6 +190,15 @@ final class IT2Module {
             slideRestartsEnvelopes = !asks(Self.portamentoInstrument, since: 0x0119_0001)
             placeEndsSurround = asks(Self.panOverride, since: 0x0117_0302)
             surroundInTheMiddle = asks(Self.noSurroundPan, since: 0x0120_0053)
+            // (Pitches in Hertz came in with 1.24 for a song with linear slides, and were the only way
+            // until 1.26; and for one without, with 1.30.00.36. "Compatible play" before 1.26 has them.)
+            var hertz = asks(Self.periodsAreHertz, since: 0)
+            if linearSlides {
+                if savedWith < 0x0124_0000 { hertz = false } else if savedWith < 0x0126_0000 { hertz = true }
+            } else if savedWith < 0x0130_0036, savedWith != 0x0130_0000 {
+                hertz = false
+            }
+            pitchesArePeriods = !hertz
         }
 
         /// OpenMPT's numbers for the ways of playing that are looked at: "compatible play", its
@@ -185,7 +206,7 @@ final class IT2Module {
         /// an envelope starts again, with an instrument named beside a slide to a note, and with
         /// the filter, and with a place for a channel in surround.
         static let compatiblePlay = 0, oldSwing = 1, envelopeReset = 19, portamentoInstrument = 32, filterBehaviour = 36
-        static let panOverride = 10, noSurroundPan = 37
+        static let panOverride = 10, noSurroundPan = 37, periodsAreHertz = 7
     }
 
     let modPlug: ModPlugWays
@@ -389,6 +410,9 @@ final class IT2Module {
         // A file can say 31, which the tracker itself cannot be set to, and nothing lower will do.
         self.InitialTempo = max(InitialTempo, Self.MIN_BPM)
         madeWith = Self.tracker(Cwtv: Cwtv, Cmwt: Cmwt)
+        byModPlugOne = Self.byModPlugOne(data)
+        // (ModPlug Tracker 1.0's betas said where the rows to highlight were, or kept a history.)
+        hadNoFilter = !openMPT && (Cwtv < 0x0214 && Cmwt < 0x0214 || byModPlugOne && Special & 6 == 0)
         // A title is in the letters of the system its tracker ran on: DOS, or for ModPlug Tracker, Windows.
         title = ByteReader(data).encoded(at: 4, length: 25, as: madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) ? .windows1252 : .dos)
 
@@ -446,7 +470,7 @@ final class IT2Module {
         let wideRange = Flags & ITF_MPT_EXT_FILTER_RANGE != 0
         var modPlug = ModPlugWays()
         if let asked = ways.asked {
-            modPlug = ModPlugWays(asked: asked, savedWith: ways.savedWith, wideRange: wideRange)
+            modPlug = ModPlugWays(asked: asked, savedWith: ways.savedWith, wideRange: wideRange, linearSlides: Flags & ITF_LINEAR_FRQ != 0)
         } else if wideRange {
             modPlug.filter = .openMPTsCurve
         }
@@ -824,6 +848,8 @@ final class IT2Module {
         restartOrder = restart < orders.count && orders[restart] < 200 ? restart : 0
         self.title = title
         self.madeWith = madeWith
+        byModPlugOne = false
+        hadNoFilter = false
         let room = longList ? max(Self.MAX_ORDERS, orders.count + 1) : Self.MAX_ORDERS
         var Orders = [UInt8](repeating: 255, count: room)
         for i in 0 ..< min(orders.count, room) { Orders[i] = orders[i] }
@@ -870,6 +896,8 @@ final class IT2Module {
         self.sound = sound
         title = file.title
         self.madeWith = madeWith
+        byModPlugOne = false
+        hadNoFilter = false
         var Orders = [UInt8](repeating: 255, count: max(Self.MAX_ORDERS, orders.count + 1))
         for i in orders.indices { Orders[i] = orders[i] }
         self.Orders = Orders
@@ -1387,6 +1415,29 @@ final class IT2Module {
         }
         // (And such a file is added up ModPlug Tracker's own way unless it says another.)
         return (asked, savedWith, byModPlug && !extras.byBeRoTracker)
+    }
+
+    /// True for a file of ModPlug Tracker 1.0's, from before it had a version of its own to write, as
+    /// OpenMPT knows one: of its alphas and betas, which said Impulse Tracker 2.14 made it and 2.00
+    /// can read it, and wrote no rows to highlight; and of its first alphas, which said 2.02, and put
+    /// the patterns before the samples. (Not an IT file that OpenSPC made of a Super Nintendo's
+    /// music, which says what the alphas say: it has no instruments, a pattern for each order and
+    /// a speed of 1.) See `byModPlugOne`.
+    private static func byModPlugOne(_ data: [UInt8]) -> Bool {
+        let file = ByteReader(data)
+        let ordNum = file.u16le(0x20), insNum = file.u16le(0x22), smpNum = file.u16le(0x24), patNum = file.u16le(0x26)
+        let cwtv = file.u16le(0x28), cmwt = file.u16le(0x2A)
+        guard cmwt == 0x0200, file.u16le(0x1E) == 0, file.u16le(0x3C) == 0, file.u16le(0x3E) == 0 else { return false }
+        if cwtv == 0x0214 {
+            let openSPC = file.u16le(0x2C) == 9 && file.u16le(0x2E) == 0 && insNum == 0 && patNum + 1 == ordNum && file[0x30] == 128
+                && file[0x31] == 100 && file[0x32] == 1 && file[0x34] == 128 && file[0x35] == 0 && file.u16le(0x36) == 0 && file.u16le(0x38) == 0 && file.u16le(0x3A) == 0
+            return !openSPC
+        }
+        guard cwtv == 0x0202, smpNum > 0, patNum > 0 else { return false }
+        let table = 0xC0 + ordNum + insNum * 4
+        func long(_ at: Int) -> Int { file.u16le(at) | file.u16le(at + 2) << 16 }
+        let firstSample = long(table), firstPattern = long(table + smpNum * 4)
+        return firstPattern != 0 && firstPattern < firstSample
     }
 
     private static func tracker(Cwtv: UInt16, Cmwt: UInt16) -> String {

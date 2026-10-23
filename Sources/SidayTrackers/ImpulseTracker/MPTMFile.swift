@@ -1254,7 +1254,8 @@ enum MPTMFile {
         }
         var ways = file.modPlug
         if song.found {
-            ways = IT2Module.ModPlugWays(asked: song.behaviours ?? [], savedWith: song.savedWith, wideRange: file.Flags & ITF_MPT_EXT_FILTER_RANGE != 0)
+            ways = IT2Module.ModPlugWays(asked: song.behaviours ?? [], savedWith: song.savedWith, wideRange: file.Flags & ITF_MPT_EXT_FILTER_RANGE != 0,
+                                         linearSlides: file.Flags & ITF_LINEAR_FRQ != 0)
             ways.oldFilterSwing = asks(Behaviour.oldSwing)
         }
         let module = IT2Module(openMPT: openMPT, sound: heard ? sound : nil, file: file, madeWith: madeWith, orders: orders, mixVolume: UInt8(min(preAmp, 128)),
