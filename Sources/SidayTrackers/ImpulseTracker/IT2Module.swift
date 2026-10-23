@@ -114,6 +114,9 @@ final class IT2Module {
     /// Impulse Tracker before 2.14 (the file says that made it, and that so old a version can read
     /// it), or ModPlug Tracker 1.0 before its sixth alpha.
     let hadNoFilter: Bool
+    /// True for a file of a Schism Tracker that kept a note's pitch as a period, as OpenMPT knows one by
+    /// the day the file says it was made (see `schismKeptPeriods`).
+    let schismPeriods: Bool
     /// True for a file that says ModPlug Tracker or OpenMPT made it. Those trackers played some
     /// things otherwise than Impulse Tracker, and a file of theirs is played as they played it
     /// where that is known to matter: an instrument with a MIDI channel plays its sample.
@@ -413,6 +416,7 @@ final class IT2Module {
         byModPlugOne = Self.byModPlugOne(data)
         // (ModPlug Tracker 1.0's betas said where the rows to highlight were, or kept a history.)
         hadNoFilter = !openMPT && (Cwtv < 0x0214 && Cmwt < 0x0214 || byModPlugOne && Special & 6 == 0)
+        schismPeriods = !openMPT && Self.schismKeptPeriods(data, linearSlides: Flags & ITF_LINEAR_FRQ != 0)
         // A title is in the letters of the system its tracker ran on: DOS, or for ModPlug Tracker, Windows.
         title = ByteReader(data).encoded(at: 4, length: 25, as: madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) ? .windows1252 : .dos)
 
@@ -850,6 +854,7 @@ final class IT2Module {
         self.madeWith = madeWith
         byModPlugOne = false
         hadNoFilter = false
+        schismPeriods = false
         let room = longList ? max(Self.MAX_ORDERS, orders.count + 1) : Self.MAX_ORDERS
         var Orders = [UInt8](repeating: 255, count: room)
         for i in 0 ..< min(orders.count, room) { Orders[i] = orders[i] }
@@ -898,6 +903,7 @@ final class IT2Module {
         self.madeWith = madeWith
         byModPlugOne = false
         hadNoFilter = false
+        schismPeriods = false
         var Orders = [UInt8](repeating: 255, count: max(Self.MAX_ORDERS, orders.count + 1))
         for i in orders.indices { Orders[i] = orders[i] }
         self.Orders = Orders
@@ -1438,6 +1444,25 @@ final class IT2Module {
         func long(_ at: Int) -> Int { file.u16le(at) | file.u16le(at + 2) << 16 }
         let firstSample = long(table), firstPattern = long(table + smpNum * 4)
         return firstPattern != 0 && firstPattern < firstSample
+    }
+
+    /// True for a file of Schism Tracker's from before it kept pitches in Hertz: before 29 January
+    /// 2015, or before 2 May 2021 for a song without linear slides. A Schism Tracker says the day it
+    /// was made in the version it writes, as days since 31 October 2009 and 0x1050 more, or, once
+    /// that would be too many, in the header's four spare bytes, with 0x1FFF as the version.
+    private static func schismKeptPeriods(_ data: [UInt8], linearSlides: Bool) -> Bool {
+        let file = ByteReader(data)
+        let cwtv = file.u16le(0x28)
+        // (Schism Tracker says Impulse Tracker 2.14 or later can read its files; a file that says
+        // its version and no such thing is no Schism Tracker's, and OpenMPT does not take it for one.)
+        guard cwtv >> 12 == 1, file.u16le(0x2A) >= 0x0214 else { return false }
+        /// A day as Schism Tracker counts them (and OpenMPT, after it).
+        func day(_ y: Int, _ m: Int, _ d: Int) -> Int {
+            let mm = (m + 9) % 12, yy = y - mm / 10
+            return yy * 365 + yy / 4 - yy / 100 + yy / 400 + (mm * 306 + 5) / 10 + (d - 1)
+        }
+        let made = day(2009, 10, 31) + (cwtv == 0x1FFF ? (file.u16le(0x3C) | file.u16le(0x3E) << 16) : cwtv - 0x1050)
+        return made < day(2015, 1, 29) || made < day(2021, 5, 2) && !linearSlides
     }
 
     private static func tracker(Cwtv: UInt16, Cmwt: UInt16) -> String {

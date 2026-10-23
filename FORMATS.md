@@ -2487,7 +2487,10 @@ in one way or another, and their spectra are alike to 0.994 for the middle one, 
 0.985. And the 117 files of ModPlug Tracker 1.0, from before it wrote a version of its own, which
 said Impulse Tracker 2.14 or 2.02 made them, are known as OpenMPT knows them, and played in Impulse
 Tracker's ways, as OpenMPT plays them, but for their pitches: 66 are nearer libopenmpt for it and 6
-further. And in a file of a tracker
+further. So, as OpenMPT has it, are those of a Schism Tracker that kept periods too, before it went
+over to rates on 29 January 2015, or on 2 May 2021 for a song without linear slides, by the day its
+version says it was made: 470 files to hand, 236 nearer libopenmpt for it and 23 further, their
+spectra alike to 0.997 for the middle one where they were 0.989. And in a file of a tracker
 that had no filter, Impulse Tracker before 2.14 or ModPlug Tracker 1.0 before its sixth alpha, Zxx
 is nothing, as it was to them (six files to hand have it, and one sounds different for it).
 

@@ -1540,7 +1540,8 @@ final class IT2Player {
     let speakerCommands: Bool
     /// True if a note's pitch is kept as a period (see `IT2Periods.swift`): as an MPTM file says, or
     /// as a file of ModPlug Tracker's or OpenMPT's says (see `IT2Module.ModPlugWays.pitchesArePeriods`),
-    /// and for one of ModPlug Tracker 1.0's (see `IT2Module.byModPlugOne`).
+    /// and for one of ModPlug Tracker 1.0's (see `IT2Module.byModPlugOne`) or an older Schism Tracker's
+    /// (see `IT2Module.schismPeriods`).
     let pitchesArePeriods: Bool
     var surroundPanning = false, filterWaits = false
 
@@ -1626,7 +1627,7 @@ final class IT2Player {
         smoothMacros = module.openMPT != nil || module.madeByModPlug && !asImpulseTracker
         speakerCommands = smoothMacros
         pitchesArePeriods = module.openMPT?.pitchesArePeriods
-            ?? (!asImpulseTracker && (module.madeByModPlug && module.modPlug.pitchesArePeriods || module.byModPlugOne))
+            ?? (!asImpulseTracker && (module.madeByModPlug && module.modPlug.pitchesArePeriods || module.byModPlugOne || module.schismPeriods))
         oldFilterSwing = module.modPlug.oldFilterSwing
         ownEnvelopeCarry = module.modPlug.ownEnvelopeCarry && !asImpulseTracker
         slideRestartsEnvelopes = module.modPlug.slideRestartsEnvelopes && !asImpulseTracker

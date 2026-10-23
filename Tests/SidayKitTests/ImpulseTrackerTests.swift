@@ -434,6 +434,21 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     #expect(!Ways(asked: asked([7]), savedWith: 0x0130_0100, wideRange: false, linearSlides: false).pitchesArePeriods)
     #expect(Ways(asked: asked([]), savedWith: 0x0130_0100, wideRange: false, linearSlides: false).pitchesArePeriods)
     #expect(!Ways().pitchesArePeriods)
+    // And so they are in a Schism Tracker's file from before 29 January 2015, or before 2 May 2021
+    // without linear slides (as this one is), by the day its version says it was made.
+    func bySchism(_ version: Int, days: Int = 0, linear: Bool = false) throws -> Bool {
+        var file = it()
+        file[0x28 ... 0x2B] = [UInt8(version & 0xFF), UInt8(version >> 8), 0x14, 0x02]
+        if linear { file[0x2C] |= 8 }
+        file[0x3C ... 0x3D] = [UInt8(days & 0xFF), UInt8(days >> 8)]
+        return try #require(try TuneLoader.load(file, format: .it) as? ITRenderer).module.schismPeriods
+    }
+    // (0x1775 is November 2014; 0x1E09, May 2019; 0x1FFF says the days are in the spare bytes, and
+    // 4,500 days is August 2022.)
+    #expect(try bySchism(0x1775) && bySchism(0x1775, linear: true))
+    #expect(try bySchism(0x1E09) && !bySchism(0x1E09, linear: true))
+    #expect(try !bySchism(0x1FFF, days: 4500) && !bySchism(0x1FFF, days: 4500, linear: true))
+    #expect(try !bySchism(0x0214))
 }
 
 @Test func itFromModPlugTrackerIsHeardThroughModPlugTrackersFilter() throws {
