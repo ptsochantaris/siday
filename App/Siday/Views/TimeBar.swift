@@ -61,7 +61,10 @@ struct TimeBar: View {
         .font(.callout)
         .accessibilityElement(children: .ignore)
         .accessibilityRepresentation {
-            Slider(value: Binding(get: { position }, set: { model.seek(to: $0) }), in: 0 ... max(length, 0.1), step: 5) {
+            // (In steps of five seconds, or of the whole song if it is shorter: SwiftUI stops on a step
+            // longer than the slider, as a song found to be a moment long when it was rendered is.)
+            let end = max(length, 0.1)
+            Slider(value: Binding(get: { position }, set: { model.seek(to: $0) }), in: 0 ... end, step: min(5, end)) {
                 Text("Position")
             }
             .accessibilityValue(Text("\(time(position)) of \(time(length))"))
