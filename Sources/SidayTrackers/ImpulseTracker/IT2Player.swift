@@ -355,13 +355,18 @@ final class IT2Player {
         sc.pointee.ChnVol = hc.pointee.ChnVol
 
         var pan = ins.DefPan & 0x80 != 0 ? hc.pointee.ChnPan : ins.DefPan
-        if hc.pointee.Smp != 0, let s = module.sample(Int(hc.pointee.Smp) - 1), s.DefPan & 0x80 != 0 { pan = s.DefPan & 127 }
+        var given = ins.DefPan & 0x80 == 0
+        if hc.pointee.Smp != 0, let s = module.sample(Int(hc.pointee.Smp) - 1), s.DefPan & 0x80 != 0 {
+            pan = s.DefPan & 127
+            given = true
+        }
         if pan != PAN_SURROUND {
             // Higher notes further to one side, if the instrument says so.
             let separation = asImpulseTracker ? ins.PitchPanSep : ins.PitchPanSepAsModPlug ?? ins.PitchPanSep
             let newPan = Int(pan) + ((Int(Int8(bitPattern: hc.pointee.RawNote &- ins.PitchPanCenter)) * Int(Int8(bitPattern: separation))) >> 3)
             pan = UInt8(max(0, min(64, newPan)))
         }
+        placeInSurround(hc, sc, &pan, given: given)
         sc.pointee.Pan = pan
         sc.pointee.PanSet = pan
 
@@ -412,7 +417,8 @@ final class IT2Player {
         // (What an instrument sets its filter to is not a macro's doing.)
         sc.pointee.FilterSet = false
         sc.pointee.FilterEnvelope = false
-        sc.pointee.FilterFromStart = FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
+        sc.pointee.FilterWaits = filterWaits && !(hc.pointee.MIDIChn == 0 && (ins.FilterCutoff | ins.FilterResonance) & 0x80 != 0)
+        sc.pointee.FilterFromStart = !sc.pointee.FilterWaits && FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
         sc.pointee.ForeignRevived = false
     }
 
@@ -452,13 +458,15 @@ final class IT2Player {
         sc.pointee.ChnVol = hc.pointee.ChnVol
         sc.pointee.Pan = hc.pointee.ChnPan
         sc.pointee.PanSet = hc.pointee.ChnPan
+        sc.pointee.SurroundPanned = hc.pointee.SurroundPanned
         sc.pointee.FadeOut = 1024
         sc.pointee.VolEnvState.Value = (64 << 16) | (sc.pointee.VolEnvState.Value & 0xFFFF)
         sc.pointee.MIDIBank = 0x00FF
         restoreFilter(hc)
         sc.pointee.FilterSet = false
         sc.pointee.FilterEnvelope = false
-        sc.pointee.FilterFromStart = FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
+        sc.pointee.FilterWaits = filterWaits
+        sc.pointee.FilterFromStart = !filterWaits && FilterParameters[Int(hc.pointee.HostChnNum) & 63] < 127
         sc.pointee.ForeignRevived = false
         sc.pointee.Note = hc.pointee.RawNote
         sc.pointee.Ins = hc.pointee.Ins
@@ -1524,6 +1532,49 @@ final class IT2Player {
     /// True if the command after Z in the alphabet sends a macro a little at a time over its row
     /// (see `CommandSmoothMacro`): for a file of ModPlug Tracker's or OpenMPT's, whose command it is.
     let smoothMacros: Bool
+    /// True if S9A to S9D are played, as they are by ModPlug Tracker and OpenMPT, whose commands they
+    /// are: for a file of theirs. S9B lets a channel in surround be put somewhere between the
+    /// speakers and stay in surround (`surroundPanning`), as it would for a rear pair, and S9A puts
+    /// that back; after S9D a note begins with no filter, unless its instrument has one of its own,
+    /// until a macro or an envelope sets it (`filterWaits`), and S9C puts that back.
+    let speakerCommands: Bool
+    var surroundPanning = false, filterWaits = false
+
+    /// How a channel is given a place between the speakers.
+    enum Placing {
+        /// By Xxx; or by S90, which takes it out of surround where it is.
+        case command, surroundOff
+        /// By the volume column or S8x, or by the instrument or the sample when a note begins.
+        case roughly
+        /// By a slide.
+        case slide
+    }
+
+    /// Whether a channel in surround stays in it when given a place, in a file of ModPlug Tracker's
+    /// or OpenMPT's (see `speakerCommands`): by a slide always, and by the rest while the song lets
+    /// a channel be in both (`surroundPanning`), or in ModPlug Tracker's way (see
+    /// `IT2Module.ModPlugWays.placeEndsSurround`) by any but Xxx. In any other file a place takes
+    /// it out of surround, as it does in Impulse Tracker, where a slide does nothing to it.
+    func keepsSurround(_ placing: Placing) -> Bool {
+        guard speakerCommands, placing != .surroundOff else { return false }
+        return placing == .slide || surroundPanning || !module.modPlug.placeEndsSurround && placing == .roughly
+    }
+
+    /// Whether a channel that is in surround and has a place is heard there, upside down on one
+    /// side, as OpenMPT has it while the song lets it be (`surroundPanning`), or in ModPlug Tracker's
+    /// way always; and not in the middle, as Impulse Tracker would have it. Where it is, a channel
+    /// in surround is kept as one in the middle (`SurroundPanned`), and so it is moved by what
+    /// moves a channel from where it is, envelopes and the like, which surround in the middle is not.
+    var surroundIsPlaced: Bool { speakerCommands && (surroundPanning || !module.modPlug.surroundInTheMiddle) }
+
+    /// Where a voice of a channel in surround is put when a note begins: where the channel is, or
+    /// where the instrument or the sample puts it (`given`), in surround if it stays in it there,
+    /// or in the middle.
+    func placeInSurround(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ pan: inout UInt8, given: Bool) {
+        sc.pointee.SurroundPanned = hc.pointee.SurroundPanned && !given
+        guard given, hc.pointee.ChnPan == PAN_SURROUND || hc.pointee.SurroundPanned, pan != PAN_SURROUND, keepsSurround(.roughly) else { return }
+        if surroundIsPlaced { sc.pointee.SurroundPanned = true } else { pan = PAN_SURROUND }
+    }
     let oldFilterSwing: Bool
     /// See `IT2Module.ModPlugWays`.
     let ownEnvelopeCarry: Bool, slideRestartsEnvelopes: Bool
@@ -1569,6 +1620,7 @@ final class IT2Player {
         samplesPlayForMIDI = module.madeByModPlug && !asImpulseTracker
         playsBackwards = module.openMPT != nil || !module.madeByImpulseTracker && !asImpulseTracker
         smoothMacros = module.openMPT != nil || module.madeByModPlug && !asImpulseTracker
+        speakerCommands = smoothMacros
         oldFilterSwing = module.modPlug.oldFilterSwing
         ownEnvelopeCarry = module.modPlug.ownEnvelopeCarry && !asImpulseTracker
         slideRestartsEnvelopes = module.modPlug.slideRestartsEnvelopes && !asImpulseTracker
@@ -1623,6 +1675,11 @@ final class IT2Player {
             hChn[i].HostChnNum = UInt8(i)
             hChn[i].ChnPan = module.ChnlPan[i] & 0x7F
             hChn[i].ChnVol = module.ChnlVol[i]
+            // (Surround heard where it is put is in the middle, and may be moved: see `surroundIsPlaced`.)
+            if hChn[i].ChnPan == PAN_SURROUND, surroundIsPlaced {
+                hChn[i].ChnPan = 32
+                hChn[i].SurroundPanned = true
+            }
         }
         for i in 0 ..< MAX_SLAVE_CHANNELS { sChn[i].Flags = SF_NOTE_STOP }
         GlobalVolume = UInt16(module.GlobalVol)

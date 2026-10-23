@@ -2392,7 +2392,10 @@ last version, which few people had. The sound is not from one of Impulse Tracker
 which were written for the sound cards of the 1990s and cannot play a stereo sample, but from the
 driver it2play adds to them: it mixes in floating point, reads samples through an eight-point
 windowed sinc, ramps volumes so that notes do not click, and gives the filter the wider range
-ModPlug Tracker gave it where a file asks for that. Compressed samples are unpacked.
+ModPlug Tracker gave it where a file asks for that. Compressed samples are unpacked, and so are
+those ModPlug Tracker packed in a way of its own, four bits a sample (in 36 files to hand, where
+it2play leaves them silent), and those kept as the difference from each point to the one before, or
+with their bytes the other way round, as OpenMPT reads them.
 `siday --raw file.raw tune.it` writes what it2play writes to a file, and the two agree to the sample.
 Impulse Tracker has room for 100 samples, 100 instruments and 200 patterns, and it2play refuses a
 file with more. Later trackers wrote such files, and they are played: up to 253 samples, 254
@@ -2462,6 +2465,20 @@ loud would click, and both mixers let its last level die away instead; ModPlug T
 which is OpenMPT's still, sixteen times more quickly than Impulse Tracker's, and so it is here for
 these files. It changes most of them a little, and of four hundred it brings fifteen audibly
 nearer libopenmpt, and none further.
+
+And a channel in surround, which is heard on both sides with one of them upside down, goes by
+ModPlug Tracker's rules. To Impulse Tracker such a channel is in the middle, and any place it is
+given takes it out. In ModPlug Tracker's way, which OpenMPT keeps for a file that does not ask for
+Impulse Tracker's, only Xxx does that: the volume column, S8x, the instrument or the sample put it
+somewhere in surround, and it is heard there, and moved from there by envelopes and slides as any
+channel is. A file that asks for Impulse Tracker's ways has Impulse Tracker's, but for S9B, which
+lets a channel be in surround and somewhere at once, as on four speakers, until S9A. S90 takes a
+channel out of surround where it is. And after S9D a note begins with no filter, unless its
+instrument has one of its own, until a macro or an envelope sets it; S9C puts that back. Of the
+2,816 files of those two trackers to hand that have surround, 680 sound different for it in their
+first 45 seconds, 426 nearer libopenmpt and 16 further in one way or another; and where the sound
+of those 680 sits between the speakers is as like libopenmpt's as 0.968 for the middle one, where
+it was 0.878.
 
 And an older OpenMPT meant something else by four of a file's numbers, which it changes when it
 reads such a file, so that the file sounds as it did. A sample's own vibrato that says nought for

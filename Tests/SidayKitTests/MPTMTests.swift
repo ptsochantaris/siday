@@ -711,12 +711,12 @@ private func ways(without left: Int...) -> Song {
     // What is said is only what the file uses.
     let unused = mptm([Pattern([(0, 0, .note())])], samples: [.sound(square, loops: true), .fm], instruments: [(1, [], 0), (2, [], 0)])
     #expect(try player(unused).info.shortfalls.isEmpty)
-    // What it asks of four speakers is left out. (A command that bends a pitch, a macro slid over a
-    // row, and the reverb, are played, and so are nothing to speak of.)
+    // A command that bends a pitch, a macro slid over a row, the reverb, and what it asks of four
+    // speakers, are played, and so are nothing to speak of.
     let commands = Pattern([(0, 0, .note()), (1, 0, Cell(command: "^", value: 1)), (2, 0, .command("\\", 0x10)), (3, 0, .command("S", 0x99)),
                             (4, 0, .command("S", 0x9B))])
     let said = try player(mptm([commands])).info.shortfalls
-    #expect(said == ["Its settings for four speakers and for how a note's filter starts are left out."])
+    #expect(said.isEmpty)
 }
 
 @Test func mptmVibratoStartsFromTheTopWithEveryNote() throws {

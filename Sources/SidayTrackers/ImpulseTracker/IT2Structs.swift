@@ -223,6 +223,9 @@ struct IT2HostChannel {
     /// For a file of ModPlug Tracker's or OpenMPT's: true from S99, which sends the channel's notes
     /// to ModPlug's own reverb, until S98 (see `IT2Module.reverb`).
     var Reverb = false
+    /// And true for a channel in surround that has been put somewhere between the speakers while
+    /// the song lets it be both (see `IT2Player.surroundPanning`): `ChnPan` is then that place.
+    var SurroundPanned = false
 }
 
 /// What OpenMPT keeps on a channel playing an instrument with a tuning of its own, whose pitch it
@@ -280,6 +283,12 @@ struct IT2SlaveChannel {
     /// And true if the note began with its channel's cutoff below the top, which is when a note
     /// has that filter from its start.
     var FilterFromStart = false
+    /// True if the note began with no filter, as it does after S9D for an instrument without one of
+    /// its own (see `IT2Player.filterWaits`), until a macro or an envelope sets it.
+    var FilterWaits = false
+    /// True for a voice in surround that is somewhere between the speakers, at `Pan`: its right
+    /// side is heard upside down (see the channel's `SurroundPanned`).
+    var SurroundPanned = false
     /// How many notes the voice has been given, as far as a byte counts: for telling a new note
     /// on it from the note it had. Only what plays the FM chip looks.
     var Started: UInt8 = 0

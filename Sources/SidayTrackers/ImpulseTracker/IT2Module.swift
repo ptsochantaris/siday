@@ -151,6 +151,14 @@ final class IT2Module {
         /// True if a slide to a note on a row that names the instrument starts the instrument's
         /// envelopes again when it has none for volume, as it did before OpenMPT's version 1.19.
         var slideRestartsEnvelopes = false
+        /// True if a channel in surround is taken out of it by any place it is given, by command,
+        /// instrument or sample, as Impulse Tracker has it; false for ModPlug Tracker's way, in which
+        /// only Xxx does that, and a place by the volume column, S8x or an instrument is a place in
+        /// surround (see `IT2Player.keepsSurround`).
+        var placeEndsSurround = true
+        /// True if a channel in surround is heard in the middle wherever it is, as Impulse Tracker
+        /// has it; false for ModPlug Tracker's way, in which it is heard where it is put.
+        var surroundInTheMiddle = true
 
         init() {}
 
@@ -168,13 +176,16 @@ final class IT2Module {
             oldFilterSwing = listed(Self.oldSwing)
             ownEnvelopeCarry = !asks(Self.envelopeReset, since: 0x0117_0251)
             slideRestartsEnvelopes = !asks(Self.portamentoInstrument, since: 0x0119_0001)
+            placeEndsSurround = asks(Self.panOverride, since: 0x0117_0302)
+            surroundInTheMiddle = asks(Self.noSurroundPan, since: 0x0120_0053)
         }
 
         /// OpenMPT's numbers for the ways of playing that are looked at: "compatible play", its
         /// own old way with what is random in an instrument, and Impulse Tracker's ways with when
         /// an envelope starts again, with an instrument named beside a slide to a note, and with
-        /// the filter.
+        /// the filter, and with a place for a channel in surround.
         static let compatiblePlay = 0, oldSwing = 1, envelopeReset = 19, portamentoInstrument = 32, filterBehaviour = 36
+        static let panOverride = 10, noSurroundPan = 37
     }
 
     let modPlug: ModPlugWays
@@ -235,6 +246,8 @@ final class IT2Module {
     var symphonieCells: [Int: IT2SymphonieCell] = [:]
     /// What a sample's header says of how it is kept when it is not a sound but a patch for the FM chip.
     static let adLibPatch: UInt8 = 0x40
+    /// And when it is packed as ModPlug Tracker packed eight-bit samples (see `unpackADPCM`).
+    static let adpcm: UInt8 = 0xFF
     // The header, by its own names.
     let OrdNum: Int, InsNum: Int, SmpNum: Int, PatNum: Int
     let Cwtv: UInt16, Cmwt: UInt16, Flags: UInt16, Special: UInt16
@@ -531,10 +544,14 @@ final class IT2Module {
             let Sample16Bit = s.Flags & SMPF_16BIT != 0
             let SignedSamples = s.Cvt & 1 != 0
             let DeltaEncoded = s.Cvt & 4 != 0
+            let BigEndian = s.Cvt & 2 != 0
+            // ModPlug Tracker's own packing, of four bits a sample: see `unpackADPCM`.
+            let ADPCM = s.Cvt == Self.adpcm && !Sample16Bit && !Compressed && !Stereo
 
-            // These are left with the length they claim and no sound: a sample kept as differences
-            // without being compressed, an empty one, and one in a form that is not handled (its
-            // bytes the other way round, and stranger things).
+            // These are left with the length they claim and no sound: an empty one, and one in a
+            // form that is not handled. (The original leaves out those kept as differences without
+            // being compressed, and those with their bytes the other way round, which are read
+            // here as OpenMPT reads them, and as Impulse Tracker did, OpenMPT says.)
             if s.Cvt == Self.adLibPatch, openMPT || byModPlug {
                 // Not a sound at all, but a patch for the AdLib's FM chip, which OpenMPT can have
                 // in a sample's place: twelve bytes.
@@ -543,10 +560,9 @@ final class IT2Module {
                 if got == 12 { s.AdLib = patch }
                 continue
             }
-            if s.Length != 0, (DeltaEncoded && !Compressed) || s.Cvt & 0b1111_1010 != 0 { samplesNotRead.append(i) }
-            if DeltaEncoded, !Compressed { continue }
-            if s.Length == 0 { continue }
-            if s.Cvt & 0b1111_1010 != 0 { continue }
+            let unread = !ADPCM && s.Cvt & 0b1111_1000 != 0
+            if s.Length != 0, unread { samplesNotRead.append(i) }
+            if s.Length == 0 || unread { continue }
 
             // From here until the sound is in, `Length` counts bytes; the original doubles it in
             // 32 bits, so an absurd length wraps round.
@@ -575,16 +591,43 @@ final class IT2Module {
             if Compressed {
                 let unpacked = Self.LoadCompressedSample(&m, left + Self.SMP_DAT_OFFSET, right, length: length, Sample16Bit: Sample16Bit, DeltaEncoded: DeltaEncoded)
                 cutShort.add(length: said, there: unpacked)
+            } else if ADPCM {
+                cutShort.add(length: said, there: max(0, data.count - m.position - 16) * 2)
+                Self.unpackADPCM(&m, into: left + Self.SMP_DAT_OFFSET, length: length)
             } else {
                 cutShort.add(length: said, there: data.count - m.position)
                 // The left of a stereo sample, whole, and then the right.
                 _ = m.read(length, into: left + Self.SMP_DAT_OFFSET)
                 if let right { _ = m.read(length, into: right) }
+                for side in [left + Self.SMP_DAT_OFFSET, right].compactMap({ $0 }) {
+                    if BigEndian, Sample16Bit {
+                        for j in 0 ..< length >> 1 {
+                            side.storeBytes(of: side.load(fromByteOffset: j * 2, as: UInt16.self).byteSwapped, toByteOffset: j * 2, as: UInt16.self)
+                        }
+                    }
+                    // Kept as the difference from one sample to the next, which makes it signed.
+                    if DeltaEncoded {
+                        if Sample16Bit {
+                            var sum: UInt16 = 0
+                            for j in 0 ..< length >> 1 {
+                                sum &+= side.load(fromByteOffset: j * 2, as: UInt16.self)
+                                side.storeBytes(of: sum, toByteOffset: j * 2, as: UInt16.self)
+                            }
+                        } else {
+                            var sum: UInt8 = 0
+                            for j in 0 ..< length {
+                                sum &+= side.load(fromByteOffset: j, as: UInt8.self)
+                                side.storeBytes(of: sum, toByteOffset: j, as: UInt8.self)
+                            }
+                        }
+                    }
+                }
             }
 
             // An unsigned sample is made signed: the left of it only, as in the original, whose
-            // stereo samples are an addition of its own.
-            if !SignedSamples {
+            // stereo samples are an addition of its own. (One kept as differences, or packed by
+            // ModPlug Tracker, is signed already.)
+            if !SignedSamples, Compressed || !DeltaEncoded {
                 let p = left + Self.SMP_DAT_OFFSET
                 if Sample16Bit {
                     for j in 0 ..< length >> 1 {
@@ -1036,6 +1079,23 @@ final class IT2Module {
 
     /// How much packed data a block of a compressed sample can have.
     private static let decompBufferLength = 65536
+
+    /// Unpacks an eight-bit sample packed as ModPlug Tracker packed them, as OpenMPT unpacks one:
+    /// sixteen differences, and then two samples a byte, the low four bits first, each the one
+    /// before it moved by the difference those bits pick. What the file does not have is silent.
+    private static func unpackADPCM(_ m: inout IT2MemoryFile, into destination: UnsafeMutableRawPointer, length: Int) {
+        var table = [UInt8](repeating: 0, count: 16)
+        guard table.withUnsafeMutableBytes({ m.read(16, into: $0.baseAddress!) }) == 16 else { return }
+        var packed = [UInt8](repeating: 0, count: (length + 1) / 2)
+        let got = packed.withUnsafeMutableBytes { m.read($0.count, into: $0.baseAddress!) }
+        var sample: UInt8 = 0
+        for i in 0 ..< got {
+            sample &+= table[Int(packed[i] & 0x0F)]
+            destination.storeBytes(of: sample, toByteOffset: i * 2, as: UInt8.self)
+            sample &+= table[Int(packed[i] >> 4)]
+            if i * 2 + 1 < length { destination.storeBytes(of: sample, toByteOffset: i * 2 + 1, as: UInt8.self) }
+        }
+    }
 
     /// Unpacks a sample compressed as Impulse Tracker 2.14 and 2.15 compress them: in blocks that
     /// unpack to 32,768 bytes, each with its packed length before it; all of the left of a stereo

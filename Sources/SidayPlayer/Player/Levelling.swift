@@ -144,8 +144,10 @@ public extension SongLevel {
     /// where in the tick their players turn them on; 9: Startrekker's modules taking a speed of nothing
     /// as one, and going round to their restart position, as its player does; 10: the emulated Amiga
     /// switched on with its processor's count of cycles at nought, as it is at every song's start,
-    /// where before what the last song left of it put the first tick a clock or so out.)
-    static let soundVersion = 10
+    /// where before what the last song left of it put the first tick a clock or so out; 11: IT
+    /// samples packed by ModPlug Tracker heard, and surround in ModPlug Tracker's and OpenMPT's IT and
+    /// MPTM files kept where a channel is put, as they had it.)
+    static let soundVersion = 11
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {

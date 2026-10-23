@@ -1007,7 +1007,7 @@ enum MPTMFile {
         var silentInstruments = Set<Int>(), elsewhereInstruments = Set<Int>(), usedInstruments = Set<Int>()
         // The plug-ins that are not OpenMPT's own, and so are not played.
         let leftOut = plugins.filter { sound.plugIns[$0 - 1].kind == nil }
-        var reverbs = 0, speakerCommands = 0
+        var reverbs = 0
         // The file's MIDI macros, for telling one that sets a filter from one that sets a plug-in:
         // sixteen that a command chooses among and gives a value, and 128 with a value of their own.
         let macros = file.midiData ?? IT2Module.defaultMIDIData()
@@ -1152,7 +1152,6 @@ enum MPTMFile {
                         case IT2ForeignModule.Command.S:
                             if cell.value & 0xF0 == 0xF0 { chosenMacro[channel] = Int(cell.value & 0x0F) }
                             if played[index], cell.value == 0x99 { reverbs += 1 }
-                            if played[index], cell.value >= 0x9A, cell.value <= 0x9D { speakerCommands += 1 }
                         default: break
                         }
                     }
@@ -1180,7 +1179,6 @@ enum MPTMFile {
         say(elsewhereInstruments.count, one: "One of its instruments has its sample in another file, and is not heard.",
             many: " of its instruments have their samples in other files, and are not heard.")
         if let sentence = Shortfall.plugInsLeftOut(leftOut.sorted().map { sound.plugIns[$0 - 1].title }, of: plugins.count) { shortfalls.append(sentence) }
-        if speakerCommands > 0 { shortfalls.append("Its settings for four speakers and for how a note's filter starts are left out.") }
 
         // MARK: The rest
 

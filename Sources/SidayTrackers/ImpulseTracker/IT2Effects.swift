@@ -381,7 +381,7 @@ extension IT2Player {
             if hc.pointee.NotePackMask & 0x44 != 0, vol & 0x7F < 65 {
                 // The volume column is a place between the speakers.
                 hc.pointee.Flags = (hc.pointee.Flags & 0xFF00) | UInt16(hcFlags)
-                InitCommandX2(hc, vol &- 128)
+                InitCommandX2(hc, vol &- 128, by: .roughly)
             }
 
             if hc.pointee.NotePackMask & 0x22 == 0 || hc.pointee.Smp == 0 {
@@ -509,9 +509,14 @@ extension IT2Player {
         sc.pointee.Vol = hc.pointee.VolSet
 
         if module.Flags & ITF_INSTR_MODE == 0, let s, s.DefPan & 0x80 != 0 {
-            sc.pointee.Pan = s.DefPan & 127
+            var pan = s.DefPan & 127
+            placeInSurround(hc, sc, &pan, given: true)
+            sc.pointee.Pan = pan
             // (In Disorder Tracker's, as OpenMPT has it, for the note alone.)
-            if !module.playsAsDisorderTracker { hc.pointee.ChnPan = s.DefPan & 127 }
+            if !module.playsAsDisorderTracker {
+                hc.pointee.ChnPan = pan
+                hc.pointee.SurroundPanned = sc.pointee.SurroundPanned
+            }
         }
 
         sc.pointee.SamplingPosition = 0
@@ -776,7 +781,7 @@ extension IT2Player {
                 vol = hc.pointee.RawVolColumn
                 volFromVolColumn = true
             } else if hc.pointee.RawVolColumn & 0x7F < 65 {
-                InitCommandX2(hc, hc.pointee.RawVolColumn &- 128)
+                InitCommandX2(hc, hc.pointee.RawVolColumn &- 128, by: .roughly)
             }
         }
 
@@ -1020,7 +1025,11 @@ extension IT2Player {
         var pan = hc.pointee.ChnPan
         if hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr { pan = sc.pointee.PanSet }
 
-        if pan == PAN_SURROUND { return }
+        // (Surround is in the middle, and slides from there where it is heard where it is put.)
+        if pan == PAN_SURROUND {
+            guard surroundIsPlaced else { return }
+            pan = 32
+        }
 
         let hi = hc.pointee.EfxMem_P & 0xF0
         let lo = hc.pointee.EfxMem_P & 0x0F
@@ -1034,11 +1043,11 @@ extension IT2Player {
         } else if lo == 0x0F {
             pan &-= hi >> 4
             if Int8(bitPattern: pan) < 0 { pan = 0 }
-            InitCommandX2(hc, pan)
+            InitCommandX2(hc, pan, by: .slide)
         } else if hi == 0xF0 {
             pan &+= lo
             if pan > 64 { pan = 64 }
-            InitCommandX2(hc, pan)
+            InitCommandX2(hc, pan, by: .slide)
         } else if module.openMPTForeign {
             // (As a slide of volume with both halves: by the second, to the right.)
             hc.pointee.MiscEfxData[0] = lo
@@ -1187,23 +1196,30 @@ extension IT2Player {
         case 0x80: // the place between the speakers, of sixteen
             let pan = UInt8(truncatingIfNeeded: (((Int(val) << 4) | Int(val)) + 2) >> 2)
             InitNoCommand(hc)
-            InitCommandX2(hc, pan)
+            InitCommandX2(hc, pan, by: .roughly)
 
         case 0x90: // S91: surround
             InitNoCommand(hc)
             // (And S98 and S99, in a file with ModPlug's own reverb, take a channel out of it and put it in.)
             if reverbs, val == 8 || val == 9 { hc.pointee.Reverb = val == 9 }
-            if val == 1 {
-                InitCommandX2(hc, PAN_SURROUND)
-            } else if module.openMPT != nil {
-                // An MPTM file's S90 takes it away again: OpenMPT's surround is a channel in the
-                // middle with one side turned over, and the middle is where it is left. Its S9E and
-                // S9F play a sample forwards and backwards.
-                if val == 0 {
-                    if hc.pointee.ChnPan == PAN_SURROUND { InitCommandX2(hc, 32) }
-                } else {
-                    OpenMPTCommandS9(hc, val)
+            if speakerCommands, val >= 0xA, val <= 0xD {
+                // ModPlug Tracker's: see `speakerCommands`.
+                if val < 0xC { surroundPanning = val == 0xB } else { filterWaits = val == 0xD }
+                // (A channel in surround that is somewhere is heard in the middle again after S9A, and
+                // one in the middle may be moved after S9B.)
+                for i in 0 ..< MAX_HOST_CHANNELS where hChn[i].SurroundPanned != surroundIsPlaced {
+                    if hChn[i].SurroundPanned || hChn[i].ChnPan == PAN_SURROUND { InitCommandX2(hChn + i, PAN_SURROUND) }
                 }
+            } else if val == 1 {
+                InitCommandX2(hc, PAN_SURROUND)
+            } else if val == 0, module.openMPT != nil || speakerCommands {
+                // S90 in a file of ModPlug Tracker's or OpenMPT's takes surround away again: theirs
+                // is a channel with one side turned over, in the middle unless it is put
+                // elsewhere, and where it is is where it is left.
+                if hc.pointee.ChnPan == PAN_SURROUND { InitCommandX2(hc, 32, by: .surroundOff) } else if hc.pointee.SurroundPanned { leaveSurround(hc) }
+            } else if module.openMPT != nil {
+                // An MPTM file's S9E and S9F play a sample forwards and backwards.
+                OpenMPTCommandS9(hc, val)
             } else if playsBackwards, val >= 0xE {
                 // And so do those two in an IT file that a later tracker made.
                 OpenMPTCommandS9(hc, val)
@@ -1384,14 +1400,35 @@ extension IT2Player {
 
     /// Puts the channel, and the note it is playing, at a place between the speakers: 0 to 64, or
     /// surround.
-    private func InitCommandX2(_ hc: IT2HostPointer, _ pan: UInt8) {
+    private func InitCommandX2(_ hc: IT2HostPointer, _ given: UInt8, by placing: Placing = .command) {
+        // (A channel in surround may stay in it where it is put, or in the middle: see `keepsSurround`.)
+        var pan = given
+        let inSurround = hc.pointee.ChnPan == PAN_SURROUND || hc.pointee.SurroundPanned
+        hc.pointee.SurroundPanned = false
+        if pan == PAN_SURROUND, surroundIsPlaced {
+            pan = 32
+            hc.pointee.SurroundPanned = true
+        } else if pan != PAN_SURROUND, inSurround, keepsSurround(placing) {
+            if surroundIsPlaced { hc.pointee.SurroundPanned = true } else { pan = PAN_SURROUND }
+        }
         if hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr {
             sc.pointee.PanSet = pan
             sc.pointee.Pan = pan
+            sc.pointee.SurroundPanned = hc.pointee.SurroundPanned
             sc.pointee.Flags |= SF_RECALC_PAN | SF_UPDATE_MIXERVOL
         }
 
         hc.pointee.ChnPan = pan
+    }
+
+    /// S90 for a channel in surround that is somewhere between the speakers: it stays there, out of
+    /// surround.
+    private func leaveSurround(_ hc: IT2HostPointer) {
+        hc.pointee.SurroundPanned = false
+        if hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr {
+            sc.pointee.SurroundPanned = false
+            sc.pointee.Flags |= SF_RECALC_PAN | SF_UPDATE_MIXERVOL
+        }
     }
 
     /// Xxx: the place between the speakers.
@@ -1618,6 +1655,7 @@ extension IT2Player {
     func CommandP(_ hc: IT2HostPointer) {
         var pan = hc.pointee.ChnPan
         if hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr { pan = sc.pointee.PanSet }
+        if pan == PAN_SURROUND { pan = 32 }
 
         pan &+= hc.pointee.MiscEfxData[0]
 
@@ -1627,7 +1665,7 @@ extension IT2Player {
             pan = 64
         }
 
-        InitCommandX2(hc, pan)
+        InitCommandX2(hc, pan, by: .slide)
     }
 
     func CommandQ(_ hc: IT2HostPointer) {

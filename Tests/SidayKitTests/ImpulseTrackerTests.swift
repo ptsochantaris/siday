@@ -154,6 +154,27 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
     #expect(throws: TuneError.self) { try TuneLoader.load(Array("ziRCONia".utf8) + [UInt8](repeating: 0, count: 400), format: .it) }
 }
 
+@Test func itSamplePackedByModPlugTrackerOrKeptAsDifferencesIsHeard() throws {
+    // The square wave kept in the two ways the original leaves silent: ModPlug Tracker's packing
+    // (sixteen differences, then the number of one for each sample, two to a byte, the low first)
+    // and the difference from each sample to the one before. Either way it is the square wave.
+    let plain = it()
+    let header = plain.indices.first { Array(plain[$0 ..< $0 + 4]) == Array("IMPS".utf8) }!
+    func kept(_ cvt: UInt8, _ sound: [UInt8]) -> [UInt8] {
+        var file = Array(plain.dropLast(32)) + sound
+        file[header + 0x2E] = cvt
+        return file
+    }
+    let packed = kept(0xFF, [0, 0x7F, 0x02] + [UInt8](repeating: 0, count: 13) + [0x01] + [UInt8](repeating: 0, count: 7) + [0x02] + [UInt8](repeating: 0, count: 7))
+    let differences = kept(0x05, [0x7F] + [UInt8](repeating: 0, count: 15) + [0x02] + [UInt8](repeating: 0, count: 15))
+    let heard = stereo(try TuneLoader.load(plain, format: .it), seconds: 0.5).left
+    for file in [packed, differences] {
+        let renderer = try TuneLoader.load(file, format: .it)
+        #expect(renderer.info.shortfalls.isEmpty)
+        #expect(stereo(renderer, seconds: 0.5).left == heard)
+    }
+}
+
 @Test func itFileWithMoreSamplesThanImpulseTrackerHadRoomForIsPlayed() throws {
     // Impulse Tracker holds a hundred samples, and uses the number after them to mean a note sent
     // out by MIDI. Later trackers wrote files with more: here the hundred-and-first is the one
@@ -233,6 +254,43 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     file[40 ... 41] = [version, 0x51]
     file[60 ... 63] = Array("OMPT".utf8)[...]
     return file
+}
+
+@Test func itFromModPlugKeepsAChannelInSurroundWhereItIsPut() throws {
+    // The first channel is in surround, and its note puts it most of the way to the right with
+    // S8C. In surround the right side is upside down: the two sides go opposite ways.
+    var options = LoadOptions()
+    options.stereo = .abc
+    func inSurround(_ file: [UInt8]) throws -> Bool {
+        let sound = stereo(try TuneLoader.load(file, format: .it, options: options), seconds: 0.5)
+        let together = zip(sound.left[4800...], sound.right[4800...]).reduce(0) { $0 + $1.0 * $1.1 }
+        #expect(sound.right[4800...].map(abs).max()! > sound.left[4800...].map(abs).max()! * 2)
+        return together < 0
+    }
+    let placed = it(row: [0x81, 0x0B, 60, 1, 19, 0x8C], pan: 100)
+    // ModPlug Tracker kept it in surround there; Impulse Tracker took it out, and so did OpenMPT
+    // for a file saved to be played as Impulse Tracker would play it.
+    #expect(try inSurround(byModPlugTracker(placed)))
+    #expect(try !inSurround(placed))
+    #expect(try !inSurround(byOpenMPT(placed)))
+    // But not with S9B before it, on the second channel of the row before: four speakers.
+    #expect(try inSurround(byOpenMPT(it(row: [0x82, 0x08, 19, 0x9B, 0x00, 0x81, 0x0B, 60, 1, 19, 0x8C], pan: 100))))
+    // Xxx takes it out of surround in ModPlug Tracker's file too.
+    #expect(try !inSurround(byModPlugTracker(it(row: [0x81, 0x0B, 60, 1, 24, 0xC0], pan: 100))))
+}
+
+@Test func itFromModPlugStartsANoteWithNoFilterAfterS9D() throws {
+    // Z08 closes the first channel's filter on its first note, and the note on the row after
+    // begins with it closed; after S9D, on the second channel, it begins with none.
+    func later(_ row: [UInt8]) throws -> Float {
+        let sound = stereo(try TuneLoader.load(byOpenMPT(it(row: row)), format: .it), seconds: 0.5).left
+        return loudness(sound[7200 ..< 12000])
+    }
+    let open = try later([0x81, 0x03, 60, 1, 0x00, 0x81, 0x03, 60, 1])
+    let filtered = try later([0x81, 0x0B, 60, 1, 26, 0x08, 0x00, 0x81, 0x03, 60, 1])
+    let afresh = try later([0x81, 0x0B, 60, 1, 26, 0x08, 0x82, 0x08, 19, 0x9D, 0x00, 0x81, 0x03, 60, 1])
+    #expect(filtered < open * 0.7)
+    #expect(abs(afresh - open) < open * 0.05)
 }
 
 @Test func itThatJumpsBackInsideALoopIsPlayedToItsEnd() throws {
@@ -433,21 +491,20 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     schism[40 ... 41] = [0x00, 0x10]
     #expect(try shortfalls(schism)
         == ["One of its commands is left out, which Impulse Tracker did not have: a smooth change to a filter or a plug-in's setting."])
-    // Its S9B (four speakers) is left out of a file of its own, and nothing in Impulse Tracker's;
-    // its reverb, S99, is played.
-    #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x9B])))
-        == ["One of its commands is left out, which Impulse Tracker did not have: settings for four speakers and for how a note's filter starts."])
+    // Its S9B (four speakers) is played in a file of its own, and is nothing in Impulse Tracker's;
+    // so is its reverb, S99.
+    #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x9B]))).isEmpty)
     #expect(try shortfalls(it(row: [0x81, 0x0B, 60, 1, 19, 0x9B])).isEmpty)
     #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x99]))).isEmpty)
-    // A sample kept in a form that is not read (here, with its bytes the other way round), which a
+    // A sample kept in a form that is not read (here, as TX-Wave's twelve bits a sample), which a
     // note plays; and the same sample with no note to play it, which is nobody's loss.
     var odd = it()
     let convert = try #require(odd.firstRange(of: Array("IMPS".utf8))).lowerBound + 0x2E
     #expect(odd[convert] == 1)
-    odd[convert] = 3
+    odd[convert] = 0x11
     #expect(try shortfalls(odd) == ["One of its samples is kept in a form this player does not read, and is silent."])
     var unplayed = it(row: [0x81, 0x08, 1, 0x06])
-    unplayed[try #require(unplayed.firstRange(of: Array("IMPS".utf8))).lowerBound + 0x2E] = 3
+    unplayed[try #require(unplayed.firstRange(of: Array("IMPS".utf8))).lowerBound + 0x2E] = 0x11
     #expect(try shortfalls(unplayed).isEmpty)
     // A file that ends before its sample's sound begins.
     #expect(try shortfalls(Array(it().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])

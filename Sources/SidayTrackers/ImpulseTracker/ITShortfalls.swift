@@ -25,7 +25,7 @@ extension IT2Module {
             let pattern = pattern(index)
             var masks = [UInt8](repeating: 0, count: 64)
             var notes = [UInt8](repeating: 255, count: 64), instruments = [UInt8](repeating: 0, count: 64)
-            var lastCommands = [UInt8](repeating: 0, count: 64), lastValues = [UInt8](repeating: 0, count: 64)
+            var lastCommands = [UInt8](repeating: 0, count: 64)
             var at = 0, row = 0
             func next() -> UInt8 {
                 at += 1
@@ -45,7 +45,7 @@ extension IT2Module {
                 if mask & 4 != 0 { _ = next() }
                 if mask & 8 != 0 {
                     lastCommands[channel] = next()
-                    lastValues[channel] = next()
+                    _ = next()
                 }
                 // A note is played on the instrument the channel was last given.
                 if mask & 0x33 != 0, instruments[channel] != 0 {
@@ -58,10 +58,6 @@ extension IT2Module {
                     // for a file that another tracker made. The command after Z is ModPlug Tracker's.)
                     if command == 28, !madeByModPlug { commands.note(1) }
                     if command == 27 || (command >= 29 && command <= 31) { commands.note(2) }
-                    // (And S9A to S9D, ModPlug Tracker's: two speakers or four for a channel in
-                    // surround, and whether a note starts with its channel's filter. S98 and S99,
-                    // its reverb, are played.)
-                    if command == 19, lastValues[channel] >= 0x9A, lastValues[channel] <= 0x9D, madeByModPlug { commands.note(3) }
                 }
             }
         }
@@ -106,7 +102,7 @@ extension IT2Module {
                                             many: "samples are kept in a form this player does not read, and are silent."))
         }
         if let sentence = Shortfall.commandsLeftOut(commands.named(["playing a sample backwards", "a smooth change to a filter or a plug-in's setting",
-                                                                    "commands of OpenMPT's own", "settings for four speakers and for how a note's filter starts"]),
+                                                                    "commands of OpenMPT's own"]),
                                                     why: "which Impulse Tracker did not have") {
             sentences.append(sentence)
         }

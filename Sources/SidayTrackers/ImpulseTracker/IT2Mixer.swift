@@ -816,7 +816,9 @@ final class IT2Mixer {
                 // What the filter's envelope is at (0 to 255) by the cutoff (0 to 127).
                 let cutoff = Int32(UInt16(bitPattern: sc.pointee.VolEnvState.CurNode) >> 8)
                 let FilterFreqValue = UInt16(truncatingIfNeeded: Int32(sc.pointee.MIDIBank & 0x00FF) &* cutoff)
-                if filter == .imagoOrpheus {
+                if sc.pointee.FilterWaits, !sc.pointee.FilterSet {
+                    // (A note begun after S9D has no filter until something sets it.)
+                } else if filter == .imagoOrpheus {
                     if FilterFreqValue != 127 * 255 || FilterQ != 0 { setImagoFilter(sc, cutoff: cutoff, resonance: FilterQ) }
                 } else if filter != .impulseTrackers {
                     // OpenMPT's own: on by Impulse Tracker's rule, or by its own, which is that a
@@ -879,6 +881,9 @@ final class IT2Mixer {
                         sc.pointee.fLeftVolume = Float((64 &- FinalPan) &* Vol) * (1.0 / (64.0 * 32768.0 * 128.0))
                         sc.pointee.fRightVolume = Float(FinalPan &* Vol) * (1.0 / (64.0 * 32768.0 * 128.0))
                     }
+                    // Surround somewhere between the speakers is heard there, with its right side upside
+                    // down, as OpenMPT has it.
+                    if stereoOutput, sc.pointee.SurroundPanned, sc.pointee.FinalPan != PAN_SURROUND { sc.pointee.fRightVolume = -sc.pointee.fRightVolume }
                 }
             }
 
@@ -961,7 +966,7 @@ final class IT2Mixer {
                         voiceWave.update(repeating: -0.0, count: Int(RealBytesToMix) * 2)
                         fMixBufferPtr = voiceWave
                     }
-                    defer { if waves != nil { keepWave(sc, into: target, surround: Surround) } }
+                    defer { if waves != nil { keepWave(sc, into: target, surround: Surround || sc.pointee.SurroundPanned && !heardInMono) } }
                     if sc.pointee.LoopMode == LOOP_PINGPONG {
                         while MixBlockSize > 0 {
                             // How many frames until the end of the loop it is heading for.
