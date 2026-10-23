@@ -821,6 +821,24 @@ ul {
   height: 28px;
   box-sizing: border-box;
   white-space: nowrap;
+  /* (Pressed and dragged, a row moves to another place: nothing on it is to be selected meanwhile.) */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Where what is dragged would go: a line above or below the row it is over, for files dragged on to
+   the page (data-drop, siday.js) and for a row dragged to another place (Views.swift); and the row
+   that is being dragged, faded. */
+.rows li[data-drop="before"], .rows li.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.rows li[data-drop="after"], .rows li.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.rows li.dragged {
+  opacity: 0.5;
 }
 
 /* A row is what is pressed to play the tune, and a cross to take it out of the list, which shows while

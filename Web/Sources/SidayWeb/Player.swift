@@ -201,11 +201,12 @@ final class Player {
                 case .songLengths, .other: 0
                 }
             },
-            { [self] lines in
+            { [self] lines, place in
                 // Each line is a name, a tab and a note. (The tab that counts is the last: a note has none.)
                 let lines = lines.split(separator: "\n").map { Array($0.utf8) }
                 add(lines.map { String(decoding: $0[..<($0.lastIndex(of: 9) ?? $0.count)], as: UTF8.self) },
-                    notes: lines.map { line in line.lastIndex(of: 9).map { String(decoding: line[($0 + 1)...], as: UTF8.self) } ?? "" })
+                    notes: lines.map { line in line.lastIndex(of: 9).map { String(decoding: line[($0 + 1)...], as: UTF8.self) } ?? "" },
+                    at: place)
             },
             { [self] plays, text, songs, song, length in loaded(plays, text, songs, song, length) },
             { [self] text in learned(text) },
@@ -401,15 +402,76 @@ final class Player {
         try? sidayChooseTunes()
     }
 
-    private func add(_ names: [String], notes: [String]) {
+    /// Files have been added at this place in the list, before the one that was there, or at its end
+    /// for any place that is not in it.
+    private func add(_ names: [String], notes: [String], at place: Int) {
         guard !names.isEmpty else { return }
         listNotice = nil
-        let first = files.count
-        files.append(contentsOf: names)
-        self.notes.append(contentsOf: notes)
-        searchable.append(contentsOf: names.map { Array($0.lowercased().utf8) })
+        let at = place >= 0 && place < files.count ? place : files.count
+        files.insert(contentsOf: names, at: at)
+        self.notes.insert(contentsOf: notes, at: at)
+        searchable.insert(contentsOf: names.map { Array($0.lowercased().utf8) }, at: at)
+        // (Those from there on are each so many places further down.)
+        marked = marked.map { $0.file >= at ? Marked(file: $0.file + names.count, why: $0.why) : $0 }
+        if let waiting = wanting, waiting >= at { wanting = waiting + names.count }
         find()
-        perform(queue.add(files.count - first))
+        perform(queue.add(names.count, at: at))
+    }
+
+    // MARK: Moving
+
+    /// The row being dragged to another place in the list, by its place in `files`; and the row it is
+    /// over, which it takes the place of if it is let go there. Nil while none is.
+    private(set) var dragged: Int?
+    private(set) var dragTarget: Int?
+
+    /// A row has been pressed, which may be the start of dragging it. (Not while the search shows some
+    /// of the tunes only, among which a place is no place in the list.)
+    func pressed(_ index: Int) {
+        guard found == nil, files.indices.contains(index) else { return }
+        dragged = index
+        dragTarget = nil
+    }
+
+    /// The pointer is over a row, with these buttons held: if it is dragging a row, that row would go
+    /// there; if none is held, the drag is over, wherever it was let go.
+    func draggedOver(_ index: Int, buttons: Int) {
+        guard dragged != nil else { return }
+        if buttons & 1 == 0 {
+            dropped()
+        } else if index != dragTarget {
+            dragTarget = index
+        }
+    }
+
+    /// The pointer has been let go: over a row (`over`), the row dragged takes its place, after it if
+    /// it was dragged down the list and before it if up; anywhere else, nothing moves.
+    func dropped(over index: Int? = nil) {
+        defer {
+            dragged = nil
+            dragTarget = nil
+        }
+        guard let from = dragged, let index, index != from else { return }
+        move(from, to: index > from ? index + 1 : index)
+    }
+
+    /// Moves a tune within the list: the one at `from` comes just before the one that was at
+    /// `destination`, or after all of them for the list's length. What plays next follows the list.
+    func move(_ from: Int, to destination: Int) {
+        guard files.indices.contains(from), destination >= 0, destination <= files.count, destination != from, destination != from + 1 else { return }
+        // (As the queue moves it: the others where they are, and it put in among them.)
+        var order = files.indices.filter { $0 != from }
+        order.insert(from, at: order.count { $0 < destination })
+        var newPlace = [Int](repeating: 0, count: files.count)
+        for (place, was) in order.enumerated() { newPlace[was] = place }
+        files = order.map { files[$0] }
+        notes = order.map { notes[$0] }
+        searchable = order.map { searchable[$0] }
+        marked = marked.map { Marked(file: newPlace[$0.file], why: $0.why) }
+        wanting = wanting.map { newPlace[$0] }
+        try? sidayMove(from, destination)
+        queue.move([from], to: destination)
+        find()
     }
 
     /// The file at a place in the list, or nothing if the list is not that long. (A row can be drawn

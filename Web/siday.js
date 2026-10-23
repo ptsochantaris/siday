@@ -528,11 +528,7 @@ async function finish(chosen) {
   if (lists.length === 0 || here.length === 0) return;
   const found = await listed(lists);
   const accepted = found.lists.flatMap((items, which) => items.filter((item) => !before[which].has(item.entry)));
-  if (accepted.length > 0) {
-    // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
-    for (const item of accepted) tunes.push(item);
-    listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
-  }
+  if (accepted.length > 0) put(accepted);
   reckon(lists, found, before);
 }
 
@@ -624,7 +620,19 @@ async function take(chosen, how = add) {
   }
 }
 
-async function add(chosen) {
+/// Puts tunes in the list, here and on the Swift side: just before `anchor`, a tune already in it, or
+/// after all of them if there is none (or it has been taken out meanwhile).
+function put(accepted, anchor = null) {
+  const at = anchor ? tunes.indexOf(anchor) : -1;
+  // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
+  const after = at >= 0 ? tunes.splice(at) : [];
+  for (const item of accepted) tunes.push(item);
+  for (const item of after) tunes.push(item);
+  listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"), at);
+}
+
+/// Takes in what was chosen or dropped: just before `anchor`, a tune in the list, if one is given.
+async function add(chosen, anchor = null) {
   // HVSC's song-length database is taken for what it is and not for a tune.
   const database = chosen.find((item) => item.name.split("/").pop().toLowerCase() === "songlengths.md5");
   if (database) {
@@ -656,11 +664,7 @@ async function add(chosen) {
     if (first === "!") unfound.push({ which: Number(second), had: new Set(third ? third.split(",").map(Number) : []) });
     else accepted.push({ ...known[Number(first)], note: second ?? "" });
   }
-  if (accepted.length > 0) {
-    // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
-    for (const item of accepted) tunes.push(item);
-    listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
-  }
+  if (accepted.length > 0) put(accepted, anchor);
   // The lists that name tunes which were not found are kept, to be finished when the listener says
   // where the rest are; and the Swift side is told how it came out.
   if (lists.length > 0) {
@@ -801,14 +805,43 @@ async function dropped(items) {
   return found;
 }
 
-document.addEventListener("dragover", (event) => event.preventDefault());
+/// Where in the list what is being dragged over the page would go: the row it is over, and whether
+/// before it or after it, by which half of the row it is over; nil when it is over no row.
+function dropPlace(event) {
+  const row = event.target instanceof Element ? event.target.closest(".rows li[data-index]") : null;
+  if (!row) return null;
+  const box = row.getBoundingClientRect();
+  return { row, after: event.clientY > box.top + box.height / 2 };
+}
+
+/// The row that shows where what is dragged would go, by a line above or below it.
+let dropRow = null;
+function markDrop(place) {
+  if (dropRow && dropRow !== place?.row) dropRow.removeAttribute("data-drop");
+  dropRow = place?.row ?? null;
+  dropRow?.setAttribute("data-drop", place.after ? "after" : "before");
+}
+
+document.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  markDrop(dropPlace(event));
+});
+document.addEventListener("dragleave", (event) => {
+  // (Off the page altogether.)
+  if (!event.relatedTarget) markDrop(null);
+});
 document.addEventListener("drop", (event) => {
   event.preventDefault();
+  markDrop(null);
   if (!event.dataTransfer) return;
+  // Dropped on a row, it goes in the list there, just before the tune it is put before, wherever that
+  // tune is by the time it has been looked through.
+  const place = dropPlace(event);
+  const anchor = place ? (tunes[Number(place.row.dataset.index) + (place.after ? 1 : 0)] ?? null) : null;
   // (Taken before anything is awaited: the list is emptied when the event is over.)
   const looking = dropped(event.dataTransfer.items);
   busy("Looking through what was dropped…");
-  void looking.then((chosen) => take(chosen), idle);
+  void looking.then((chosen) => take(chosen, (taken) => add(taken, anchor)), idle);
 });
 
 // What FORMATS.md says of a format, shown over the page when the format's name is pressed. The
@@ -1164,6 +1197,10 @@ Object.assign(globalThis, {
   sidayRemoveAll() {
     tunes.length = 0;
     unfinished = [];
+  },
+  sidayMove(from, to) {
+    const [item] = tunes.splice(from, 1);
+    tunes.splice(to > from ? to - 1 : to, 0, item);
   },
   sidayStop() {
     stop();

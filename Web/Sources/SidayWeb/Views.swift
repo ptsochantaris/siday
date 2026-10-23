@@ -507,6 +507,8 @@ struct Playlist {
                         }
                     }
                 }
+                // (A row dragged and let go anywhere but on a row goes nowhere.)
+                .onMouseUp { _ in player.dropped() }
             }
             div(.class("add")) {
                 button { "Add files…" }.onClick { try? sidayChoose(false) }
@@ -524,7 +526,9 @@ struct Row {
     var body: some View {
         // The cross is beside what is pressed to play the tune and not inside it, so that pressing the
         // one is not also pressing the other.
-        li(.class(index == player.current ? "current" : "")) {
+        // A row says its place, for what is dropped on it from outside the page (see siday.js). Dragged
+        // to another, it is dimmed, and the row it is over shows where it would go.
+        li(.class(classes), .custom(name: "data-index", value: "\(index)")) {
             div(.class("pick")) {
                 span(.class("name")) { lastComponent(player.file(at: index)) }
                 span(.class("folder")) { folder(player.file(at: index)) }
@@ -539,6 +543,19 @@ struct Row {
             button(.class("remove"), .title("Take out of the list"), .custom(name: "aria-label", value: "Take out of the list")) { "×" }
                 .onClick { player.remove(index) }
         }
+        .onMouseDown { event in if event.button == 0 { player.pressed(index) } }
+        .onMouseMove { event in player.draggedOver(index, buttons: event.buttons) }
+        .onMouseUp { _ in player.dropped(over: index) }
+    }
+
+    private var classes: String {
+        var classes: [String] = []
+        if index == player.current { classes.append("current") }
+        if let from = player.dragged, player.dragTarget != nil {
+            if index == from { classes.append("dragged") }
+            if index == player.dragTarget, index != from { classes.append(index > from ? "drop-after" : "drop-before") }
+        }
+        return classes.joined(separator: " ")
     }
 }
 

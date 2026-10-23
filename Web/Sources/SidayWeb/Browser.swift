@@ -11,8 +11,9 @@ import JavaScriptKit
 /// - Parameters:
 ///   - kind: what a file of this name is: 1 for a tune that can be played, 2 for a playlist, 3 for
 ///     a tune's companion (see `Companions`), and 0 for anything else.
-///   - added: files have been added to the list: a line for each, in the order they now have after
-///     those already there, of its name, a tab, and what the playlist it came by says about it.
+///   - added: files have been added to the list: a line for each, in the order they now have, of its
+///     name, a tab, and what the playlist it came by says about it; and the place in the list they
+///     were put at, before the file that was there, or -1 for after all of them.
 ///   - loaded: the tune asked for with `sidayPlay` has started, or could not be: whether it plays, its
 ///     details one to a line (format, title, author, detail; then for a tune of several songs a line
 ///     for each: its length in milliseconds if known, a tab, its name if it has one; then a line for
@@ -44,7 +45,7 @@ import JavaScriptKit
 @JSFunction(from: .global)
 func sidayListen(
     _ kind: @escaping (String) -> Int,
-    _ added: @escaping (String) -> Void,
+    _ added: @escaping (String, Int) -> Void,
     _ loaded: @escaping (Bool, String, Int, Int, Double) -> Void,
     _ songs: @escaping (String) -> Void,
     _ progress: @escaping (Double, [Double], Int) -> Void,
@@ -143,6 +144,11 @@ func sidayRemove(_ index: Int) throws(JSException)
 /// Every file has been taken out of the list.
 @JSFunction(from: .global)
 func sidayRemoveAll() throws(JSException)
+
+/// A file has been moved within the list: the one at `from` now comes just before the one that was at
+/// `to`, or after all of them for the list's length.
+@JSFunction(from: .global)
+func sidayMove(_ from: Int, _ to: Int) throws(JSException)
 
 /// Nothing is to be played: the sound stops, and the song that was playing is let go.
 @JSFunction(from: .global)
