@@ -174,6 +174,7 @@ private func wallyBebenModule(new: Bool, ending: WallyBebenEnding) -> [UInt8] {
         #expect(!MikeDavies.isOne(file) && !SeanConnolly.isOne(file) && !Desire.isOne(file))
         #expect(!WallyBeben.isOne(Array(file.prefix(30))))
         var p = try WallyBebenPlayer(file, song: 1)
+        try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
         #expect(p.songCount == 2)
         #expect(p.tuneInfo.format == "Wally Beben" && p.tuneInfo.author == "Wally Beben")
         #expect(p.tuneInfo.detail == "(c)Wally Beben 1988, a test")
@@ -198,6 +199,7 @@ private func wallyBebenModule(new: Bool, ending: WallyBebenEnding) -> [UInt8] {
 @Test func wallyBebensSongsEndWhenTheModuleStopsTwice() throws {
     // Voices 1 and 2 silenced: the first time since the song was started is not its end, the second is.
     var p = try WallyBebenPlayer(wallyBebenModule(new: false, ending: .stops))
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     var out = Silent()
     _ = p.run(&out)
     _ = p.run(&out)
@@ -322,6 +324,7 @@ private func mikeDaviesModule() -> (bytes: [UInt8], samplesEndAt: Int) {
     #expect(!WallyBeben.isOne(file) && !SeanConnolly.isOne(file) && !Desire.isOne(file))
     #expect(!MikeDavies.isOne(Array(file.prefix(250))))
     var p = try MikeDaviesPlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Mike Davies" && p.tuneInfo.author == "Mike Davies")
     var out = Silent()

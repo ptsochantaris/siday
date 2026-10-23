@@ -100,11 +100,18 @@ function audio() {
       outlet.ready,
     ]);
     loudness = level;
+    // A second engine, which plays the songs of tunes through to find how long they are, so that the
+    // first need not hold up the sound for it (see engine.js); the two talk to each other.
+    const measurer = new Worker(engineAddress);
+    measurer.postMessage({ type: "start", module: module.slice(0) });
     const engine = new Worker(engineAddress);
     const ready = new Promise((resolve) => (engine.onmessage = resolve));
     engine.postMessage({ type: "start", module }, [module]);
     await ready;
     engine.onmessage = (event) => heard(event.data);
+    const between = new MessageChannel();
+    engine.postMessage({ type: "measurer", port: between.port1 }, [between.port1]);
+    measurer.postMessage({ type: "measuring", port: between.port2 }, [between.port2]);
     await join(engine, output);
     engine.postMessage({ type: "style", style });
     if (settings) engine.postMessage({ type: "settings", values: settings });
@@ -340,6 +347,9 @@ function heard(message) {
       listeners?.loaded(message.plays, message.text, message.songs, message.song, message.length);
       break;
     }
+    case "songs":
+      listeners?.songs(message.text);
+      break;
     case "rendered":
       listeners?.rendered(message.seconds, message.length);
       break;
@@ -1111,8 +1121,8 @@ document.addEventListener("fullscreenchange", stirred);
 
 // What the Swift side calls.
 Object.assign(globalThis, {
-  sidayListen(kind, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame) {
-    listeners = { kind, added, loaded, progress, rendered, ended, held, pointed, scrolled, frame };
+  sidayListen(kind, added, loaded, songs, progress, rendered, ended, held, pointed, scrolled, frame) {
+    listeners = { kind, added, loaded, songs, progress, rendered, ended, held, pointed, scrolled, frame };
   },
   sidayAbout(word) {
     void about(word);

@@ -124,6 +124,7 @@ private func soundImagesModule(room: Int = 2, early: Bool = false) -> [UInt8] {
     #expect(SoundImages.kind(file) == 1)
     #expect(SoundImages.isOne(file) && !SeanConnolly.isOne(file) && !Desire.isOne(file) && !CoreDesign.isOne(file))
     var p = try SoundImagesPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Sound Images" && p.tuneInfo.author == "Tony Williams")
     var out = Silent()
@@ -148,6 +149,7 @@ private func soundImagesModule(room: Int = 2, early: Bool = false) -> [UInt8] {
 @Test func soundImagesSongsEndWhenTheModuleStopsThem() throws {
     // Song 2's list stops the song (the song playing, at 5, nought after a tick): its end.
     var p = try SoundImagesPlayer(soundImagesModule(), song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     var out = Silent()
     _ = p.run(&out)
     _ = p.run(&out)
@@ -162,6 +164,7 @@ private func soundImagesModule(room: Int = 2, early: Bool = false) -> [UInt8] {
     // The voice's interrupt asked for before the song's start has set its handler: it waits for it (where
     // score's vector would stop everything).
     var p = try SoundImagesPlayer(soundImagesModule(early: true))
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     var out = Silent()
     _ = p.run(&out)
     _ = p.run(&out)
@@ -172,7 +175,8 @@ private func soundImagesModule(room: Int = 2, early: Bool = false) -> [UInt8] {
 
 @Test func soundImagesHiddenSongsAreCounted() throws {
     // Room for three records where the start takes two: three songs, and the start made to take them.
-    let p = try SoundImagesPlayer(soundImagesModule(room: 3), song: 2)
+    var p = try SoundImagesPlayer(soundImagesModule(room: 3), song: 2)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 3)
     #expect(p.song == 2)
 }

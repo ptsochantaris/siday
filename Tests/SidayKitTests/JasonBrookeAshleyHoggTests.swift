@@ -118,6 +118,7 @@ private func firstKindModule(_ ending: FirstKindEnding) -> [UInt8] {
     #expect(JasonBrooke.kind(file) == 1)
     #expect(!AshleyHogg.isOne(file) && !Desire.isOne(file))
     var p = try JasonBrookePlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 3)
     #expect(p.tuneInfo.format == "Jason C. Brooke" && p.tuneInfo.author == "Jason C. Brooke")
     var out = Silent()
@@ -135,6 +136,7 @@ private func firstKindModule(_ ending: FirstKindEnding) -> [UInt8] {
     #expect(p.lengthClocks != nil)
     // Every voice's list back at its start: the song's end too.
     var q = try JasonBrookePlayer(firstKindModule(.wrap))
+    try q.select(song: q.song)  // (Played through first, as its renderer has it played.)
     #expect(ticksToEnd(&q, most: 6) == 4)
     // Not the first kind's start.
     var other = file
@@ -195,6 +197,7 @@ private func secondKindModule() -> [UInt8] {
     let file = secondKindModule()
     #expect(JasonBrooke.kind(file) == 0)
     var p = try JasonBrookePlayer(file, song: 2)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 3)
     var out = Silent()
     _ = p.run(&out)
@@ -292,6 +295,7 @@ private func ashley1991Module() -> [UInt8] {
     #expect(AshleyHogg.kind(file) == 0)
     #expect(!JasonBrooke.isOne(file) && !SeanConnolly.isOne(file))
     var p = try AshleyHoggPlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Ashley Hogg" && p.tuneInfo.author == "Ashley Hogg")
     var out = Silent()
@@ -389,6 +393,7 @@ private func ashley1993Module() -> (module: [UInt8], samples: [UInt8]) {
     let (file, samples) = ashley1993Module()
     #expect(AshleyHogg.kind(file) == 1)
     var p = try AshleyHoggPlayer(file, song: 1, name: "ASH.test", files: [("SMP.test", samples)])
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 3)
     #expect(p.tuneInfo.title == "Test Tune")
     var out = Silent()
@@ -404,7 +409,8 @@ private func ashley1993Module() -> (module: [UInt8], samples: [UInt8]) {
     #expect(ticksToEnd(&p, most: 4) == 1)
     #expect(p.lengthClocks != nil)
     // The samples beside it as the collections name them, `name.smp` for `name.ash`.
-    let q = try AshleyHoggPlayer(file, name: "Test.ash", files: [("Test.smp", samples)])
+    var q = try AshleyHoggPlayer(file, name: "Test.ash", files: [("Test.smp", samples)])
+    try q.select(song: q.song)  // (Played through first, as its renderer has it played.)
     #expect(q.songCount == 3)
     // And none: refused, as wanting them; or too short for its samples.
     #expect(throws: TuneError.self) { _ = try AshleyHoggPlayer(file, name: "ASH.test") }

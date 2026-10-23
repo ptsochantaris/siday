@@ -32,11 +32,42 @@ public struct SongInfo: Sendable, Equatable {
     /// True if it is known that there is nothing to it: a stretch of a module in which no note is
     /// played, which has a length all the same.
     public var empty: Bool
+    /// True while how long it is has still to be found, by a player that finds its songs' lengths by
+    /// playing them through unheard, and has not yet played this one (`LoadOptions.measuresEverySong`):
+    /// `length` is nil and `empty` false until then.
+    public var pending: Bool
 
-    public init(title: String = "", length: Double? = nil, empty: Bool = false) {
+    public init(title: String = "", length: Double? = nil, empty: Bool = false, pending: Bool = false) {
         self.title = title
         self.length = length
         self.empty = empty
+        self.pending = pending
+    }
+}
+
+/// What a player that finds its songs' lengths by playing them through unheard found of them, to be
+/// given to another load of the same file (`LoadOptions.songMeasures`) so that it need not find it
+/// again. Only a player of the same file can take it.
+public struct SongMeasures: Sendable, Equatable {
+    /// Each song's length in the player's own clocks; nil for one that never comes to an end.
+    package var lengths: [UInt64?]
+
+    package init(lengths: [UInt64?]) {
+        self.lengths = lengths
+    }
+
+    /// As bytes, for a front end to keep or to hand from one thread or worker to another: nine for
+    /// each song, a 1 for one that ends and then its length, low byte first.
+    public var bytes: [UInt8] {
+        lengths.flatMap { length in [length == nil ? 0 : 1] + (0 ..< 8).map { UInt8(truncatingIfNeeded: (length ?? 0) >> ($0 * 8)) } }
+    }
+
+    /// From `bytes`; nil for bytes that are not such.
+    public init?(bytes: [UInt8]) {
+        guard bytes.count % 9 == 0 else { return nil }
+        lengths = stride(from: 0, to: bytes.count, by: 9).map { at in
+            bytes[at] == 0 ? nil : (0 ..< 8).reduce(UInt64(0)) { $0 | UInt64(bytes[at + 1 + $1]) << ($1 * 8) }
+        }
     }
 }
 
@@ -114,6 +145,13 @@ public protocol Renderer: AnyObject {
     /// voice of a SID still goes through the filter's sums, and one of an AY chip still has its part
     /// in the envelope. With no voice left out the sound is what it was before this was ever called.
     func setMuted(_ muted: [Bool])
+    /// What was found of the songs' lengths by playing them through unheard, once every song has
+    /// been, for a player that finds them so; nil for one that does not, or has not found them all.
+    var songMeasures: SongMeasures? { get }
+    /// Gives the player what another load of the same file found of its songs (`songMeasures`), so
+    /// that those it has not yet played through are known without it (`songs`). What does not fit
+    /// the tune is not taken.
+    func adopt(_ measures: SongMeasures)
 }
 
 public extension Renderer {
@@ -144,6 +182,8 @@ public extension Renderer {
     var speakerChannel: Int? { nil }
     func keepChannelWaves() -> ChannelWaves? { nil }
     func setMuted(_: [Bool]) {}
+    var songMeasures: SongMeasures? { nil }
+    func adopt(_: SongMeasures) {}
     func takeChannelsSampled(into sampled: UnsafeMutablePointer<Bool>) {
         let all = channelsAreSampled
         for voice in 0 ..< channelCount { sampled[voice] = all }
@@ -203,6 +243,17 @@ public struct LoadOptions: Sendable {
     /// Run an AY file's songs silently to find the lengths the file does not give. Off saves the time when
     /// lengths are not wanted.
     public var findsMissingLengths = true
+    /// Whether a player that finds its songs' lengths by playing them through unheard (the emulated
+    /// Amiga's, which can take a second or two over a file of many songs) plays every song through
+    /// when the tune is loaded, or only as many as it needs to know which to start with. The others
+    /// are played through as they are selected, or are given from another load of the file (see
+    /// `Renderer.adopt`), and are `SongInfo.pending` until then. Every song comes out as long either
+    /// way: the songs are always played through in the same order, which is what each length can
+    /// depend on.
+    public var measuresEverySong = true
+    /// What another load of the same file found of its songs (`Renderer.songMeasures`), so that this
+    /// one need not play them through.
+    public var songMeasures: SongMeasures?
     /// Which Amiga a module is heard on.
     public var amigaModel: AmigaModel = .a1200
     /// How far apart the Amiga's two sides are kept, from 0 (together) to 1 (the Amiga's own, with

@@ -102,6 +102,7 @@ private func newModule(of1990: Bool) -> [UInt8] {
         #expect(MarkCooksey.isOne(file))
         #expect(!CoreDesign.isOne(file) && !Desire.isOne(file))
         var p = try MarkCookseyPlayer(file, song: 2)
+        try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
         #expect(p.songCount == 3)
         #expect(p.tuneInfo.format == "Mark Cooksey")
         #expect(p.tuneInfo.author == "Mark Cooksey")
@@ -214,6 +215,7 @@ private func firstModule() -> (code: [UInt8], data: [UInt8]) {
     #expect(!MarkCooksey.isOne(data))
     for (name, other) in [("game.mcr", "game.mcs"), ("MCR.game", "MCS.game")] {
         var p = try MarkCookseyPlayer(code, song: 1, name: name, files: [(other, data)])
+        try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
         #expect(p.songCount == 2)
         var out = Silent()
         _ = p.run(&out)

@@ -24,6 +24,8 @@ struct Tune {
         var length: Double?
         /// True if there is known to be nothing in it: it is passed over when songs are played in turn.
         var empty = false
+        /// True while it is still being played through, unheard, to find how long it is (`SongInfo.pending`).
+        var pending = false
     }
 
     /// True when the file names its songs, and not only numbers them.
@@ -235,6 +237,7 @@ final class Player {
                     notes: lines.map { line in line.lastIndex(of: 9).map { String(decoding: line[($0 + 1)...], as: UTF8.self) } ?? "" })
             },
             { [self] plays, text, songs, song, length in loaded(plays, text, songs, song, length) },
+            { [self] text in learned(text) },
             { [self] seconds, numbers, voices in
                 // (A move to another place in the song is no time at all, and neither is a long wait.)
                 let fall = Self.lightFall * max(0, min(0.1, seconds - position))
@@ -498,6 +501,7 @@ final class Player {
 
     func play(_ index: Int, song: Int = -1) {
         guard files.indices.contains(index) else { return }
+        endedUnfollowed = false
         // The list follows the playing tune from one to the next, as long as the listener has not
         // scrolled away from it to look for something else.
         if index != current, let row = row(of: index) {
@@ -551,19 +555,13 @@ final class Player {
         failures = 0
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map { String($0) }
         func line(_ index: Int) -> String { index < lines.count ? lines[index] : "" }
-        var list: [Tune.Song] = []
-        if songs > 1 {
-            for index in 0 ..< songs {
-                let fields = line(4 + index).split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
-                let milliseconds = fields.first.flatMap { Int($0) }
-                list.append(Tune.Song(title: fields.count > 2 ? String(fields[2]) : "", length: milliseconds.map { Double($0) / 1000 },
-                                      empty: fields.count > 1 && fields[1] == "1"))
-            }
-            // A song whose file gives no length has it found when it is played. What was found for the
-            // songs of this tune played before this one is kept.
-            if current == tuneFile, let known = tune?.songs, known.count == list.count {
-                for index in list.indices where list[index].length == nil { list[index].length = known[index].length }
-            }
+        var list = songs > 1 ? Self.songs(songs, in: lines) : []
+        // A song whose file gives no length has it found when it is played. What was found for the
+        // songs of this tune played before this one is kept; and so is a song's length found by playing
+        // it through since, which this load had still to.
+        if current == tuneFile, let known = tune?.songs, known.count == list.count {
+            for index in list.indices where list[index].length == nil { list[index].length = known[index].length }
+            for index in list.indices where list[index].pending && !known[index].pending { list[index] = known[index] }
         }
         // After the songs: what the file asks for that is not played as it asks, each line of it
         // marked with an exclamation mark.
@@ -580,6 +578,37 @@ final class Player {
             }
         }
     }
+
+    /// A tune's songs, from the lines its details are told in (see `sidayListen`): its length in
+    /// milliseconds or a question mark while that is still to be found, a tab, 1 for a song known to
+    /// have nothing in it, a tab, and its name.
+    private static func songs(_ count: Int, in lines: [String]) -> [Tune.Song] {
+        (0 ..< count).map { index in
+            let fields = (4 + index < lines.count ? lines[4 + index] : "").split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+            let milliseconds = fields.first.flatMap { Int($0) }
+            return Tune.Song(title: fields.count > 2 ? String(fields[2]) : "", length: milliseconds.map { Double($0) / 1000 },
+                             empty: fields.count > 1 && fields[1] == "1", pending: fields.first == "?")
+        }
+    }
+
+    /// It is known now how long each of the playing tune's songs is, which some were still being
+    /// played through to find: its details, told again. A song that ended while they were goes on to
+    /// the one that follows it now.
+    private func learned(_ text: String) {
+        guard var tune else { return }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map { String($0) }
+        let songs = Self.songs(tune.songs.count, in: lines)
+        for index in songs.indices where tune.songs[index].pending { tune.songs[index] = songs[index] }
+        self.tune = tune
+        if endedUnfollowed {
+            endedUnfollowed = false
+            songEnded()
+        }
+    }
+
+    /// True when a song ended while some of the tune's songs were still being played through: which
+    /// song follows it waits until it is known which of them are passed over.
+    private var endedUnfollowed = false
 
     /// Why a tune in the list is marked as not played quite as its file asks; nil if it is not marked.
     func shortfalls(ofFile index: Int) -> String? {
@@ -603,6 +632,10 @@ final class Player {
     /// A song has played to its end: the next of the tune's songs that are played in turn follows,
     /// if there is one, and the next tune if not.
     private func songEnded() {
+        if let tune, tune.songs.contains(where: { $0.pending }) {
+            endedUnfollowed = true
+            return
+        }
         if let tune, let following = songsInTurn(of: tune).indices.first(where: { $0 > tune.song && songsInTurn(of: tune)[$0] }) {
             playSong(following)
         } else {

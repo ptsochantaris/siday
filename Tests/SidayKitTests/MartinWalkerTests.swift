@@ -144,6 +144,7 @@ private struct Told: TFMXOutput {
 
 @Test func martinWalkerSongsEndAsThePlayerHasThemEnd() throws {
     var player = try MartinWalkerPlayer(module().assembled())
+    try player.select(song: player.song)  // (Played through first, as its renderer has it played.)
     // Every voice is at the end of its list on the third tick, and goes back: the song is two ticks long.
     #expect(player.lengthClocks == 2 * UInt64(MartinWalkerPlayer.tickClocks))
     #expect(player.tuneInfo.format == "Martin Walker")

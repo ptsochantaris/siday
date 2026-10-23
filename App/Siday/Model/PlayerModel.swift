@@ -24,6 +24,8 @@ struct Tune: Equatable {
         var length: Double?
         /// True if there is known to be nothing in it: it is passed over when songs are played in turn.
         var empty = false
+        /// True while it is still being played through, unheard, to find how long it is (`SongInfo.pending`).
+        var pending = false
     }
 
     /// True when the file names its songs, and not only numbers them.
@@ -363,6 +365,7 @@ final class PlayerModel {
     /// - Parameter startPaused: the tune is made ready, and nothing is heard until play is pressed.
     func play(_ index: Int, song: Int = -1, paused startPaused: Bool = false) {
         guard files.indices.contains(index) else { return }
+        endedUnfollowed = false
         // Another song of the tune that is showing: its details stay up, with the new song marked.
         if index == tuneFile, let tune, tune.songs.indices.contains(song) {
             self.tune?.song = song
@@ -425,7 +428,10 @@ final class PlayerModel {
                 UserDefaults.standard.set(levels, forKey: "levels")
             case let .remaking(tune, busy):
                 if tune == asked { remaking = busy }
-            case .muted:
+            case let .songs(tune, songs):
+                guard tune == asked else { return }
+                learned(songs)
+            case .muted, .measure:
                 break
             }
         }
@@ -441,10 +447,12 @@ final class PlayerModel {
             return
         }
         failures = 0
-        var list = songs.map { Tune.Song(title: $0.title, length: $0.length, empty: $0.empty) }
+        var list = songs.map { Tune.Song(title: $0.title, length: $0.length, empty: $0.empty, pending: $0.pending) }
         // A song whose file gives no length has it found when it is played: what was found is kept.
         if current == tuneFile, let known = tune?.songs, known.count == list.count {
             for index in list.indices where list[index].length == nil { list[index].length = known[index].length }
+            // (And one played through to find its length since, which this load had still to.)
+            for index in list.indices where list[index].pending && !known[index].pending { list[index] = known[index] }
         }
         tuneFile = current
         tune = Tune(format: info.format, title: info.title, author: info.author, detail: info.detail, songs: list, song: song, length: length, shortfalls: info.shortfalls)
@@ -463,9 +471,33 @@ final class PlayerModel {
         nowPlayingChanged()
     }
 
+    /// It is known now how long each of the tune's songs is, which some were still being played
+    /// through to find. A song that ended while they were goes on to the one that follows it now.
+    private func learned(_ songs: [SongInfo]) {
+        guard var tune, tune.songs.count == songs.count else { return }
+        for (index, song) in songs.enumerated() where tune.songs[index].pending {
+            tune.songs[index].length = song.length
+            tune.songs[index].empty = song.empty
+            tune.songs[index].pending = song.pending
+        }
+        self.tune = tune
+        if endedUnfollowed {
+            endedUnfollowed = false
+            songEnded()
+        }
+    }
+
+    /// True when a song ended while some of the tune's songs were still being played through: which
+    /// song follows it waits until it is known which of them are passed over.
+    private var endedUnfollowed = false
+
     /// A song has played to its end: the next of the tune's songs that are played in turn follows,
     /// if there is one, and the next tune if not.
     private func songEnded() {
+        if let tune, tune.songs.contains(where: \.pending) {
+            endedUnfollowed = true
+            return
+        }
         if let tune, let following = songsInTurn(of: tune).indices.first(where: { $0 > tune.song && songsInTurn(of: tune)[$0] }) {
             playSong(following)
         } else {

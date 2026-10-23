@@ -80,6 +80,7 @@ private struct Writes: TFMXOutput {
     let file = module()
     #expect(DaveLoweCodePlayer.isOne(file))
     var p = try DaveLoweCodePlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Dave Lowe")
     #expect(p.tuneInfo.title == "Song" && p.tuneInfo.author == "Me")

@@ -137,6 +137,7 @@ private struct Told: TFMXOutput {
 
 @Test func specialFXSongsEndAsThePlayerHasThemEnd() throws {
     var player = try SpecialFXPlayer(module().assembled())
+    try player.select(song: player.song)  // (Played through first, as its renderer has it played.)
     // The voice comes to the end of its list of three notes on the fourth tick: the song is three
     // ticks long.
     #expect(player.lengthClocks == 3 * UInt64(SpecialFXPlayer.tickClocks))

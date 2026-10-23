@@ -92,6 +92,7 @@ private func joCodeModule(hearSecond: Bool = false) -> [UInt8] {
     #expect(!DynamicSynthesizer.isOne(file) && !SeanConnolly.isOne(file) && !FredMonitor.isOne(file))
     #expect(JesperOlsen.kind(Array(file.prefix(600))) == nil)
     var p = try JesperOlsenPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Jesper Olsen" && p.tuneInfo.author == "Jesper Olsen")
     // The period, and the volume through the player's patch; and voice 0, the song's only voice, gone
@@ -104,12 +105,15 @@ private func joCodeModule(hearSecond: Bool = false) -> [UInt8] {
     #expect(values.contains(0x40))
     // The second song's voices 1 to 3 are never heard: only voice 0 is waited for (siday's).
     var q = try JesperOlsenPlayer(file, song: 1)
+    try q.select(song: q.song)  // (Played through first, as its renderer has it played.)
     #expect(q.lengthClocks != nil)
     #expect(played(&q, ticks: 4, 0xA6).endings == 1)
     // Heard, voice 1 is waited for, and never goes round.
-    let r = try JesperOlsenPlayer(joCodeModule(hearSecond: true), song: 1)
+    var r = try JesperOlsenPlayer(joCodeModule(hearSecond: true), song: 1)
+    try r.select(song: r.song)  // (Played through first, as its renderer has it played.)
     #expect(r.lengthClocks == nil)
-    let s = try JesperOlsenPlayer(joCodeModule(hearSecond: true), song: 0)
+    var s = try JesperOlsenPlayer(joCodeModule(hearSecond: true), song: 0)
+    try s.select(song: s.song)  // (Played through first, as its renderer has it played.)
     #expect(s.lengthClocks != nil)
 }
 
@@ -182,6 +186,7 @@ private func joReplayer() -> [UInt8] {
     #expect(JesperOlsen.kind(file) == .data)
     #expect(!DynamicSynthesizer.isOne(file))
     var p = try JesperOlsenPlayer(file, song: 1, files: replayer)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     var (values, endings) = played(&p, ticks: 4, 0xA6)
     #expect(values.contains(0x200 - 2))
@@ -291,6 +296,7 @@ private func dnsModuleAndTable(hundred: Bool = false) -> (bytes: [UInt8], entry:
     #expect(DynamicSynthesizer.samplesName("ingame.dns") == "ingame.smp")
     #expect(DynamicSynthesizer.samplesName("ingame") == nil)
     var p = try DynamicSynthesizerPlayer(file, name: "DNS.test", files: [("SMP.test", samples)])
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Dynamic Synthesizer" && p.tuneInfo.author == "Chris Hülsbeck")
     // Fifty ticks a second; the period made $71 at least, the volume through the player's; and the
@@ -307,9 +313,11 @@ private func dnsModuleAndTable(hundred: Bool = false) -> (bytes: [UInt8], entry:
     let moved = (0 ..< 4).reduce(UInt32(0)) { $0 << 8 | UInt32(p.memory[at + entry + $1]) }
     #expect(moved == DynamicSynthesizer.moduleAt + UInt32(target))
     var q = try DynamicSynthesizerPlayer(file, song: 1, name: "test.dns", files: [("test.smp", samples)])
+    try q.select(song: q.song)  // (Played through first, as its renderer has it played.)
     #expect(played(&q, ticks: 3, 0xA6).values.contains(0x80))
     // A module whose code is not as the player first looks for plays a hundred ticks a second.
     var h = try DynamicSynthesizerPlayer(dnsModule(hundred: true), name: "DNS.test", files: [("SMP.test", samples)])
+    try h.select(song: h.song)  // (Played through first, as its renderer has it played.)
     _ = played(&h, ticks: 2, 0xA6)
     #expect(abs(h.tickClocks - (0x1BB6 + 1) * 5) < 5)
     // Without its samples, it is refused.

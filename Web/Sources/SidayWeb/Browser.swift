@@ -18,7 +18,9 @@ import JavaScriptKit
 ///     for each: its length in milliseconds if known, a tab, its name if it has one; then a line for
 ///     each thing the file asks for that is not played as it asks: an exclamation mark and a
 ///     sentence) or the reason it does not, how many songs it has, which one is playing, and its
-///     length in seconds.
+///     length in seconds. A song's length is a question mark while it is still being found.
+///   - songs: it is known now how long each of the playing tune's songs is, which some were still
+///     being played through to find: its details again, as `loaded` gave them.
 ///   - progress: where the playing song has got to, in seconds; then, in one list of numbers from 0
 ///     to 255, the spectrum analyser's bars (the height of each, low notes to high, and then the
 ///     height of each bar's cap) and what the tune's voices are doing, in six rows: a light for each
@@ -44,6 +46,7 @@ func sidayListen(
     _ kind: @escaping (String) -> Int,
     _ added: @escaping (String) -> Void,
     _ loaded: @escaping (Bool, String, Int, Int, Double) -> Void,
+    _ songs: @escaping (String) -> Void,
     _ progress: @escaping (Double, [Double], Int) -> Void,
     _ rendered: @escaping (Double, Double) -> Void,
     _ ended: @escaping () -> Void,

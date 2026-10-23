@@ -107,7 +107,9 @@ struct ManiacsOfNoisePlayer: ~Copyable {
         guard Int(Self.moduleAddress) + data.count + Self.room <= machine.memorySize else {
             throw .unsupported("a module of the Maniacs of Noise larger than the Amiga's chip RAM")
         }
-        try select(song: song >= 0 && song < layout.songCount ? song : 0)
+        // (Its songs are played through, to find how long they are, when the renderer asks: `measure`.)
+        self.song = song >= 0 && song < layout.songCount ? song : 0
+        try start(self.song)
     }
 
     // MARK: The module
@@ -274,23 +276,32 @@ struct ManiacsOfNoisePlayer: ~Copyable {
     mutating func select(song: Int) throws(TuneError) {
         guard song >= 0, song < layout.songCount else { throw .unsupported("there is no song \(song + 1)") }
         self.song = song
-        if lengths[song] == nil {
-            // Played through in silence to its end: the tick it ends in is the first of it again, or the
-            // first of the silence after it.
-            try start(song)
-            var none = Unheard()
-            var ticks = 0
-            var used: Int64 = 0
-            while endings == 0, stops == 0, ticks < Self.mostTicks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget {
-                _ = run(&none)
-                ticks += 1
-                used += Int64(tickCycles)
-                dryRuns += Int64(tickCycles)
-            }
-            lengths[song] = .some(endings > 0 || stops > 0 ? UInt64(ticks - 1) * UInt64(Self.tickClocks) : nil)
-        }
+        try measure(song)
         lengthClocks = lengths[song] ?? nil
         try start(song)
+    }
+
+    var measured: [UInt64??]? { lengths }
+
+    mutating func measure(_ song: Int) throws(TuneError) {
+        guard lengths.indices.contains(song), lengths[song] == nil else { return }
+        // Played through in silence to its end: the tick it ends in is the first of it again, or the
+        // first of the silence after it.
+        try start(song)
+        var none = Unheard()
+        var ticks = 0
+        var used: Int64 = 0
+        while endings == 0, stops == 0, ticks < Self.mostTicks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget {
+            _ = run(&none)
+            ticks += 1
+            used += Int64(tickCycles)
+            dryRuns += Int64(tickCycles)
+        }
+        lengths[song] = .some(endings > 0 || stops > 0 ? UInt64(ticks - 1) * UInt64(Self.tickClocks) : nil)
+    }
+
+    mutating func adopt(_ given: [UInt64?]) {
+        lengths = given.map { .some($0) }
     }
 
     /// Runs a tick, as the player's `Interrupt` does: the voices' place told (and the song's end, if it

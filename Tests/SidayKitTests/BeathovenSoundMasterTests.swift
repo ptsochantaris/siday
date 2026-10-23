@@ -108,6 +108,7 @@ private func beathovenModule(old: Bool = false) -> [UInt8] {
     let file = beathovenModule()
     #expect(BeathovenSynthesizer.isOne(file) && !SoundMaster.isOne(file) && !CoreDesign.isOne(file))
     var p = try BeathovenSynthesizerPlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2 && p.tuneInfo.format == "Beathoven Synthesizer")
     #expect(p.tuneInfo.detail == "Beathoven Synthesizer 1.09")
     // The song's number, from nought; and every voice pointed at the player's silence, as it starts.
@@ -125,6 +126,7 @@ private func beathovenModule(old: Bool = false) -> [UInt8] {
     #expect(p.endings == 1)
 
     var old = try BeathovenSynthesizerPlayer(beathovenModule(old: true))
+    try old.select(song: old.song)  // (Played through first, as its renderer has it played.)
     #expect(old.songCount == 2 && old.tuneInfo.detail == "Beathoven Synthesizer 1.00")
     _ = old.run(&out)
     _ = old.run(&out)
@@ -176,6 +178,7 @@ private func soundMasterModule() -> [UInt8] {
     let module = soundMasterModule()
     #expect(SoundMaster.isOne(module) && !BeathovenSynthesizer.isOne(module))
     var p = try SoundMasterPlayer(module)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 1 && p.tuneInfo.format == "Sound Master")
     #expect(written(p.startWrites, 0xB6).last == 0)
     var out = Silent()

@@ -142,6 +142,7 @@ private struct Told: TFMXOutput {
 
 @Test func daglishSongsEndAsThePlayerHasThemEnd() throws {
     var player = try DaglishPlayer(module().assembled())
+    try player.select(song: player.song)  // (Played through first, as its renderer has it played.)
     #expect(player.tuneInfo.format == "Ben Daglish")
     #expect(player.songCount == 2)
     // Ten ticks of the song, and the one that finds it over: its last.
@@ -159,6 +160,7 @@ private struct Told: TFMXOutput {
 @Test func daglishSamplesAreStoppedByPaulasInterrupt() throws {
     let c = module()
     var player = try DaglishPlayer(c.assembled())
+    try player.select(song: player.song)  // (Played through first, as its renderer has it played.)
     var first = Told()
     _ = player.run(&first)
     // The voice is set going, at the volume the player gives it (not the quarter the driver would).

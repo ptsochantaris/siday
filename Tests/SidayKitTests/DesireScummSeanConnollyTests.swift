@@ -97,6 +97,7 @@ private func desireModule(_ ending: DesireEnding) -> [UInt8] {
     #expect(!Scumm.isOne(file) && !SeanConnolly.isOne(file) && !CoreDesign.isOne(file))
     #expect(!Desire.isOne(Array(file.prefix(2500))))
     var p = try DesirePlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 3)
     #expect(p.tuneInfo.format == "Desire")
     var out = Silent()
@@ -117,11 +118,13 @@ private func desireModule(_ ending: DesireEnding) -> [UInt8] {
 @Test func desireSongsThatGoBackEndThere() throws {
     // Each voice jumping in its list is the song's end; going back to its mark with a count to go is not.
     var p = try DesirePlayer(desireModule(.jumps))
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.lengthClocks != nil)
     var out = Silent()
     for _ in 0 ..< 4 { _ = p.run(&out) }
     #expect(p.endings == 1)
-    let q = try DesirePlayer(desireModule(.countedLoops))
+    var q = try DesirePlayer(desireModule(.countedLoops))
+    try q.select(song: q.song)  // (Played through first, as its renderer has it played.)
     #expect(q.lengthClocks == nil)
 }
 
@@ -154,6 +157,7 @@ private func scummSound() -> [UInt8] {
     #expect(Scumm.isOne(file))
     #expect(!Desire.isOne(file) && !SeanConnolly.isOne(file))
     var p = try ScummPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 1)
     #expect(p.tuneInfo.format == "SCUMM")
     var out = Silent()
@@ -235,6 +239,7 @@ private func seanConnollyModule() -> [UInt8] {
     #expect(SeanConnolly.version(file) == 2)
     #expect(SeanConnolly.isOne(file) && !Desire.isOne(file) && !Scumm.isOne(file))
     var p = try SeanConnollyPlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 3)
     #expect(p.tuneInfo.format == "Sean Connolly" && p.tuneInfo.author == "Sean Connolly" && p.tuneInfo.detail == "V3.18")
     #expect(written(p.startWrites, 0xB6).last == 16)

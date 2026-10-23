@@ -305,6 +305,11 @@ struct Songs: View, Equatable {
                             Text(time(length)).monospacedDigit().foregroundStyle(.secondary)
                                 .lineLimit(1)
                                 .fixedSize()
+                        } else if song.pending {
+                            // (Still being played through, unheard, to find how long it is.)
+                            Spacer(minLength: 4)
+                            Text(verbatim: "?").foregroundStyle(.secondary)
+                                .help("Its length is still being found")
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -314,7 +319,7 @@ struct Songs: View, Equatable {
                 .opacity(passed ? 0.5 : 1)
                 .help(passed ? "Passed over when the songs are played in turn: see the settings" : "")
                 .accessibilityLabel(Text(song.title.isEmpty ? String(localized: "Song \(index + 1)") : song.title))
-                .accessibilityValue(Text(song.length.map { time($0) } ?? ""))
+                .accessibilityValue(song.pending ? Text("Length not yet known") : Text(song.length.map { time($0) } ?? ""))
                 .accessibilityAddTraits(index == tune.song ? .isSelected : [])
             }
         }

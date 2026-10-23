@@ -196,6 +196,7 @@ private func hatlelidMusic() -> (data: [UInt8], replayer: [UInt8]) {
     #expect(!SeanConran.isOne(file) && !CoreDesign.isOne(file))
     #expect(!KrisHatlelid.isOne(Array(file.prefix(40))))
     var p = try KrisHatlelidPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 1)
     #expect(p.tuneInfo.format == "Kris Hatlelid")
     var out = Silent()
@@ -227,6 +228,7 @@ private func hatlelidMusic() -> (data: [UInt8], replayer: [UInt8]) {
         #expect(why.contains(KrisHatlelid.replayerName))
     }
     var p = try KrisHatlelidPlayer(data, song: 1, name: "songs.kh", files: [(name: KrisHatlelid.replayerName, bytes: replayer)])
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     var out = Silent()
     _ = p.run(&out)
@@ -313,6 +315,7 @@ private func conranModule() -> [UInt8] {
     #expect(SeanConran.isOne(file))
     #expect(!KrisHatlelid.isOne(file) && !SeanConnolly.isOne(file) && !Desire.isOne(file))
     var p = try SeanConranPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Sean Conran" && p.tuneInfo.author == "Sean Conran")
     var out = Silent()

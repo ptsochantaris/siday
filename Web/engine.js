@@ -32,6 +32,15 @@ let core;
 let scratch;
 /// The way to the audio thread, and back from it.
 let output;
+/// The way to the other worker that holds the module, `askedBy` in it: some tunes' songs are played
+/// through to find how long they are, which can take a second or two, and the sound is not to wait
+/// for that. This worker plays through as many as it needs to start (see `SongInfo.pending`), and the
+/// other plays them all through and says what it found. In the other, the way back.
+let measurer;
+let askedBy;
+/// What the other was last asked to play through, if it has not yet: only the latest, if it was asked
+/// for several while it was busy.
+let wanted;
 
 /// The tune that is loaded: the page's count of its requests to play.
 let tune = 0;
@@ -120,6 +129,39 @@ function withBytes(buffer, use) {
   const result = use(pointer, bytes.length);
   core.siday_free(pointer);
   return result;
+}
+
+/// In the other worker: plays the songs of the tune last asked for through, and sends what was found.
+function measureWanted() {
+  const request = wanted;
+  if (!request) return;
+  // (Asked before the module has been started here: it is asked again in a moment.)
+  if (!core) return void setTimeout(measureWanted, 50);
+  wanted = undefined;
+  core.siday_companion(0, -1, 0);
+  for (const companion of request.companions) {
+    if (companion) withBytes(companion, (data, length) => core.siday_companion(data, length, 1));
+    else core.siday_companion(0, 0, 0);
+  }
+  const length = withBytes(request.name, (name, nameLength) =>
+    withBytes(request.bytes, (data, dataLength) => core.siday_measure(data, dataLength, name, nameLength)),
+  );
+  if (length === 0) return;
+  const found = new Uint8Array(core.memory.buffer, core.siday_measured(), length).slice();
+  askedBy.postMessage({ tune: request.tune, found }, [found.buffer]);
+}
+
+/// What the other worker found of a tune's songs: kept, and if it is of the tune that is loaded, the
+/// page is told how long its songs are.
+function measured({ tune: of, found }) {
+  if (!core) return;
+  const told = withBytes(found, (data, length) => core.siday_adopt(data, length)) === 1;
+  if (told && of === tune) self.postMessage({ type: "songs", tune, text: description() });
+}
+
+/// What the module says of the tune, for the page.
+function description() {
+  return new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
 }
 
 /// A mask as a word: the same word for the same voices left out, and nothing for none.
@@ -420,6 +462,19 @@ self.onmessage = async (event) => {
       self.postMessage({ type: "ready" });
       break;
     }
+    case "measurer":
+      // The way to the worker that plays songs through (see `measurer`).
+      measurer = message.port;
+      measurer.onmessage = (event) => measured(event.data);
+      break;
+    case "measuring":
+      // This worker is that one: it plays the songs of the tunes it is sent through, the latest first.
+      askedBy = message.port;
+      askedBy.onmessage = (event) => {
+        wanted = event.data;
+        setTimeout(measureWanted, 0);
+      };
+      break;
     case "output":
       // The way to the audio thread: a line of the engine's own to it, or one through the page. It is
       // given again when the page makes a new audio thread.
@@ -434,12 +489,14 @@ self.onmessage = async (event) => {
       mask = undefined;
       whole = undefined;
       const plays = load();
-      const text = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_text(), core.siday_text_length()));
       self.postMessage({
-        type: "loaded", tune, plays, text,
+        type: "loaded", tune, plays, text: description(),
         songs: core.siday_subsongs(), song: core.siday_subsong(), length: core.siday_length(),
         levelKey: plays ? levelKey() : "",
       });
+      if (plays && core.siday_songs_pending() === 1) {
+        measurer?.postMessage({ tune, name: file.name, bytes: file.bytes, companions: file.companions });
+      }
       next = 0;
       waiting = 0;
       sending = plays;

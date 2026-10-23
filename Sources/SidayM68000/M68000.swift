@@ -356,12 +356,13 @@ public struct M68000: ~Copyable {
 
     // MARK: Running
 
-    /// Puts the processor as it is when the power comes on: every register empty. (The zero flag is
-    /// set, which is how the reference player's processor starts, and a tune can tell.)
+    /// Puts the processor as it is when the power comes on: every register empty, and no cycles yet
+    /// used, so that nothing of what it did before is left to count. (The zero flag is set, which is
+    /// how the reference player's processor starts, and a tune can tell.)
     package mutating func powerOn() {
         registers = InlineArray(repeating: 0)
         otherStack = 0
-        pace.pc = 0
+        pace = M68000Pace()
         supervisor = true
         trace = false
         interruptMask = 7

@@ -131,6 +131,7 @@ private struct Told: TFMXOutput {
 
 @Test func whittakerSongsEndAsThePlayerHasThemEnd() throws {
     var player = try WhittakerPlayer(bytes(module()))
+    try player.select(song: player.song)  // (Played through first, as its renderer has it played.)
     // Every voice is back at the start of its list on the third tick: the song is two ticks long.
     #expect(player.lengthClocks == 2 * UInt64(WhittakerPlayer.tickClocks))
     #expect(player.tuneInfo.format == "David Whittaker")
@@ -154,6 +155,7 @@ private struct Told: TFMXOutput {
     #expect(starts == 4)
     // The stopping of the music, other than as the song is started, is its end.
     var stopping = try WhittakerPlayer(bytes(module(stopping: true)))
+    try stopping.select(song: stopping.song)  // (Played through first, as its renderer has it played.)
     #expect(stopping.lengthClocks == 0)
     var told = Told()
     _ = stopping.run(&told)

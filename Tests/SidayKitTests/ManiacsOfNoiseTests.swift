@@ -124,6 +124,7 @@ private struct Told: TFMXOutput {
     let tick = UInt64(ManiacsOfNoisePlayer.tickClocks)
     // The first song: its voice is where it was on the fourth tick, which is the first again.
     var player = try ManiacsOfNoisePlayer(deenen())
+    try player.select(song: player.song)  // (Played through first, as its renderer has it played.)
     #expect(player.songCount == 3)
     #expect(player.lengthClocks == 3 * tick)
     #expect(player.tuneInfo.format == "Maniacs of Noise")
@@ -293,6 +294,7 @@ private func tel() -> [UInt8] {
 @Test func jeroenTelSongsEndAsThePlayerHasThemEnd() throws {
     let tick = UInt64(JeroenTelPlayer.tickClocks)
     var player = try JeroenTelPlayer(tel())
+    try player.select(song: player.song)  // (Played through first, as its renderer has it played.)
     #expect(player.tuneInfo.format == "Jeroen Tel")
     // The first song comes to the end of its list on its third tick, which is its first again.
     #expect(player.lengthClocks == 2 * tick)

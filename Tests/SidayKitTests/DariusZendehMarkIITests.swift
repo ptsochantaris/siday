@@ -103,6 +103,7 @@ private func levelsModule() -> [UInt8] {
     // A song played once: started, its ticks counted, and stopped (silent) as the module says it is over.
     for (song, table) in [(0, UInt16(0)), (3, 1)] {
         var p = try DariusZendehPlayer(file, song: song)
+        try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
         #expect(p.songCount == 4)
         #expect(written(p.startWrites, 0xA6).last == table)
         _ = p.run(&out)
@@ -120,6 +121,7 @@ private func levelsModule() -> [UInt8] {
     // end of its music.
     for song in [1, 2] {
         var p = try DariusZendehPlayer(file, song: song)
+        try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
         #expect(written(p.startWrites, 0xB6).last == UInt16(song - 1))
         _ = p.run(&out)
         var counts: [UInt16] = []
@@ -165,6 +167,7 @@ private func strangeModule() -> [UInt8] {
     let file = strangeModule()
     #expect(DariusZendeh.kind(file) == .strange && !MarkII.isOne(file))
     var p = try DariusZendehPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 1)
     #expect(written(p.startWrites, 0xA6).last == 1)
     var out = Silent()
@@ -212,6 +215,7 @@ private func markIIModule() -> [UInt8] {
     let file = markIIModule()
     #expect(MarkII.isOne(file) && !DariusZendeh.isOne(file))
     var p = try MarkIIPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 1 && p.tuneInfo.format == "Mark II")
     #expect(written(p.startWrites, 0xA6).last == 0x100 && written(p.startWrites, 0xB6).last == 0)
     var out = Silent()

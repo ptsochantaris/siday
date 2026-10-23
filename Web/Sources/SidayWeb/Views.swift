@@ -441,7 +441,8 @@ struct SongRow {
         li(.class(playing ? "current" : passed ? "passed" : ""), .title(passed ? "Passed over when the songs are played in turn: see the settings" : "")) {
             span(.class("number")) { "\(index + 1)" }
             span(.class("name")) { song.title.isEmpty ? "Song \(index + 1)" : song.title }
-            span(.class("length")) { song.length.map { formatTime($0) } ?? "" }
+            // (A question mark while it is still being played through, unheard, to find how long it is.)
+            span(.class("length")) { song.pending ? "?" : song.length.map { formatTime($0) } ?? "" }
         }
         .onClick { player.playSong(index) }
     }
@@ -461,7 +462,9 @@ struct SongButton {
             .title(passed ? "Song \(index + 1): passed over when the songs are played in turn (see the settings)" : "Song \(index + 1)")
         ) {
             span { "\(index + 1)" }
-            if let length = song.length {
+            if song.pending {
+                span(.class("length")) { "?" }
+            } else if let length = song.length {
                 span(.class("length")) { formatTime(length) }
             }
         }

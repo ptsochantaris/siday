@@ -99,6 +99,12 @@ public final class SongKeeper {
         /// Which voices with a light the listener has left out, 1 for each: told at once, since
         /// what is shown is the sound of a moment ago.
         case muted(tune: Int, marks: [UInt8])
+        /// Some of the tune's songs have still to be played through to find how long they are
+        /// (`SongInfo.pending`): all of them are to be, somewhere the sound is not held up by it
+        /// (`TunePlayer.measure`, on a player of its own), and what is found given to `adopt`.
+        case measure(tune: Int, name: String, bytes: [UInt8], companions: [[UInt8]?])
+        /// It is known now how long each of the tune's songs is.
+        case songs(tune: Int, songs: [SongInfo])
     }
 
     public let player = TunePlayer()
@@ -183,6 +189,9 @@ public final class SongKeeper {
         whole = nil
         let plays = load(nil)
         tell(plays: plays)
+        if plays, player.songsPending {
+            events.append(.measure(tune: tune, name: name, bytes: bytes, companions: companions))
+        }
         next = 0
         waiting = 0
         sending = plays
@@ -191,6 +200,13 @@ public final class SongKeeper {
             levelWait = now + Self.keptWaitLongest
         }
         sayRemaking()
+    }
+
+    /// Takes what was found of a tune's songs by playing them through (`Event.measure`), and keeps
+    /// it: the screen is told, if it is of the tune that is loaded.
+    public func adopt(tune: Int, key: String, measures: SongMeasures) {
+        guard player.adopt(measures, key: key), tune == self.tune else { return }
+        events.append(.songs(tune: tune, songs: player.renderer?.songs ?? []))
     }
 
     /// The listener has moved to another place in the song: sending goes on from there, as a new run

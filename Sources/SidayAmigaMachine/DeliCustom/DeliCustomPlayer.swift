@@ -124,7 +124,9 @@ struct DeliCustomPlayer: ~Copyable {
         lengths = [UInt64??](repeating: nil, count: count)
         // (Refused only once it is all made.)
         if let refusal { throw refusal }
-        try select(song: song >= 0 && song < count ? song : 0)
+        // (Its songs are played through, to find how long they are, when the renderer asks: `measure`.)
+        self.song = song >= 0 && song < count ? song : 0
+        try start(self.song)
     }
 
     /// True if the module has an instruction that reaches `dtg_SongEnd` in the globals it is given (a
@@ -155,26 +157,38 @@ struct DeliCustomPlayer: ~Copyable {
     mutating func select(song: Int) throws(TuneError) {
         guard song >= 0, song < songCount else { throw .unsupported("there is no song \(song + 1)") }
         self.song = song
-        if lengths[song] == nil, !callsSongEnd, anyRanOut, !anyEnded { lengths[song] = .some(nil) }
-        if lengths[song] == nil {
-            // Played through in silence to its end: the tick it ends in is the first of it again, or the
-            // first of the silence after it.
-            try start(song)
-            var none = Unheard()
-            var used: Int64 = 0
-            var clocks: UInt64 = 0
-            while endings == 0, stops == 0, clocks < Self.mostClocks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget {
-                let busy = host.busyCycles
-                _ = run(&none)
-                clocks += UInt64(ticks.tickClocks)
-                used += host.busyCycles - busy
-                dryRuns += host.busyCycles - busy
-            }
-            lengths[song] = .some(endings > 0 || stops > 0 ? clocks - UInt64(ticks.tickClocks) : nil)
-            if endings > 0 || stops > 0 { anyEnded = true } else if clocks >= Self.mostClocks { anyRanOut = true }
-        }
+        try measure(song)
         lengthClocks = lengths[song] ?? nil
         try start(song)
+    }
+
+    var measured: [UInt64??]? { lengths }
+
+    mutating func measure(_ song: Int) throws(TuneError) {
+        guard lengths.indices.contains(song), lengths[song] == nil else { return }
+        if !callsSongEnd, anyRanOut, !anyEnded {
+            lengths[song] = .some(nil)
+            return
+        }
+        // Played through in silence to its end: the tick it ends in is the first of it again, or the
+        // first of the silence after it.
+        try start(song)
+        var none = Unheard()
+        var used: Int64 = 0
+        var clocks: UInt64 = 0
+        while endings == 0, stops == 0, clocks < Self.mostClocks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget {
+            let busy = host.busyCycles
+            _ = run(&none)
+            clocks += UInt64(ticks.tickClocks)
+            used += host.busyCycles - busy
+            dryRuns += host.busyCycles - busy
+        }
+        lengths[song] = .some(endings > 0 || stops > 0 ? clocks - UInt64(ticks.tickClocks) : nil)
+        if endings > 0 || stops > 0 { anyEnded = true } else if clocks >= Self.mostClocks { anyRanOut = true }
+    }
+
+    mutating func adopt(_ given: [UInt64?]) {
+        lengths = given.map { .some($0) }
     }
 
     /// Runs a tick: the machine run as the Amiga runs until the module's next tick is due, and what it

@@ -122,6 +122,7 @@ private struct Writes: TFMXOutput {
     let file = custom()
     #expect(DeliCustomPlayer.isOne(file))
     var p = try DeliCustomPlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 3)
     #expect(p.tuneInfo.format == "DeliTracker custom")
     #expect(p.tuneInfo.detail == "Test")
@@ -139,6 +140,7 @@ private struct Writes: TFMXOutput {
 @Test func deliCustomsSetTheirOwnTimer() throws {
     // $1BB5: a hundred times a second.
     var p = try DeliCustomPlayer(custom(timer: 0x1BB5))
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     var out = Writes()
     for _ in 0 ..< 4 { _ = p.run(&out) }
     #expect(p.tickClocks == (0x1BB5 + 1) * 5)
@@ -146,7 +148,8 @@ private struct Writes: TFMXOutput {
 }
 
 @Test func deliCustomsEndWhenTheySay() throws {
-    let p = try DeliCustomPlayer(custom(endAt: 100))
+    var p = try DeliCustomPlayer(custom(endAt: 100))
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     // It said so as its hundredth tick began, after the song's start and 99 ticks of it.
     // (Its first tick a few clocks short of the rest: the timer counts in fifths of Paula's clock from
     // when it was set going.)
@@ -189,4 +192,52 @@ private struct Writes: TFMXOutput {
             for _ in 0 ..< 10 { _ = p.run(&out) }
         }
     }
+}
+
+@Test func aCustomsSongsArePlayedThroughWhenAskedForAndComeOutAsLongAsAtItsLoad() throws {
+    func sound(_ r: some Renderer) -> [Float] {
+        var buffer = [Float](repeating: 0, count: 4800 * 2)
+        buffer.withUnsafeMutableBufferPointer { r.render(into: $0.baseAddress!, frames: 4800) }
+        return buffer
+    }
+    var options = LoadOptions()
+    let whole = try PaulaTickRenderer(DeliCustomPlayer(custom(endAt: 100)), options: options)
+    #expect(whole.songs.allSatisfy { !$0.pending })
+    #expect(whole.songMeasures != nil)
+    // Only as far as the first song, which is music: the rest as they are selected, the last first.
+    options.measuresEverySong = false
+    let lazy = try PaulaTickRenderer(DeliCustomPlayer(custom(endAt: 100)), options: options)
+    #expect(lazy.songs.map(\.pending) == [false, true, true])
+    #expect(lazy.songMeasures == nil)
+    whole.select(subsong: 2)
+    lazy.select(subsong: 2)
+    #expect(lazy.songs == whole.songs)
+    #expect(lazy.knownLength == whole.knownLength)
+    #expect(sound(lazy) == sound(whole))
+    #expect(lazy.songMeasures == whole.songMeasures)
+    // Given what another load found, none; and what is found goes through its bytes as it is.
+    options.songMeasures = whole.songMeasures
+    let given = try PaulaTickRenderer(DeliCustomPlayer(custom(endAt: 100)), options: options)
+    #expect(given.songs == whole.songs)
+    #expect(whole.songMeasures.flatMap { SongMeasures(bytes: $0.bytes) } == whole.songMeasures)
+    #expect(SongMeasures(bytes: [1, 2, 3]) == nil)
+}
+
+@Test func aTunePlayerHasTheSongsItDidNotPlayThroughPlayedThroughElsewhere() throws {
+    // (Songs of twenty seconds: none of them passed over as too short to play, which would have it
+    // play them all through to find which to start with.)
+    let file = custom(endAt: 1000)
+    let player = TunePlayer()
+    #expect(player.load(file, name: "test.cust"))
+    #expect(player.songsPending)
+    #expect(String(decoding: player.text, as: UTF8.self).contains("\n?\t"))
+    // Another player, as the app's thread or the web player's other worker has.
+    let found = try #require(TunePlayer().measure(file, name: "test.cust"))
+    #expect(player.adopt(found.measures, key: found.key))
+    #expect(!player.songsPending)
+    #expect(!String(decoding: player.text, as: UTF8.self).contains("\n?\t"))
+    // And loaded again, for another song or a voice muted, it is known at once.
+    #expect(player.load(file, name: "test.cust"))
+    #expect(!player.songsPending)
+    #expect(!player.adopt(found.measures, key: found.key))
 }

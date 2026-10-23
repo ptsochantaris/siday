@@ -100,6 +100,46 @@ public final class TunePlayer {
     /// for each it names, nil for one that was not found. Given before each load (`siday_companion`).
     public var companions: [[UInt8]?] = []
 
+    /// What was found of the songs of the files loaded lately, by playing them through (see
+    /// `LoadOptions.measuresEverySong`), under their digests: the newest last. A file is loaded again
+    /// for each of its songs and each change to how it is heard, and is not played through again.
+    private var measured: [(key: String, measures: SongMeasures)] = []
+    private static let measuredKept = 32
+
+    private func remember(_ measures: SongMeasures, key: String) {
+        measured.removeAll { $0.key == key }
+        measured.append((key, measures))
+        if measured.count > Self.measuredKept { measured.removeFirst() }
+    }
+
+    /// True while some of the songs of the tune that is loaded have still to be played through to
+    /// find how long they are (`SongInfo.pending`). They are, as they are selected; and all of them
+    /// by `measure`, made on another thread or in another worker so as not to hold up the sound,
+    /// whose finding is given back to `adopt`.
+    public var songsPending: Bool { renderer?.songs.contains { $0.pending } ?? false }
+
+    /// Plays every song of a tune through, as a load of it here would, to find how long each is: for
+    /// `adopt`, on another player of the same settings. Nil for a tune that is not played through
+    /// (or will not load). Returned with the digest it is kept under.
+    public func measure(_ data: [UInt8], name: String) -> (key: String, measures: SongMeasures)? {
+        let fileExtension = name.split(separator: ".").count > 1 ? String(name.split(separator: ".").last ?? "") : ""
+        guard let named = TuneFormat(fileExtension: fileExtension) else { return nil }
+        let format = named.refined(byLeading: Array(data.prefix(TuneFormat.leadingBytes)))
+        guard let measures = try? TuneLoader.load(data, format: format, path: name, options: options, companions: companions).songMeasures
+        else { return nil }
+        return (SongLevel.digest(of: data, companions: companions), measures)
+    }
+
+    /// Takes what `measure` found, and keeps it. Returns true if it is of the tune that is loaded and
+    /// told it something it did not know: its songs, and `text`, then say how long each is.
+    public func adopt(_ measures: SongMeasures, key: String) -> Bool {
+        remember(measures, key: key)
+        guard key == digest, songsPending, let renderer else { return false }
+        renderer.adopt(measures)
+        describe()
+        return true
+    }
+
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     public func load(_ data: [UInt8], name: String) -> Bool {
         problem = nil
@@ -118,9 +158,14 @@ public final class TunePlayer {
         }
         let format = named.refined(byLeading: Array(data.prefix(TuneFormat.leadingBytes)))
         do {
+            // (The songs are played through as far as the one to start with, unless they were before.)
+            let digest = SongLevel.digest(of: data, companions: companions)
+            var options = options
+            options.measuresEverySong = false
+            options.songMeasures = measured.last { $0.key == digest }?.measures
             let loaded = try TuneLoader.load(data, format: format, path: name, options: options, companions: companions)
             renderer = loaded
-            digest = SongLevel.digest(of: data, companions: companions)
+            self.digest = digest
             self.format = format
             layout = format == .sid || format == .sndh || format == .cmf || format == .rol || format == .fmt || format == .stm || format == .stx ? nil : options.stereo
             ownStereo = format == .mod || format == .med || format == .ahx || format == .hvl || format == .xm || format == .s3m || format == .it
@@ -147,7 +192,18 @@ public final class TunePlayer {
                 || format == .puma || format == .pap || format == .gmc || format == .ims
                 || format == .bp || format == .sid1 || format == .sid2 || format == .mug || format == .dm2 || format == .mxtx || format == .sa || format == .sonix || format == .rjp || format == .dln || format == .dw || format == .mw || format == .jd || format == .mon || format == .jt || format == .bd || format == .cust || format == .dl
                 || format.isWantedTeamCode || format.isPortedGamePlayer
-            select(policy.firstSubsong(of: loaded))
+            // A song chosen to start with while some were still to be played through may turn out,
+            // once it has been, not to be the one: shorter than the shortest that is played, or one of
+            // a file of nothing but songs that short, which are then all played, from the first. What
+            // is known only grows, so the choice comes to rest; at the latest when every song is known.
+            var first = policy.firstSubsong(of: loaded)
+            select(first)
+            for _ in 0 ... loaded.subsongCount {
+                let chosen = policy.firstSubsong(of: loaded)
+                if chosen == first { break }
+                first = chosen
+                select(first)
+            }
             return true
         } catch let error as TuneError {
             problem = error.description
@@ -194,8 +250,16 @@ public final class TunePlayer {
         settle()
         blockLength = 0
         blockCursor = 0
+        if let measures = renderer.songMeasures { remember(measures, key: digest) }
+        describe()
+    }
+
+    /// Says what the tune is in `text`.
+    private func describe() {
+        guard let renderer else { return }
         // One line each: format, title, author, detail. Then a line for each song when there are several:
-        // its length in milliseconds, if that is known, a tab, a 1 if there is known to be nothing
+        // its length in milliseconds, if that is known, or a question mark while it is still to be
+        // found (`SongInfo.pending`), a tab, a 1 if there is known to be nothing
         // in it and a 0 if not, a tab, and its name, if it has one. Then a
         // line for each thing the file asks for that is not played as it asks (`TuneInfo.shortfalls`):
         // an exclamation mark, which no song's line begins with, and the sentence. The page takes
@@ -205,7 +269,7 @@ public final class TunePlayer {
         var lines = [info.format, info.title, info.author, info.detail].map(tidy)
         if renderer.subsongCount > 1 {
             for song in renderer.songs {
-                lines.append("\(song.length.map { String(Int($0 * 1000)) } ?? "")\t\(song.empty ? 1 : 0)\t\(tidy(song.title))")
+                lines.append("\(song.pending ? "?" : song.length.map { String(Int($0 * 1000)) } ?? "")\t\(song.empty ? 1 : 0)\t\(tidy(song.title))")
             }
         }
         for shortfall in info.shortfalls { lines.append("!" + tidy(shortfall)) }

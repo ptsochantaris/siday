@@ -70,6 +70,17 @@ package protocol PaulaTickPlayer: ~Copyable {
     var endings: Int { get }
     var stops: Int { get }
     var lengthClocks: UInt64? { get }
+    /// For a player that plays its songs through unheard only when it is asked to (`measure`), to
+    /// find how long they are: what it has found, for each song its length in Paula's clocks, or nil
+    /// within for one that never ends, and nil for one not yet played through. Nil for a player that
+    /// finds each song's length as it is made or selected (`lengthClocks`).
+    var measured: [UInt64??]? { get }
+    /// Plays a song through unheard to find its length, if that has not been done; the player is to
+    /// be selected afresh after it. (Asked in the same order by every load of a file: see
+    /// `PaulaTickRenderer.measure(through:)`.)
+    mutating func measure(_ song: Int) throws(TuneError)
+    /// Takes what another load of the same file found of every song (`measured`).
+    mutating func adopt(_ lengths: [UInt64?])
     /// Whose TFMX 7V its fourth voice is mixed as, if it is one; and the change to the tempo its
     /// song last asked for.
     var sevenVoiceStyle: TFMXSevenVoices.Style? { get }
@@ -111,6 +122,10 @@ package protocol PaulaTickPlayer: ~Copyable {
 }
 
 package extension PaulaTickPlayer where Self: ~Copyable {
+    /// Most players find each song's length as they are made or selected.
+    var measured: [UInt64??]? { nil }
+    mutating func measure(_: Int) throws(TuneError) {}
+    mutating func adopt(_: [UInt64?]) {}
     /// A player that does not set it leaves it off.
     var lightFilter: Bool { false }
     /// Most players' notes begin with their tick.
@@ -255,14 +270,35 @@ package final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Rend
         right = .allocate(capacity: 1)
         // Each song's length, from the player's own playing of it through before it starts.
         let first = self.player.song
-        for song in 0 ..< self.player.songCount {
-            if song != first { try self.player.select(song: song) }
-            let length = self.player.lengthClocks.map { Double($0) / Paula.clockHz }
-            songs.append(SongInfo(length: length, empty: length == 0))
+        measuredFirst = first
+        if self.player.measured != nil {
+            // By one that does it when asked: all of them, or as far as the first song that is music,
+            // or none, if another load of the file has found them.
+            if let given = options.songMeasures, given.lengths.count == self.player.songCount {
+                self.player.adopt(given.lengths)
+            } else {
+                try self.player.measure(first)
+                if options.measuresEverySong {
+                    try measure(through: self.player.songCount - 1)
+                } else if first == 0 {
+                    for song in 0 ..< self.player.songCount {
+                        try measure(through: song)
+                        noteMeasured()
+                        if !songs[song].empty, (songs[song].length ?? 1) >= 1 { break }
+                    }
+                }
+            }
+            noteMeasured()
+        } else {
+            for song in 0 ..< self.player.songCount {
+                if song != first { try self.player.select(song: song) }
+                let length = self.player.lengthClocks.map { Double($0) / Paula.clockHz }
+                songs.append(SongInfo(length: length, empty: length == 0))
+            }
         }
         // (Asked for none but the first, the first that is music, as `defaultSubsong` says.)
         let starting = first == 0 ? defaultSubsong : first
-        if self.player.song != starting { try self.player.select(song: starting) }
+        if self.player.song != starting || self.player.measured != nil { try self.player.select(song: starting) }
         self.player.prepareToBeHeard()
         start()
     }
@@ -319,9 +355,49 @@ package final class PaulaTickRenderer<Player: PaulaTickPlayer & ~Copyable>: Rend
     }
 
     package func select(subsong: Int) {
+        if player.measured != nil, songs.indices.contains(subsong), songs[subsong].pending {
+            try? measure(through: subsong)
+            noteMeasured()
+        }
         try? player.select(song: subsong)
         player.prepareToBeHeard()
         start()
+    }
+
+    /// The song the player starts with, which a player that plays its songs through when asked plays
+    /// through first (`measure(through:)`).
+    private let measuredFirst: Int
+
+    /// Has a player that plays its songs through when asked play each song up to `song` through that
+    /// it has not, in order: the one it starts with first, and then the rest from the first, as every
+    /// load of the file does. So each is played through after the same others, and comes out the same
+    /// length whichever is asked for first: what one comes to can depend on how much was played
+    /// before it (how much of the dry runs' budget is left, and what the others were found to do).
+    private func measure(through song: Int) throws(TuneError) {
+        guard let measured = player.measured else { return }
+        if measured[measuredFirst] == nil { try player.measure(measuredFirst) }
+        for earlier in 0 ... min(song, measured.count - 1) where measured[earlier] == nil { try player.measure(earlier) }
+    }
+
+    /// What the player has found of its songs, as `songs` says it.
+    private func noteMeasured() {
+        guard let measured = player.measured else { return }
+        songs = measured.map { found in
+            guard let found else { return SongInfo(pending: true) }
+            let length = found.map { Double($0) / Paula.clockHz }
+            return SongInfo(length: length, empty: length == 0)
+        }
+    }
+
+    package var songMeasures: SongMeasures? {
+        guard let measured = player.measured, !measured.contains(where: { $0 == nil }) else { return nil }
+        return SongMeasures(lengths: measured.map { $0 ?? nil })
+    }
+
+    package func adopt(_ measures: SongMeasures) {
+        guard let measured = player.measured, measures.lengths.count == measured.count else { return }
+        player.adopt(measures.lengths)
+        noteMeasured()
     }
 
     /// Starts the song selected from its beginning, on a Paula started afresh.

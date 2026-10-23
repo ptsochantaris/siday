@@ -21,6 +21,8 @@ nonisolated(unsafe) private let player = TunePlayer()
 nonisolated(unsafe) private let output = UnsafeMutablePointer<Float>.allocate(capacity: quantumFrames * 2)
 /// What `siday_level_key` and `siday_level` last handed out, kept for the page to read.
 nonisolated(unsafe) private var levelBytes: [UInt8] = []
+/// What `siday_measure` last found, for the worker to read (`siday_measured`).
+nonisolated(unsafe) private var measuredBytes: [UInt8] = []
 
 // MARK: Exports
 
@@ -44,6 +46,45 @@ public func sidayLoad(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: Uns
     let bytes = Array(UnsafeBufferPointer(start: data, count: Int(length)))
     let name = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self)
     return player.load(bytes, name: name) ? 1 : 0
+}
+
+/// 1 while some of the loaded tune's songs have still to be played through to find how long they are
+/// (`SongInfo.pending`). The worker has another instance of this module play them all through
+/// (`siday_measure`), so as not to hold up the sound, and gives what it found to `siday_adopt`.
+@_expose(wasm, "siday_songs_pending")
+@_cdecl("siday_songs_pending")
+public func sidaySongsPending() -> Int32 {
+    player.songsPending ? 1 : 0
+}
+
+/// Plays every song of the tune in `data` through, to find how long each is, as `siday_load` would load
+/// it (with the files beside it given before, as for that). Returns how many bytes of what was found
+/// `siday_measured` hands out, for `siday_adopt`: none, for a tune that is not played through.
+@_expose(wasm, "siday_measure")
+@_cdecl("siday_measure")
+public func sidayMeasure(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: UnsafePointer<UInt8>, _ nameLength: Int32) -> Int32 {
+    let bytes = Array(UnsafeBufferPointer(start: data, count: Int(length)))
+    let name = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self)
+    // (The digest it is kept under, in UTF-8, which has no nought in it, a nought, and the finding.)
+    measuredBytes = player.measure(bytes, name: name).map { Array($0.key.utf8) + [0] + $0.measures.bytes } ?? []
+    return Int32(measuredBytes.count)
+}
+
+@_expose(wasm, "siday_measured")
+@_cdecl("siday_measured")
+public func sidayMeasured() -> UnsafePointer<UInt8>? {
+    measuredBytes.withUnsafeBufferPointer { $0.baseAddress }
+}
+
+/// Takes what `siday_measure` found, from another instance of the module, and keeps it. Returns 1 if
+/// it is of the tune that is loaded and said what was not known: how long the rest of its songs are,
+/// which `siday_text` now says.
+@_expose(wasm, "siday_adopt")
+@_cdecl("siday_adopt")
+public func sidayAdopt(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
+    let bytes = Array(UnsafeBufferPointer(start: data, count: Int(length)))
+    guard let split = bytes.firstIndex(of: 0), let measures = SongMeasures(bytes: Array(bytes[(split + 1)...])) else { return 0 }
+    return player.adopt(measures, key: String(decoding: bytes[..<split], as: UTF8.self)) ? 1 : 0
 }
 
 /// The files the tune next loaded needs beside its own, given one at a time before `siday_load`, in

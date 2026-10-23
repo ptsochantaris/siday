@@ -78,6 +78,8 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         case songLengths([UInt8]?)
         case keptLevel(key: String, text: String?)
         case stop
+        /// What was found of a tune's songs by playing them through, away from this thread.
+        case measured(tune: Int, key: String, measures: SongMeasures)
     }
 
     /// What the screen is told: the keeper's news, and that the last of a song has been heard.
@@ -244,6 +246,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             }
             take(keeper)
             for event in keeper.events {
+                if case let .measure(tune, name, bytes, companions) = event { measure(tune: tune, name: name, bytes: bytes, companions: companions) }
                 let news = News.keeper(event)
                 Task { @MainActor [tell] in tell(news) }
             }
@@ -279,12 +282,31 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             keeper.setSongLengths(bytes.map { SongLengthDatabase($0) })
         case let .keptLevel(key, text):
             keeper.setKeptLevel(key: key, text: text, now: time)
+        case let .measured(tune, key, measures):
+            keeper.adopt(tune: tune, key: key, measures: measures)
         case .stop:
             newRun(serial + 1)
             keeper.stop()
             now.withLock { $0 = Heard() }
             voicesTold = 0
             Task { @MainActor [tell] in tell(.voices(0)) }
+        }
+    }
+
+    /// Where a tune's songs are played through to find how long they are (`SongKeeper.Event.measure`),
+    /// which can take a second or two: on a thread of its own, so that the sound is not held up by it.
+    /// Only the latest tune asked for is, if several are asked for while one is being played through.
+    private let measuring = DispatchQueue(label: "siday measuring", qos: .utility)
+    private let measuredPlayer = TunePlayer()
+    private let latestMeasured = Mutex(0)
+
+    private func measure(tune: Int, name: String, bytes: [UInt8], companions: [[UInt8]?]) {
+        latestMeasured.withLock { $0 = tune }
+        measuring.async { [self] in
+            guard latestMeasured.withLock({ $0 }) == tune else { return }
+            measuredPlayer.companions = companions
+            guard let (key, measures) = measuredPlayer.measure(bytes, name: name) else { return }
+            send(.measured(tune: tune, key: key, measures: measures))
         }
     }
 

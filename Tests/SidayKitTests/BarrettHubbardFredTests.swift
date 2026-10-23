@@ -160,6 +160,7 @@ private func sbModule(fast: Bool = false) -> [UInt8] {
     #expect(SteveBarrett.isOne(file))
     #expect(!RobHubbard.isOne(file) && !RobHubbardST.isOne(file) && !FredMonitor.isOne(file) && !CoreDesign.isOne(file))
     var p = try SteveBarrettPlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Steve Barrett" && p.tuneInfo.detail == "Test tt  ")
     var out = Silent()
@@ -183,6 +184,7 @@ private func sbModule(fast: Bool = false) -> [UInt8] {
 
     // Advanced Ski Simulator's ticks, twice as fast.
     var fast = try SteveBarrettPlayer(sbModule(fast: true))
+    try fast.select(song: fast.song)  // (Played through first, as its renderer has it played.)
     _ = fast.run(&out)
     _ = fast.run(&out)
     #expect(fast.tickClocks == (0x376B / 2 + 1) * 5)
@@ -283,6 +285,7 @@ private func rhModule() -> RawModule {
     #expect(RobHubbard.isOne(file))
     #expect(!SteveBarrett.isOne(file) && !RobHubbardST.isOne(file) && !FredMonitor.isOne(file))
     var p = try RobHubbardPlayer(file, song: 1)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(written(p.startWrites, 0xB6).last == 1)
     // The audio interrupt not set going, the command made $84, the empty sample the player's.
@@ -355,6 +358,7 @@ private func rhoModule() -> [UInt8] {
     #expect(RobHubbardST.isOne(file))
     #expect(!SteveBarrett.isOne(file) && !RobHubbard.isOne(file) && !FredMonitor.isOne(file))
     var p = try RobHubbardSTPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 1)
     #expect(written(p.startWrites, 0xB6).last == 0)
     // The byte InitSound sets, at the module's displacement in the module's variables.
@@ -451,6 +455,7 @@ private func fredModule() -> [UInt8] {
     var out = Silent()
     // The first song ends once every voice has come to its list's jump.
     var p = try FredMonitorPlayer(file)
+    try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(written(p.startWrites, 0xA6).last == 0)
     _ = p.run(&out)
@@ -462,6 +467,7 @@ private func fredModule() -> [UInt8] {
     #expect(p.lengthClocks != nil)
     // The second as the module stops itself, said once.
     var q = try FredMonitorPlayer(file, song: 1)
+    try q.select(song: q.song)  // (Played through first, as its renderer has it played.)
     #expect(written(q.startWrites, 0xA6).last == 1)
     _ = q.run(&out)
     _ = q.run(&out)
