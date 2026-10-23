@@ -31,22 +31,29 @@ func appInfoPlist() -> String {
         "\t<key>CFBundleDocumentTypes</key>",
         "\t<array>",
     ]
-    func documentType(_ name: String, _ types: [String]) {
+    /// - Parameter key: `LSItemContentTypes` for kinds of file, or `CFBundleTypeExtensions` for extensions.
+    func documentType(_ name: String, _ key: String, _ items: [String]) {
         lines += [
             "\t\t<dict>",
             "\t\t\t<key>CFBundleTypeName</key>", "\t\t\t<string>\(name)</string>",
             "\t\t\t<key>CFBundleTypeRole</key>", "\t\t\t<string>Viewer</string>",
             "\t\t\t<key>LSHandlerRank</key>", "\t\t\t<string>Alternate</string>",
-            "\t\t\t<key>LSItemContentTypes</key>",
+            "\t\t\t<key>\(key)</key>",
             "\t\t\t<array>",
         ]
-        lines += types.map { "\t\t\t\t<string>\($0)</string>" }
+        lines += items.map { "\t\t\t\t<string>\($0)</string>" }
         lines += ["\t\t\t</array>", "\t\t</dict>"]
     }
     let tunes = TuneFormat.fileExtensions
-    documentType("Chip music", tunes.map(tuneType))
+    documentType("Chip music", "LSItemContentTypes", tunes.map(tuneType))
     // (M3U lists are the system's own kind of file; Ay_Emul's are declared here.)
-    documentType("Playlist", ["build.bru.siday.playlist.ayl", "public.m3u-playlist"])
+    documentType("Playlist", "LSItemContentTypes", ["build.bru.siday.playlist.ayl", "public.m3u-playlist"])
+    // And the same by their extensions, for a Mac. Where another app declares a kind of file for one
+    // of them too (VLC for .xm, and a Markdown or PostScript file is .md or .ps), the system takes
+    // one of the two, and a file of the other's kind is not one of the app's by its kind. By its
+    // extension it is, and the app is among those it can be opened with. (An iPhone or iPad goes
+    // by kinds only, and passes this over.)
+    documentType("Chip music or playlist", "CFBundleTypeExtensions", tunes + ["ayl"])
     lines += [
         "\t</array>",
         "\t<key>UIBackgroundModes</key>",

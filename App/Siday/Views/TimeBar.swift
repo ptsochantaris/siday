@@ -15,15 +15,19 @@ struct TimeBar: View {
     @State private var pointed: Double?
     @State private var dragging: Double?
     @ScaledMetric(relativeTo: .body) private var thickness = 6
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        // The bar behind the part played, and the part ready: light greys in light mode, where darker
+        // ones are as dark as the tint, and light ones in dark mode.
+        let (waiting, ready) = colorScheme == .dark ? (0.45, 0.65) : (0.15, 0.30)
         HStack(spacing: 10) {
             Text(time(dragging ?? position)).monospacedDigit()
             GeometryReader { space in
                 let width = max(1, space.size.width)
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.45))
-                    Capsule().fill(Color.primary.opacity(0.65))
+                    Capsule().fill(Color.primary.opacity(waiting))
+                    Capsule().fill(Color.primary.opacity(ready))
                         .frame(width: width * fraction(rendered))
                     Capsule().fill(.tint)
                         .frame(width: width * fraction(dragging ?? position))
