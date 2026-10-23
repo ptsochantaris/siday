@@ -160,7 +160,7 @@ The web player is a package of its own, in `Web/`, built on SidayPlayer: `Web/bu
 
 ## On a Mac, iPhone or iPad
 
-Siday is also an app, for macOS and iOS 26 or later, in `App/`: an Xcode project on SidayPlayer, written
+Siday is also an app, for macOS and iOS 26 or later, in `App/`: an Xcode project on SidayPlayer and SidayFiles, written
 in SwiftUI. It has what the web page has: the playlist beside the player (on an iPhone, one at a
 time), the settings, and what siday plays with each format's story. It opens every kind of file siday plays, from the Finder or the
 Files app, by drag and drop, or with Add Files and Add Folder, and keeps its list from one day to the
@@ -386,12 +386,14 @@ families share; a module for each family of players (`SidayAmigaTrackers`, `Sida
 `SidayAmigaMachine`, `SidayTrackers`, `SidayC64`, `SidayEightBit` and `SidayAtari`); and
 `Sources/SidayKit`, the loader, which brings the rest with it. `Sources/SidayPlayer` is what lies
 between a tune and a listener, the same for every front end: how long a song is played and how it ends,
-the settings, the levelling, the television and the analyser, a song kept whole to move about in, the
-playlists and the pictures to listen by. It is the library the front ends import, and brings SidayKit
-with it. `CLI/` is the player for macOS: reading files, Core Audio output, terminal keys
-and options (via swift-argument-parser). `Web/` is the web player, and `App/` the app, whose list of the
+the settings, the levelling, the television and the analyser, a song kept whole to move about in, which
+tune plays after which, the order the tunes in a folder or a playlist are played in, and the pictures
+to listen by. It is the library the front ends import, and brings SidayKit with it. `Sources/SidayFiles`
+is what the command-line player and the app share for reading tunes from disk, with Foundation: finding
+the tunes in folders and playlists, the files they need beside them, and HVSC's song lengths. `CLI/` is
+the player for macOS: Core Audio output, terminal keys and options (via swift-argument-parser). `Web/` is the web player, and `App/` the app, whose list of the
 kinds of file it opens is written from SidayKit's by a test (`SIDAY_WRITE_APP_TYPES=1 swift test --filter
-appOpensEveryKindOfFile`). `swift test` at the top tests SidayKit and SidayPlayer, `swift test --package-path CLI` the
+appOpensEveryKindOfFile`). `swift test` at the top tests SidayKit, SidayPlayer and SidayFiles, `swift test --package-path CLI` the
 command-line player, and the app's scheme in Xcode its accessibility in every part of it.
 
 | Part | Based on | Checked against |

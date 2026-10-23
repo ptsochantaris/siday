@@ -4,8 +4,10 @@ import PackageDescription
 // SidayKit: every player and chip, and nothing else: a tune's bytes in, its sound out. SidayPlayer: what
 // the front ends share around it, between a tune and a listener. Neither depends on another package or
 // uses Foundation, so they build wherever Swift does, and this repository can be added to another
-// package as it is. The front ends are packages of their own beside it, each depending on SidayPlayer:
-// the command-line player in CLI/ and the web player in Web/; and the app, an Xcode project in App/.
+// package as it is. SidayFiles: what the front ends that read tunes from disk share, with Foundation.
+// The front ends are packages of their own beside it, each depending on SidayPlayer: the command-line
+// player in CLI/ and the web player in Web/; and the app, an Xcode project in App/. The command-line
+// player and the app depend on SidayFiles too.
 //
 // The library is built as several modules, so that they are compiled side by side and each is kept
 // small enough for Embedded Swift, which writes the whole of a module's code into its interface. The
@@ -30,6 +32,7 @@ let package = Package(
     products: [
         .library(name: "SidayKit", targets: ["SidayKit"]),
         .library(name: "SidayPlayer", targets: ["SidayPlayer"]),
+        .library(name: "SidayFiles", targets: ["SidayFiles"]),
     ],
     targets: [
         family("SidayFoundation", []),
@@ -47,8 +50,9 @@ let package = Package(
             "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari",
         ]),
         family("SidayPlayer", ["SidayKit", "SidayFoundation"]),
+        family("SidayFiles", ["SidayPlayer", "SidayFoundation"]),
         .testTarget(name: "SidayKitTests", dependencies: [
-            "SidayPlayer", "SidayKit", "SidayFoundation", "SidayChips", "SidayM68000", "SidayAmigaTrackers", "SidayAmigaComposers",
+            "SidayFiles", "SidayPlayer", "SidayKit", "SidayFoundation", "SidayChips", "SidayM68000", "SidayAmigaTrackers", "SidayAmigaComposers",
             "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari",
         ]),
     ]

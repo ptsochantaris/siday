@@ -70,12 +70,25 @@ func sidayListen(
 ///     list's order: which of the list's tunes it is, counted from 0, a tab, its place among the files
 ///     given, a tab, 1 if it is a tune beside the list or below it and 0 if it is one from somewhere
 ///     else, a tab, and what the list says about it.
+///   - read: a playlist's name and its file, as for `listed`, to be read for the next `gather`.
+///   - gather: what the page was given, in the order of their names, the tunes in it to be added
+///     to the list in the order they are played (see SidayPlayer's `TuneGathering`). A line for each
+///     tune and playlist: 1 for a tune or 2 for a playlist, a tab, 1 if it was given itself and 0 if
+///     it came in a folder, a tab, and the tune's place among the files given or the list's name, as
+///     `read` had it. The answer is in lines: first how many of the tunes the lists name could not be
+///     found and how many they name, with a space between; then a line for each tune to be added: its
+///     place among the files given, a tab, and what the list it came by says about it; and then, for
+///     each list that names tunes that were not found, an exclamation mark, a tab, which of the lists
+///     that were read it is, counted from 0 (of those given themselves, if any were), a tab, and which
+///     of the tunes it names were found, as in `listed`, with commas between.
 ///   - missed: playlists have been read, and this is how they came out: how many of the tunes they
 ///     name could not be found, how many they name, and the name of the list if it was a single one.
 @JSFunction(from: .global)
 func sidayFiles(
     _ given: @escaping (String) -> Void,
     _ listed: @escaping (String, String) -> String,
+    _ read: @escaping (String, String) -> Void,
+    _ gather: @escaping (String) -> String,
     _ missed: @escaping (Int, Int, String) -> Void
 ) throws(JSException)
 

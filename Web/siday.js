@@ -479,14 +479,7 @@ function remember(items) {
 /// lists are read on the Swift side, which is given each list as text with a letter for each of its
 /// bytes.
 async function listed(lists) {
-  const texts = await Promise.all(
-    lists.map(async (list) => {
-      const bytes = new Uint8Array(await read(list.file));
-      let text = "";
-      for (let at = 0; at < bytes.length; at += 8192) text += String.fromCharCode.apply(null, bytes.subarray(at, at + 8192));
-      return text;
-    }),
-  );
+  const texts = await Promise.all(lists.map((list) => textOf(list.file)));
   const found = { lists: lists.map(() => []), named: lists.map(() => 0), missing: lists.map(() => 0) };
   if (!finding) return found;
   texts.forEach((text, which) => {
@@ -500,12 +493,20 @@ async function listed(lists) {
   return found;
 }
 
+/// A playlist's file as text with a letter for each of its bytes, as the Swift side reads them.
+async function textOf(file) {
+  const bytes = new Uint8Array(await read(file));
+  let text = "";
+  for (let at = 0; at < bytes.length; at += 8192) text += String.fromCharCode.apply(null, bytes.subarray(at, at + 8192));
+  return text;
+}
+
 /// The playlists last read that name tunes which were not found, each with the entries of it that
 /// were: they are finished when the listener says where the rest are (see `finish`).
 let unfinished = [];
 
-/// Playlists have been read: those with tunes still to find are kept for later, and the Swift side
-/// is told how it came out, and what the list is called if it is one list.
+/// Playlists have been read (by `listed`): those with tunes still to find are kept for later, and
+/// the Swift side is told how it came out, and what the list is called if it is one list.
 function reckon(lists, found, before = []) {
   unfinished = lists
     .map((list, which) => ({ list, had: new Set([...(before[which] ?? []), ...found.lists[which].map((item) => item.entry)]) }))
@@ -636,46 +637,39 @@ async function add(chosen) {
     .map((item) => ({ ...item, kind: kindOf(item.name) }))
     .filter((item) => item.kind > 0)
     .sort((a, b) => names.compare(a.name, b.name));
-  const tunesHere = sorted.filter((item) => item.kind === 1);
-  const lists = sorted.filter((item) => item.kind === 2);
-  const own = lists.filter((item) => item.own);
   remember(sorted.filter((item) => item.kind === 1 || item.kind === 3));
-  let accepted = tunesHere;
-  let found = null;
-  if (own.length > 0) {
-    // A playlist that was itself dropped is played as it is written: its tunes, in its order. A
-    // folder dropped with it is where its tunes are looked for, and is not itself added to the list;
-    // tunes dropped with it, each for itself, come after the list's, but for those it has named.
-    found = await listed(own);
-    const named = new Set(found.lists.flat().map((item) => item.file));
-    accepted = [...found.lists.flat(), ...tunesHere.filter((item) => item.own && !named.has(item.file))];
-  } else if (lists.length > 0) {
-    // A folder is played in the order of its names, and a playlist in it is the order of the tunes
-    // beside it and below it: those it names come where the list is, as it has them. The tunes a
-    // list names from somewhere else are added only if the folder does not hold them, which here
-    // can only be tunes the page was given before.
-    found = await listed(lists);
-    const below = new Map(lists.map((list, which) => [list, found.lists[which].filter((item) => item.below)]));
-    const ordered = new Set(Array.from(below.values()).flat().map((item) => item.file));
-    const held = new Set();
-    accepted = [];
-    const take = (item) => {
-      if (held.has(item.file)) return;
-      held.add(item.file);
-      accepted.push(item);
-    };
-    for (const item of sorted) {
-      if (item.kind === 2) below.get(item).forEach(take);
-      else if (item.kind === 1 && !ordered.has(item.file)) take(item);
-    }
-    found.lists.flat().filter((item) => !item.below).forEach(take);
+  if (!finding) return;
+  // The Swift side reads the playlists, and puts the tunes in the order they are played: a playlist
+  // that was itself given is played as it is written, and a folder in the order of its names, with
+  // the tunes a playlist in it names where the list is (see `gather` in Browser.swift).
+  const lists = sorted.filter((item) => item.kind === 2);
+  const texts = await Promise.all(lists.map((list) => textOf(list.file)));
+  lists.forEach((list, which) => finding.read(list.name, texts[which]));
+  const order = sorted
+    .filter((item) => item.kind === 1 || item.kind === 2)
+    .map((item) => `${item.kind}\t${item.own ? 1 : 0}\t${item.kind === 1 ? knownAt.get(item.name) : item.name}`);
+  const [counts, ...lines] = finding.gather(order.join("\n")).split("\n");
+  const accepted = [];
+  const unfound = [];
+  for (const line of lines) {
+    const [first, second, third] = line.split("\t");
+    if (first === "!") unfound.push({ which: Number(second), had: new Set(third ? third.split(",").map(Number) : []) });
+    else accepted.push({ ...known[Number(first)], note: second ?? "" });
   }
   if (accepted.length > 0) {
     // (One at a time: a whole collection is more than a browser will take as the arguments of one call.)
     for (const item of accepted) tunes.push(item);
     listeners?.added(accepted.map((item) => `${item.name}\t${item.note ?? ""}`).join("\n"));
   }
-  if (found) reckon(own.length > 0 ? own : lists, found);
+  // The lists that name tunes which were not found are kept, to be finished when the listener says
+  // where the rest are; and the Swift side is told how it came out.
+  if (lists.length > 0) {
+    const own = lists.filter((item) => item.own);
+    const read = own.length > 0 ? own : lists;
+    unfinished = unfound.map(({ which, had }) => ({ list: read[which], had }));
+    const [missing, named] = counts.split(" ").map(Number);
+    finding.missed(missing, named, read.length === 1 ? read[0].name.split("/").pop() : "");
+  }
 }
 
 /// Pausing fades the sound out in the audio thread and only then lets the audio hardware go. Stopped
@@ -1127,8 +1121,8 @@ Object.assign(globalThis, {
   sidayAbout(word) {
     void about(word);
   },
-  sidayFiles(given, listed, missed) {
-    finding = { given, listed, missed };
+  sidayFiles(given, listed, read, gather, missed) {
+    finding = { given, listed, read, gather, missed };
   },
   sidayPaint(address, width, height) {
     const canvas = document.querySelector("canvas.picture");

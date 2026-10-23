@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
+import SidayFiles
 import SidayPlayer
 
 /// The files and folders the listener has given the app, which it may read: a sandboxed app sees only
@@ -83,8 +84,8 @@ nonisolated final class Library: @unchecked Sendable {
     }
 }
 
-/// Reading tunes and the files they need beside them. Each folder is looked through once, and each
-/// companion read once, as long as the app is open.
+/// Reading tunes and the files they need beside them (SidayFiles' `CompanionFiles`). Each folder is
+/// looked through once, as long as the app is open.
 nonisolated enum TuneFiles {
     /// What is read for a tune: its bytes, and one for each of the files its kind needs beside it, in
     /// the order `Companions` gives them, nil for one that is not there; and of those it cannot be
@@ -95,99 +96,15 @@ nonisolated enum TuneFiles {
         var missing: Companion?
     }
 
-    nonisolated(unsafe) private static var folders: [String: FileFinder] = [:]
-    private static let lock = NSLock()
-
     static func read(_ url: URL) throws -> Read {
         let bytes = [UInt8](try Coordinated.data(url))
-        let name = url.lastPathComponent
-        guard let format = TuneFormat(fileExtension: url.pathExtension) else { return Read(bytes: bytes, companions: [], missing: nil) }
-        let wanted = Companions.wanted(for: format, fileName: name)
-        guard !wanted.isEmpty else { return Read(bytes: bytes, companions: [], missing: nil) }
-        let folder = url.deletingLastPathComponent()
-        let beside = finder(for: folder)
-        let companions: [[UInt8]?] = wanted.map { companion in
-            if companion.folder { return self.folder(companion, beside: folder, among: beside) }
-            guard let place = Companions.find(companion, for: name, among: beside) else { return nil }
-            return (try? Coordinated.data(folder.appendingPathComponent(beside.paths[place]))).map { [UInt8]($0) }
-        }
-        let missing = wanted.indices.first { wanted[$0].required && companions[$0] == nil }.map { wanted[$0] }
+        guard let format = TuneFormat(url: url) else { return Read(bytes: bytes, companions: [], missing: nil) }
+        let (companions, missing) = CompanionFiles.read(for: url, format: format)
         return Read(bytes: bytes, companions: companions, missing: missing)
     }
 
     /// Forgets what was seen of a folder: it may since have been given to the app.
     static func forget(_ folder: URL) {
-        lock.withLock { _ = folders.removeValue(forKey: folder.standardizedFileURL.path) }
-    }
-
-    private static func finder(for folder: URL) -> FileFinder {
-        let key = folder.standardizedFileURL.path
-        if let known = lock.withLock({ folders[key] }) { return known }
-        // (Every file, since a companion may have any name.)
-        let names = Coordinated.names(in: folder)
-        let finder = FileFinder(names)
-        // (A folder that cannot be read yet is not kept as empty: the listener may give it.)
-        if !names.isEmpty { lock.withLock { folders[key] = finder } }
-        return finder
-    }
-
-    /// The files of a folder a tune needs beside it, packed as `CompanionFolder.pack` has them.
-    private static func folder(_ companion: Companion, beside tunes: URL, among beside: FileFinder) -> [UInt8]? {
-        for name in companion.names {
-            guard let found = beside.paths.first(where: { FileFinder.plain($0) == FileFinder.plain(name) }) else { continue }
-            let inside = tunes.appendingPathComponent(found, isDirectory: true)
-            let names = Coordinated.names(in: inside).sorted()
-            let packed: [(name: String, bytes: [UInt8])] = names.compactMap { name in
-                let file = inside.appendingPathComponent(name)
-                guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
-                      let data = try? Coordinated.data(file) else { return nil }
-                return (name, [UInt8](data))
-            }
-            if !packed.isEmpty { return CompanionFolder.pack(packed) }
-        }
-        return nil
-    }
-}
-
-/// Files and folders read through file coordination on an iPhone or iPad, where one from a file
-/// provider (a share on the network, a drive in the cloud) is only a stand-in until it is asked for
-/// that way: a folder's contents are not listed, and a file's bytes are not there. On a Mac a plain
-/// read does, and is quicker.
-nonisolated enum Coordinated {
-    private static func reading<T>(_ url: URL, _ body: (URL) throws -> T) throws -> T {
-        #if os(iOS)
-        var outcome: Result<T, Error>?
-        var failure: NSError?
-        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &failure) { url in
-            outcome = Result { try body(url) }
-        }
-        if let outcome { return try outcome.get() }
-        if let failure { throw failure }
-        #endif
-        return try body(url)
-    }
-
-    static func data(_ url: URL) throws -> Data {
-        try reading(url) { try Data(contentsOf: $0, options: .mappedIfSafe) }
-    }
-
-    /// The names in a folder; none if it cannot be read.
-    static func names(in folder: URL) -> [String] {
-        (try? reading(folder) { try FileManager.default.contentsOfDirectory(atPath: $0.path) }) ?? []
-    }
-
-    /// Every file in a folder and in the folders inside it, hidden ones passed over.
-    static func files(below folder: URL) -> [URL] {
-        var found: [URL] = []
-        var waiting = [folder]
-        while let next = waiting.popLast() {
-            let inside = (try? reading(next) {
-                try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
-            }) ?? []
-            for url in inside {
-                if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true { waiting.append(url) } else { found.append(url) }
-            }
-        }
-        return found
+        CompanionFiles.forget(folder)
     }
 }

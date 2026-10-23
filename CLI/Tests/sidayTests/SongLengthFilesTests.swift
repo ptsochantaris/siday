@@ -3,6 +3,7 @@
 
 @testable import siday
 import Foundation
+import SidayFiles
 import Testing
 
 @Test func aFileWithNoSongLengthsIsNotADatabase() throws {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Foundation
+import SidayFiles
 import SidayPlayer
 import Synchronization
 
@@ -116,7 +117,7 @@ final class Levels: @unchecked Sendable {
         if TuneFormat(url: song.url) == .sid {
             options.songLengths = SongLengthFiles.find(explicitPath: files.songLengthsPath, near: song.url)
         }
-        let key = SongLevel.key(of: [UInt8](data), companions: CompanionFiles.find(for: song.url, format: TuneFormat(url: song.url) ?? .mod),
+        let key = SongLevel.key(of: [UInt8](data), companions: CompanionFiles.read(for: song.url, format: TuneFormat(url: song.url) ?? .mod).companions,
                                 song: number, options: options, policy: policy)
         var level = state.withLock { $0.kept[key] }
         if level == nil {

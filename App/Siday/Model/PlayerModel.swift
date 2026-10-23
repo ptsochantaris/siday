@@ -3,6 +3,7 @@
 
 import Foundation
 import Observation
+import SidayFiles
 import SidayPlayer
 
 extension Tune {
@@ -214,12 +215,12 @@ final class PlayerModel {
     func add(_ urls: [URL]) {
         for url in urls { library.add(url) }
         Task.detached { [urls] in
-            let found = Scanner.scan(urls)
+            let found = TuneFolders.scan(urls)
             await MainActor.run { self.added(found) }
         }
     }
 
-    private func added(_ found: Scanner.Found) {
+    private func added(_ found: TuneFolders.Found) {
         if let lengths = found.songLengths, let data = try? Coordinated.data(lengths) {
             engine.send(.songLengths([UInt8](data)))
             library.add(lengths)

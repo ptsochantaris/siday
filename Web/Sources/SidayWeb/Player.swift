@@ -84,6 +84,8 @@ final class Player {
     private let finding = Finding()
     private final class Finding {
         var given = FileFinder()
+        /// The playlists read for the next gathering, by their names.
+        var lists: [String: PlaylistFile] = [:]
     }
 
     /// Lower-case copies, for searching.
@@ -192,11 +194,12 @@ final class Player {
     func start() {
         try? sidayListen(
             { name in
-                let letters = Array(name.utf8)
-                let leaf = String(decoding: letters[((letters.lastIndex(of: 0x2F) ?? -1) + 1)...], as: UTF8.self)
-                guard let stop = letters.lastIndex(of: 0x2E) else { return Companions.are(fileName: leaf) ? 3 : 0 }
-                let kind = String(decoding: letters[(stop + 1)...], as: UTF8.self)
-                return TuneFormat(fileExtension: kind) != nil ? 1 : PlaylistFile.reads(fileExtension: kind) ? 2 : Companions.are(fileName: leaf) ? 3 : 0
+                switch TuneGathering.kind(ofFileNamed: name) {
+                case .tune: 1
+                case .playlist: 2
+                case .companion: 3
+                case .songLengths, .other: 0
+                }
             },
             { [self] lines in
                 // Each line is a name, a tab and a note. (The tab that counts is the last: a note has none.)
@@ -264,16 +267,12 @@ final class Player {
                 }
             },
             { [self] name, text in
-                // The file comes as a letter for each of its bytes.
                 let finder = finding.given
-                let letters = Array(name.utf8)
-                guard let stop = letters.lastIndex(of: 0x2E),
-                      let kind = PlaylistFile.Kind(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)),
-                      let list = PlaylistFile(text.unicodeScalars.map { UInt8(truncatingIfNeeded: $0.value) }, kind: kind) else { return "0 0" }
+                guard let list = Self.playlist(name, text) else { return "0 0" }
                 var named = 0
                 var lines: [String] = []
                 // (What a list names that is no kind of tune played here is passed over, and not looked for.)
-                for entry in list.entries where TuneFormat(fileExtension: entry.fileExtension) != nil {
+                for entry in list.entries where TuneGathering.counts(entry) {
                     if let place = finder.place(of: entry, besideList: name) {
                         lines.append("\(named)\t\(place)\t1\t\(entry.note)")
                     } else if let place = finder.place(of: entry) {
@@ -283,6 +282,10 @@ final class Player {
                 }
                 return (["\(named) \(named - lines.count)"] + lines).joined(separator: "\n")
             },
+            { [self] name, text in
+                finding.lists[name] = Self.playlist(name, text)
+            },
+            { [self] items in gather(items) },
             { [self] missing, named, list in
                 listNotice = Self.notice(missing: missing, of: named, in: list)
             }
@@ -301,6 +304,75 @@ final class Player {
         let count = missing < named ? "\(grouped(named)) tunes, and \(grouped(missing)) of them \(missing == 1 ? "was" : "were") not found"
             : named == 1 ? "a tune that was not found" : "\(grouped(named)) tunes, and none of them were found"
         return "\(whose) \(count). A web page can only read the files it is given, so it cannot fetch these tunes itself."
+    }
+
+    /// A playlist the page has read, from its name and its file, which comes as a letter for each of its bytes.
+    private static func playlist(_ name: String, _ text: String) -> PlaylistFile? {
+        let letters = Array(name.utf8)
+        guard let stop = letters.lastIndex(of: 0x2E),
+              let kind = PlaylistFile.Kind(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)) else { return nil }
+        return PlaylistFile(text.unicodeScalars.map { UInt8(truncatingIfNeeded: $0.value) }, kind: kind)
+    }
+
+    /// The tunes in what the page was given, in the order they are played (see `sidayFiles`). A
+    /// playlist that was given itself is played as it is written, and the tunes given with it come
+    /// after its own, but for those it names; a folder given with it is where its tunes are looked
+    /// for, and is not itself added. Otherwise what was given is gathered as one folder.
+    private func gather(_ items: String) -> String {
+        // (A tune is known by its place among the files given, and a list by its place among the
+        // lists here, counted back from -1.)
+        var names: [String] = []
+        var files: [Int] = []
+        var own: [Int] = []
+        for line in items.split(separator: "\n") {
+            let fields = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false).map { String($0) }
+            guard fields.count == 3 else { continue }
+            let item: Int
+            if fields[0] == "2" {
+                names.append(fields[2])
+                item = -names.count
+            } else {
+                guard let place = Int(fields[2]) else { continue }
+                item = place
+            }
+            files.append(item)
+            if fields[1] == "1" { own.append(item) }
+        }
+        let finder = finding.given
+        let lists = finding.lists
+        finding.lists = [:]
+        func name(_ list: Int) -> String { names[-list - 1] }
+        func entries(_ list: Int) -> [PlaylistFile.Entry] { lists[name(list)]?.entries ?? [] }
+        let ownLists = own.filter { $0 < 0 }
+        var gathered: [TuneGathering.Gathered<Int>]
+        var tunes: [(item: Int, note: String)]
+        if !ownLists.isEmpty {
+            gathered = ownLists.map { list in
+                TuneGathering.list(entries(list)) { finder.place(of: $0, besideList: name(list)) ?? finder.place(of: $0) }
+            }
+            tunes = gathered.flatMap { $0.tunes }
+            let named = Set(tunes.map { $0.item })
+            tunes += own.filter { $0 >= 0 && !named.contains($0) }.map { ($0, "") }
+        } else {
+            var held = Set<Int>()
+            let folder = TuneGathering.folder(
+                files, isList: { $0 < 0 }, entries: entries,
+                place: { entry, list in finder.place(of: entry, besideList: name(list)).map { .here($0) } ?? .elsewhere },
+                elsewhere: { entry, _ in finder.place(of: entry) }, key: { $0 }, held: &held
+            )
+            gathered = [folder]
+            tunes = folder.tunes
+        }
+        var named = 0, missing = 0
+        for list in gathered {
+            named += list.named
+            missing += list.missing
+        }
+        var reply = ["\(missing) \(named)"] + tunes.map { "\($0.item)\t\($0.note)" }
+        for (which, list) in gathered.flatMap({ $0.lists }).enumerated() where list.found.count < list.named {
+            reply.append("!\t\(which)\t" + list.found.map { String($0) }.joined(separator: ","))
+        }
+        return reply.joined(separator: "\n")
     }
 
     /// The files a tune in the list needs beside its own, by their places among the files given (-1
