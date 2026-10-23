@@ -33,6 +33,9 @@ struct DeliCustomPlayer: ~Copyable {
     /// How long a song is played through to find its end, at most: ten minutes, which is longer than
     /// UADE plays a song that does not end (512 seconds).
     static let mostClocks: UInt64 = 600 * 3_546_895
+    /// A song of which nothing has been heard after a minute of it (`DryRunEar`) is played through no
+    /// further: it is silent (`DryRunSilences`).
+    static let silentClocks: UInt64 = 60 * 3_546_895
     /// The processor's time (not waiting) a song's playing through in silence is given, and all of a
     /// module's songs': no more, for a module that is broken or busy.
     static let dryRunBudget: Int64 = 1_200_000_000
@@ -48,6 +51,7 @@ struct DeliCustomPlayer: ~Copyable {
     private let callsSongEnd: Bool
     private var anyEnded = false
     private var anyRanOut = false
+    private var silences = DryRunSilences()
 
     var memory: UnsafeMutablePointer<UInt8> { host.memory }
     var memoryCapacity: Int { host.memorySize }
@@ -173,18 +177,21 @@ struct DeliCustomPlayer: ~Copyable {
         // Played through in silence to its end: the tick it ends in is the first of it again, or the
         // first of the silence after it.
         try start(song)
-        var none = Unheard()
+        var ear = DryRunEar()
         var used: Int64 = 0
         var clocks: UInt64 = 0
-        while endings == 0, stops == 0, clocks < Self.mostClocks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget {
+        while endings == 0, stops == 0, clocks < Self.mostClocks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget,
+              ear.heard || clocks < Self.silentClocks
+        {
             let busy = host.busyCycles
-            _ = run(&none)
+            _ = run(&ear)
             clocks += UInt64(ticks.tickClocks)
             used += host.busyCycles - busy
             dryRuns += host.busyCycles - busy
         }
         lengths[song] = .some(endings > 0 || stops > 0 ? clocks - UInt64(ticks.tickClocks) : nil)
         if endings > 0 || stops > 0 { anyEnded = true } else if clocks >= Self.mostClocks { anyRanOut = true }
+        silences.found(song, heard: ear.heard, in: &lengths)
     }
 
     mutating func adopt(_ given: [UInt64?]) {
@@ -207,12 +214,6 @@ struct DeliCustomPlayer: ~Copyable {
     /// Why the module stopped, if it has.
     var failure: String? { host.failure }
 
-    private struct Unheard: TFMXOutput {
-        mutating func on(_: Int) {}
-        mutating func off(_: Int) {}
-        mutating func takeNextBuffer(_: Int, start _: Int, length _: UInt16) {}
-        func loopCount(_: Int) -> UInt16 { 0 }
-    }
 }
 
 /// A DeliTracker custom module, played on Paula by `PaulaTickRenderer`.

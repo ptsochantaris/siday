@@ -64,8 +64,10 @@ struct HunkProgram {
 /// Its DTP_Interrupt adds one to its count and writes it to AUD0PER; its DTP_InitSound writes the song's
 /// number to AUD1PER; its range of songs is 0 to 2. `timer` set, DTP_InitSound sets `dtg_Timer` to it
 /// and calls `dtg_SetTimer`; `endAt` set, DTP_Interrupt calls `dtg_SongEnd` when its count comes to it;
-/// `initPlayer` is code put at the start of DTP_InitPlayer.
-private func custom(timer: UInt16? = nil, endAt: UInt16? = nil, initPlayer: [UInt16] = [], tags extra: [UInt32] = []) -> [UInt8] {
+/// `initPlayer` is code put at the start of DTP_InitPlayer; `heardBut` set, DTP_InitSound turns voice 0
+/// on at full volume for every song but that one, which makes no sound.
+private func custom(timer: UInt16? = nil, endAt: UInt16? = nil, initPlayer: [UInt16] = [], tags extra: [UInt32] = [],
+                    heardBut silent: UInt16? = nil) -> [UInt8] {
     var p = HunkProgram()
     p.w(0x70FF, 0x4E75, 0x4445, 0x4C49, 0x5249, 0x554D) // MOVEQ #-1,D0; RTS; "DELIRIUM"
     p.address("tags")
@@ -96,6 +98,11 @@ private func custom(timer: UInt16? = nil, endAt: UInt16? = nil, initPlayer: [UIn
     p.w(0x206D, 0x004C, 0x4ED0) // MOVEA.L dtg_AudioAlloc(A5),A0; JMP (A0)
     p.label("initSound")
     p.w(0x33ED, 0x002C, 0x00DF, 0xF0B6) // MOVE.W dtg_SndNum(A5),$DFF0B6
+    if let silent {
+        p.w(0x302D, 0x002C, 0x0C40, silent, 0x6710) // MOVE.W dtg_SndNum(A5),D0; CMPI.W #silent,D0; BEQ.S +16
+        p.w(0x33FC, 0x0040, 0x00DF, 0xF0A8) // MOVE.W #64,$DFF0A8
+        p.w(0x33FC, 0x8201, 0x00DF, 0xF096) // MOVE.W #$8201,$DFF096
+    }
     if let timer {
         p.w(0x3B7C, timer, 0x0036) // MOVE.W #timer,dtg_Timer(A5)
         p.w(0x206D, 0x0064, 0x4E90) // MOVEA.L dtg_SetTimer(A5),A0; JSR (A0)
@@ -222,6 +229,21 @@ private struct Writes: TFMXOutput {
     #expect(given.songs == whole.songs)
     #expect(whole.songMeasures.flatMap { SongMeasures(bytes: $0.bytes) } == whole.songMeasures)
     #expect(SongMeasures(bytes: [1, 2, 3]) == nil)
+}
+
+@Test func aSongOfACustomThatMakesNoSoundWhereItsOthersDoIsEmpty() throws {
+    var options = LoadOptions()
+    let whole = try PaulaTickRenderer(DeliCustomPlayer(custom(endAt: 100, heardBut: 1)), options: options)
+    #expect(whole.songs.map(\.empty) == [false, true, false])
+    #expect(whole.songs[1].length == 0 && whole.songs[2].length == whole.songs[0].length)
+    // Found so as its songs are played through, one at a time: the same.
+    options.measuresEverySong = false
+    let lazy = try PaulaTickRenderer(DeliCustomPlayer(custom(endAt: 100, heardBut: 1)), options: options)
+    lazy.select(subsong: 2)
+    #expect(lazy.songs == whole.songs)
+    // A module none of whose songs is heard is left as it is: each as long as it is played.
+    let unheard = try PaulaTickRenderer(DeliCustomPlayer(custom(endAt: 100)), options: LoadOptions())
+    #expect(unheard.songs.allSatisfy { !$0.empty && abs(($0.length ?? 0) - (whole.songs[0].length ?? 0)) < 0.01 })
 }
 
 @Test func aTunePlayerHasTheSongsItDidNotPlayThroughPlayedThroughElsewhere() throws {

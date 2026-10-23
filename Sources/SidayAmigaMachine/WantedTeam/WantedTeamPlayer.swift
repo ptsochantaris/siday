@@ -33,6 +33,7 @@ struct WantedTeamPlayer<Recipe: WantedTeamRecipe>: ~Copyable {
     private(set) var endings = 0
     private(set) var stops = 0
     private(set) var lengthClocks: UInt64?
+    private var silences = DryRunSilences()
     private var lengths: [UInt64??] = []
     private var dryRuns: Int64 = 0
 
@@ -129,19 +130,20 @@ struct WantedTeamPlayer<Recipe: WantedTeamRecipe>: ~Copyable {
         // Played through in silence to its end: the tick it ends in is the first of it again, or the
         // first of the silence after it.
         try start(song)
-        var none = Unheard()
+        var ear = DryRunEar()
         var used: Int64 = 0
         var clocks: UInt64 = 0
         while endings == 0, stops == 0, clocks < DeliCustomPlayer.mostClocks, used < DeliCustomPlayer.dryRunBudget,
-              dryRuns < DeliCustomPlayer.dryRunsBudget
+              dryRuns < DeliCustomPlayer.dryRunsBudget, ear.heard || clocks < DeliCustomPlayer.silentClocks
         {
             let busy = host.busyCycles
-            _ = run(&none)
+            _ = run(&ear)
             clocks += UInt64(ticks.tickClocks)
             used += host.busyCycles - busy
             dryRuns += host.busyCycles - busy
         }
         lengths[song] = .some(endings > 0 || stops > 0 ? clocks - UInt64(ticks.tickClocks) : nil)
+        silences.found(song, heard: ear.heard, in: &lengths)
     }
 
     mutating func adopt(_ given: [UInt64?]) {
@@ -164,12 +166,6 @@ struct WantedTeamPlayer<Recipe: WantedTeamRecipe>: ~Copyable {
     /// Why the module stopped, if it has.
     var failure: String? { host.failure }
 
-    private struct Unheard: TFMXOutput {
-        mutating func on(_: Int) {}
-        mutating func off(_: Int) {}
-        mutating func takeNextBuffer(_: Int, start _: Int, length _: UInt16) {}
-        func loopCount(_: Int) -> UInt16 { 0 }
-    }
 }
 
 /// A module of a composer's own code, played on Paula by `PaulaTickRenderer`.

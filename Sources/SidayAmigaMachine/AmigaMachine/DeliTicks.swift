@@ -66,3 +66,52 @@ struct DeliTicks {
         writes.removeAll(keepingCapacity: true)
     }
 }
+
+/// What a song played through in silence, to find its end, would let be heard: whether a voice is ever
+/// playing at a volume above nought (see `DryRunSilences`).
+struct DryRunEar: TFMXOutput {
+    private var playing = [false, false, false, false]
+    private var volumes = [UInt16](repeating: 0, count: 4)
+    private(set) var heard = false
+
+    mutating func on(_ voice: Int) {
+        guard playing.indices.contains(voice) else { return }
+        playing[voice] = true
+        if volumes[voice] > 0 { heard = true }
+    }
+
+    mutating func off(_ voice: Int) {
+        if playing.indices.contains(voice) { playing[voice] = false }
+    }
+
+    mutating func writeVolume(_ voice: Int, _ volume: UInt16) {
+        guard volumes.indices.contains(voice) else { return }
+        volumes[voice] = volume & 0x7F
+        if playing[voice], volumes[voice] > 0 { heard = true }
+    }
+
+    mutating func takeNextBuffer(_: Int, start _: Int, length _: UInt16) {}
+    func loopCount(_: Int) -> UInt16 { 0 }
+}
+
+/// The songs of a module that were played through to their ends and never heard (`DryRunEar`). One of
+/// them has nothing to it (`SongInfo.empty`), and is of no length, if another song of the module is
+/// heard: as the songs past the end of a module's own list of them have, and the effects in a list of a
+/// game's that make no sound. A module of which no song is heard is left as it is found: what is
+/// silent there is more likely the playing of it than the module.
+struct DryRunSilences {
+    private var silent: [Int] = []
+    private var heardAny = false
+
+    /// Notes what was found of a song played through, and puts in `lengths` the songs that are empty.
+    mutating func found(_ song: Int, heard: Bool, in lengths: inout [UInt64??]) {
+        if heard {
+            heardAny = true
+        } else {
+            silent.append(song)
+        }
+        guard heardAny else { return }
+        for song in silent where lengths.indices.contains(song) { lengths[song] = .some(0) }
+        silent.removeAll()
+    }
+}

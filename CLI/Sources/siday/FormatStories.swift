@@ -1692,7 +1692,10 @@ over the first 40 seconds of every song of UnExoticA's collection, by what the d
 chip on every tick, and over the first minute of some of each, by how loud each side is from moment to
 moment. No
 part of Wanted Team's players is carried here; their code was read, and where its source is not
-given, its 68000 code.
+given, its 68000 code. (Of siday's own: a song of which nothing is heard, where the module's other
+songs are, has nothing to it and is passed over, as an empty song of a module is: the song a player
+counts past the end of a module's own list of them, or an effect that makes no sound. One that has
+been played through unheard for a minute is played no further to find its end.)
 
 - **Core Design** (`.core`): Benn Daglish's music for Core Design's games, of 1989 and 1990, as the
   player's credit has it: Action Fighter, Dynamite Dux, Monty Python's Flying Circus, Rick Dangerous,
@@ -1869,7 +1872,10 @@ What is siday's own, or the host's own and worth telling:
 2. Most customs never say when a song has ended. Each song is played through unheard for up to ten
    minutes to see; but a module whose code cannot call to say so, of which one song has been played
    that long without ending, is taken to have no songs that end, so that one of seventy songs loads in
-   a moment and not in minutes. A song with no end plays for the time given to such tunes.
+   a moment and not in minutes. A song with no end plays for the time given to such tunes. A song of
+   which nothing is heard, where the module's other songs are, has nothing to it and is passed over
+   (after a minute unheard it is played no further); a module none of whose songs is heard is left as
+   it is.
 3. Two modules load more of their music from files beside them, as their games did (Nebulus 2's
    loading music, and Lemmings' older custom); they say which were not given.
 4. How loud they are: these modules' music is 3.4 dB louder on the Amiga's chip than modules are, in
