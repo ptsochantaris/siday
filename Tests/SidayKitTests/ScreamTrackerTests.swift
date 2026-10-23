@@ -348,9 +348,12 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     // Without it, or with S98, which takes the channel out again, there is nothing after the cut.
     let none: [UInt8] = [0xA0, 0x40, 1, 19, 0x98, 0, 0x20, 254, 0]
     #expect(try after(byImpulseTracker(s3m(row: none))) < 0.0001)
-    // Nor in a file that Scream Tracker saved, nor on a Sound Blaster.
+    // Nor in a file that Scream Tracker saved.
     #expect(try after(s3m(row: reverb)) < 0.0001)
-    #expect(try after(byImpulseTracker(s3m(row: reverb)), .sb) < 0.0001)
+    // And so on a Sound Blaster too, whose sum of its channels in eight bits the channel is kept out of.
+    #expect(try after(byImpulseTracker(s3m(row: reverb)), .sb) > 0.001)
+    #expect(try after(byImpulseTracker(s3m(row: none)), .sb) < 0.0001)
+    #expect(try after(s3m(row: reverb), .sb) < 0.0001)
 }
 
 @Test func s3mFromALaterTrackerHasItsChannelsPastSixteenPlayed() throws {
@@ -428,13 +431,12 @@ private func byImpulseTracker(_ file: [UInt8]) -> [UInt8] {
     // Its setting of a filter (Z) is played (see `s3mFromALaterTrackerHasItsFilterPlayed`).
     #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 26, 0x40]))).isEmpty)
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 26, 0x40])).isEmpty)
-    // ModPlug's reverb (S99), which only a later tracker's file can ask for, is played on a Gravis
-    // Ultrasound (see `s3mFromALaterTrackerHasItsReverbPlayed`), and not on a Sound Blaster.
+    // ModPlug's reverb (S99), which only a later tracker's file can ask for, is played on either
+    // card (see `s3mFromALaterTrackerHasItsReverbPlayed`).
     #expect(try shortfalls(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99]))).isEmpty)
     var onSoundBlaster = LoadOptions()
     onSoundBlaster.s3mCard = .sb
-    #expect(try TuneLoader.load(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])), format: .s3m, options: onSoundBlaster).info.shortfalls
-        == ["One of its commands is left out, on the Sound Blaster it is played on: ModPlug's reverb."])
+    #expect(try TuneLoader.load(byImpulseTracker(s3m(row: [0xA0, 0x40, 1, 19, 0x99])), format: .s3m, options: onSoundBlaster).info.shortfalls.isEmpty)
     #expect(try shortfalls(s3m(row: [0xA0, 0x40, 1, 19, 0x99])).isEmpty)
     // A later tracker's seventeenth channel of samples, numbered as the AdLib card's first, is
     // played on a Gravis Ultrasound (see `s3mFromALaterTrackerHasItsChannelsPastSixteenPlayed`),

@@ -2125,11 +2125,14 @@ Tracker 3.20 whose Z is only ever that, plays it so; so does siday. And S99, whi
 in ModPlug's own reverb (see the IT section), is played on the Gravis Ultrasound, whose voices are
 each made alone, so that those of such a channel can be sent to the reverb and not to the card's own
 output, as OpenMPT sends them; the two are then brought to the player's rate together. A Sound
-Blaster adds its channels into eight bits as it goes, and leaves nothing to send, and there a file
-says the reverb is left out. Of the twelve S3M files to hand that ask for it, ten are of a later
-tracker, and set beside libopenmpt the spectrum of nine of those is nearer (from 0.97 to 0.99 for
-one), and of the tenth, whose reverb is on a channel past the sixteen Scream Tracker played, as it
-was; the other two Scream Tracker saved, and in those S99 is nothing, as it was to it. That last
+Blaster adds its channels into eight bits as it goes: there a channel in the reverb is kept out of
+that sum, and what it would have added to it is sent to the reverb instead, as loud as the card
+would have made it but whole. Of the twelve S3M files to hand that ask for it, ten are of a later
+tracker, and set beside libopenmpt the spectrum of nine of those is nearer on the Gravis
+Ultrasound (from 0.97 to 0.99 for one), and of the tenth, whose reverb is on a channel past the
+sixteen Scream Tracker played, as it was; on the Sound Blaster, which sounds less like libopenmpt
+either way, six are nearer, two are further and two are as they were. The other two Scream Tracker
+saved, and in those S99 is nothing, as it was to it. That last
 file has 26 channels of samples, and saves those after the sixteenth with the numbers Scream
 Tracker gives the AdLib card's voices, on which Scream Tracker plays no sample. OpenMPT takes such
 a number only for where the channel sits between the speakers, and plays what is on it. So, in a

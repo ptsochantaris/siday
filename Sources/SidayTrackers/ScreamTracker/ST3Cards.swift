@@ -57,6 +57,8 @@ final class ST3Cards {
         var pos: UInt32 = 0, poslow: UInt32 = 0, end: UInt32 = 0, loop: UInt32 = 0, speed: UInt32 = 0
         var vol: UInt8 = 0
         var mixtype: Int8 = 0
+        /// True for a channel put in ModPlug's reverb, which goes there and not into the card's eight bits.
+        var reverb = false
         /// For the lights: the lowest and highest the voice has been in this tick.
         var low: Int32 = .max, high: Int32 = .min
     }
@@ -99,12 +101,15 @@ final class ST3Cards {
     /// How many samples a second the card makes.
     private let cardRate: Float
 
-    /// For a file that puts channels in ModPlug's reverb (S99), on a Gravis Ultrasound: the reverb,
-    /// at the player's rate; what the card's voices sent to it in the sample last made, and the last
-    /// sixteen of those, brought to the player's rate as the card's output is; and whether anything
-    /// has been sent since the reverb was last given a block.
+    /// For a file that puts channels in ModPlug's reverb (S99): the reverb, at the player's rate;
+    /// what the card's voices sent to it in the sample last made, and the last sixteen of those,
+    /// brought to the player's rate as the card's output is; and whether anything has been sent
+    /// since the reverb was last given a block. (On a Sound Blaster what a channel sends is what it
+    /// would have added to the card's sum, at what the card makes of that sum in its eight bits,
+    /// `sbSent`, but whole.)
     private var reverb: ModPlugReverb?
     private var sentL: Int32 = 0, sentR: Int32 = 0
+    private var sbSent: Float = 0
     private let sendL: UnsafeMutablePointer<Float>, sendR: UnsafeMutablePointer<Float>
 
     // The GUS.
@@ -188,7 +193,7 @@ final class ST3Cards {
         }
         resamplingDelta = UInt64((4_294_967_296.0 * (cardRate / output)).rounded())
         self.cardRate = Float(cardRate)
-        if card == .gus, module.asksForReverb { reverb = ModPlugReverb(sampleRate: outputSampleRate) }
+        if module.asksForReverb { reverb = ModPlugReverb(sampleRate: outputSampleRate) }
 
         switch card {
         case .gus:
@@ -214,6 +219,7 @@ final class ST3Cards {
             // The table that squeezes the sum of the channels into eight bits.
             let mastervol = max(16, Int(module.mastermul & 127))
             let c = (2048 * 16) / mastervol
+            sbSent = 2 / Float(c)
             let a = (2048 - c) / 2
             let b = a + c
             let delta16 = UInt16(truncatingIfNeeded: 65536 / c)
@@ -625,7 +631,7 @@ final class ST3Cards {
     @inline(never)
     private func sbMutedPart() -> (UInt16, UInt16) {
         var left: UInt16 = 0, right: UInt16 = 0
-        for i in 0 ..< 16 where muted & (1 << UInt64(i)) != 0 {
+        for i in 0 ..< 16 where muted & (1 << UInt64(i)) != 0 && !sbVoices[i].reverb {
             let ch = sbVoices + i
             if ch.pointee.speed == 0 || ch.pointee.pos == 0xFFFF_FFFF || ch.pointee.base < 0 || ch.pointee.pos >= ch.pointee.end { continue }
             let at = ch.pointee.base &+ Int(truncatingIfNeeded: ch.pointee.pos)
@@ -654,6 +660,7 @@ final class ST3Cards {
     /// One sample of what Scream Tracker mixes for a Sound Blaster Pro.
     @inline(__always) private func sbSample() -> (Float, Float) {
         var left: UInt16 = 1024, right: UInt16 = 1024
+        var sentLeft: Int32 = 0, sentRight: Int32 = 0
         // Every channel is added in below, as ever: what those left out of the sound will add is
         // taken away here first, which comes to the same sum without them.
         if muted & 0xFFFF != 0 {
@@ -678,7 +685,18 @@ final class ST3Cards {
             let smp = UInt16(truncatingIfNeeded: level)
             ch.pointee.low = min(ch.pointee.low, Int32(level))
             ch.pointee.high = max(ch.pointee.high, Int32(level))
-            if stereo {
+            if ch.pointee.reverb {
+                // (A channel in ModPlug's reverb is added to what is sent there, unless it is left out.)
+                let sent = muted & (1 << UInt64(i)) != 0 ? 0 : Int32(level)
+                if !stereo || ch.pointee.mixtype < 0 || ch.pointee.mixtype > 3 {
+                    sentLeft &+= sent
+                    sentRight &+= sent
+                } else if (ch.pointee.mixtype & 1 == 0) == (i >= 8) {
+                    sentLeft &+= sent
+                } else {
+                    sentRight &+= sent
+                }
+            } else if stereo {
                 let mixtype = ch.pointee.mixtype
                 if mixtype == 0 || mixtype == 2 {
                     if i >= 8 { left &+= smp } else { right &+= smp }
@@ -705,6 +723,8 @@ final class ST3Cards {
                 }
             }
         }
+        sentL = sentLeft
+        sentR = sentRight
         return (Float(postTable[Int(left & 2047)]) * (1.0 / 128.0), Float(postTable[Int(right & 2047)]) * (1.0 / 128.0))
     }
 
@@ -808,12 +828,15 @@ final class ST3Cards {
     }
 
     /// The card's sound as OpenMPT's mix has it, for its reverb: 27 bits for a sample at its loudest,
-    /// which the card's loudest is a little over half of, set by measure beside libopenmpt.
+    /// which a GUS's loudest is a little over half of, set by measure beside libopenmpt. (What the
+    /// reverb makes is in proportion to what it is given, near enough that this changes nothing
+    /// heard: a Sound Blaster's sound, which is made louder afterwards than a GUS's, sounds the
+    /// same with this as with that taken into account.)
     private static let reverbScale = 0.57 * Double(1 << 27)
 
-    /// `render` for a Gravis Ultrasound with ModPlug's reverb: what is sent to it is brought to the
-    /// player's rate as the card's output is, and given to it in OpenMPT's whole numbers and blocks,
-    /// and what it makes, which has in it what was sent, is added to the card's output.
+    /// `render` with ModPlug's reverb: what is sent to it is brought to the player's rate as the
+    /// card's output is, and given to it in OpenMPT's whole numbers and blocks, and what it makes,
+    /// which has in it what was sent, is added to the card's output.
     private func renderWithReverb(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int, _ reverb: ModPlugReverb) {
         var frac = resamplingFrac
         let delta = resamplingDelta
@@ -831,12 +854,15 @@ final class ST3Cards {
                         sendL[i] = sendL[i + 1]
                         sendR[i] = sendR[i + 1]
                     }
-                    if let waves { keepGUSWaves(waves) }
-                    let (l, r) = gusSample()
+                    if let waves {
+                        if card == .gus { keepGUSWaves(waves) } else { keepSBWaves(waves) }
+                    }
+                    let (l, r) = card == .gus ? gusSample() : sbSample()
                     bufferL[15] = l
                     bufferR[15] = r
-                    sendL[15] = Float(sentL) * (1.0 / 32768.0)
-                    sendR[15] = Float(sentR) * (1.0 / 32768.0)
+                    let unit = card == .gus ? 1.0 / 32768.0 : sbSent
+                    sendL[15] = Float(sentL) * unit
+                    sendR[15] = Float(sentR) * unit
                     sentAny |= sentL | sentR
                 }
                 let frac32 = UInt32(truncatingIfNeeded: frac)
@@ -932,14 +958,29 @@ final class ST3Cards {
             for i in 0 ..< 16 {
                 let ch = channels[i]
                 sbVoices[i] = SBVoice(base: ch.m_base, pos: ch.m_pos, poslow: ch.m_poslow, end: ch.m_end, loop: ch.m_loop, speed: ch.m_speed,
-                                      vol: ch.m_vol, mixtype: ch.amixtype)
+                                      vol: ch.m_vol, mixtype: ch.amixtype, reverb: reverb != nil && ch.reverb)
                 if ch.filterChanged || ch.filterBegun {
                     tell(ch, &sbFilters[i], afresh: ch.filterBegun)
                     ch.filterBegun = false
                 }
             }
         }
-        if let reverb { return renderWithReverb(left: left, right: right, count: count, reverb) }
+        if let reverb {
+            renderWithReverb(left: left, right: right, count: count, reverb)
+        } else {
+            renderPlainly(left: left, right: right, count: count)
+        }
+        if card == .sb {
+            for i in 0 ..< 16 {
+                channels[i].m_pos = sbVoices[i].pos
+                channels[i].m_poslow = sbVoices[i].poslow
+                channels[i].m_speed = sbVoices[i].speed
+            }
+        }
+    }
+
+    /// `render` with no reverb.
+    private func renderPlainly(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
         var frac = resamplingFrac
         let delta = resamplingDelta
         let waves = waves
@@ -974,12 +1015,5 @@ final class ST3Cards {
         }
         resamplingFrac = frac
         if let waves { moveWavesOn(waves) }
-        if card == .sb {
-            for i in 0 ..< 16 {
-                channels[i].m_pos = sbVoices[i].pos
-                channels[i].m_poslow = sbVoices[i].poslow
-                channels[i].m_speed = sbVoices[i].speed
-            }
-        }
     }
 }

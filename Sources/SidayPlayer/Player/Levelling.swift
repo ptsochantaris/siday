@@ -146,8 +146,9 @@ public extension SongLevel {
     /// switched on with its processor's count of cycles at nought, as it is at every song's start,
     /// where before what the last song left of it put the first tick a clock or so out; 11: IT
     /// samples packed by ModPlug Tracker heard, and surround in ModPlug Tracker's and OpenMPT's IT and
-    /// MPTM files kept where a channel is put, as they had it.)
-    static let soundVersion = 11
+    /// MPTM files kept where a channel is put, as they had it; 12: ModPlug's reverb in a later
+    /// tracker's S3M file on a Sound Blaster too.)
+    static let soundVersion = 12
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {

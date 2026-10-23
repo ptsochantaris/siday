@@ -107,10 +107,8 @@ final class ST3Module {
     /// What is said of samples in stereo, if there are any the tune plays, for when they are mixed into one.
     private(set) var stereoSentence: String?
     /// True if the file is one a later tracker made that puts a channel in ModPlug's reverb (S99),
-    /// which is played on a Gravis Ultrasound (see `ST3Cards`); and what is said of it, for a Sound
-    /// Blaster, on which it is not.
+    /// which is played on either card (see `ST3Cards`).
     private(set) var asksForReverb = false
-    private(set) var reverbSentence: String?
     /// What is said of the extra channels of samples (see `extraChannels`), for a Sound Blaster.
     private(set) var extraChannelsSentence: String?
 
@@ -377,12 +375,9 @@ final class ST3Module {
         }
     }
 
-    /// The command of later trackers that is found in S3M files and is not always played: S99,
-    /// which puts a channel in ModPlug's own reverb. That is played on a Gravis Ultrasound, whose
-    /// voices are each heard alone, but not on a Sound Blaster, which mixes them in eight bits as it
-    /// goes, and on that is said to be left out.
-    ///
-    /// Others are not counted. Z sets a channel's filter where the tracker that made the file had
+    /// The commands of later trackers that are found in S3M files are not counted among what is not
+    /// played. S99, which puts a channel in ModPlug's own reverb, is played on either card, in a
+    /// file that a later tracker made (see `asksForReverb`). Z sets a channel's filter where the tracker that made the file had
     /// one, and is nothing where it had not (see `ST3Module.keepsFilterMacros`), or is PixPlay's
     /// placing of a channel (see `readPixPlayPanning`). M, N and W, a channel's volume and the slides of it and of the
     /// whole tune's, are played in a file that a later tracker made (see
@@ -392,13 +387,11 @@ final class ST3Module {
     /// from side to side (Y), on a card whose voices have places (see `ST3Player.laterPanning`);
     /// on the Sound Blaster, whose channels are each to a side, they are nothing, and that is not
     /// said: a file of a later tracker's is played on the Gravis Ultrasound unless it is asked for.
-    private static let whatTheyDo = ["ModPlug's reverb"]
 
     /// Looks over the file for what its patterns use that is not played as the file asks, and
     /// says so in `shortfalls`. Nothing that is played is changed by it.
     private func noteWhatIsNotPlayed(_ f: ByteReader, _ insoff: [Int]) {
         var used = [Bool](repeating: false, count: 256)
-        var commands = Shortfall.Kinds()
         // A later tracker's file can have more than Scream Tracker's sixteen channels of samples,
         // and number those after them as Scream Tracker numbers the AdLib card's: there they are
         // not heard. (In a file that Scream Tracker saved they were not heard by its maker either.)
@@ -424,7 +417,7 @@ final class ST3Module {
                 }
                 if what & 0x40 != 0 { at += 1 }
                 if what & 0x80 != 0 {
-                    if at + 1 < pattern.count, !madeByScreamTracker, pattern[at] == 19, pattern[at + 1] == 0x99 { commands.note(0) }
+                    if at + 1 < pattern.count, !madeByScreamTracker, pattern[at] == 19, pattern[at + 1] == 0x99 { asksForReverb = true }
                     at += 2
                 }
             }
@@ -463,11 +456,6 @@ final class ST3Module {
                 one: "channels is past the sixteen a Sound Blaster mixes, and the samples played on it are not heard there.",
                 many: "channels are past the sixteen a Sound Blaster mixes, and the samples played on them are not heard there.")
             extraChannelsSentence = sentence
-            shortfalls.append(sentence)
-        }
-        if let sentence = Shortfall.commandsLeftOut(commands.named(Self.whatTheyDo), why: "on the Sound Blaster it is played on") {
-            asksForReverb = true
-            reverbSentence = sentence
             shortfalls.append(sentence)
         }
     }
