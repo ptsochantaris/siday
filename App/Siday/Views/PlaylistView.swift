@@ -24,6 +24,9 @@ struct PlaylistView: View {
                     Button("Add Files…") { model.choosing = .files }
                     Button("Add Folder…") { model.choosing = .folder }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .takesDroppedTunes(model)
             } else {
                 List(selection: $selection) {
                     if let notice = model.notice {
@@ -39,6 +42,14 @@ struct PlaylistView: View {
                     .onDelete { places in
                         let listed = model.listed
                         model.remove(Set(places.map { listed[$0].id }))
+                    }
+                    // (Rows dragged about move the tunes, but not while a search shows some of them only.)
+                    .onMove(perform: model.search.isEmpty ? { model.move($0, to: $1) } : nil)
+                    // (A list takes what is dropped on it through its rows: what is dropped between two
+                    // goes there, before the tune that was at that place among those shown.)
+                    .dropDestination(for: URL.self) { urls, place in
+                        let listed = model.listed
+                        model.add(urls, before: place < listed.count ? listed[place].id : nil)
                     }
                 }
                 .contextMenu(forSelectionType: Int.self) { ids in

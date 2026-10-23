@@ -55,7 +55,8 @@ struct SidayApp: App {
 }
 
 /// The playlist beside the player: a sidebar that can be put away, on a Mac or an iPad; on an
-/// iPhone, one at a time, the player over the playlist. Files may be dropped on either.
+/// iPhone, one at a time, the player over the playlist. Files may be dropped on either (see
+/// `takesDroppedTunes`).
 struct ContentView: View {
     @Environment(PlayerModel.self) private var model
     /// What the file picker was last opened for: kept, since its answer comes once it has closed.
@@ -78,10 +79,6 @@ struct ContentView: View {
         // even when the player is beside it.)
         .environment(\.oneAtATime, sizeClass == .compact)
         #endif
-        .dropDestination(for: URL.self) { urls, _ in
-            model.add(urls)
-            return !urls.isEmpty
-        }
         .fileImporter(isPresented: Binding(get: { model.choosing != nil }, set: { if !$0 { model.choosing = nil } }),
                       allowedContentTypes: (model.choosing ?? asked) == .files ? [.data] : [.folder],
                       allowsMultipleSelection: (model.choosing ?? asked) == .files) { result in
@@ -121,6 +118,18 @@ struct ContentView: View {
             }
         }
         #endif
+    }
+}
+
+extension View {
+    /// Adds what is dropped on the view, files and folders, as if they had been chosen. Each column
+    /// of the split view takes them for itself: on a Mac each is a view of the system's own, and
+    /// what is dropped on one goes no further, so that the split view as a whole is given nothing.
+    func takesDroppedTunes(_ model: PlayerModel) -> some View {
+        dropDestination(for: URL.self) { urls, _ in
+            model.add(urls)
+            return !urls.isEmpty
+        }
     }
 }
 

@@ -167,6 +167,41 @@ public struct TuneQueue: Sendable {
         return .play(order[first == 0 ? 0 : min(orderPlace + 1, order.count - 1)], song: -1)
     }
 
+    /// Tunes have been added at a place in the list, those that were there and after it moved along
+    /// past them; otherwise as `add(_:)`, and if one is to play, it is the first of them.
+    public mutating func add(_ added: Int, at place: Int) -> Step {
+        let first = count
+        let step = add(added)
+        guard added > 0, place >= 0, place < first else { return step }
+        let newPlace = rearrange(moving: Array(first ..< count), to: place)
+        if case .play(let index, let song) = step { return .play(newPlace[index], song: song) }
+        return step
+    }
+
+    /// Tunes have been moved within the list: those at these places, in the order they were in, now
+    /// come just before the tune that was at `destination` (or at the end, for the list's length).
+    /// What is playing goes on, and what plays after it follows the list's new order; or, if the
+    /// order is shuffled, the same tunes as before.
+    public mutating func move(_ places: [Int], to destination: Int) {
+        _ = rearrange(moving: places, to: destination)
+    }
+
+    /// Moves tunes within the list (see `move`), and says where each place in it went.
+    private mutating func rearrange(moving places: [Int], to destination: Int) -> [Int] {
+        var moved = [Bool](repeating: false, count: count)
+        for place in places where place >= 0 && place < count { moved[place] = true }
+        // The list as it is to be, by the places its tunes had.
+        var list = (0 ..< count).filter { !moved[$0] }
+        let before = list.count { $0 < destination }
+        list.insert(contentsOf: (0 ..< count).filter { moved[$0] }, at: before)
+        var newPlace = [Int](repeating: 0, count: count)
+        for (place, was) in list.enumerated() { newPlace[was] = place }
+        order = shuffled ? order.map { newPlace[$0] } : Array(0 ..< count)
+        current = current.map { newPlace[$0] }
+        tuneFile = tuneFile.map { newPlace[$0] }
+        return newPlace
+    }
+
     /// A tune has been taken out of the list. If it is the one playing, the next one plays; if there
     /// is no next one, nothing does.
     public mutating func remove(_ index: Int) -> Step {

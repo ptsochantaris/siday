@@ -148,3 +148,28 @@ private extension Tune {
         return tune
     }
 }
+
+@Test func tunesAddedAtAPlaceOrMovedKeepWhatPlaysAndWhatFollowsIt() {
+    var queue = TuneQueue()
+    _ = queue.add(3)
+    queue.play(1, song: -1)
+    _ = queue.loaded(tune([30]), problem: "", isListed: everyTune)
+    // Two added before the one playing: it and the one after it are two places on, and it goes on.
+    #expect(queue.add(2, at: 1) == .none)
+    #expect(queue.current == 3 && queue.tuneFile == 3 && queue.count == 5)
+    #expect(queue.next(isListed: everyTune) == .play(4, song: -1))
+    // Added at the end, as without a place.
+    #expect(queue.add(1, at: 5) == .none && queue.count == 6)
+    // The last two moved to the front: the one playing is two places on again, and what follows it
+    // is what follows it in the list.
+    queue.move([4, 5], to: 0)
+    #expect(queue.current == 5 && queue.tuneFile == 5)
+    #expect(queue.next(isListed: everyTune) == .none && !queue.finished)
+    // The one playing moved to the front: what follows it is what is second in the list now.
+    queue.move([5], to: 0)
+    #expect(queue.current == 0 && queue.next(isListed: everyTune) == .play(1, song: -1))
+    // Added at a place to a list that has finished, the first of them plays.
+    queue.play(5, song: -1)
+    #expect(queue.next(automatic: true, isListed: everyTune) == .finish)
+    #expect(queue.add(2, at: 2) == .play(2, song: -1) && queue.count == 8)
+}

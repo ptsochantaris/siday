@@ -211,16 +211,18 @@ final class PlayerModel {
 
     // MARK: Adding
 
-    /// Adds what the listener gave: files, folders, playlists, and HVSC's list of song lengths.
-    func add(_ urls: [URL]) {
+    /// Adds what the listener gave: files, folders, playlists, and HVSC's list of song lengths. Their
+    /// tunes go at the end of the list, or just before the tune with the ID `before`, if it is still
+    /// in the list once they have been found.
+    func add(_ urls: [URL], before: Int? = nil) {
         for url in urls { library.add(url) }
         Task.detached { [urls] in
             let found = TuneFolders.scan(urls)
-            await MainActor.run { self.added(found) }
+            await MainActor.run { self.added(found, before: before) }
         }
     }
 
-    private func added(_ found: TuneFolders.Found) {
+    private func added(_ found: TuneFolders.Found, before: Int?) {
         if let lengths = found.songLengths, let data = try? Coordinated.data(lengths) {
             engine.send(.songLengths([UInt8](data)))
             library.add(lengths)
@@ -231,11 +233,28 @@ final class PlayerModel {
             saveList()
             return
         }
-        for url in found.tunes {
-            files.append(ListedTune(id: nextID, url: url, note: found.notes[url] ?? ""))
-            nextID += 1
-        }
-        perform(queue.add(found.tunes.count))
+        let place = before.flatMap { id in files.firstIndex { $0.id == id } } ?? files.count
+        files.insert(contentsOf: found.tunes.map { url in
+            defer { nextID += 1 }
+            return ListedTune(id: nextID, url: url, note: found.notes[url] ?? "")
+        }, at: place)
+        if let waiting = wanting, waiting >= place { wanting = waiting + found.tunes.count }
+        perform(queue.add(found.tunes.count, at: place))
+        saveList()
+    }
+
+    // MARK: Moving
+
+    /// Moves tunes within the list, as the list's rows were dragged: those at these places, in their
+    /// order, to just before the one at `destination` (or to the end).
+    func move(_ places: IndexSet, to destination: Int) {
+        let wanted = wanting.map { files[$0].id }
+        // (As the queue moves them: those left where they are, with the moved put in among them.)
+        var order = files.indices.filter { !places.contains($0) }
+        order.insert(contentsOf: places.filter { files.indices.contains($0) }, at: order.count { $0 < destination })
+        files = order.map { files[$0] }
+        queue.move(Array(places), to: destination)
+        wanting = wanted.flatMap { id in files.firstIndex { $0.id == id } }
         saveList()
     }
 

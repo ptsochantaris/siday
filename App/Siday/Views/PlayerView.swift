@@ -34,6 +34,7 @@ struct PlayerView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             OutputBar()
         }
+        .takesDroppedTunes(model)
         #if os(iOS)
         // (Over the playlist, its back button shows the playlist's sign, and is a back button still.)
         .background {
