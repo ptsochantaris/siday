@@ -120,8 +120,11 @@ public final class TunePlayer {
     public var songsPending: Bool { renderer?.songs.contains { $0.pending } ?? false }
 
     /// Plays every song of a tune through, as a load of it here would, to find how long each is: for
-    /// `adopt`, on another player of the same settings. Nil for a tune that is not played through
-    /// (or will not load). Returned with the digest it is kept under.
+    /// `adopt`, on another player. Nil for a tune that is not played through (or will not load).
+    /// Returned with the digest it is kept under. (The other player's settings make no difference,
+    /// and are left as they are: the players that play their songs through count in their own clocks,
+    /// before any sound is made of them, and none of what they are given makes a song longer or
+    /// shorter. Which Amiga, and how far apart its sides are, is only how it sounds.)
     public func measure(_ data: [UInt8], name: String) -> (key: String, measures: SongMeasures)? {
         let fileExtension = name.split(separator: ".").count > 1 ? String(name.split(separator: ".").last ?? "") : ""
         guard let named = TuneFormat(fileExtension: fileExtension) else { return nil }

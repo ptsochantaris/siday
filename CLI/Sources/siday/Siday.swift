@@ -501,6 +501,7 @@ struct Siday: ParsableCommand {
                 try atari.renderRaw(frames: frames).withUnsafeBytes { Data($0) }.write(to: URL(fileURLWithPath: raw))
                 return
             }
+            if let subsong { renderer.select(subsong: subsong - 1) }
             var samples = [Float](repeating: 0, count: frames * 2)
             samples.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: frames) }
             try samples.withUnsafeBytes { Data($0) }.write(to: URL(fileURLWithPath: raw))

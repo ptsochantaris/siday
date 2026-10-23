@@ -126,18 +126,19 @@ public enum TuneFolders {
     /// capitals and small letters in a name are the same, and a full stop at a name's end is nothing:
     /// if there is no file where the entry says, each step of its path is looked for as Windows would,
     /// and then, if there is still none, as the one name in its folder that is the same compared
-    /// `FileFinder.loose`.
+    /// `FileFinder.loose`. (A file found is named as it is on disk, and not as the list spells it,
+    /// on a disk to which capitals and small letters are the same too.)
     public static func find(_ entry: PlaylistFile.Entry, from folder: URL) -> URL? {
         let manager = FileManager.default
-        let direct = written(entry, from: folder)
-        var isDirectory: ObjCBool = false
-        if manager.fileExists(atPath: direct.path, isDirectory: &isDirectory) { return isDirectory.boolValue ? nil : direct }
         var url = entry.absolute ? URL(fileURLWithPath: "/") : folder
         for part in entry.path {
+            let next = url.appendingPathComponent(part)
             if part == ".." {
                 url = url.deletingLastPathComponent()
-            } else if manager.fileExists(atPath: url.appendingPathComponent(part).path) {
-                url = url.appendingPathComponent(part)
+            } else if part == "." {
+                continue
+            } else if manager.fileExists(atPath: next.path) {
+                url = url.appendingPathComponent((try? next.resourceValues(forKeys: [.nameKey]))?.name ?? part)
             } else {
                 let here = Coordinated.names(in: url)
                 let wanted = FileFinder.plain(part), loosely = FileFinder.loose(part)
@@ -146,6 +147,7 @@ public enum TuneFolders {
                 url = url.appendingPathComponent(named)
             }
         }
+        var isDirectory: ObjCBool = false
         guard manager.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else { return nil }
         return url.standardizedFileURL
     }
