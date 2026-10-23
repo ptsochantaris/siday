@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import MediaPlayer
+import SidayPlayer
 
 /// What the system shows of the tune that is playing (on the lock screen, in Control Center, in the
 /// menu bar's Now Playing), and the controls it has for it: headphones' buttons and the keyboard's

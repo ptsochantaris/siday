@@ -4,33 +4,7 @@
 import Reactivity
 import SidayPlayer
 
-/// What is known about the tune that is playing.
-struct Tune {
-    var format: String
-    var title: String
-    var author: String
-    var detail: String
-    /// Its songs, when it has more than one: what each is called and how long it is, where the file says.
-    var songs: [Song]
-    /// The song that is playing, counted from 0.
-    var song: Int
-    var length: Double
-    /// What its file asks for that is not played as it asks, a sentence each: an instrument that is
-    /// not heard, a command that is left out. None, for a tune that is played whole.
-    var shortfalls: [String] = []
-
-    struct Song {
-        var title: String
-        var length: Double?
-        /// True if there is known to be nothing in it: it is passed over when songs are played in turn.
-        var empty = false
-        /// True while it is still being played through, unheard, to find how long it is (`SongInfo.pending`).
-        var pending = false
-    }
-
-    /// True when the file names its songs, and not only numbers them.
-    var namesSongs: Bool { songs.contains { !$0.title.isEmpty } }
-
+extension Tune {
     /// What is said of a tune that is not played quite as its file asks, before what it is.
     static let shortfallHeading = "Not played quite as the file asks."
 }
@@ -65,6 +39,7 @@ enum Part: String, CaseIterable {
 
 /// The page's state: the list of files, which one is playing, and what the controls do. The files
 /// themselves and the sound are the JavaScript side's (see Browser.swift); this is told about them.
+/// Which tune plays after which is SidayPlayer's `TuneQueue`, as it is the app's.
 @Reactive
 final class Player {
     /// The files chosen so far, by name or by path inside the folder they came in.
@@ -84,11 +59,7 @@ final class Player {
         guard let tuneFile, files.indices.contains(tuneFile) else { return nil }
         let letters = Array(files[tuneFile].utf8)
         guard let stop = letters.lastIndex(of: 0x2E) else { return nil }
-        let named = TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self))
-        // (A file named PSM is Epic MegaGames' if the tune says it is, and one named SID SidMon's.)
-        if named == .psm, tune?.format == "MASI" { return TuneFormat.masi.chapter }
-        if named == .sid, tune?.format == "SID1" { return TuneFormat.sid1.chapter }
-        return named?.chapter
+        return TuneFormat.chapter(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self), tuneFormat: tune?.format)
     }
 
     /// What there is to say about the playlists last added, that tunes they name were not found, and
@@ -117,11 +88,13 @@ final class Player {
 
     /// Lower-case copies, for searching.
     private var searchable: [[UInt8]] = []
+    /// Which tune plays after which, by their places in `files`, and what is known of the one playing.
+    private(set) var queue = TuneQueue()
     /// The place in `files` of the tune that is playing or was asked for.
-    private(set) var current: Int?
-    private(set) var tune: Tune?
+    var current: Int? { queue.current }
+    var tune: Tune? { queue.tune }
     /// The place in `files` of the file `tune` describes.
-    private var tuneFile: Int?
+    private var tuneFile: Int? { queue.tuneFile }
     /// The tunes of the list that have been played and were not played quite as their files ask:
     /// each keeps a mark on its row, which says why. (Only a tune that has been loaded can be known
     /// to be one, so the rest of the list has no marks, whatever is in it.)
@@ -130,10 +103,10 @@ final class Player {
     /// details, and not only marked. It stays as it is from one tune to the next.
     private(set) var shortfallsShown = false
     /// Why the current file is not playing, when it is not.
-    private(set) var problem: String?
+    var problem: String? { queue.problem }
     private(set) var paused = false
     /// True once the last tune of the list has finished.
-    private(set) var finished = false
+    var finished: Bool { queue.finished }
     private(set) var position = 0.0
     /// How much of the playing song is ready to be moved about in, in seconds from its start.
     private(set) var rendered = 0.0
@@ -171,7 +144,7 @@ final class Player {
     /// What there is to choose from. Stereo is listed once: which way round an AY chip's channels
     /// go is one of the settings.
     static let outputs = OutputStyle.allCases.filter { $0 != .acb }
-    private(set) var shuffled = false
+    var shuffled: Bool { queue.shuffled }
     /// The parts of the page that have been put away: at first, those that were on the last visit.
     /// What is remembered is the parts put away, and those of the parts that start put away that
     /// were brought out, marked with a "+".
@@ -189,11 +162,6 @@ final class Player {
     /// time: a list on the page that has been chosen from keeps to what was chosen, whatever it is
     /// told afterwards.)
     private(set) var settingsRound = 0
-    /// The order tunes are played in: places in `files`.
-    private var order: [Int] = []
-    /// Files in a row that would not play. When it reaches the length of the list, there is nothing to play.
-    private var failures = 0
-
     var search = "" {
         didSet {
             needle = Array(search.lowercased().utf8)
@@ -291,7 +259,7 @@ final class Player {
                 if let wanting, files.indices.contains(wanting), companions(of: wanting).missing == nil {
                     companionNotice = nil
                     self.wanting = nil
-                    failures = 0
+                    queue.countFailuresAfresh()
                     play(wanting)
                 }
             },
@@ -368,10 +336,8 @@ final class Player {
         files.append(contentsOf: names)
         self.notes.append(contentsOf: notes)
         searchable.append(contentsOf: names.map { Array($0.lowercased().utf8) })
-        order.append(contentsOf: first ..< files.count)
         find()
-        if shuffled { order[max(1, orderPlace + 1)...].shuffle() }
-        if current == nil || finished { play(order[first == 0 ? 0 : min(orderPlace + 1, order.count - 1)]) }
+        perform(queue.add(files.count - first))
     }
 
     /// The file at a place in the list, or nothing if the list is not that long. (A row can be drawn
@@ -384,38 +350,18 @@ final class Player {
     /// one, nothing does.
     func remove(_ index: Int) {
         guard files.indices.contains(index) else { return }
-        let wasCurrent = index == current
-        let place = order.firstIndex(of: index) ?? 0
         files.remove(at: index)
         notes.remove(at: index)
         searchable.remove(at: index)
-        // The order is of places in the list, and those after the one that has gone are each one less.
-        order = order.filter { $0 != index }.map { $0 > index ? $0 - 1 : $0 }
+        // Those after the one that has gone are each one place nearer the top.
         marked = marked.filter { $0.file != index }.map { Marked(file: $0.file > index ? $0.file - 1 : $0.file, why: $0.why) }
         try? sidayRemove(index)
         find()
-        if let playing = current, playing > index { current = playing - 1 }
         if let waiting = wanting {
             wanting = waiting > index ? waiting - 1 : waiting < index ? waiting : nil
             if wanting == nil { companionNotice = nil }
         }
-        if let described = tuneFile, described > index { tuneFile = described - 1 }
-        guard wasCurrent else { return }
-        current = nil
-        tuneFile = nil
-        if place < order.count {
-            play(order[place])
-        } else {
-            tune = nil
-            problem = nil
-            finished = false
-            paused = false
-            position = 0
-            rendered = 0
-            lights = []
-            rest()
-            try? sidayStop()
-        }
+        perform(queue.remove(index))
     }
 
     /// Empties the list. Nothing plays after that until tunes are added again.
@@ -427,16 +373,10 @@ final class Player {
         files = []
         notes = []
         searchable = []
-        order = []
         marked = []
-        failures = 0
+        queue.removeAll()
         // (Which also finds nothing, and puts the list back at its top.)
         search = ""
-        current = nil
-        tuneFile = nil
-        tune = nil
-        problem = nil
-        finished = false
         paused = false
         position = 0
         rendered = 0
@@ -492,16 +432,29 @@ final class Player {
         return false
     }
 
-    private var orderPlace: Int {
-        guard let current else { return -1 }
-        return order.firstIndex(of: current) ?? -1
-    }
-
     // MARK: Playing
+
+    /// Does what the queue says is to be done next.
+    private func perform(_ step: TuneQueue.Step) {
+        switch step {
+        case .none:
+            break
+        case let .play(index, song):
+            play(index, song: song)
+        case .finish:
+            rest()
+        case .stop:
+            paused = false
+            position = 0
+            rendered = 0
+            lights = []
+            rest()
+            try? sidayStop()
+        }
+    }
 
     func play(_ index: Int, song: Int = -1) {
         guard files.indices.contains(index) else { return }
-        endedUnfollowed = false
         // The list follows the playing tune from one to the next, as long as the listener has not
         // scrolled away from it to look for something else.
         if index != current, let row = row(of: index) {
@@ -513,17 +466,10 @@ final class Player {
         }
         // Another song of the tune that is showing: its details stay up, with the new song marked,
         // until the song itself reports in.
-        if index == tuneFile, let tune, tune.songs.indices.contains(song) {
-            self.tune?.song = song
-        } else {
-            tune = nil
-            tuneFile = nil
+        if !queue.play(index, song: song) {
             lights = []
             visualiser.newTune()
         }
-        current = index
-        problem = nil
-        finished = false
         paused = false
         position = 0
         rendered = 0
@@ -544,71 +490,23 @@ final class Player {
     }
 
     private func loaded(_ plays: Bool, _ text: String, _ songs: Int, _ song: Int, _ length: Double) {
-        guard plays else {
-            tune = nil
-            tuneFile = nil
-            problem = text
-            failures += 1
-            if failures < files.count { next(automatic: true) }
-            return
-        }
-        failures = 0
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map { String($0) }
-        func line(_ index: Int) -> String { index < lines.count ? lines[index] : "" }
-        var list = songs > 1 ? Self.songs(songs, in: lines) : []
-        // A song whose file gives no length has it found when it is played. What was found for the
-        // songs of this tune played before this one is kept; and so is a song's length found by playing
-        // it through since, which this load had still to.
-        if current == tuneFile, let known = tune?.songs, known.count == list.count {
-            for index in list.indices where list[index].length == nil { list[index].length = known[index].length }
-            for index in list.indices where list[index].pending && !known[index].pending { list[index] = known[index] }
-        }
-        // After the songs: what the file asks for that is not played as it asks, each line of it
-        // marked with an exclamation mark.
-        let shortfalls = lines.dropFirst(4 + list.count).filter { $0.utf8.first == 0x21 }.map { String($0.dropFirst()) }
-        tuneFile = current
-        tune = Tune(format: line(0), title: line(1), author: line(2), detail: line(3), songs: list, song: song, length: length, shortfalls: shortfalls)
+        perform(queue.loaded(plays ? Tune(details: text, songs: songs, song: song, length: length) : nil, problem: text, isListed: isListed))
         // And its row in the list is marked from now on, or is not.
-        if let current {
-            let why = shortfalls.joined(separator: " ")
-            if let place = marked.firstIndex(where: { $0.file == current }) {
-                if shortfalls.isEmpty { marked.remove(at: place) } else if marked[place].why != why { marked[place].why = why }
-            } else if !shortfalls.isEmpty {
-                marked.append(Marked(file: current, why: why))
-            }
-        }
-    }
-
-    /// A tune's songs, from the lines its details are told in (see `sidayListen`): its length in
-    /// milliseconds or a question mark while that is still to be found, a tab, 1 for a song known to
-    /// have nothing in it, a tab, and its name.
-    private static func songs(_ count: Int, in lines: [String]) -> [Tune.Song] {
-        (0 ..< count).map { index in
-            let fields = (4 + index < lines.count ? lines[4 + index] : "").split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
-            let milliseconds = fields.first.flatMap { Int($0) }
-            return Tune.Song(title: fields.count > 2 ? String(fields[2]) : "", length: milliseconds.map { Double($0) / 1000 },
-                             empty: fields.count > 1 && fields[1] == "1", pending: fields.first == "?")
+        guard let tune, let current else { return }
+        let why = tune.shortfalls.joined(separator: " ")
+        if let place = marked.firstIndex(where: { $0.file == current }) {
+            if tune.shortfalls.isEmpty { marked.remove(at: place) } else if marked[place].why != why { marked[place].why = why }
+        } else if !tune.shortfalls.isEmpty {
+            marked.append(Marked(file: current, why: why))
         }
     }
 
     /// It is known now how long each of the playing tune's songs is, which some were still being
-    /// played through to find: its details, told again. A song that ended while they were goes on to
-    /// the one that follows it now.
+    /// played through to find: its details, told again.
     private func learned(_ text: String) {
-        guard var tune else { return }
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map { String($0) }
-        let songs = Self.songs(tune.songs.count, in: lines)
-        for index in songs.indices where tune.songs[index].pending { tune.songs[index] = songs[index] }
-        self.tune = tune
-        if endedUnfollowed {
-            endedUnfollowed = false
-            songEnded()
-        }
+        guard let tune else { return }
+        perform(queue.learned(Tune.songs(tune.songs.count, inDetails: text), settings: settings, isListed: isListed))
     }
-
-    /// True when a song ended while some of the tune's songs were still being played through: which
-    /// song follows it waits until it is known which of them are passed over.
-    private var endedUnfollowed = false
 
     /// Why a tune in the list is marked as not played quite as its file asks; nil if it is not marked.
     func shortfalls(ofFile index: Int) -> String? {
@@ -620,58 +518,27 @@ final class Player {
         shortfallsShown.toggle()
     }
 
-    /// The playing song had no length in its file and was given the usual time, or had one and fell
-    /// silent for good before it; rendered to its end, it has turned out shorter. That is its length,
-    /// here and in the list of songs.
+    /// The playing song has turned out shorter than it was given, rendered to its end.
     private func measured(_ length: Double) {
-        guard let song = tune?.song else { return }
-        tune?.length = length
-        if tune?.songs.indices.contains(song) == true { tune?.songs[song].length = length }
+        queue.measured(length)
     }
 
-    /// A song has played to its end: the next of the tune's songs that are played in turn follows,
-    /// if there is one, and the next tune if not.
     private func songEnded() {
-        if let tune, tune.songs.contains(where: { $0.pending }) {
-            endedUnfollowed = true
-            return
-        }
-        if let tune, let following = songsInTurn(of: tune).indices.first(where: { $0 > tune.song && songsInTurn(of: tune)[$0] }) {
-            playSong(following)
-        } else {
-            next(automatic: true)
-        }
-    }
-
-    /// Which of a tune's songs are played when one ends and the next is to follow: all of them, but
-    /// for those the listener has asked to have passed over as too short; or none, if only a file's
-    /// main song is to be played. The rule is the engine's own, which chooses the first by it.
-    func songsInTurn(of tune: Tune) -> [Bool] {
-        guard value(of: .songs) == 0 else { return tune.songs.map { _ in false } }
-        return PlaybackPolicy.playedInTurn(tune.songs.map { $0.length }, empty: tune.songs.map { $0.empty },
-                                           shortest: Setting.shortestSong.amount(of: value(of: .shortestSong)))
+        perform(queue.songEnded(settings: settings, isListed: isListed))
     }
 
     /// True if a song of a tune is one that is passed over when its songs are played in turn.
     func passesOver(_ song: Int, of tune: Tune) -> Bool {
-        let played = songsInTurn(of: tune)
-        return value(of: .songs) == 0 && played.indices.contains(song) && !played[song]
+        tune.passesOver(song, settings)
     }
 
-    /// The next tune in the order: of those the search finds, while there is a search. When a tune
-    /// ends of its own accord at the end of the list, playing stops there.
-    func next(automatic: Bool = false) {
-        if let place = following() {
-            play(order[place])
-        } else if automatic {
-            finished = true
-            rest()
-        }
+    /// The next tune in the order: of those the search finds, while there is a search.
+    func next() {
+        perform(queue.next(isListed: isListed))
     }
 
     func previous() {
-        let place = orderPlace
-        if let before = order[..<max(0, place)].lastIndex(where: isListed) { play(order[before]) }
+        perform(queue.previous(isListed: isListed))
     }
 
     /// True for a tune that is in the list as it is shown: any tune, or one the search finds.
@@ -686,24 +553,14 @@ final class Player {
         return low < found.count && found[low] == file
     }
 
-    /// Where in the order the tune after the playing one is: the next that the list shows. While a
-    /// search is on, the list is what the search finds, and playing goes through that and stops at
-    /// its end; and from a tune that the search does not find, it goes to the first that it does.
-    private func following() -> Int? {
-        let place = orderPlace
-        let from = found != nil && !(current.map(isListed) ?? false) ? 0 : place + 1
-        return from < order.count ? order[from...].firstIndex(where: isListed) : nil
-    }
-
     /// Plays a song of the tune that is loaded, counted from 0.
     func playSong(_ song: Int) {
-        guard let tune, let current, tune.songs.indices.contains(song) else { return }
-        play(current, song: song)
+        perform(queue.playSong(song))
     }
 
     /// The song after the one playing, or the one before.
     func song(_ step: Int) {
-        if let tune { playSong(tune.song + step) }
+        perform(queue.song(step))
     }
 
     /// Moves to a place in the playing song: how far through it, from 0 to 1. A paused player stays
@@ -714,7 +571,7 @@ final class Player {
         position = max(0, min(1, place)) * tune.length
         rest()
         if finished {
-            finished = false
+            queue.playAgain()
             paused = false
             try? sidayPause(false)
         }
@@ -764,7 +621,7 @@ final class Player {
     // MARK: Settings
 
     func value(of setting: Setting) -> Double {
-        settings.indices.contains(setting.rawValue) ? settings[setting.rawValue] : setting.standard
+        setting.value(in: settings)
     }
 
     func set(_ setting: Setting, to value: Double) {
@@ -788,39 +645,23 @@ final class Player {
         settingsShown.toggle()
     }
 
-    /// A setting as it is kept from one visit to the next: for one chosen from a list, the code of
-    /// what is chosen, and for one on a scale, the place on it.
-    private static func code(of setting: Setting, _ value: Double) -> String {
-        switch setting.kind {
-        case .choice(let choices): choices[Int(setting.settled(value))].code
-        case .scale: "\(Int(setting.settled(value)))"
-        }
-    }
-
-    /// The settings of the last visit: those that had been changed were kept, by name, as
-    /// "name=code" with commas between. Anything not understood is as it comes.
+    /// The settings of the last visit: those that had been changed were kept (see `Setting.kept`),
+    /// as "name=code" with commas between.
     private static var rememberedSettings: [Double] {
         var settings = Setting.standards
         // (Stereo the other way round was once something to be heard through, and is kept as that
         // from a visit of those days.)
         if rememberedOutput == .acb { settings[Setting.stereoOrder.rawValue] = 1 }
-        for kept in ((try? sidayRememberedSettings()) ?? "").split(separator: ",") {
+        let kept = ((try? sidayRememberedSettings()) ?? "").split(separator: ",").compactMap { kept -> (name: String, code: String)? in
             let parts = kept.split(separator: "=", maxSplits: 1)
-            guard parts.count == 2, let setting = Setting.allCases.first(where: { $0.name == parts[0] }) else { continue }
-            switch setting.kind {
-            case .choice(let choices):
-                if let place = choices.firstIndex(where: { $0.code == parts[1] }) { settings[setting.rawValue] = Double(place) }
-            case .scale:
-                if let place = Int(parts[1]) { settings[setting.rawValue] = setting.settled(Double(place)) }
-            }
+            return parts.count == 2 ? (String(parts[0]), String(parts[1])) : nil
         }
-        return settings
+        return Setting.remembered(kept, from: settings)
     }
 
     private func tellSettings() {
-        let changed = Setting.allCases.filter { value(of: $0) != $0.standard }
         try? sidaySettings(settings.map { "\(Int($0))" }.joined(separator: ","),
-                           changed.map { "\($0.name)=\(Self.code(of: $0, value(of: $0)))" }.joined(separator: ","))
+                           Setting.kept(settings).map { "\($0.name)=\($0.code)" }.joined(separator: ","))
     }
 
     /// True if a part has not been put away. Whether it is on the page is another matter: see `isShowing`.
@@ -859,14 +700,7 @@ final class Player {
     }
 
     func toggleShuffle() {
-        shuffled.toggle()
-        let place = orderPlace
-        if shuffled {
-            // What has been played stays where it is; what is to come is mixed.
-            if place + 1 < order.count { order[(place + 1)...].shuffle() }
-        } else {
-            order = Array(files.indices)
-        }
+        queue.toggleShuffle()
     }
 
     /// The keys of the command-line player.

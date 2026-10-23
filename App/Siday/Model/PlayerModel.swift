@@ -5,32 +5,7 @@ import Foundation
 import Observation
 import SidayPlayer
 
-/// What is known about the tune that is playing.
-struct Tune: Equatable {
-    var format: String
-    var title: String
-    var author: String
-    var detail: String
-    /// Its songs, when it has more than one: what each is called and how long it is, where the file says.
-    var songs: [Song]
-    /// The song that is playing, counted from 0.
-    var song: Int
-    var length: Double
-    /// What its file asks for that is not played as it asks, a sentence each. None, for a tune that is played whole.
-    var shortfalls: [String] = []
-
-    struct Song: Equatable {
-        var title: String
-        var length: Double?
-        /// True if there is known to be nothing in it: it is passed over when songs are played in turn.
-        var empty = false
-        /// True while it is still being played through, unheard, to find how long it is (`SongInfo.pending`).
-        var pending = false
-    }
-
-    /// True when the file names its songs, and not only numbers them.
-    var namesSongs: Bool { songs.contains { !$0.title.isEmpty } }
-
+extension Tune {
     /// What is said of a tune that is not played quite as its file asks, before what it is.
     static let shortfallHeading = String(localized: "Not played quite as the file asks.")
 }
@@ -78,7 +53,7 @@ enum Part: String, CaseIterable, Identifiable {
 
 /// The app's state: the list of tunes, which one is playing, and what the controls do. It is the web
 /// page's `Player` (Web/Sources/SidayWeb/Player.swift), with the app's files and sound in place of
-/// the browser's.
+/// the browser's; which tune plays after which is SidayPlayer's `TuneQueue`, for both.
 @Observable
 final class PlayerModel {
     // MARK: The list
@@ -110,15 +85,17 @@ final class PlayerModel {
 
     // MARK: Playing
 
+    /// Which tune plays after which, by their places in `files`, and what is known of the one playing.
+    private(set) var queue = TuneQueue()
     /// The place in `files` of the tune that is playing or was asked for.
-    private(set) var current: Int?
-    private(set) var tune: Tune?
+    var current: Int? { queue.current }
+    var tune: Tune? { queue.tune }
     /// The place in `files` of the file `tune` describes.
-    private var tuneFile: Int?
-    private(set) var problem: String?
+    private var tuneFile: Int? { queue.tuneFile }
+    var problem: String? { queue.problem }
     private(set) var paused = false
     /// True once the last tune of the list has finished.
-    private(set) var finished = false
+    var finished: Bool { queue.finished }
     /// How much of the playing song is ready to be moved about in, in seconds from its start.
     private(set) var rendered = 0.0
     /// True while the song is being made again, for a voice left out or brought back.
@@ -154,11 +131,7 @@ final class PlayerModel {
         case files, folder, wanted
         var id: Self { self }
     }
-    private(set) var shuffled = false
-    /// The order tunes are played in: places in `files`.
-    private var order: [Int] = []
-    /// Files in a row that would not play.
-    private var failures = 0
+    var shuffled: Bool { queue.shuffled }
     /// The count of requests to play, and of runs of sound: the engine's news of an older one is no news.
     private var asked = 0
     private var runs = 0
@@ -257,14 +230,11 @@ final class PlayerModel {
             saveList()
             return
         }
-        let first = files.count
         for url in found.tunes {
             files.append(ListedTune(id: nextID, url: url, note: found.notes[url] ?? ""))
             nextID += 1
         }
-        order.append(contentsOf: first ..< files.count)
-        if shuffled { order[max(1, orderPlace + 1)...].shuffle() }
-        if current == nil || finished { play(order[first == 0 ? 0 : min(orderPlace + 1, order.count - 1)]) }
+        perform(queue.add(found.tunes.count))
         saveList()
     }
 
@@ -274,7 +244,7 @@ final class PlayerModel {
         TuneFiles.forget(url)
         if let wanting, files.indices.contains(wanting) {
             TuneFiles.forget(files[wanting].url.deletingLastPathComponent())
-            failures = 0
+            queue.countFailuresAfresh()
             play(wanting)
         }
         if let list = unfoundList {
@@ -304,25 +274,13 @@ final class PlayerModel {
     }
 
     private func remove(at index: Int) {
-        let wasCurrent = index == current
-        let place = order.firstIndex(of: index) ?? 0
         files.remove(at: index)
-        order = order.filter { $0 != index }.map { $0 > index ? $0 - 1 : $0 }
-        if let playing = current, playing > index { current = playing - 1 }
         if let waiting = wanting {
             wanting = waiting > index ? waiting - 1 : waiting < index ? waiting : nil
             if wanting == nil { companionNotice = nil }
         }
-        if let described = tuneFile, described > index { tuneFile = described - 1 }
-        guard wasCurrent else { return }
-        current = nil
-        tuneFile = nil
-        if place < order.count {
-            play(order[place])
-        } else {
-            stopped()
-        }
-        if files.isEmpty { self.place = .playlist }
+        perform(queue.remove(index))
+        if files.isEmpty { place = .playlist }
     }
 
     func removeAll() {
@@ -330,20 +288,15 @@ final class PlayerModel {
         companionNotice = nil
         wanting = nil
         files = []
-        order = []
-        failures = 0
+        queue.removeAll()
         search = ""
-        current = nil
-        tuneFile = nil
         stopped()
         place = .playlist
         saveList()
     }
 
+    /// Nothing is playing, and nothing is to: the tune that was is let go.
     private func stopped() {
-        tune = nil
-        problem = nil
-        finished = false
         paused = false
         rendered = 0
         engine.send(.stop)
@@ -353,9 +306,20 @@ final class PlayerModel {
 
     // MARK: Playing
 
-    private var orderPlace: Int {
-        guard let current else { return -1 }
-        return order.firstIndex(of: current) ?? -1
+    /// Does what the queue says is to be done next.
+    private func perform(_ step: TuneQueue.Step) {
+        switch step {
+        case .none:
+            break
+        case let .play(index, song):
+            play(index, song: song)
+        case .finish:
+            engine.pause(true)
+            visualiser.rest()
+            nowPlayingChanged()
+        case .stop:
+            stopped()
+        }
     }
 
     func play(id: Int) {
@@ -365,18 +329,8 @@ final class PlayerModel {
     /// - Parameter startPaused: the tune is made ready, and nothing is heard until play is pressed.
     func play(_ index: Int, song: Int = -1, paused startPaused: Bool = false) {
         guard files.indices.contains(index) else { return }
-        endedUnfollowed = false
         // Another song of the tune that is showing: its details stay up, with the new song marked.
-        if index == tuneFile, let tune, tune.songs.indices.contains(song) {
-            self.tune?.song = song
-        } else {
-            tune = nil
-            tuneFile = nil
-            visualiser.newTune()
-        }
-        current = index
-        problem = nil
-        finished = false
+        if !queue.play(index, song: song) { visualiser.newTune() }
         paused = startPaused
         rendered = 0
         engine.pause(startPaused)
@@ -438,26 +392,11 @@ final class PlayerModel {
     }
 
     private func loaded(plays: Bool, problem: String?, info: TuneInfo?, songs: [SongInfo], song: Int, length: Double) {
-        guard plays, let info else {
-            tune = nil
-            tuneFile = nil
-            self.problem = problem ?? String(localized: "The file could not be played.")
-            failures += 1
-            if failures < files.count { next(automatic: true) }
-            return
-        }
-        failures = 0
-        var list = songs.map { Tune.Song(title: $0.title, length: $0.length, empty: $0.empty, pending: $0.pending) }
-        // A song whose file gives no length has it found when it is played: what was found is kept.
-        if current == tuneFile, let known = tune?.songs, known.count == list.count {
-            for index in list.indices where list[index].length == nil { list[index].length = known[index].length }
-            // (And one played through to find its length since, which this load had still to.)
-            for index in list.indices where list[index].pending && !known[index].pending { list[index] = known[index] }
-        }
-        tuneFile = current
-        tune = Tune(format: info.format, title: info.title, author: info.author, detail: info.detail, songs: list, song: song, length: length, shortfalls: info.shortfalls)
+        let loaded = plays ? info.map { Tune($0, songs: songs, song: song, length: length) } : nil
+        perform(queue.loaded(loaded, problem: problem ?? String(localized: "The file could not be played."), isListed: isListed))
+        guard let loaded else { return }
         if let current, files.indices.contains(current) {
-            let why = info.shortfalls.isEmpty ? nil : info.shortfalls.joined(separator: " ")
+            let why = loaded.shortfalls.isEmpty ? nil : loaded.shortfalls.joined(separator: " ")
             if files[current].shortfalls != why { files[current].shortfalls = why }
         }
         nowPlayingChanged()
@@ -465,57 +404,22 @@ final class PlayerModel {
 
     /// The song turned out shorter than it was given: that is its length, here and in the list of songs.
     private func measured(_ length: Double) {
-        guard let song = tune?.song else { return }
-        tune?.length = length
-        if tune?.songs.indices.contains(song) == true { tune?.songs[song].length = length }
+        queue.measured(length)
         nowPlayingChanged()
     }
 
-    /// It is known now how long each of the tune's songs is, which some were still being played
-    /// through to find. A song that ended while they were goes on to the one that follows it now.
+    /// It is known now how long each of the tune's songs is, which some were still being played through to find.
     private func learned(_ songs: [SongInfo]) {
-        guard var tune, tune.songs.count == songs.count else { return }
-        for (index, song) in songs.enumerated() where tune.songs[index].pending {
-            tune.songs[index].length = song.length
-            tune.songs[index].empty = song.empty
-            tune.songs[index].pending = song.pending
-        }
-        self.tune = tune
-        if endedUnfollowed {
-            endedUnfollowed = false
-            songEnded()
-        }
+        perform(queue.learned(songs.map(Tune.Song.init), settings: settings, isListed: isListed))
     }
 
-    /// True when a song ended while some of the tune's songs were still being played through: which
-    /// song follows it waits until it is known which of them are passed over.
-    private var endedUnfollowed = false
-
-    /// A song has played to its end: the next of the tune's songs that are played in turn follows,
-    /// if there is one, and the next tune if not.
     private func songEnded() {
-        if let tune, tune.songs.contains(where: \.pending) {
-            endedUnfollowed = true
-            return
-        }
-        if let tune, let following = songsInTurn(of: tune).indices.first(where: { $0 > tune.song && songsInTurn(of: tune)[$0] }) {
-            playSong(following)
-        } else {
-            next(automatic: true)
-        }
-    }
-
-    /// Which of a tune's songs are played when one ends and the next is to follow.
-    func songsInTurn(of tune: Tune) -> [Bool] {
-        guard value(of: .songs) == 0 else { return tune.songs.map { _ in false } }
-        return PlaybackPolicy.playedInTurn(tune.songs.map(\.length), empty: tune.songs.map(\.empty),
-                                           shortest: Setting.shortestSong.amount(of: value(of: .shortestSong)))
+        perform(queue.songEnded(settings: settings, isListed: isListed))
     }
 
     /// True if a song of a tune is passed over when its songs are played in turn.
     func passesOver(_ song: Int, of tune: Tune) -> Bool {
-        let played = songsInTurn(of: tune)
-        return value(of: .songs) == 0 && played.indices.contains(song) && !played[song]
+        tune.passesOver(song, settings)
     }
 
     /// True for a tune in the list as it is shown: any, or one the search finds.
@@ -524,41 +428,26 @@ final class PlayerModel {
         return needle.isEmpty || files[index].url.path.localizedStandardContains(needle)
     }
 
-    var hasNext: Bool { following() != nil }
-    var hasPrevious: Bool { order[..<max(0, orderPlace)].contains(where: isListed) }
+    var hasNext: Bool { queue.hasNext(isListed: isListed) }
+    var hasPrevious: Bool { queue.hasPrevious(isListed: isListed) }
 
-    /// The next tune in the order, of those the list shows. When a tune ends of its own accord at the
-    /// end of the list, playing stops there.
-    func next(automatic: Bool = false) {
-        if let place = following() {
-            play(order[place])
-        } else if automatic {
-            finished = true
-            engine.pause(true)
-            visualiser.rest()
-            nowPlayingChanged()
-        }
+    /// The next tune in the order, of those the list shows.
+    func next() {
+        perform(queue.next(isListed: isListed))
     }
 
     func previous() {
-        if let before = order[..<max(0, orderPlace)].lastIndex(where: isListed) { play(order[before]) }
-    }
-
-    private func following() -> Int? {
-        let place = orderPlace
-        let from = !search.isEmpty && !(current.map(isListed) ?? false) ? 0 : place + 1
-        return from < order.count ? order[from...].firstIndex(where: isListed) : nil
+        perform(queue.previous(isListed: isListed))
     }
 
     /// Plays a song of the tune that is loaded, counted from 0.
     func playSong(_ song: Int) {
-        guard let tune, let current, tune.songs.indices.contains(song) else { return }
-        play(current, song: song)
+        perform(queue.playSong(song))
     }
 
     /// The song after the one playing, or the one before.
     func song(_ step: Int) {
-        if let tune { playSong(tune.song + step) }
+        perform(queue.song(step))
     }
 
     /// Where the song is, as it is heard; or, after a move to another place in it and until that is
@@ -592,7 +481,7 @@ final class PlayerModel {
         let place = max(0, min(tune.length, seconds))
         visualiser.rest()
         if finished {
-            finished = false
+            queue.playAgain()
             paused = false
             engine.pause(false)
         }
@@ -629,14 +518,7 @@ final class PlayerModel {
     }
 
     func toggleShuffle() {
-        shuffled.toggle()
-        let place = orderPlace
-        if shuffled {
-            // What has been played stays where it is; what is to come is mixed.
-            if place + 1 < order.count { order[(place + 1)...].shuffle() }
-        } else {
-            order = Array(files.indices)
-        }
+        queue.toggleShuffle()
     }
 
     /// A press on a voice's light: mutes it or brings it back, or with `solo`, has it heard alone.
@@ -647,10 +529,7 @@ final class PlayerModel {
     /// The part of FORMATS.md that tells of the playing tune's format, by the word its heading begins with.
     var chapter: String? {
         guard let tuneFile, files.indices.contains(tuneFile) else { return nil }
-        let named = TuneFormat(fileExtension: files[tuneFile].url.pathExtension)
-        if named == .psm, tune?.format == "MASI" { return TuneFormat.masi.chapter }
-        if named == .sid, tune?.format == "SID1" { return TuneFormat.sid1.chapter }
-        return named?.chapter
+        return TuneFormat.chapter(fileExtension: files[tuneFile].url.pathExtension, tuneFormat: tune?.format)
     }
 
     var fileName: String {
@@ -680,7 +559,7 @@ final class PlayerModel {
     // MARK: Settings
 
     func value(of setting: Setting) -> Double {
-        settings.indices.contains(setting.rawValue) ? settings[setting.rawValue] : setting.standard
+        setting.value(in: settings)
     }
 
     func set(_ setting: Setting, to value: Double) {
@@ -702,29 +581,13 @@ final class PlayerModel {
     /// scale, the place on it. Only those that have been changed are kept.
     private func tellSettings() {
         engine.send(.settings(settings))
-        var kept: [String: String] = [:]
-        for setting in Setting.allCases where value(of: setting) != setting.standard {
-            switch setting.kind {
-            case .choice(let choices): kept[setting.name] = choices[Int(setting.settled(value(of: setting)))].code
-            case .scale: kept[setting.name] = "\(Int(setting.settled(value(of: setting))))"
-            }
-        }
+        let kept = Dictionary(Setting.kept(settings).map { ($0.name, $0.code) }, uniquingKeysWith: { $1 })
         UserDefaults.standard.set(kept, forKey: "settings")
     }
 
     private static var rememberedSettings: [Double] {
-        var settings = Setting.standards
         let kept = UserDefaults.standard.dictionary(forKey: "settings") as? [String: String] ?? [:]
-        for (name, code) in kept {
-            guard let setting = Setting.allCases.first(where: { $0.name == name }) else { continue }
-            switch setting.kind {
-            case .choice(let choices):
-                if let place = choices.firstIndex(where: { $0.code == code }) { settings[setting.rawValue] = Double(place) }
-            case .scale:
-                if let place = Int(code) { settings[setting.rawValue] = setting.settled(Double(place)) }
-            }
-        }
-        return settings
+        return Setting.remembered(kept.map { ($0.key, $0.value) })
     }
 
     // MARK: Kept between visits
@@ -773,9 +636,8 @@ final class PlayerModel {
             files.append(ListedTune(id: nextID, url: url, note: tune["note"] as? String ?? ""))
             nextID += 1
         }
-        order = Array(files.indices)
         // A visit begins with the first tune ready, and paused: nothing is heard until it is asked for.
-        if !files.isEmpty { play(0, paused: true) }
+        if case let .play(index, _) = queue.add(files.count) { play(index, paused: true) }
     }
 
     // MARK: Now playing
