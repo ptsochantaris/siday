@@ -114,6 +114,7 @@
 				<string>build.bru.siday.tune.mmd2</string>
 				<string>build.bru.siday.tune.mmd3</string>
 				<string>build.bru.siday.tune.mmdc</string>
+				<string>build.bru.siday.tune.mo3</string>
 				<string>build.bru.siday.tune.mod</string>
 				<string>build.bru.siday.tune.mon</string>
 				<string>build.bru.siday.tune.mp1</string>
@@ -349,6 +350,7 @@
 				<string>mmd2</string>
 				<string>mmd3</string>
 				<string>mmdc</string>
+				<string>mo3</string>
 				<string>mod</string>
 				<string>mon</string>
 				<string>mp1</string>
@@ -2185,6 +2187,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>mmdc</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MO3 music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.mo3</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>mo3</string>
 				</array>
 			</dict>
 		</dict>

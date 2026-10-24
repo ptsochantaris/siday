@@ -43,6 +43,7 @@ siday is built, and how each part was checked, is in [DEVELOPMENT.md](DEVELOPMEN
 | Amiga | MOD and its many packed forms, and over twenty other trackers and music systems: see [On the Amiga](#on-the-amiga) | each format's own player, or a port or reading of it, on the Amiga's sound chip |
 | PC trackers | XM, and MOD with more than four channels; S3M; STM and STX; IT; 669; FAR | the replayers of FastTracker 2, Scream Tracker 3, Scream Tracker 2 and Impulse Tracker; players written for 669 and FAR files |
 | Other PC trackers | MTM, DTM, AMF; DSM; GDM, PTM, ULT, C67, MDL, DMF, IMF, AMS, PLM; MPTM; MT2; J2B (Jazz Jackrabbit 2), packed with zlib | converted for FastTracker 2's replayer (the first three), Scream Tracker 3's (DSM), or Impulse Tracker's (the rest) |
+| Modules packed by Un4seen | MO3, with its samples packed or kept as MP3 or Ogg Vorbis | unpacked into the IT, XM, S3M, MOD or MTM it was made from, and played as that is |
 | Epic MegaGames' DOS games | PSM files of MASI, their music system (Epic Pinball, Silverball, Jazz Jackrabbit, Extreme Pinball, Sinaria), told apart from the ZX Spectrum's PSM by how they begin | converted for Scream Tracker 3's replayer |
 | Sierra's adventure games, King's Quest to Manhunter | AGI sounds | either of Sierra's own two routines for the Amiga, on the Amiga's sound chip; or the PCjr's and Tandy 1000's chip, as Sierra's interpreter wrote to it |
 | Recordings, such as the CD audio of CD32 and CDTV games | Ogg Vorbis, MP3 (and MP2), WAV | ports of stb_vorbis and minimp3; brought to 48 kHz, a voice for each side |

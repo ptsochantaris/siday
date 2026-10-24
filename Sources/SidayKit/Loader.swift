@@ -50,6 +50,12 @@ public enum TuneLoader {
         // first, and is then the module it was.
         let data = try Packed.unpacked(data)
         let format = format.refined(byLeading: Array(data.prefix(TuneFormat.leadingBytes)))
+        // An MO3 file is the module it was made from, packed: it is unpacked into that module again,
+        // its samples decoded, and played as that module is.
+        if format == .mo3 {
+            let packed = try MO3.unpacked(data)
+            return MO3Player(try load(packed.bytes, format: packed.format, path: path, options: options), packed: packed)
+        }
         // Each family of players is asked in turn whether the tune is one of theirs: the Atari's first,
         // as a YM file recorded from an Atari ST is played on the ST's chip before any other. A module
         // of more voices than the Amiga's four is FastTracker 2's to play.

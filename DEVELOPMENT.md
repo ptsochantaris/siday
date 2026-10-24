@@ -1712,6 +1712,43 @@ Checked against libopenmpt, OpenMPT's own player as a library:
 - The rest of the difference is a pitch that OpenMPT rounds where Impulse Tracker does not, and
   whatever an instrument does at random.
 
+### MO3 — Un4seen's packed modules
+
+Based on:
+
+- libopenmpt 0.8.9's `soundlib/Load_mo3.cpp` (Johannes Schultz and OpenMPT's developers, from the
+  UNMO3 project's documentation and unpacking by Laurent Clévy): the container, the LZ unpacking, the
+  music, and every kind of sample (raw, delta, delta prediction, duplicates, OPL patches, MP3 with
+  the LAME frame and encoder delay taken off, Ogg Vorbis with and without a shared header).
+- `MO3Read` reads into an OpenMPT-like model (`MO3Song`); `MO3WriteIT`, `MO3WriteXM` and `MO3Writers`
+  write it again as an IT or MPTM, an XM, or an S3M, MOD or MTM, as OpenMPT's own savers lay those
+  out. Effects go back through OpenMPT's `S3MSaveConvert` and `ModSaveCommand`. An OMPT chunk's XTPM
+  and STPM are copied after the last sample; plug-ins are written as FXnn and CHFX pieces.
+- **Which tracker:** a VERS chunk's cwtv/cmwt or XM tracker name is written back. Without one, an IT
+  with the ModPlug flag is written with ModPlug Tracker 1.09–1.16's signs (17 files); other ITs as IT
+  2.14; an XM with FastTracker 2's. An IT is written as MPTM when its cwtv is 0x0889 to 0x08FF and it has
+  an OMPT chunk (5 files).
+- Sizes a file states are bounded by what its data can hold; pattern cells are capped at 2^23.
+
+Checked against libopenmpt, built with minimp3 and stb_vorbis, `-ffp-contract=off` and
+`MINIMP3_NO_SIMD`, which loaded each MO3 and each rebuilt module:
+
+- All 149 collection files unpack, and every rebuilt module loads in libopenmpt and in siday (149 play
+  under `--check`, none silent).
+- 8,458 of 8,469 samples are the same bytes. The other 11 are one MOD's (elevator_2) MP3 samples, which
+  the MOD format brings to eight bits.
+- 37 files are the same field for field. Every difference in the other 112 is one that the format the
+  module is written in, or libopenmpt's reader of that format, makes: its own mix levels and pre-amp
+  (82 files), no pitch and pan centre in an XM (60), one pitch-wheel depth (51), the Zxx macros cleared
+  by FastTracker 2's and Scream Tracker's readers (34), MOD Amiga limits by libopenmpt's own guess (21),
+  read as ModPlug Tracker made it (17), and a few of one file each.
+- Rendered over 60 s: 50 the same to the bit as they are; 139 of 149 with the MO3's global settings put on
+  the rebuilt module. The other ten are the ModPlug-read files, a panning rounding in an S3M and an IT,
+  and the eight-bit MOD.
+- 331,500 spoilt files, synthetic and real: no trap; at most 0.16 s and 78 MB each. All 149 unpack in
+  11.2 s in release.
+- MTM is checked only on a file made for the test: the collection has no MO3 made from one.
+
 ### MT2 — MadTracker 2
 
 Based on:

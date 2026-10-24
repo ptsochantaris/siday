@@ -3621,6 +3621,35 @@ files. A file that is played with something left out says what, a sentence for e
 Where the tune is on every tick, and how long each tick lasts, is the same as in libopenmpt in 692
 files.
 
+## MO3 — Un4seen's packed modules
+
+An MO3 file is a module made smaller: an IT, XM, S3M, MOD or MTM, packed by Un4seen, the makers of
+the BASS sound library, which plays them. Its patterns are packed
+without loss. Its samples may be packed without loss too, or kept as MP3 or Ogg Vorbis, which leave
+out what the ear does not hear and keep a module much smaller (see OGG). The collection's 149 MO3 files
+were made from 64 IT files, 63 XM files, 21 MODs and one S3M.
+
+### How siday plays it
+
+An MO3 file is unpacked into the module it was made from, written again in that module's own format,
+with its samples decoded. That module is then played as any module of its kind is, by the same
+replayer: an IT by Impulse Tracker's, an XM by FastTracker 2's, and so on. Where an MO3 says which
+tracker made the module, the module is played as that tracker played it, as it would be from its own
+file. The format's name beside the tune says MO3, and the detail says what it was made from.
+
+The unpacking is libopenmpt's, and its samples come out the same as libopenmpt decodes them, to the
+bit. A sample kept as MP3 or Ogg Vorbis is heard as it was kept, not as it was before: what the
+packing left out is not there to be heard.
+
+### Differences and limits
+
+- **The tracker's own marks:** an MO3 file does not keep everything of the module's own file, such as
+  a MOD's four letters or an IT's edit history. None of it changes what is heard.
+- **A MOD's samples** are of eight bits in mono. One that an MO3 keeps in sixteen bits or in stereo is
+  played as a MOD's sample is, and is marked so.
+- **Plug-ins and MIDI:** a module's plug-ins and instruments for a MIDI synthesiser are played, or
+  left out and marked, as they are in that kind of module.
+
 ## MT2 — MadTracker 2
 
 MadTracker was a tracker for Windows by Yannick Delwiche, from the late nineties into the 2000s. It
@@ -4355,7 +4384,7 @@ fifth of the difference between the sides is kept, unless the listener asks for 
 Some music is not a tune for a chip or a module at all, but a recording of it. The Amiga CD32 and
 CDTV games played their music from the CD as audio tracks, and collections keep those tracks small:
 UnExoticA keeps the tracks of 77 CDs this way, most of them CD32 games, as Ogg Vorbis files and a few
-as MP3 or MP2.
+as MP3 or MP2. MO3 files, too, may keep their samples as MP3 or Ogg Vorbis (see MO3).
 
 - **WAV** is Microsoft's and IBM's file of sound from 1991, the samples as they are, or a little
   smaller in one of the ways the telephone and the PC's sound cards kept them.

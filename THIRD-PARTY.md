@@ -1599,11 +1599,27 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `Sources/SidayFoundation/LH5.swift` follows the decoder in ar002 by Haruhiko Okumura, which its author
 placed in the public domain.
 
+## OpenMPT and UNMO3 — MO3 files
+
+`Sources/SidayCodecs/MO3` reads MO3 files as libopenmpt 0.8.9's loader does (`soundlib/Load_mo3.cpp`):
+its unpacking of the music and of the samples, and what it makes of each part of the file. Changed from
+the original: carried over from C++ to Swift, into a model of the module of siday's own, which is then
+written again as the IT, MPTM, XM, S3M, MOD or MTM file it was made from, as OpenMPT's savers lay those
+files out, for siday's own replayers to play. The loader is based on the documentation and the unpacking
+of the UNMO3 project, relicensed to the BSD license with Laurent Clévy's permission, as the loader says.
+
+- Copyright (c) 2004-2026, OpenMPT Project Developers and Contributors (Load_mo3.cpp by Johannes Schultz
+  and OpenMPT's developers)
+- UNMO3 by Laurent Clévy: https://github.com/lclevy/unmo3
+- BSD 3-Clause License, as for FM Tracker files above
+- Source: https://github.com/OpenMPT/openmpt
+
 ## stb_vorbis — Ogg Vorbis
 
 `Sources/SidayCodecs/Vorbis` is a Swift port of stb_vorbis 1.22, the decoder of Ogg Vorbis, as libopenmpt
 0.8.9 ships it and builds it: its push-data decoder only (`STB_VORBIS_NO_PULLDATA_API`,
-`STB_VORBIS_NO_STDIO`). It decodes what the original decodes, to the bit. It plays Ogg Vorbis files.
+`STB_VORBIS_NO_STDIO`). It decodes what the original decodes, to the bit. It plays Ogg Vorbis files,
+and the samples MO3 files keep as Ogg Vorbis.
 
 - Written by Sean Barrett, from 2007, with the contributors its file names; first sponsored by RAD Game
   Tools
@@ -1615,7 +1631,8 @@ placed in the public domain.
 `Sources/SidayCodecs/MP3` is a Swift port of minimp3, the decoder of MPEG audio's three layers, as
 OpenMPT's fork of it is in libopenmpt 0.8.9, without its vector instructions; and of the rules of its
 `minimp3_ex.h` by which a file's tags are skipped and an encoder's delay and padding are taken off. It
-decodes what the original decodes, to the bit. It plays MP3 and MP2 files.
+decodes what the original decodes, to the bit. It plays MP3 and MP2 files, and the samples MO3 files
+keep as MP3.
 
 - By lieff and the contributors to https://github.com/lieff/minimp3; OpenMPT's fork is
   https://github.com/manxorist/minimp3
