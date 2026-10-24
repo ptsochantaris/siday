@@ -384,7 +384,11 @@ extension IT2Player {
                 InitCommandX2(hc, vol &- 128, by: .roughly)
             }
 
-            if hc.pointee.NotePackMask & 0x22 == 0 || hc.pointee.Smp == 0 {
+            // (Nor beside a note-off, cut or fade, in a file that asks for ModPlug Tracker's way:
+            // see `OpenMPTWays.offKeepsVolume`.)
+            if hc.pointee.NotePackMask & 0x22 == 0 || hc.pointee.Smp == 0
+                || ways.offKeepsVolume && hc.pointee.NotePackMask & 0x11 != 0 && hc.pointee.RawNote >= 120
+            {
                 InitNoCommand3(hc, hcFlags)
                 return
             }

@@ -359,6 +359,34 @@ private func withInstruments(_ file: [UInt8], pans: [UInt8?]) -> [UInt8] {
     #expect(try balance(bySchism) < 0.05)
 }
 
+@Test func itFromModPlugGivesAnInstrumentBesideANoteOffNoVolume() throws {
+    // A note at a quarter of its sample's volume, and on the row after a note-off with the
+    // instrument's number. The instrument has no envelope and no fade, so the note goes on.
+    let file = withInstruments(it(row: [0x81, 0x07, 60, 1, 16, 0x00, 0x81, 0x03, 255, 1]), pans: [nil])
+    func louder(_ file: [UInt8]) throws -> Float {
+        let sound = stereo(try TuneLoader.load(file, format: .it), seconds: 0.25).left
+        return loudness(sound[7200 ..< 11000]) / loudness(sound[1500 ..< 5000])
+    }
+    // Impulse Tracker gives the note its sample's own volume again; ModPlug Tracker leaves it.
+    #expect(try louder(file) > 3)
+    #expect(try abs(louder(byModPlugTracker(file)) - 1) < 0.05)
+}
+
+@Test func itFromModPlugPlaysTheEndOfAPingPongLoopTwice() throws {
+    // The square wave's loop made ping-pong: up and back is 64 of its points where its last is
+    // played twice, as ModPlug Tracker plays it, and 63 in Impulse Tracker. C-6 plays 16,726 a
+    // second.
+    var file = it(row: [0x81, 0x03, 72, 1])
+    let header = Int(file[0xC0 + Int(file[0x20])]) | Int(file[0xC1 + Int(file[0x20])]) << 8
+    file[header + 0x12] |= 0x40
+    func pitch(_ file: [UInt8]) throws -> Double {
+        let sound = stereo(try TuneLoader.load(file, format: .it), seconds: 2).left
+        return Double(crossings(sound[4800...])) * Double(outputSampleRate) / Double(sound.count - 4800)
+    }
+    #expect(try abs(pitch(file) - 16726.0 / 63) < 1.5)
+    #expect(try abs(pitch(byModPlugTracker(file)) - 16726.0 / 64) < 1.5)
+}
+
 @Test func itFromModPlugStartsANoteWithNoFilterAfterS9D() throws {
     // Z08 closes the first channel's filter on its first note, and the note on the row after
     // begins with it closed; after S9D, on the second channel, it begins with none.

@@ -26,10 +26,16 @@ struct OpenMPTWays {
     /// do when the file asks for neither.
     var ownRetrigger = false, ownTremor = false, retriggersEndedNotes = false, countsStartWithNotes = false
     /// True if a slide to a note with "compatible Gxx" takes the sample the row's instrument has for
-    /// the note, where Impulse Tracker keeps the one playing (switch 32); and true if then the note
-    /// is not slid to but started, unless the file asks for the new sample to be played from its
-    /// start (switch 42).
+    /// the note, where Impulse Tracker keeps the one playing (switch 32); and true if a slide that
+    /// takes another sample (as one without "compatible Gxx" always does) is not a slide, but the
+    /// note started, where Impulse Tracker slides to it, the new sample played from its start
+    /// (switch 42).
     var slideTakesSample = false, sampleTakenStartsNote = false
+    /// True if an instrument beside a note-off, cut or fade leaves the volume as it is, where Impulse
+    /// Tracker gives the note its sample's own (switch 50).
+    var offKeepsVolume = false
+    /// True if a ping-pong loop plays its last point twice (switch 33): see `IT2Mixer.pingPongRepeatsEnd`.
+    var pingPongRepeatsEnd = false
     /// True if the place an instrument or a sample gives a note is the channel's from then on, for
     /// the notes after it that are given none (switch 102, since 1.29.00.22). Impulse Tracker puts
     /// the channel back where it was at the next note.
@@ -51,7 +57,9 @@ struct OpenMPTWays {
         retriggersEndedNotes = !asks(38)
         countsStartWithNotes = !asks(22) && !asks(23)
         slideTakesSample = !asks(32)
-        sampleTakenStartsNote = !asks(32) && !asks(42)
+        sampleTakenStartsNote = !asks(42)
+        offKeepsVolume = !asks(50)
+        pingPongRepeatsEnd = !asks(33)
         notesPlaceTheChannel = !asks(102)
         panbrelloLetsGo = !asks(47)
         randomPanbrelloMoves = !asks(45)
@@ -280,16 +288,23 @@ extension IT2Player {
     /// the one playing.
     func openMPTSlideTakesSample(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) -> Bool {
         guard ways.slideTakesSample, module.Flags & ITF_COMPAT_GXX != 0 else { return false }
+        return rowSwapsSample(hc, sc)
+    }
+
+    /// True if the row names an instrument, and a note whose sample is not the one playing.
+    private func rowSwapsSample(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) -> Bool {
         let mask = hc.pointee.NotePackMask
         return mask & 0x22 != 0 && mask & 0x11 != 0 && hc.pointee.TranslatedNote < 120 && hc.pointee.Smp > 0 && hc.pointee.Smp != midiSample
             && hc.pointee.Smp - 1 != sc.pointee.Smp
     }
 
     /// True if a slide to a note on this row is no slide, but the note started, as OpenMPT has it
-    /// where the slide would take another sample and the file asks for neither switch.
+    /// where the slide takes another sample and the file does not ask for switch 42: without
+    /// "compatible Gxx", wherever the row's note has another sample; with it, only where the file
+    /// does not ask for switch 32 either (see `openMPTSlideTakesSample`).
     func openMPTSlideStartsNote(_ hc: IT2HostPointer) -> Bool {
         guard ways.sampleTakenStartsNote, let sc = hc.pointee.SlaveChnPtr else { return false }
-        return openMPTSlideTakesSample(hc, sc)
+        return module.Flags & ITF_COMPAT_GXX != 0 ? openMPTSlideTakesSample(hc, sc) : rowSwapsSample(hc, sc)
     }
 
     /// Qxy begun in OpenMPT's own way, where the file asks for it: on every tick of the row, this

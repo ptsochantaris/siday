@@ -114,6 +114,14 @@ final class IT2Mixer {
     /// the two would cancel and the voice would not be heard at all. (Not in the original, which mixes
     /// for a mono card without stereo, and so without surround, at all.)
     var heardInMono = false
+    /// True if a ping-pong loop turns back at its very end, so that its last point is played twice,
+    /// as ModPlug Tracker's mixer has it, and OpenMPT's for a file that asks for that (see
+    /// `OpenMPTWays.pingPongRepeatsEnd`). Impulse Tracker's turns back at the point before, and goes
+    /// round a loop a point sooner, which in a loop of a few dozen points is heard as a higher note.
+    var pingPongRepeatsEnd = false {
+        didSet { turnBack = pingPongRepeatsEnd ? 0 : 1 }
+    }
+    private var turnBack: Int32 = 1
     /// For an MPTM file that asks for it: see `OpenMPTSong`.
     private let softPanning: Bool
     /// The sample number that stands for a MIDI note on a voice, which has no sound. See `IT2Module`.
@@ -1038,7 +1046,7 @@ final class IT2Mixer {
 
                                     let NewLoopPos = UInt32(bitPattern: sc.pointee.LoopBegin &- sc.pointee.SamplingPosition) % (LoopLength << 1)
                                     if NewLoopPos >= LoopLength {
-                                        sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- 1) &- Int32(bitPattern: NewLoopPos &- LoopLength)
+                                        sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- turnBack) &- Int32(bitPattern: NewLoopPos &- LoopLength)
 
                                         if sc.pointee.SamplingPosition == sc.pointee.LoopBegin {
                                             sc.pointee.LoopDirection = DIR_FORWARDS
@@ -1058,7 +1066,7 @@ final class IT2Mixer {
                                     if NewLoopPos >= LoopLength {
                                         sc.pointee.SamplingPosition = sc.pointee.LoopBegin &+ Int32(bitPattern: NewLoopPos &- LoopLength)
                                     } else {
-                                        sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- 1) &- Int32(bitPattern: NewLoopPos)
+                                        sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- turnBack) &- Int32(bitPattern: NewLoopPos)
                                         if sc.pointee.SamplingPosition != sc.pointee.LoopBegin {
                                             sc.pointee.LoopDirection = DIR_BACKWARDS
                                             sc.pointee.Frac64 = UInt64(UInt32(truncatingIfNeeded: 0 &- sc.pointee.Frac64))
@@ -1357,7 +1365,7 @@ final class IT2Mixer {
 
                 let NewLoopPos = UInt32(bitPattern: sc.pointee.LoopBegin &- sc.pointee.SamplingPosition) % (LoopLength << 1)
                 if NewLoopPos >= LoopLength {
-                    sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- 1) &- Int32(bitPattern: NewLoopPos &- LoopLength)
+                    sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- turnBack) &- Int32(bitPattern: NewLoopPos &- LoopLength)
 
                     if sc.pointee.SamplingPosition == sc.pointee.LoopBegin {
                         sc.pointee.LoopDirection = DIR_FORWARDS
@@ -1382,7 +1390,7 @@ final class IT2Mixer {
                 if NewLoopPos >= LoopLength {
                     sc.pointee.SamplingPosition = sc.pointee.LoopBegin &+ Int32(bitPattern: NewLoopPos &- LoopLength)
                 } else {
-                    sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- 1) &- Int32(bitPattern: NewLoopPos)
+                    sc.pointee.SamplingPosition = (sc.pointee.LoopEnd &- turnBack) &- Int32(bitPattern: NewLoopPos)
                     if sc.pointee.SamplingPosition != sc.pointee.LoopBegin {
                         sc.pointee.LoopDirection = DIR_BACKWARDS
                         sc.pointee.Frac64 = UInt64(UInt32(truncatingIfNeeded: 0 &- sc.pointee.Frac64))

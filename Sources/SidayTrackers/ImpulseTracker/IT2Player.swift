@@ -1704,6 +1704,7 @@ final class IT2Player {
                          quickEnds: module.madTracker || module.openMPT != nil || module.madeByModPlug && !asImpulseTracker,
                          resampling: (module.madeByModPlug || module.playsAsSymphonie) && !asImpulseTracker)
         mixer.adLib = adLib
+        mixer.pingPongRepeatsEnd = ways.pingPongRepeatsEnd
         if forSound { mixer.playsPlugIns() }
 
         if let own = module.midiData {

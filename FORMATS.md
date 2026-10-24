@@ -2021,8 +2021,9 @@ down by its own amount to the level of the rest.
   matches UADE's tick for tick, and ends where UADE's does.
 - **Sound Master** (`.sm`): Michiel Soede's Sound Master 1.0 to 3.0 ("(c) 1991-94"), used mostly by
   Jeroen Soede, Wanted Team write: Doofus and Future Shock, twelve files of a song each. The same as
-  UADE's in every song. One, Doofus's third tune in the game, comes round again only after 13
-  minutes. That is past the ten minutes that siday plays a song through to find its length.
+  UADE's in every song. One, Doofus's third tune in the game, comes round again only after 13:44,
+  and is that long in siday too: a song is played through for up to twenty minutes to find its
+  length.
 - **Darius Zendeh** (`.dz`): his own replayers, for R-Type, Katakis, Denaris and Crash and Burn,
   called with a command in a register. 15 files, 40 songs, every one the same as UADE's to the tick.
   Neither his player nor UADE ends the songs that go round, which is most of them. siday ends a song
@@ -2986,6 +2987,13 @@ With that come the other ways of OpenMPT's own that an MPTM file was already pla
 - SCx turns a note down to nothing and leaves it playing.
 - Qxy and Ixy are counted as OpenMPT counts them.
 - A slide to a note that would take another sample starts the note instead.
+
+Two more of ModPlug Tracker's ways are followed in such a file:
+
+- An instrument number beside a note-off leaves the note's volume as it is. Impulse Tracker gives
+  the note its sample's own volume again.
+- A ping-pong loop plays its last point twice as it turns. Impulse Tracker turns a point sooner, so
+  a short loop sounds a little higher.
 
 In a file of a tracker that had no filter, Zxx is nothing, as it was to them. Those trackers are
 Impulse Tracker before 2.14 and ModPlug Tracker 1.0 before its sixth alpha.

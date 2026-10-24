@@ -30,9 +30,13 @@ struct DeliCustomPlayer: ~Copyable {
     private var lengths: [UInt64??]
     private let title: String
 
-    /// How long a song is played through to find its end, at most: ten minutes, which is longer than
-    /// UADE plays a song that does not end (512 seconds).
-    static let mostClocks: UInt64 = 600 * 3_546_895
+    /// How long a song is played through to find its end, at most: twenty minutes, which is longer than
+    /// UADE plays a song that does not end (512 seconds), and than the longest song known to end (the
+    /// first of Betrayal's, 14:16).
+    static let mostClocks: UInt64 = 1200 * 3_546_895
+    /// The same for a custom module that is not seen to call `dtg_SongEnd`, whose songs end only if
+    /// it stops: ten minutes, which is enough to tell, and half as long to wait.
+    static let mostClocksUntold: UInt64 = 600 * 3_546_895
     /// A song of which nothing has been heard after a minute of it (`DryRunEar`) is played through no
     /// further: it is silent (`DryRunSilences`).
     static let silentClocks: UInt64 = 60 * 3_546_895
@@ -180,7 +184,8 @@ struct DeliCustomPlayer: ~Copyable {
         var ear = DryRunEar()
         var used: Int64 = 0
         var clocks: UInt64 = 0
-        while endings == 0, stops == 0, clocks < Self.mostClocks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget,
+        let most = callsSongEnd ? Self.mostClocks : Self.mostClocksUntold
+        while endings == 0, stops == 0, clocks < most, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget,
               ear.heard || clocks < Self.silentClocks
         {
             let busy = host.busyCycles
@@ -190,7 +195,7 @@ struct DeliCustomPlayer: ~Copyable {
             dryRuns += host.busyCycles - busy
         }
         lengths[song] = .some(endings > 0 || stops > 0 ? clocks - UInt64(ticks.tickClocks) : nil)
-        if endings > 0 || stops > 0 { anyEnded = true } else if clocks >= Self.mostClocks { anyRanOut = true }
+        if endings > 0 || stops > 0 { anyEnded = true } else if clocks >= most { anyRanOut = true }
         silences.found(song, heard: ear.heard, in: &lengths)
     }
 

@@ -152,7 +152,7 @@ public extension SongLevel {
     /// older Schism Tracker's; 15: OpenMPT's own vibrato in ModPlug Tracker's and OpenMPT's IT files
     /// that do not ask for Impulse Tracker's; 16: their panbrello OpenMPT's own too, their channels left
     /// where an instrument puts them, and OpenMPT's other ways an MPTM file had, as these files ask.)
-    static let soundVersion = 16
+    static let soundVersion = 17
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
