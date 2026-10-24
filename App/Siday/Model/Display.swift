@@ -29,7 +29,7 @@ final class Display {
     /// The chunk last told to the picture, so each is told once.
     private var lastHeard = (serial: -1, position: -1.0)
 
-    func frame(_ heard: Heard, serial: Int, at time: Double, visualiser: Visualiser) -> Frame {
+    func frame(_ heard: Heard, serial: Int, at time: Double, visualisers: Visualisers) -> Frame {
         let elapsed = Float(max(0, min(0.1, time - (lastTime ?? time))))
         lastTime = time
         guard heard.serial == serial, !heard.levels.isEmpty || !heard.bars.isEmpty else {
@@ -45,7 +45,7 @@ final class Display {
             lastHeard = (heard.serial, heard.position)
             let muted = heard.muted
             func heardOf(_ voice: Int) -> Bool { !(voice < muted.count && muted[voice]) }
-            visualiser.hear(levels: heard.levels.indices.map { heardOf($0) ? heard.levels[$0] : 0 },
+            visualisers.hear(levels: heard.levels.indices.map { heardOf($0) ? heard.levels[$0] : 0 },
                             pitches: heard.pitches.indices.map { heardOf($0) ? heard.pitches[$0] : 0 },
                             struck: heard.struck.indices.map { heardOf($0) && heard.struck[$0] },
                             sides: heard.sides)
@@ -53,5 +53,50 @@ final class Display {
         return Frame(position: heard.position, bars: heard.resting ? heard.bars.map { _ in 0 } : heard.bars,
                      caps: heard.resting ? heard.caps.map { _ in 0 } : heard.caps, lights: lights,
                      kinds: heard.kinds, muted: heard.muted, scopes: heard.scopes, resting: heard.resting)
+    }
+}
+
+/// The pictures to listen by: one for each window that shows one, painted at that window's size, and
+/// all told alike what the voices are doing. (One picture painted at two sizes starts again from
+/// black on every frame, which a picture that grows from frame to frame, as the Petri dish does,
+/// never gets past.)
+final class Visualisers {
+    private struct Kept {
+        weak var visualiser: Visualiser?
+    }
+
+    private var kept: [Kept] = []
+
+    var mode: Visualiser.Mode {
+        didSet { each { $0.mode = mode } }
+    }
+
+    init(mode: Visualiser.Mode) {
+        self.mode = mode
+    }
+
+    /// A picture for a window, which lasts as long as the window keeps it.
+    func make() -> Visualiser {
+        let visualiser = Visualiser(mode: mode)
+        kept = kept.filter { $0.visualiser != nil } + [Kept(visualiser: visualiser)]
+        return visualiser
+    }
+
+    func hear(levels: [Float], pitches: [Float], struck: [Bool], sides: [Float]) {
+        each { $0.hear(levels: levels, pitches: pitches, struck: struck, sides: sides) }
+    }
+
+    func rest() {
+        each { $0.rest() }
+    }
+
+    func newTune() {
+        each { $0.newTune() }
+    }
+
+    private func each(_ body: (Visualiser) -> Void) {
+        for picture in kept {
+            if let visualiser = picture.visualiser { body(visualiser) }
+        }
     }
 }

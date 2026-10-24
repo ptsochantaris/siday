@@ -61,6 +61,8 @@ struct ContentView: View {
     @Environment(PlayerModel.self) private var model
     /// What the file picker was last opened for: kept, since its answer comes once it has closed.
     @State private var asked = PlayerModel.Choosing.files
+    /// This window's picture to listen by (see `Visualisers`).
+    @State private var visualiser: Visualiser?
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
@@ -79,6 +81,10 @@ struct ContentView: View {
         // even when the player is beside it.)
         .environment(\.oneAtATime, sizeClass == .compact)
         #endif
+        .environment(\.visualiser, visualiser)
+        .onAppear {
+            if visualiser == nil { visualiser = model.visualisers.make() }
+        }
         .fileImporter(isPresented: Binding(get: { model.choosing != nil }, set: { if !$0 { model.choosing = nil } }),
                       allowedContentTypes: (model.choosing ?? asked) == .files ? [.data] : [.folder],
                       allowsMultipleSelection: (model.choosing ?? asked) == .files) { result in
@@ -109,7 +115,7 @@ struct ContentView: View {
             SettingsView().environment(model)
         }
         .fullScreenCover(isPresented: Binding(get: { model.pictureFillsScreen }, set: { model.pictureFillsScreen = $0 })) {
-            WholeScreenPicture().environment(model)
+            WholeScreenPicture().environment(model).environment(\.visualiser, visualiser)
         }
         #else
         .overlay {
@@ -154,6 +160,8 @@ struct Dropped: Transferable {
 extension EnvironmentValues {
     /// True where the playlist and the player are shown one at a time (an iPhone), and not side by side.
     @Entry var oneAtATime = false
+    /// The window's picture to listen by.
+    @Entry var visualiser: Visualiser?
 }
 
 #if os(iOS)

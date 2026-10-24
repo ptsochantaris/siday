@@ -137,11 +137,11 @@ final class PlayerModel {
     private var asked = 0
     private var runs = 0
 
-    /// The picture to listen by, painted from what the voices are doing.
-    @ObservationIgnored let visualiser: Visualiser
+    /// The pictures to listen by, painted from what the voices are doing: one for each window.
+    @ObservationIgnored let visualisers: Visualisers
     var picture: Visualiser.Mode {
         didSet {
-            visualiser.mode = picture
+            visualisers.mode = picture
             UserDefaults.standard.set(picture.rawValue, forKey: "picture")
         }
     }
@@ -177,7 +177,7 @@ final class PlayerModel {
         let defaults = UserDefaults.standard
         let picture = defaults.string(forKey: "picture").flatMap { Visualiser.Mode(rawValue: $0) } ?? .lava
         self.picture = picture
-        visualiser = Visualiser(mode: picture)
+        visualisers = Visualisers(mode: picture)
         output = defaults.string(forKey: "output").flatMap { OutputStyle(rawValue: $0) }.flatMap { Self.outputs.contains($0) ? $0 : nil } ?? .abc
         // (Kept as a number; given on the command line, as text: either is read.)
         volume = defaults.object(forKey: "volume") != nil ? max(0, min(1, defaults.double(forKey: "volume"))) : 1
@@ -321,7 +321,7 @@ final class PlayerModel {
         rendered = 0
         engine.send(.stop)
         engine.pause(true)
-        visualiser.rest()
+        visualisers.rest()
     }
 
     // MARK: Playing
@@ -335,7 +335,7 @@ final class PlayerModel {
             play(index, song: song)
         case .finish:
             engine.pause(true)
-            visualiser.rest()
+            visualisers.rest()
             nowPlayingChanged()
         case .stop:
             stopped()
@@ -350,7 +350,7 @@ final class PlayerModel {
     func play(_ index: Int, song: Int = -1, paused startPaused: Bool = false) {
         guard files.indices.contains(index) else { return }
         // Another song of the tune that is showing: its details stay up, with the new song marked.
-        if !queue.play(index, song: song) { visualiser.newTune() }
+        if !queue.play(index, song: song) { visualisers.newTune() }
         paused = startPaused
         rendered = 0
         engine.pause(startPaused)
@@ -384,7 +384,7 @@ final class PlayerModel {
             if !paused, !finished, tune != nil {
                 paused = true
                 engine.pause(true)
-                visualiser.rest()
+                visualisers.rest()
                 nowPlayingChanged()
             }
         case let .keeper(event):
@@ -489,7 +489,7 @@ final class PlayerModel {
     /// goes forward.
     func frame(at time: Double) -> Frame {
         let heard = engine.heard
-        var frame = display.frame(heard, serial: runs, at: time, visualiser: visualiser)
+        var frame = display.frame(heard, serial: runs, at: time, visualisers: visualisers)
         // (Until a move to another place is heard, the place moved to: see `position`.)
         if heard.serial != runs, let moved, moved.serial == runs { frame.position = moved.place }
         return frame
@@ -499,7 +499,7 @@ final class PlayerModel {
     func seek(to seconds: Double) {
         guard let tune, tune.length > 0 else { return }
         let place = max(0, min(tune.length, seconds))
-        visualiser.rest()
+        visualisers.rest()
         if finished {
             queue.playAgain()
             paused = false
@@ -529,7 +529,7 @@ final class PlayerModel {
         guard tune != nil else { return }
         paused.toggle()
         engine.pause(paused)
-        if paused { visualiser.rest() }
+        if paused { visualisers.rest() }
         nowPlayingChanged()
     }
 

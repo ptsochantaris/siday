@@ -9,8 +9,9 @@ import SwiftUI
 /// moved less.
 struct Picture: View {
     @Environment(PlayerModel.self) private var model
+    @Environment(\.visualiser) private var visualiser
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// False while another picture is being painted (the one on the whole screen): there is one
+    /// False while another picture is being painted (the one on the whole screen): a window has one
     /// painter, and a picture of another size would start it again from black on every frame.
     var painting = true
 
@@ -34,7 +35,7 @@ struct Picture: View {
     }
 
     private func paint(_ space: CGSize, at seconds: Double, slowed: Bool) -> CGImage? {
-        let visualiser = model.visualiser
+        guard let visualiser else { return nil }
         let size = Visualiser.size(for: space.width, space.height)
         visualiser.resize(width: size.width, height: size.height)
         // What the voices are doing comes with each frame the player works out (see `Display`), which
