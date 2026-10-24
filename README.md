@@ -251,13 +251,13 @@ each thing.
 | `--bench` | Render at full speed and report the multiple of real time |
 | `--about it` | Print what [FORMATS.md](FORMATS.md) says about a format (named, or given by one of its files), and exit |
 
-**`--output`.** Mono is the default, because many AY tunes layer the chip's three channels into one
+**`--output`:** Mono is the default, because many AY tunes layer the chip's three channels into one
 sound. `abc` and `acb` spread the channels left, centre and right. A SID has a single output, so a
 SID tune stays mono with these; a module has a stereo image of its own, which they leave alone.
 `plastic` and `wood` are the speaker of an early-1980s television (see
 [Through a television](#through-a-television)), which is mono too.
 
-**`--level`.** `full` brings every tune to the same loudness. `partial` goes halfway, so a quiet tune
+**`--level`:** `full` brings every tune to the same loudness. `partial` goes halfway, so a quiet tune
 is still quieter than a loud one, but not by as much. Each song is measured by playing it through,
 silently, alongside the song you are hearing, and the next song is measured while that one plays. A
 song not yet measured waits up to a second to be measured before it starts. If that isn't enough,
