@@ -45,7 +45,9 @@ func appInfoPlist() -> String {
         lines += ["\t\t\t</array>", "\t\t</dict>"]
     }
     let tunes = TuneFormat.fileExtensions
-    documentType("Chip music", "LSItemContentTypes", tunes.map(tuneType))
+    var kinds: [String] = []
+    for ending in tunes where !kinds.contains(kind(ending)) { kinds.append(kind(ending)) }
+    documentType("Chip music", "LSItemContentTypes", kinds)
     // (M3U lists are the system's own kind of file; Ay_Emul's are declared here.)
     documentType("Playlist", "LSItemContentTypes", ["build.bru.siday.playlist.ayl", "public.m3u-playlist"])
     // And the same by their extensions, for a Mac. Where another app declares a kind of file for one
@@ -78,11 +80,21 @@ func appInfoPlist() -> String {
             "\t\t</dict>",
         ]
     }
-    for ending in tunes { declaration(tuneType(ending), "\(ending.uppercased()) music", ending) }
+    for ending in tunes where systemKinds[ending] == nil { declaration(tuneType(ending), "\(ending.uppercased()) music", ending) }
     declaration("build.bru.siday.playlist.ayl", "Ay_Emul playlist", "ayl")
     lines += ["\t</array>", "</dict>", "</plist>", ""]
     return lines.joined(separator: "\n")
 }
+
+/// The kinds of file the system knows itself, by their extensions: recordings, which the app names as
+/// the system does, and does not declare again.
+let systemKinds = [
+    "mp3": "public.mp3", "mp2": "public.mp2", "ogg": "org.xiph.ogg-audio", "oga": "org.xiph.ogg-audio",
+    "wav": "com.microsoft.waveform-audio", "wave": "com.microsoft.waveform-audio",
+]
+
+/// The kind of file a tune with this extension is: the system's, or the app's own.
+func kind(_ ending: String) -> String { systemKinds[ending] ?? tuneType(ending) }
 
 /// The app's name for the kind of file a tune with this extension is. (A type's name has letters,
 /// digits, stops and hyphens: `sa_old` is `sa-old`.)

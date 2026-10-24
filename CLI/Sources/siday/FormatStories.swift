@@ -4358,6 +4358,46 @@ A Sound Blaster Pro's two OPL2s, and the SAA1099's sides, are brought most of th
 fifth of the difference between the sides is kept, unless the listener asks for more, with
 `--sb-pro-separation` or the setting in the browser. 100 is the card's own.
 
+## OGG, MP3 and WAV — recordings
+
+Some music is not a tune for a chip or a module at all, but a recording of it. The Amiga CD32 and
+CDTV games played their music from the CD as audio tracks, and collections keep those tracks small:
+UnExoticA keeps the tracks of 77 CDs this way, most of them CD32 games, as Ogg Vorbis files and a few
+as MP3 or MP2.
+
+- **WAV** is Microsoft's and IBM's file of sound from 1991, the samples as they are, or a little
+  smaller in one of the ways the telephone and the PC's sound cards kept them.
+- **MP3** is MPEG-1 Audio Layer III, from 1993. It keeps a recording small by leaving out what the
+  ear does not hear. MP2 and MP1 files are the same standard's two simpler layers.
+- **Ogg Vorbis** does the same as MP3, more freely: the Xiph.Org Foundation made it free of patents,
+  and its version 1.0 came out in 2002.
+
+### How siday plays it
+
+A recording is decoded and played as it is. The decoders are ports of stb_vorbis and minimp3, and
+decode to the bit what those decode. A WAV file's samples may be whole numbers of 8 to 32 bits,
+floating point, A-law or μ-law, or IMA's or Microsoft's ADPCM.
+
+- **Rate:** each recording is brought to the player's 48 kHz through a windowed sinc. A CD's sound is
+  kept unchanged up to 20 kHz, and nothing comes back mirrored as aliasing.
+- **Voices:** a recording has two voices, its left and its right, or one if it is in mono. The lights
+  and scopes follow them, either side can be muted, and heard in mono the two are heard together.
+  A voice has no pitch to show, but the picture to listen by sees the notes it can hear struck: sudden
+  rises in how loud it is.
+- **Length:** a recording plays from its first sample to its last, as long as the file says. An MP3
+  file's encoder put silence before and after the music, and where it says how much, as LAME's files
+  do, that is taken off.
+- **Name:** the title and artist are the file's own tags: Vorbis comments, ID3, or a WAV file's INFO.
+
+### Differences and limits
+
+- **Loudness:** recordings are turned down by 6.2 dB, to be as loud as every other format. That is
+  where the median of the collection's Ogg Vorbis tracks comes to the formats' own level.
+- **Past full scale:** a decoded sample is never let go beyond full scale. A recording kept small may
+  go a little past it where it is loud, and a broken packet far past it. The seventh track of Dangerous
+  Streets on the CD32 begins with one, to a thousand times full scale, which is heard as a click.
+- **Channels:** a recording of more than two channels is not played.
+
 ## AYL — Ay_Emul's playlists
 
 Ay_Emul, Sergey Bulba's player for Windows, keeps its playlists as text. An AYL file begins with a

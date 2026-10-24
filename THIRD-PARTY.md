@@ -1599,6 +1599,29 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `Sources/SidayFoundation/LH5.swift` follows the decoder in ar002 by Haruhiko Okumura, which its author
 placed in the public domain.
 
+## stb_vorbis — Ogg Vorbis
+
+`Sources/SidayCodecs/Vorbis` is a Swift port of stb_vorbis 1.22, the decoder of Ogg Vorbis, as libopenmpt
+0.8.9 ships it and builds it: its push-data decoder only (`STB_VORBIS_NO_PULLDATA_API`,
+`STB_VORBIS_NO_STDIO`). It decodes what the original decodes, to the bit. It plays Ogg Vorbis files.
+
+- Written by Sean Barrett, from 2007, with the contributors its file names; first sponsored by RAD Game
+  Tools
+- Public domain, or the MIT License (Copyright (c) 2017 Sean Barrett), at the user's choice
+- Source: https://github.com/nothings/stb
+
+## minimp3 — MPEG audio
+
+`Sources/SidayCodecs/MP3` is a Swift port of minimp3, the decoder of MPEG audio's three layers, as
+OpenMPT's fork of it is in libopenmpt 0.8.9, without its vector instructions; and of the rules of its
+`minimp3_ex.h` by which a file's tags are skipped and an encoder's delay and padding are taken off. It
+decodes what the original decodes, to the bit. It plays MP3 and MP2 files.
+
+- By lieff and the contributors to https://github.com/lieff/minimp3; OpenMPT's fork is
+  https://github.com/manxorist/minimp3
+- CC0 1.0: dedicated to the public domain
+- Source: https://github.com/lieff/minimp3
+
 ## High Voltage SID Collection — song lengths
 
 `Sources/SidayC64/SIDFile/SongLengthsData.swift` holds the play time of every song of every tune in

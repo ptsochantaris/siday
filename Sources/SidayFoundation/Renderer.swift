@@ -379,6 +379,7 @@ public struct ByteReader {
     @inlinable public func u16le(_ i: Int) -> Int { Int(self[i]) | Int(self[i + 1]) << 8 }
     @inlinable public func u16be(_ i: Int) -> Int { Int(self[i]) << 8 | Int(self[i + 1]) }
     @inlinable public func s16be(_ i: Int) -> Int { Int(Int16(truncatingIfNeeded: u16be(i))) }
+    @inlinable public func s16le(_ i: Int) -> Int { Int(Int16(truncatingIfNeeded: u16le(i))) }
     @inlinable public func u32le(_ i: Int) -> Int { u16le(i) | u16le(i + 2) << 16 }
     @inlinable public func u32be(_ i: Int) -> Int { u16be(i) << 16 | u16be(i + 2) }
 

@@ -12,7 +12,8 @@ import PackageDescription
 // The library is built as several modules, so that they are compiled side by side and each is kept
 // small enough for Embedded Swift, which writes the whole of a module's code into its interface. The
 // foundation is what every player is made with; the chips and the 68000 are shared by several families
-// of players; SidayKit is the loader, and brings the foundation with it; and SidayPlayer is built on it.
+// of players; the codecs decode recordings, and the samples that some modules keep as recordings;
+// SidayKit is the loader, and brings the foundation with it; and SidayPlayer is built on it.
 let swiftSettings: [SwiftSetting] = [
     // The C library's maths functions are declared directly (SidayFoundation/Maths.swift), which is
     // what the Extern feature allows.
@@ -45,15 +46,16 @@ let package = Package(
         family("SidayC64", ["SidayFoundation"]),
         family("SidayEightBit", ["SidayFoundation", "SidayChips"]),
         family("SidayAtari", ["SidayFoundation", "SidayM68000"]),
+        family("SidayCodecs", ["SidayFoundation"]),
         family("SidayKit", [
             "SidayFoundation", "SidayChips", "SidayM68000", "SidayAmigaTrackers", "SidayAmigaComposers",
-            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari",
+            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari", "SidayCodecs",
         ]),
         family("SidayPlayer", ["SidayKit", "SidayFoundation"]),
         family("SidayFiles", ["SidayPlayer", "SidayFoundation"]),
         .testTarget(name: "SidayKitTests", dependencies: [
             "SidayFiles", "SidayPlayer", "SidayKit", "SidayFoundation", "SidayChips", "SidayM68000", "SidayAmigaTrackers", "SidayAmigaComposers",
-            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari",
+            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari", "SidayCodecs",
         ]),
     ]
 )

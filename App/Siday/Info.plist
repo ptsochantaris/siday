@@ -116,6 +116,9 @@
 				<string>build.bru.siday.tune.mmdc</string>
 				<string>build.bru.siday.tune.mod</string>
 				<string>build.bru.siday.tune.mon</string>
+				<string>build.bru.siday.tune.mp1</string>
+				<string>public.mp2</string>
+				<string>public.mp3</string>
 				<string>build.bru.siday.tune.mptm</string>
 				<string>build.bru.siday.tune.mt2</string>
 				<string>build.bru.siday.tune.mtm</string>
@@ -127,6 +130,7 @@
 				<string>build.bru.siday.tune.np2</string>
 				<string>build.bru.siday.tune.np3</string>
 				<string>build.bru.siday.tune.ntp</string>
+				<string>org.xiph.ogg-audio</string>
 				<string>build.bru.siday.tune.okt</string>
 				<string>build.bru.siday.tune.p40a</string>
 				<string>build.bru.siday.tune.p40b</string>
@@ -216,6 +220,7 @@
 				<string>build.bru.siday.tune.vgm</string>
 				<string>build.bru.siday.tune.vgz</string>
 				<string>build.bru.siday.tune.vtx</string>
+				<string>com.microsoft.waveform-audio</string>
 				<string>build.bru.siday.tune.wb</string>
 				<string>build.bru.siday.tune.xm</string>
 				<string>build.bru.siday.tune.ym</string>
@@ -346,6 +351,9 @@
 				<string>mmdc</string>
 				<string>mod</string>
 				<string>mon</string>
+				<string>mp1</string>
+				<string>mp2</string>
+				<string>mp3</string>
 				<string>mptm</string>
 				<string>mt2</string>
 				<string>mtm</string>
@@ -357,6 +365,8 @@
 				<string>np2</string>
 				<string>np3</string>
 				<string>ntp</string>
+				<string>oga</string>
+				<string>ogg</string>
 				<string>okt</string>
 				<string>p40a</string>
 				<string>p40b</string>
@@ -446,6 +456,8 @@
 				<string>vgm</string>
 				<string>vgz</string>
 				<string>vtx</string>
+				<string>wav</string>
+				<string>wave</string>
 				<string>wb</string>
 				<string>xm</string>
 				<string>ym</string>
@@ -2207,6 +2219,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>mon</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MP1 music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.mp1</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>mp1</string>
 				</array>
 			</dict>
 		</dict>

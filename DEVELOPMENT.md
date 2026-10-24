@@ -18,6 +18,7 @@ The repository is three Swift packages and an app.
   - `SidayChips` and `SidayM68000`: the chips and the processor that several families share;
   - a module for each family of players: `SidayAmigaTrackers`, `SidayAmigaComposers`,
     `SidayAmigaMachine`, `SidayTrackers`, `SidayC64`, `SidayEightBit` and `SidayAtari`;
+  - `SidayCodecs`: the decoders of recordings (Ogg Vorbis, MP3, WAV) and the player that plays them;
   - `Sources/SidayKit`: the loader, which brings the rest with it.
 - **SidayPlayer** (`Sources/SidayPlayer`, also at the top, also Foundation-free) is what lies between
   a tune and a listener, the same for every front end: how long a song plays and how it ends, the
@@ -2070,6 +2071,59 @@ Level:
   loud as it is.
 - The PC speaker's files, one channel of the AY chip, are turned up by 3.4 dB more than an AY tune,
   since only one of its three channels plays.
+
+### OGG — recordings: Ogg Vorbis, MP3 and WAV
+
+Based on:
+
+- **Ogg Vorbis:** a port of stb_vorbis 1.22 as libopenmpt 0.8.9 builds it, push-data API only
+  (`STB_VORBIS_NO_PULLDATA_API`, `STB_VORBIS_NO_STDIO`). `VorbisFile` adds the walk over pages, chained
+  links played one after another while their channels and rate match, and each link cut to its last
+  granule. It goes on past errors, as stb resynchronises at the next good page.
+- **MP3:** a port of minimp3 as OpenMPT's fork has it, all three layers, scalar code (as
+  `MINIMP3_NO_SIMD`), with float and int16 output. `MP3File` follows `minimp3_ex.h`'s
+  `mp3dec_load_buf`: ID3v2, ID3v1 and APE tags skipped, the Xing/Info frame and the LAME delay and
+  padding taken off. Its `length` walks every frame's header and side information without decoding.
+- **WAV:** written for siday. PCM of 8 (unsigned) to 32 bits, floats of 32 and 64, A-law, μ-law, IMA
+  ADPCM and Microsoft ADPCM, `WAVE_FORMAT_EXTENSIBLE`; a `fact` chunk trims an ADPCM file's last block.
+- **`RecordingRenderer`:** a Kaiser-windowed sinc (β 9, 64 input samples either side of each output
+  sample, more when the rate is brought down), one row of weights for each place between two input
+  samples where the ratio of the rates allows (44.1 kHz to 48 kHz is 147 to 160), else 2,048 rows
+  read between. Notes struck are found where a voice's power over about a hundredth of a second rises
+  past four times its power over about a third of a second.
+
+Checked against:
+
+- **Ogg Vorbis:** every float bit, and every call's bytes taken and samples given, the same as stb_vorbis
+  built with `-ffp-contract=off`: all 779 collection files (44.1 kHz stereo, none chained), the 2,150
+  Vorbis streams cut from the 149 MO3 files (461 of them with a shared header), and 501 more made or
+  patched (other encoders, 8 to 48 kHz, 3 to 16 channels, all 36 pairs of block sizes). 28,000 spoilt
+  files give what the C gives, but for 18 where the C crashes after a failed allocation, and for comments
+  that are not UTF-8. Lengths agree with
+  ffmpeg's on 778 of 779 files: `Sim_City_CDTV_CDDA/15_Ingame.ogg` has a page with a bad CRC, which
+  ffmpeg drops and stb decodes. Against ffmpeg's libvorbis the sound differs by -155 dBFS rms at the
+  median, -138.5 at worst.
+- **MP3:** every sample the same as minimp3 built with `-ffp-contract=off -DMINIMP3_NO_SIMD`, in floats
+  and in int16, and `MP3File` the same as `mp3dec_load_buf`: the collection's 4 MP3 files and its MP2,
+  40 files made with LAME and ffmpeg (CBR, VBR, ABR, mono, middle/side, CRC, free format, every rate
+  from 8 to 48 kHz, layer II), the MPEG data of all 149 MO3 files, and 435 made-up streams of every
+  layer and mode, which reach intensity stereo and short blocks at every rate. 7,700 spoilt files run
+  under the address sanitizer. From the NEON build the floats differ by at most 4.8e-7, from one sum
+  made in another order, and int16 samples by one (once by two) on at most 0.05% of them, from its
+  rounding.
+- **WAV:** each kind of sample the same as ffmpeg reads it, to the bit, on the two collection files
+  (8-bit at 22.05 kHz, IMA ADPCM at 8 kHz) and twelve made by ffmpeg.
+- **Resampling:** tones in a 44.1 kHz file come out unchanged in level (to 0.001 dB) up to 20 kHz, and
+  everything else in them is some 110 dB down; 30 kHz in a 96 kHz file is taken out by 109 dB. About 530
+  times real time for 44.1 kHz stereo; Vorbis decodes at about 1,000 times, MP3 at 1,700.
+
+Decisions:
+
+- **Level:** recordings are multiplied by 0.49. The median of the 777 collection Ogg Vorbis files that
+  are not silence is -16.8 LUFS as decoded, and comes to -22.97 LUFS as played.
+- **Full scale:** decoded samples are held to ±1 before resampling. `Dangerous_Streets_CD32_CDDA/
+  07_ingame.ogg` begins with a broken packet that decodes, in ffmpeg too, to samples up to 1,047.
+- **Channels:** more than two are refused rather than mixed down.
 
 ### AYL — Ay_Emul's playlists
 

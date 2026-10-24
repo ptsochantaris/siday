@@ -6,6 +6,7 @@ import SidayAmigaMachine
 import SidayAmigaTrackers
 import SidayAtari
 import SidayC64
+import SidayCodecs
 import SidayEightBit
 import SidayFoundation
 import SidayTrackers
@@ -56,7 +57,7 @@ public enum TuneLoader {
         let families: [([UInt8], TuneFormat, String?, LoadOptions, [[UInt8]?]) throws -> (any Renderer)?] = [
             AtariPlayers.player, EightBitPlayers.player, C64Players.player,
             { try AmigaTrackerPlayers.player($0, format: $1, path: $2, options: $3, companions: $4, widerModule: widerModule) },
-            AmigaComposerPlayers.player, AmigaMachinePlayers.player, TrackerPlayers.player,
+            AmigaComposerPlayers.player, AmigaMachinePlayers.player, TrackerPlayers.player, RecordingPlayers.player,
         ]
         for family in families {
             if let player = try family(data, format, path, options, companions) { return player }

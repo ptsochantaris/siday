@@ -52,6 +52,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case dl
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
     case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat, thm, psf, sdr, uds, tf, snk, ast, dh
+    case ogg, mp3, wav
 
     /// The format a file name's extension stands for, in any case: its own name (`TuneFormat.rawValue`),
     /// or one of the other names files of it are kept under (`otherNames`).
@@ -108,6 +109,9 @@ public enum TuneFormat: String, CaseIterable, Sendable {
             "snd": .sndh,
             // (One of ChipTracker's, or an AMOS music bank, which are read into a module.)
             "kris": .mod, "abk": .mod,
+            // (Recordings: Ogg Vorbis by the name the Ogg container's makers gave a file of sound in it;
+            // MPEG audio of the first two layers, which the decoder of the third plays too; and WAV.)
+            "oga": .ogg, "mp2": .mp3, "mp1": .mp3, "wave": .wav,
         ]
         // (A module packed by one of the packers games and demos used, named for the packer, which
         // is read into a module; but for Game Music Creator's, which ProWizard would make a
@@ -160,6 +164,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"
+        case .mp3, .wav: "OGG"
         default: rawValue.uppercased()
         }
     }

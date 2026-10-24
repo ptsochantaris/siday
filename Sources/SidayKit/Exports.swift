@@ -11,6 +11,7 @@
 @_exported import SidayAtari
 @_exported import SidayC64
 @_exported import SidayChips
+@_exported import SidayCodecs
 @_exported import SidayEightBit
 @_exported import SidayFoundation
 @_exported import SidayM68000
