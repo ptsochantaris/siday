@@ -1853,7 +1853,12 @@ the modules make (memory, the timers and the sound chip's device, loading a file
 module's tick from the timer it asks for. Of the 2,539 songs of the 416 modules played on that host
 (these, and Dave Lowe's own; see DLN), 2,381 are the same as UADE's in every write to the sound chip
 over their first 40 seconds; most of the others are the same but where the processor and the chip
-race to a moment, which UADE's processor and siday's reach a little differently.
+race to a moment, which UADE's processor and siday's reach a little differently. Immortal and Zany
+Golf, which part from UADE early on, are played here as a 68000 plays them: their code subtracts and
+then subtracts again with what the first borrowed (SUBX), and UADE's processor, built as it is
+without its x86 assembly, keeps nothing of a borrow from SUB, SUBQ or NEG. With that mended in a UADE
+of our own, 20 of their 21 songs are the same as siday's in every write, and the last but for one
+write of a volume the voice already had.
 
 What is siday's own, or the host's own and worth telling:
 
