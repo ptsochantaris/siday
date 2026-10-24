@@ -214,6 +214,29 @@ dialog.about ul {
   padding-left: 1.6em;
 }
 
+dialog.about h3 {
+  margin: 6px 0 -4px;
+  font-size: 0.95rem;
+}
+
+/* (A list is not shrunk to nothing in the column, nor laid out as the playlist's rows are.) */
+dialog.about .text > * {
+  flex-shrink: 0;
+}
+
+dialog.about ul {
+  list-style: disc;
+}
+
+dialog.about ol {
+  list-style: decimal;
+}
+
+dialog.about li {
+  display: list-item;
+  margin-bottom: 4px;
+}
+
 dialog.about code {
   font: inherit;
   color: var(--accent);

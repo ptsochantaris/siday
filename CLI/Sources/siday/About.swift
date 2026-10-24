@@ -23,8 +23,8 @@ enum FormatStories {
         return (String(lines[start].dropFirst(3)), Array(lines[(start + 1) ..< end]))
     }
 
-    /// The part on a format as text to print: the heading, then each paragraph and each item of a
-    /// list run together and broken again at the width, with what is marked as code, stressed or a
+    /// The part on a format as text to print: the heading, then its own headings, each paragraph
+    /// and each item of a list run together and broken again at the width, with what is marked as code, stressed or a
     /// link left as plain words (and a link to the web given after its words). In bold for a
     /// terminal, the heading and what is strongly stressed.
     static func setOut(on format: TuneFormat, width: Int, bold: Bool) -> String? {
@@ -56,7 +56,17 @@ enum FormatStories {
             block = []
         }
         for line in part.lines {
-            if line.trimmingCharacters(in: .whitespaces).isEmpty { end() } else { block.append(line) }
+            if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                end()
+            } else if line.hasPrefix("#") {
+                // A heading of the chapter's own, in bold as the chapter's is.
+                end()
+                out.append("")
+                let heading = plain(line.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces), bold: false)
+                out += wrapped(heading, width: width, first: "", rest: "").map { bold ? "\u{1B}[1m\($0)\u{1B}[0m" : $0 }
+            } else {
+                block.append(line)
+            }
         }
         end()
         return out.joined(separator: "\n")

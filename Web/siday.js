@@ -852,13 +852,14 @@ const formats = `${source}/blob/main/FORMATS.md`;
 let readme;
 let story;
 
-/// A part of FORMATS.md: the one whose heading begins with this word.
+/// A part of FORMATS.md: the one whose heading begins with this word, up to the next such heading
+/// (its own headings, of three marks, are part of it).
 function chapter(text, word) {
   const lines = text.split("\n");
-  const heading = new RegExp(`^##+ ${word.replace(/[^A-Za-z0-9]/g, "")}(?![A-Za-z0-9])`);
+  const heading = new RegExp(`^## ${word.replace(/[^A-Za-z0-9]/g, "")}(?![A-Za-z0-9])`);
   const start = lines.findIndex((line) => heading.test(line));
   if (start < 0) return null;
-  let end = lines.findIndex((line, place) => place > start && /^##+ /.test(line));
+  let end = lines.findIndex((line, place) => place > start && /^## /.test(line));
   if (end < 0) end = lines.length;
   return { title: lines[start].replace(/^#+ /, ""), lines: lines.slice(start + 1, end) };
 }
@@ -884,7 +885,7 @@ function written(text, into) {
   into.append(text.slice(at));
 }
 
-/// A chapter's lines as paragraphs and lists. Lines with nothing between them are one paragraph.
+/// A chapter's lines as paragraphs, lists and headings. Lines with nothing between them are one paragraph.
 function setOut(lines, into) {
   let block = [];
   const end = () => {
@@ -903,7 +904,10 @@ function setOut(lines, into) {
   };
   for (const line of lines) {
     if (line.trim() === "") end();
-    else block.push(line);
+    else if (/^###+ /.test(line)) {
+      end();
+      written(line.replace(/^#+ /, ""), into.appendChild(document.createElement("h3")));
+    } else block.push(line);
   }
   end();
 }

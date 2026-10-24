@@ -58,9 +58,9 @@ struct MarkdownText: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                if block.item {
+                if let mark = block.mark {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("•")
+                        Text(mark).monospacedDigit()
                         inline(block.text)
                     }
                 } else if block.heading {
@@ -80,11 +80,12 @@ struct MarkdownText: View {
 
     private struct Block {
         var text: String
-        var item = false
+        /// For an item of a list, what it is marked with: a bullet, or its number.
+        var mark: String?
         var heading = false
     }
 
-    /// Paragraphs, list items and headings; the lines of each joined.
+    /// Paragraphs, list items (of either kind) and headings; the lines of each joined.
     private var blocks: [Block] {
         var blocks: [Block] = []
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -92,7 +93,9 @@ struct MarkdownText: View {
             if trimmed.isEmpty {
                 blocks.append(Block(text: ""))
             } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
-                blocks.append(Block(text: String(line.dropFirst(2)), item: true))
+                blocks.append(Block(text: String(line.dropFirst(2)), mark: "•"))
+            } else if let number = line.prefixMatch(of: /(\d+\.)\s+/) {
+                blocks.append(Block(text: String(line[number.range.upperBound...]), mark: String(number.output.1)))
             } else if line.hasPrefix("#") {
                 blocks.append(Block(text: line.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces), heading: true))
             } else if let last = blocks.last, !last.text.isEmpty, !last.heading {
