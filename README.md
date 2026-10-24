@@ -6,7 +6,8 @@ siday plays chiptunes and tracker modules. It is written entirely in Swift, and 
 forms that share the same emulators:
 
 - **[a web page](https://ptsochantaris.github.io/siday/)** that plays tunes in your browser;
-- **an app** for macOS, iPhone and iPad;
+- **an app** for macOS, iPhone and iPad, in beta on
+  [TestFlight](https://testflight.apple.com/join/6eXCKs3e);
 - **a command-line player** for macOS.
 
 It emulates the sound chips of the ZX Spectrum, the Amstrad CPC, the Atari ST, the 8-bit Ataris, the
@@ -170,7 +171,8 @@ siday is also an app for macOS and iOS 26 or later, written in SwiftUI. It has w
 It opens every kind of file siday plays: from the Finder or the Files app, by drag and drop, or with
 Add Files and Add Folder. It keeps its list from one day to the next. Every command is in its menus,
 each with a key. It passes the system's accessibility audit (VoiceOver labels, every text size,
-contrast). It is not yet in the App Store.
+contrast). It is not yet in the App Store, but you can try the beta through
+[TestFlight](https://testflight.apple.com/join/6eXCKs3e).
 
 ## On the command line
 
