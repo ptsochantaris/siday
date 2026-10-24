@@ -1405,7 +1405,7 @@ Comparisons with libopenmpt:
 | Zxx in trackers with no filter | six files have it | One sounds different for it. |
 | Panbrello | 317 files whose panbrello that changes | 76 nearer, 10 further; stereo placement median 0.985, where 0.974. |
 | OpenMPT's other ways (instrument with no note, SCx, Qxy/Ixy, slide to another sample) | 300 files of those two trackers at random | 24 sound different for all that: 10 nearer, 1 further. |
-| ModPlug's ping-pong turn, instrument beside a note-off, slide to another sample without compatible Gxx (switches 33, 50, 42) | the 8,974 IT and MPTM files that ask for one of them | 2,348 sound different in their first 30 seconds: 79 nearer, 4 further, the furthest by 0.016 in stereo placement; spectra median 0.996, where 0.995. Short chip loops change most (one spectrum from 0.67 to 0.99). |
+| ModPlug's ping-pong turn, instrument beside a note-off, slide to another sample without compatible Gxx (switches 33, 50, 42) | the 8,974 IT and MPTM files that ask for one of them | 2,147 sound different in their first 30 seconds: 77 nearer, 2 further, the furthest by 0.016 in stereo placement; envelopes median 0.994, where 0.992, and spectra 0.996, where 0.995. Short chip loops change most (one spectrum from 0.67 to 0.99), and their treble is libopenmpt's within a decibel or two. |
 | Older OpenMPT's four numbers | 300 such IT files | 37 nearer in stereo placement, 6 further, which with anything random is as near as two playings of one file come. |
 | Interpolation | 100 such files; 400 files | The top of the sound (above 12 kilohertz, against what is between half a kilohertz and six) now agrees within a decibel in 80 of 100, where it did in 38. Of 400 files, 5 are audibly nearer and none further. |
 
