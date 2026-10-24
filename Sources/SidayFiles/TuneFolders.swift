@@ -193,7 +193,7 @@ public enum Coordinated {
 
     /// The names in a folder; none if it cannot be read.
     public static func names(in folder: URL) -> [String] {
-        (try? reading(folder) { try FileManager.default.contentsOfDirectory(atPath: $0.path) }) ?? []
+        listing(folder, hidden: true).map(\.url.lastPathComponent)
     }
 
     /// Every file in a folder and in the folders inside it, hidden ones passed over.
@@ -201,13 +201,51 @@ public enum Coordinated {
         var found: [URL] = []
         var waiting = [folder]
         while let next = waiting.popLast() {
-            let inside = (try? reading(next) {
-                try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
-            }) ?? []
-            for url in inside {
-                if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true { waiting.append(url) } else { found.append(url) }
+            for (url, isFolder) in listing(next) {
+                if isFolder { waiting.append(url) } else { found.append(url) }
             }
         }
         return found
     }
+
+    /// The files and folders in a folder, hidden ones too or not; none if it cannot be read.
+    private static func listing(_ folder: URL, hidden: Bool = false) -> [(url: URL, isFolder: Bool)] {
+        func asked() -> [(url: URL, isFolder: Bool)] {
+            ((try? reading(folder) {
+                try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [.isDirectoryKey], options: hidden ? [] : [.skipsHiddenFiles])
+            }) ?? []).map { ($0, (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true) }
+        }
+        let listed = asked()
+        #if os(iOS)
+        // On an iPhone or iPad, Foundation first finds a folder on some shares on the network empty
+        // (Apple's r.150542999), though it is not: it is asked again, and then the system itself is.
+        if listed.isEmpty {
+            let again = asked()
+            return again.isEmpty ? ((try? reading(folder) { entries(of: $0, hidden: hidden) }) ?? []) : again
+        }
+        #endif
+        return listed
+    }
+
+    #if canImport(Darwin)
+    /// The files and folders in a folder as the system lists them, without Foundation, hidden ones
+    /// too or not.
+    static func entries(of folder: URL, hidden: Bool) -> [(url: URL, isFolder: Bool)] {
+        guard let directory = opendir(folder.path) else { return [] }
+        defer { closedir(directory) }
+        var found: [(url: URL, isFolder: Bool)] = []
+        while let entry = readdir(directory) {
+            let name = withUnsafeBytes(of: entry.pointee.d_name) { String(decoding: $0.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self) }
+            guard name != ".", name != "..", hidden || !name.hasPrefix(".") else { continue }
+            let url = folder.appendingPathComponent(name)
+            var isFolder = Int32(entry.pointee.d_type) == DT_DIR
+            if Int32(entry.pointee.d_type) == DT_UNKNOWN {
+                var isDirectory: ObjCBool = false
+                isFolder = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+            }
+            found.append((url, isFolder))
+        }
+        return found
+    }
+    #endif
 }

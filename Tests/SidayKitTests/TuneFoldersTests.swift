@@ -31,3 +31,21 @@ import Testing
     #expect(TuneFolders.scan([folder.appendingPathComponent("Tunes/Best.ayl")], oncePerTune: false).problems.count == 1)
     #expect(TuneFolders.scan([folder.appendingPathComponent("Other/none.pt3")]).problems.count == 1)
 }
+
+@Test func aFolderListedByTheSystemItselfIsListedAsFoundationListsIt() throws {
+    // (What an iPhone or iPad falls back on, for a folder on a share that Foundation finds empty.)
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("siday-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let manager = FileManager.default
+    try manager.createDirectory(at: folder.appendingPathComponent("Inside"), withIntermediateDirectories: true)
+    for name in ["a.pt3", "Ünïcode tune.mod", ".hidden", "Inside/b.pt3"] {
+        try Data([0]).write(to: folder.appendingPathComponent(name))
+    }
+    func sorted(_ entries: [(url: URL, isFolder: Bool)]) -> [String] {
+        entries.map { $0.url.lastPathComponent + ($0.isFolder ? "/" : "") }.sorted()
+    }
+    #expect(sorted(Coordinated.entries(of: folder, hidden: false)) == ["Inside/", "a.pt3", "Ünïcode tune.mod"])
+    #expect(sorted(Coordinated.entries(of: folder, hidden: true)) == [".hidden", "Inside/", "a.pt3", "Ünïcode tune.mod"])
+    #expect(Coordinated.names(in: folder).sorted() == [".hidden", "Inside", "a.pt3", "Ünïcode tune.mod"])
+    #expect(Coordinated.files(below: folder).map(\.lastPathComponent).sorted() == ["a.pt3", "b.pt3", "Ünïcode tune.mod"])
+}
