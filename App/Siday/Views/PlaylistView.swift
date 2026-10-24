@@ -47,9 +47,9 @@ struct PlaylistView: View {
                     .onMove(perform: model.search.isEmpty ? { model.move($0, to: $1) } : nil)
                     // (A list takes what is dropped on it through its rows: what is dropped between two
                     // goes there, before the tune that was at that place among those shown.)
-                    .dropDestination(for: URL.self) { urls, place in
+                    .dropDestination(for: Dropped.self) { dropped, place in
                         let listed = model.listed
-                        model.add(urls, before: place < listed.count ? listed[place].id : nil)
+                        model.add(dropped.map(\.url), before: place < listed.count ? listed[place].id : nil)
                     }
                 }
                 .contextMenu(forSelectionType: Int.self) { ids in

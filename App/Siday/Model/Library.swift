@@ -9,10 +9,13 @@ import SidayPlayer
 /// those. Each is kept as a bookmark, so that the list of tunes is there again the next time the app
 /// is opened, and so are the folders a tune's companions were found in.
 nonisolated final class Library: @unchecked Sendable {
-    /// A file or folder the listener gave, and the access to it that the system gave with it.
+    /// A file or folder the listener gave, and the access to it that the system gave with it. The
+    /// access is the URL's that came from the system, and not another's to the same place: on an
+    /// iPhone or iPad, one made again from its path is given none.
     struct Root {
         var url: URL
         var bookmark: Data
+        var given: URL
         var accessing: Bool
     }
 
@@ -28,17 +31,20 @@ nonisolated final class Library: @unchecked Sendable {
     /// Takes a file or folder the system gave the app (from a picker, a drop, or a file opened with
     /// it) as one it may go on reading. Returns its place among the roots.
     @discardableResult
-    func add(_ url: URL) -> Int {
-        let url = Self.plain(url)
-        if let place = roots.firstIndex(where: { $0.url == url }) { return place }
-        let accessing = url.startAccessingSecurityScopedResource()
+    func add(_ given: URL) -> Int {
+        let accessing = given.startAccessingSecurityScopedResource()
+        let url = Self.plain(given)
+        if let place = roots.firstIndex(where: { $0.url == url }) {
+            if accessing { given.stopAccessingSecurityScopedResource() }
+            return place
+        }
         #if os(macOS)
         let options: URL.BookmarkCreationOptions = [.withSecurityScope, .securityScopeAllowOnlyReadAccess]
         #else
         let options: URL.BookmarkCreationOptions = []
         #endif
-        let bookmark = (try? url.bookmarkData(options: options, includingResourceValuesForKeys: nil, relativeTo: nil)) ?? Data()
-        roots.append(Root(url: url, bookmark: bookmark, accessing: accessing))
+        let bookmark = (try? given.bookmarkData(options: options, includingResourceValuesForKeys: nil, relativeTo: nil)) ?? Data()
+        roots.append(Root(url: url, bookmark: bookmark, given: given, accessing: accessing))
         return roots.count - 1
     }
 
@@ -53,9 +59,23 @@ nonisolated final class Library: @unchecked Sendable {
         guard let url = try? URL(resolvingBookmarkData: bookmark, options: options, relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
         let accessing = url.startAccessingSecurityScopedResource()
         let plain = Self.plain(url)
-        if let place = roots.firstIndex(where: { $0.url == plain }) { return place }
-        roots.append(Root(url: plain, bookmark: bookmark, accessing: accessing))
+        if let place = roots.firstIndex(where: { $0.url == plain }) {
+            if accessing { url.stopAccessingSecurityScopedResource() }
+            return place
+        }
+        roots.append(Root(url: plain, bookmark: bookmark, given: url, accessing: accessing))
         return roots.count - 1
+    }
+
+    /// Keeps a copy of a file or folder the system gave only for a moment, in a folder of its own
+    /// among the app's files (so that it keeps its name beside other copies of the same name).
+    static func keep(_ given: URL) throws -> URL {
+        let folder = store.deletingLastPathComponent().appendingPathComponent("Dropped", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let kept = folder.appendingPathComponent(given.lastPathComponent)
+        try FileManager.default.copyItem(at: given, to: kept)
+        return kept
     }
 
     /// A file's URL as roots and tunes are compared by: its links followed, so that one way to a file
@@ -77,7 +97,7 @@ nonisolated final class Library: @unchecked Sendable {
             if wanted.contains(place) {
                 kept.append(root)
             } else if root.accessing {
-                root.url.stopAccessingSecurityScopedResource()
+                root.given.stopAccessingSecurityScopedResource()
             }
         }
         roots = kept

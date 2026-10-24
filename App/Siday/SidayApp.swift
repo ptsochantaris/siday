@@ -126,10 +126,28 @@ extension View {
     /// of the split view takes them for itself: on a Mac each is a view of the system's own, and
     /// what is dropped on one goes no further, so that the split view as a whole is given nothing.
     func takesDroppedTunes(_ model: PlayerModel) -> some View {
-        dropDestination(for: URL.self) { urls, _ in
-            model.add(urls)
-            return !urls.isEmpty
+        dropDestination(for: Dropped.self) { dropped, _ in
+            model.add(dropped.map(\.url))
+            return !dropped.isEmpty
         }
+    }
+}
+
+/// A file or folder dropped on the app. From the Finder it comes as its URL. From the Files app or
+/// another app on an iPhone or iPad it comes as itself, which has no URL to give: it is taken where
+/// it is, if it may be read there, or else as a copy kept among the app's own files (the copy the
+/// system makes is gone once the drop is over).
+struct Dropped: Transferable {
+    var url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        #if os(iOS)
+        FileRepresentation(importedContentType: .item, shouldAttemptToOpenInPlace: true) { received in
+            Dropped(url: received.isOriginalFile ? received.file : try Library.keep(received.file))
+        }
+        #else
+        ProxyRepresentation { (url: URL) in Dropped(url: url) }
+        #endif
     }
 }
 
