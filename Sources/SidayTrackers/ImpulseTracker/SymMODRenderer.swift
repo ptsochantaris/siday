@@ -362,7 +362,7 @@ extension SymMODFile {
         song.loopsOutlastJumps = false
         song.unmappedNotesKeepCommands = false
         song.itVibrato = true
-        song.retriggersEndedNotes = true
+        song.ways.retriggersEndedNotes = true
         // How loud: OpenMPT's pre-amp is the more the fewer the channels, and is the mixing volume.
         let preAmp = max(16, min(128, 512 / max(1, channels)))
         song.gain = loudness

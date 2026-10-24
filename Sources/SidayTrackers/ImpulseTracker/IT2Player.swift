@@ -360,6 +360,7 @@ final class IT2Player {
             pan = s.DefPan & 127
             given = true
         }
+        let placed = pan
         if pan != PAN_SURROUND {
             // Higher notes further to one side, if the instrument says so.
             let separation = asImpulseTracker ? ins.PitchPanSep : ins.PitchPanSepAsModPlug ?? ins.PitchPanSep
@@ -369,6 +370,18 @@ final class IT2Player {
         placeInSurround(hc, sc, &pan, given: given)
         sc.pointee.Pan = pan
         sc.pointee.PanSet = pan
+        // (Where a file asks for it, the place the instrument or sample gives is the channel's from
+        // now on: see `OpenMPTWays.notesPlaceTheChannel`. A channel in surround that stays in it is
+        // put there in surround; one that the place takes out of surround is out of it.)
+        if given, ways.notesPlaceTheChannel, placed != PAN_SURROUND {
+            let inSurround = hc.pointee.ChnPan == PAN_SURROUND || hc.pointee.SurroundPanned
+            if !inSurround || !keepsSurround(.roughly) {
+                hc.pointee.ChnPan = placed
+                hc.pointee.SurroundPanned = false
+            } else if hc.pointee.SurroundPanned {
+                hc.pointee.ChnPan = placed
+            }
+        }
 
         sc.pointee.VolEnvState.Value = 64 << 16
         sc.pointee.VolEnvState.Tick = 0
@@ -983,7 +996,7 @@ final class IT2Player {
         // or when a note that is put off comes.)
         if tunings, !delaysNote(hc) { openMPTTunedRow(hc) }
         if module.openMPTForeign { foreignRow(hc) }
-        if module.openMPT != nil, !delaysNote(hc) { openMPTRow(hc) } else if ownVibrato, !delaysNote(hc) { ownVibratoRow(hc) }
+        if module.openMPT != nil, !delaysNote(hc) { openMPTRow(hc) } else if ownVibrato || ways.countsStartWithNotes, !delaysNote(hc) { modPlugRow(hc) }
         if module.playsAsXTracker, !delaysNote(hc) { xTrackerRow(hc) }
         InitCommand(hc)
         // (And for a module of Digitrakker's, a place between the speakers that had no room.)
@@ -1089,6 +1102,7 @@ final class IT2Player {
 
         for i in 0 ..< MAX_HOST_CHANNELS {
             hChn[i].Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX | HF_ROW_UPDATED | HF_UPDATE_VOLEFX_IF_CHAN_ON)
+            if hChn[i].PanbrelloMoved { panbrelloOver(hChn + i) }
         }
         // (The row a song that is over has come to is another song's, and is not read.)
         if over { return }
@@ -1548,6 +1562,17 @@ final class IT2Player {
     /// as an MPTM file says, or a file of ModPlug Tracker's or OpenMPT's that does not ask for
     /// Impulse Tracker's (see `IT2Module.ModPlugWays.itVibrato`).
     let ownVibrato: Bool
+    /// The ways of OpenMPT's own that are followed: an MPTM file's, as it asks; a file of ModPlug
+    /// Tracker's or OpenMPT's, as it asks (see `IT2Module.ModPlugWays.ways`); and of those, the ones
+    /// an older Schism Tracker had, by the day it was made (see `IT2Module.schismMade`): it left a
+    /// channel where a note's instrument or sample put it until 2 May 2021, did not keep the place
+    /// panbrello moved a note to until 9 March 2024, nor a random one for a while until 19 October
+    /// 2023. None for a file of Impulse Tracker's.
+    let ways: OpenMPTWays
+    /// True if the place panbrello moves a note to is kept until another note or place, as Impulse
+    /// Tracker has it: unless the file asks otherwise (see `OpenMPTWays.panbrelloLetsGo`), or has
+    /// OpenMPT's own vibrato, whose panbrello is OpenMPT's own too (see `openMPTOwnPanbrello`).
+    let panbrelloHolds: Bool
     var surroundPanning = false, filterWaits = false
 
     /// How a channel is given a place between the speakers.
@@ -1632,6 +1657,14 @@ final class IT2Player {
         smoothMacros = module.openMPT != nil || module.madeByModPlug && !asImpulseTracker
         speakerCommands = smoothMacros
         ownVibrato = module.openMPT.map { !$0.itVibrato } ?? (module.madeByModPlug && !asImpulseTracker && !module.modPlug.itVibrato)
+        var ways = module.openMPT?.ways ?? (module.madeByModPlug ? module.modPlug.ways : OpenMPTWays())
+        if let made = module.schismMade {
+            ways.notesPlaceTheChannel = made < IT2Module.schismDay(2021, 5, 2)
+            ways.panbrelloLetsGo = made < IT2Module.schismDay(2024, 3, 9)
+            ways.randomPanbrelloMoves = made < IT2Module.schismDay(2023, 10, 19)
+        }
+        self.ways = asImpulseTracker ? OpenMPTWays() : ways
+        panbrelloHolds = !self.ways.panbrelloLetsGo && !ownVibrato
         pitchesArePeriods = module.openMPT?.pitchesArePeriods
             ?? (!asImpulseTracker && (module.madeByModPlug && module.modPlug.pitchesArePeriods || module.byModPlugOne || module.schismPeriods))
         oldFilterSwing = module.modPlug.oldFilterSwing

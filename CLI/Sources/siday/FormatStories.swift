@@ -2505,6 +2505,21 @@ note. Of 131 files to hand whose sound that changes in libopenmpt, 44 are nearer
 that had no filter, Impulse Tracker before 2.14 or ModPlug Tracker 1.0 before its sixth alpha, Zxx
 is nothing, as it was to them (six files to hand have it, and one sounds different for it).
 
+Panbrello is OpenMPT's own in such a file too: ProTracker's wave again, at twice the depth. In
+OpenMPT's own way, as in a Schism Tracker's before 9 March 2024, the note is back where it was once
+the panbrello's rows are over, where Impulse Tracker leaves it where the last tick put it; and a
+random panbrello takes a new place every tick (in a Schism Tracker's until 19 October 2023). Of the
+317 files to hand whose panbrello that changes, 76 are nearer libopenmpt and 10 further, and where
+their sound sits between the speakers is as like libopenmpt's as 0.985 for the middle one, where it
+was 0.974. And the place a note's instrument or sample gives it is the channel's from then on, for
+the notes after it that are given none, as ModPlug Tracker had it, and OpenMPT until 1.29 and Schism
+Tracker until 2 May 2021; Impulse Tracker puts the channel back where it was. With that come the
+other ways of OpenMPT's own that an MPTM file was already played with: an instrument named with no
+note starts nothing, and a note that is playing goes over to its sample; SCx turns a note down to
+nothing and leaves it playing; Qxy and Ixy are counted as OpenMPT counts them; and a slide to a note
+that would take another sample starts the note instead. Of 300 files of those two trackers taken at
+random, 24 sound different for all that, 10 nearer libopenmpt and 1 further.
+
 And an older OpenMPT meant something else by four of a file's numbers, which it changes when it
 reads such a file, so that the file sounds as it did. A sample's own vibrato that says nought for
 how fast it comes in comes in at once, in a file from before 1.20: to Impulse Tracker nought is

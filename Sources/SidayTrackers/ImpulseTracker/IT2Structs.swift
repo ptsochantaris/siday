@@ -190,6 +190,10 @@ struct IT2HostChannel {
     /// jumped out of is not one that is being counted now. See `IT2Player.rowIsRead`.)
     var PattLoopStay: UInt32 = 0
     var PanbrelloWaveform: UInt8 = 0, PanbrelloPos: UInt8 = 0, PanbrelloDepth: UInt8 = 0, PanbrelloSpeed: UInt8 = 0, LastPanbrelloData: UInt8 = 0
+    /// True if panbrello has moved the note from its place on this row, where the place is not
+    /// kept once the rows of panbrello are over (see `IT2Player.panbrelloHolds`). (Not Impulse
+    /// Tracker's.)
+    var PanbrelloMoved = false
     var LastVibratoData: Int8 = 0, LastTremoloData: Int8 = 0
     var ChnPan: UInt8 = 0, ChnVol: UInt8 = 0
     var VolSlideDelta: Int8 = 0

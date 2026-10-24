@@ -115,8 +115,13 @@ final class IT2Module {
     /// it), or ModPlug Tracker 1.0 before its sixth alpha.
     let hadNoFilter: Bool
     /// True for a file of a Schism Tracker that kept a note's pitch as a period, as OpenMPT knows one by
-    /// the day the file says it was made (see `schismKeptPeriods`).
+    /// the day the file says it was made: before 29 January 2015, or before 2 May 2021 for a song
+    /// without linear slides.
     let schismPeriods: Bool
+    /// For a file of Schism Tracker's, the day it says it was made, as Schism Tracker counts days
+    /// (see `schismDay`): what Schism Tracker played otherwise than Impulse Tracker went on changing,
+    /// and OpenMPT plays a file of it as the Schism Tracker of that day did.
+    let schismMade: Int?
     /// True for a file that says ModPlug Tracker or OpenMPT made it. Those trackers played some
     /// things otherwise than Impulse Tracker, and a file of theirs is played as they played it
     /// where that is known to matter: an instrument with a MIDI channel plays its sample.
@@ -177,6 +182,8 @@ final class IT2Module {
         /// True if vibrato, tremolo and a sample's own vibrato are Impulse Tracker's; false for
         /// OpenMPT's own, which are ProTracker's waves of 64 steps (see `IT2Player.ownVibrato`).
         var itVibrato = true
+        /// The ways that are followed alike for an MPTM file.
+        var ways = OpenMPTWays()
 
         init() {}
 
@@ -189,6 +196,10 @@ final class IT2Module {
             func asks(_ behaviour: Int, since: Int) -> Bool {
                 if listed(Self.compatiblePlay), savedWith < 0x0126_0000 { return savedWith >= since || savedWith == since & 0x7FFF_0000 }
                 return listed(behaviour)
+            }
+            /// (One that "compatible play" stood for, from the version of OpenMPT that brought it in.)
+            func asks(_ behaviour: Int) -> Bool {
+                asks(behaviour, since: Self.compatiblePlayWays.first { $0.behaviour == behaviour }?.since ?? 0x7FFF_FFFF)
             }
             filter = !asks(Self.filterBehaviour, since: 0x0120_0035) ? .openMPTs : wideRange ? .openMPTsCurve : .impulseTrackers
             oldFilterSwing = listed(Self.oldSwing)
@@ -206,6 +217,7 @@ final class IT2Module {
             }
             pitchesArePeriods = !hertz
             itVibrato = asks(Self.itVibrato, since: 0x0117_0302)
+            ways = OpenMPTWays { asks($0) }
         }
 
         /// OpenMPT's numbers for the ways of playing that are looked at: "compatible play", its
@@ -214,6 +226,19 @@ final class IT2Module {
         /// the filter, and with a place for a channel in surround.
         static let compatiblePlay = 0, oldSwing = 1, envelopeReset = 19, portamentoInstrument = 32, filterBehaviour = 36
         static let panOverride = 10, noSurroundPan = 37, periodsAreHertz = 7, itVibrato = 21
+
+        /// The ways of playing that "compatible play" stood for until OpenMPT 1.26, each with the
+        /// version that brought it in, as OpenMPT gives them to a file saved before then.
+        static let compatiblePlayWays: [(behaviour: Int, since: Int)] = [
+            (8, 0x0117_0302), (9, 0x0117_0302), (10, 0x0117_0302), (11, 0x0117_0246), (12, 0x0117_0249), (13, 0x0117_0249),
+            (14, 0x0117_0249), (15, 0x0117_0249), (16, 0x0117_0249), (17, 0x0117_0249), (18, 0x0117_0251), (19, 0x0117_0251),
+            (20, 0x0117_0252), (21, 0x0117_0302), (22, 0x0117_0302), (23, 0x0117_0302), (24, 0x0117_0302), (25, 0x0117_0302),
+            (26, 0x0117_0302), (27, 0x0117_0302), (28, 0x0118_0000), (29, 0x0118_0000), (30, 0x0118_0001), (31, 0x0118_0100),
+            (32, 0x0119_0001), (33, 0x0119_0021), (34, 0x0119_0030), (35, 0x0120_0014), (36, 0x0120_0035), (37, 0x0120_0053),
+            (38, 0x0120_0054), (39, 0x0120_0056), (88, 0x0120_0076), (40, 0x0120_0206), (41, 0x0121_0116), (42, 0x0121_0125),
+            (43, 0x0121_0125), (44, 0x0122_0709), (45, 0x0122_0719), (46, 0x0123_0403), (47, 0x0124_0106), (48, 0x0124_0106),
+            (49, 0x0125_0019),
+        ]
     }
 
     let modPlug: ModPlugWays
@@ -420,7 +445,8 @@ final class IT2Module {
         byModPlugOne = Self.byModPlugOne(data)
         // (ModPlug Tracker 1.0's betas said where the rows to highlight were, or kept a history.)
         hadNoFilter = !openMPT && (Cwtv < 0x0214 && Cmwt < 0x0214 || byModPlugOne && Special & 6 == 0)
-        schismPeriods = !openMPT && Self.schismKeptPeriods(data, linearSlides: Flags & ITF_LINEAR_FRQ != 0)
+        schismMade = openMPT ? nil : Self.schismMade(data)
+        schismPeriods = schismMade.map { $0 < Self.schismDay(2015, 1, 29) || $0 < Self.schismDay(2021, 5, 2) && Flags & ITF_LINEAR_FRQ == 0 } ?? false
         // A title is in the letters of the system its tracker ran on: DOS, or for ModPlug Tracker, Windows.
         title = ByteReader(data).encoded(at: 4, length: 25, as: madeWith.utf8.starts(with: "ModPlug".utf8) || madeWith.utf8.starts(with: "OpenMPT".utf8) ? .windows1252 : .dos)
 
@@ -859,6 +885,7 @@ final class IT2Module {
         byModPlugOne = false
         hadNoFilter = false
         schismPeriods = false
+        schismMade = nil
         let room = longList ? max(Self.MAX_ORDERS, orders.count + 1) : Self.MAX_ORDERS
         var Orders = [UInt8](repeating: 255, count: room)
         for i in 0 ..< min(orders.count, room) { Orders[i] = orders[i] }
@@ -908,6 +935,7 @@ final class IT2Module {
         byModPlugOne = false
         hadNoFilter = false
         schismPeriods = false
+        schismMade = nil
         var Orders = [UInt8](repeating: 255, count: max(Self.MAX_ORDERS, orders.count + 1))
         for i in orders.indices { Orders[i] = orders[i] }
         self.Orders = Orders
@@ -1450,23 +1478,22 @@ final class IT2Module {
         return firstPattern != 0 && firstPattern < firstSample
     }
 
-    /// True for a file of Schism Tracker's from before it kept pitches in Hertz: before 29 January
-    /// 2015, or before 2 May 2021 for a song without linear slides. A Schism Tracker says the day it
-    /// was made in the version it writes, as days since 31 October 2009 and 0x1050 more, or, once
-    /// that would be too many, in the header's four spare bytes, with 0x1FFF as the version.
-    private static func schismKeptPeriods(_ data: [UInt8], linearSlides: Bool) -> Bool {
+    /// The day a file of Schism Tracker's says it was made, or nil for another tracker's. A Schism
+    /// Tracker says the day in the version it writes, as days since 31 October 2009 and 0x1050 more,
+    /// or, once that would be too many, in the header's four spare bytes, with 0x1FFF as the version.
+    private static func schismMade(_ data: [UInt8]) -> Int? {
         let file = ByteReader(data)
         let cwtv = file.u16le(0x28)
         // (Schism Tracker says Impulse Tracker 2.14 or later can read its files; a file that says
         // its version and no such thing is no Schism Tracker's, and OpenMPT does not take it for one.)
-        guard cwtv >> 12 == 1, file.u16le(0x2A) >= 0x0214 else { return false }
-        /// A day as Schism Tracker counts them (and OpenMPT, after it).
-        func day(_ y: Int, _ m: Int, _ d: Int) -> Int {
-            let mm = (m + 9) % 12, yy = y - mm / 10
-            return yy * 365 + yy / 4 - yy / 100 + yy / 400 + (mm * 306 + 5) / 10 + (d - 1)
-        }
-        let made = day(2009, 10, 31) + (cwtv == 0x1FFF ? (file.u16le(0x3C) | file.u16le(0x3E) << 16) : cwtv - 0x1050)
-        return made < day(2015, 1, 29) || made < day(2021, 5, 2) && !linearSlides
+        guard cwtv >> 12 == 1, file.u16le(0x2A) >= 0x0214 else { return nil }
+        return schismDay(2009, 10, 31) + (cwtv == 0x1FFF ? (file.u16le(0x3C) | file.u16le(0x3E) << 16) : cwtv - 0x1050)
+    }
+
+    /// A day as Schism Tracker counts them (and OpenMPT, after it).
+    static func schismDay(_ y: Int, _ m: Int, _ d: Int) -> Int {
+        let mm = (m + 9) % 12, yy = y - mm / 10
+        return yy * 365 + yy / 4 - yy / 100 + yy / 400 + (mm * 306 + 5) / 10 + (d - 1)
     }
 
     private static func tracker(Cwtv: UInt16, Cmwt: UInt16) -> String {

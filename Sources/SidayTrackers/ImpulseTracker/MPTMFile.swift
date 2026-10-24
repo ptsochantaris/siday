@@ -338,22 +338,7 @@ enum MPTMFile {
         static let compatiblePlay = 0, oldSwing = 1, tempoClamp = 8, tremorAsImpulseTracker = 22, offsetAsImpulseTracker = 27, legacyReleaseNode = 94
         static let jumpsEndLoops = 103, jumpsEndLoopsOld = 49, unmappedNotesDoNothing = 123
         static let fmFlexibleNoteOff = 99, fmKeepsVoiceWhenLetGo = 105, surroundIsNotMoved = 37
-        static let itVibrato = 21, periodsAreHertz = 7, instrumentWithoutNote = 11, cutStopsSample = 30
-        static let retriggerAsImpulseTracker = 23, shortSampleNotRetriggered = 38
-        static let slideKeepsSample = 32, sampleTakenPlaysFromStart = 42
-
-        /// The ways of playing that "compatible play" stood for until OpenMPT 1.26, each with the
-        /// version that brought it in, as OpenMPT gives them to a file saved before then.
-        static let compatiblePlayWays: [(behaviour: Int, since: Int)] = [
-            (8, 0x0117_0302), (9, 0x0117_0302), (10, 0x0117_0302), (11, 0x0117_0246), (12, 0x0117_0249), (13, 0x0117_0249),
-            (14, 0x0117_0249), (15, 0x0117_0249), (16, 0x0117_0249), (17, 0x0117_0249), (18, 0x0117_0251), (19, 0x0117_0251),
-            (20, 0x0117_0252), (21, 0x0117_0302), (22, 0x0117_0302), (23, 0x0117_0302), (24, 0x0117_0302), (25, 0x0117_0302),
-            (26, 0x0117_0302), (27, 0x0117_0302), (28, 0x0118_0000), (29, 0x0118_0000), (30, 0x0118_0001), (31, 0x0118_0100),
-            (32, 0x0119_0001), (33, 0x0119_0021), (34, 0x0119_0030), (35, 0x0120_0014), (36, 0x0120_0035), (37, 0x0120_0053),
-            (38, 0x0120_0054), (39, 0x0120_0056), (88, 0x0120_0076), (40, 0x0120_0206), (41, 0x0121_0116), (42, 0x0121_0125),
-            (43, 0x0121_0125), (44, 0x0122_0709), (45, 0x0122_0719), (46, 0x0123_0403), (47, 0x0124_0106), (48, 0x0124_0106),
-            (49, 0x0125_0019),
-        ]
+        static let itVibrato = 21, periodsAreHertz = 7
     }
 
     /// Half of how far an instrument's higher notes go to one side, rounded away from the middle.
@@ -712,7 +697,7 @@ enum MPTMFile {
         // "Compatible play", which until 1.26 was one switch for all of Impulse Tracker's ways together.
         let compatible = asks(Behaviour.compatiblePlay) && !(saved < 0x0117_0246 && saved != 0x0117_0000)
         if compatible, saved < 0x0126_0000 {
-            for (behaviour, since) in Behaviour.compatiblePlayWays { set(behaviour, saved >= since || saved == since & 0x7FFF_0000) }
+            for (behaviour, since) in IT2Module.ModPlugWays.compatiblePlayWays { set(behaviour, saved >= since || saved == since & 0x7FFF_0000) }
         }
         if saved < 0x0117_0000 { set(Behaviour.tempoClamp, true) }
         // (And a way of playing that came in with a later version is not one an earlier version
@@ -924,14 +909,7 @@ enum MPTMFile {
         openMPT.unmappedNotesKeepCommands = !asks(Behaviour.unmappedNotesDoNothing)
         openMPT.itVibrato = asks(Behaviour.itVibrato)
         openMPT.pitchesArePeriods = !asks(Behaviour.periodsAreHertz)
-        openMPT.instrumentAloneSwapsSample = !asks(Behaviour.instrumentWithoutNote)
-        openMPT.cutsOnlySilence = !asks(Behaviour.cutStopsSample)
-        openMPT.ownRetrigger = !asks(Behaviour.retriggerAsImpulseTracker)
-        openMPT.ownTremor = !asks(Behaviour.tremorAsImpulseTracker)
-        openMPT.retriggersEndedNotes = !asks(Behaviour.shortSampleNotRetriggered)
-        openMPT.slideTakesSample = !asks(Behaviour.slideKeepsSample)
-        openMPT.sampleTakenStartsNote = !asks(Behaviour.slideKeepsSample) && !asks(Behaviour.sampleTakenPlaysFromStart)
-        openMPT.countsStartWithNotes = !asks(Behaviour.tremorAsImpulseTracker) && !asks(Behaviour.retriggerAsImpulseTracker)
+        openMPT.ways = OpenMPTWays(asking: asks)
 
         // Each pattern's own rows to a beat and swing, where it has them.
         openMPT.patternRowsPerBeat = [UInt16](repeating: 0, count: file.patternLimit)

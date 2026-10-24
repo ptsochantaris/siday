@@ -289,6 +289,76 @@ private func asOpenMPTPlays(_ file: [UInt8], version: UInt8) -> [UInt8] {
     #expect(try !inSurround(byModPlugTracker(it(row: [0x81, 0x0B, 60, 1, 24, 0xC0], pan: 100))))
 }
 
+@Test func itFromModPlugPlaysPanbrelloAsOpenMPTDid() throws {
+    // Y84, a slow and shallow panbrello, on the note's row, and nothing on the row after. Rows are
+    // six ticks of 960 samples.
+    var options = LoadOptions()
+    options.stereo = .abc
+    func balance(_ file: [UInt8], _ samples: Range<Int>) throws -> Float {
+        let sound = stereo(try TuneLoader.load(file, format: .it, options: options), seconds: 0.25)
+        return loudness(sound.right[samples]) / loudness(sound.left[samples])
+    }
+    let file = it(row: [0x81, 0x0B, 60, 1, 25, 0x84])
+    let lastTick = 4900 ..< 5700, nextRow = 6500 ..< 11000
+    // Impulse Tracker's wave moves it to the right, and it is left there.
+    let itsOwn = try balance(file, lastTick)
+    #expect(itsOwn > 1.15)
+    #expect(try abs(balance(file, nextRow) - itsOwn) < 0.05)
+    // OpenMPT's own, in ModPlug Tracker's file, moves it further, and only for the row.
+    #expect(try balance(byModPlugTracker(file), lastTick) > itsOwn * 1.15)
+    #expect(try abs(balance(byModPlugTracker(file), nextRow) - 1) < 0.02)
+    // An older Schism Tracker's has Impulse Tracker's wave, but did not leave it there either.
+    var bySchism = file
+    bySchism[0x28 ... 0x2B] = [0x75, 0x17, 0x14, 0x02]
+    #expect(try abs(balance(bySchism, lastTick) - itsOwn) < 0.02)
+    #expect(try abs(balance(bySchism, nextRow) - 1) < 0.02)
+}
+
+/// The file played with instruments, each of which plays its one sample, and puts its notes at its
+/// place (of 64) if it has one.
+private func withInstruments(_ file: [UInt8], pans: [UInt8?]) -> [UInt8] {
+    var file = file
+    func number(_ at: Int) -> Int { Int(file[at]) | Int(file[at + 1]) << 8 | Int(file[at + 2]) << 16 | Int(file[at + 3]) << 24 }
+    let tables = 0xC0 + Int(file[0x20]), samples = Int(file[0x24]), patterns = Int(file[0x26])
+    // (Every place in the file moves on by the instruments' own.)
+    let moved = pans.count * 4
+    for i in 0 ..< samples + patterns { file[tables + i * 4 ..< tables + i * 4 + 4] = long(number(tables + i * 4) + moved)[...] }
+    for i in 0 ..< samples {
+        let header = number(tables + i * 4)
+        file[header + 0x48 ..< header + 0x4C] = long(number(header + 0x48) + moved)[...]
+    }
+    file.insert(contentsOf: [UInt8](repeating: 0, count: moved), at: tables)
+    file[0x22 ... 0x23] = word(pans.count)[...]
+    file[0x2C] |= 4
+    for (index, pan) in pans.enumerated() {
+        file[tables + index * 4 ..< tables + index * 4 + 4] = long(file.count)[...]
+        var instrument = Array("IMPI".utf8) + [UInt8](repeating: 0, count: 16) + word(0) + [0, 60, 128, pan ?? 0xA0, 0, 0] + word(0x0214) + [1, 0]
+        instrument += [UInt8](repeating: 0, count: 26) + [0, 0, 0, 0xFF] + word(0xFFFF)
+        for note in 0 ..< 120 { instrument += [UInt8(note), UInt8(samples)] }
+        file += padded(instrument, to: 554)
+    }
+    return file
+}
+
+@Test func itFromModPlugLeavesAChannelWhereAnInstrumentPutsIt() throws {
+    // The first instrument puts its note to the left; the second, on the row after, has no place,
+    // and its note is where the channel is.
+    var options = LoadOptions()
+    options.stereo = .abc
+    func balance(_ file: [UInt8]) throws -> Float {
+        let sound = stereo(try TuneLoader.load(file, format: .it, options: options), seconds: 0.25)
+        return loudness(sound.right[6500 ..< 11000]) / loudness(sound.left[6500 ..< 11000])
+    }
+    let file = withInstruments(it(row: [0x81, 0x03, 60, 1, 0, 0x81, 0x03, 60, 2]), pans: [0, nil])
+    // In Impulse Tracker the channel is back in the middle for it.
+    #expect(try abs(balance(file) - 1) < 0.02)
+    // In ModPlug Tracker, and an older Schism Tracker, it is left where the first put it.
+    #expect(try balance(byModPlugTracker(file)) < 0.05)
+    var bySchism = file
+    bySchism[0x28 ... 0x2B] = [0x75, 0x17, 0x14, 0x02]
+    #expect(try balance(bySchism) < 0.05)
+}
+
 @Test func itFromModPlugStartsANoteWithNoFilterAfterS9D() throws {
     // Z08 closes the first channel's filter on its first note, and the note on the row after
     // begins with it closed; after S9D, on the second channel, it begins with none.

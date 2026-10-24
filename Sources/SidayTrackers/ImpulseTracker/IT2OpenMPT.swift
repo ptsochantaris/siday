@@ -8,6 +8,56 @@
 
 import SidayFoundation
 
+/// Ways in which OpenMPT plays a file otherwise than Impulse Tracker unless the file asks for Impulse
+/// Tracker's, by OpenMPT's numbers for them, that are followed alike for an MPTM file (see
+/// `OpenMPTSong.ways`), an IT file of ModPlug Tracker's or OpenMPT's (see `IT2Module.ModPlugWays`),
+/// and one of an older Schism Tracker's, which had some of them (see `IT2Player.ways`). Each is
+/// false for Impulse Tracker's way.
+struct OpenMPTWays {
+    /// True if an instrument named on a row with no note starts nothing, and a note that is
+    /// playing goes over to its sample where it is (see `openMPTInstrumentAlone`; switch 11).
+    var instrumentAloneSwapsSample = false
+    /// True if SCx (and :xy) turns a note down to nothing and leaves it playing (switch 30), where
+    /// Impulse Tracker stops it.
+    var cutsOnlySilence = false
+    /// True if Qxy and Ixy are OpenMPT's own (see `openMPTRetrigger` and `openMPTTremor`; switches
+    /// 23 and 22); and if a note is struck again even once its sample has ended, as Impulse
+    /// Tracker's is not (switch 38). And true if their counts start again with every note, as they
+    /// do when the file asks for neither.
+    var ownRetrigger = false, ownTremor = false, retriggersEndedNotes = false, countsStartWithNotes = false
+    /// True if a slide to a note with "compatible Gxx" takes the sample the row's instrument has for
+    /// the note, where Impulse Tracker keeps the one playing (switch 32); and true if then the note
+    /// is not slid to but started, unless the file asks for the new sample to be played from its
+    /// start (switch 42).
+    var slideTakesSample = false, sampleTakenStartsNote = false
+    /// True if the place an instrument or a sample gives a note is the channel's from then on, for
+    /// the notes after it that are given none (switch 102, since 1.29.00.22). Impulse Tracker puts
+    /// the channel back where it was at the next note.
+    var notesPlaceTheChannel = false
+    /// True if the place panbrello moves a note to is not kept once the rows of panbrello are over
+    /// (switch 47), where Impulse Tracker keeps it until another note or place; and true if random
+    /// panbrello has a new place each tick (switch 45), where Impulse Tracker keeps each for as many
+    /// ticks as its speed.
+    var panbrelloLetsGo = false, randomPanbrelloMoves = false
+
+    init() {}
+
+    /// The ways of a file that asks for each of Impulse Tracker's that `asks` says it asks for.
+    init(asking asks: (Int) -> Bool) {
+        instrumentAloneSwapsSample = !asks(11)
+        cutsOnlySilence = !asks(30)
+        ownRetrigger = !asks(23)
+        ownTremor = !asks(22)
+        retriggersEndedNotes = !asks(38)
+        countsStartWithNotes = !asks(22) && !asks(23)
+        slideTakesSample = !asks(32)
+        sampleTakenStartsNote = !asks(32) && !asks(42)
+        notesPlaceTheChannel = !asks(102)
+        panbrelloLetsGo = !asks(47)
+        randomPanbrelloMoves = !asks(45)
+    }
+}
+
 /// What an MPTM file says of its song that an IT file has no way to say, and that Impulse Tracker's
 /// replayer has been given the means to play. See `MPTMFile`.
 ///
@@ -81,23 +131,8 @@ struct OpenMPTSong {
     /// a song with linear slides and before 1.30 for one without, and keeps it still for a file
     /// made then: see `IT2Periods.swift`. False for one in Hertz, as Impulse Tracker keeps it.
     var pitchesArePeriods = false
-    /// True if an instrument named on a row with no note starts nothing, and a note that is
-    /// playing goes over to its sample where it is (see `openMPTInstrumentAlone`), as OpenMPT has it
-    /// for a file that does not ask for Impulse Tracker's way (switch 11).
-    var instrumentAloneSwapsSample = false
-    /// True if SCx (and :xy) turns a note down to nothing and leaves it playing, as OpenMPT has it
-    /// for a file that does not ask for Impulse Tracker's way (switch 30), which stops it.
-    var cutsOnlySilence = false
-    /// True if Qxy and Ixy are OpenMPT's own (see `openMPTRetrigger` and `openMPTTremor`), for a
-    /// file that does not ask for Impulse Tracker's (switches 23 and 22); and if a note is struck
-    /// again even once its sample has ended, as Impulse Tracker's is not (switch 38). And true if
-    /// their counts start again with every note, as they do when the file asks for neither.
-    var ownRetrigger = false, ownTremor = false, retriggersEndedNotes = false, countsStartWithNotes = false
-    /// True if a slide to a note with "compatible Gxx" takes the sample the row's instrument has for
-    /// the note, where Impulse Tracker keeps the one playing, as OpenMPT has it for a file that does
-    /// not ask for Impulse Tracker's way (switch 32); and true if then the note is not slid to but
-    /// started, unless the file asks for the new sample to be played from its start (switch 42).
-    var slideTakesSample = false, sampleTakenStartsNote = false
+    /// Those of OpenMPT's own ways that the file asks for, which are followed for an IT file too.
+    var ways = OpenMPTWays()
     /// True if a voice to one side of the middle is no louder on its nearer side than one in the
     /// middle is on both, and only quieter on its further one: OpenMPT's way since its version 1.17
     /// ("soft panning"). Impulse Tracker's, which OpenMPT also has, makes the nearer side louder.
@@ -244,7 +279,7 @@ extension IT2Player {
     /// `OpenMPTSong.slideTakesSample`): the row names an instrument, and a note whose sample is not
     /// the one playing.
     func openMPTSlideTakesSample(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) -> Bool {
-        guard module.openMPT?.slideTakesSample == true, module.Flags & ITF_COMPAT_GXX != 0 else { return false }
+        guard ways.slideTakesSample, module.Flags & ITF_COMPAT_GXX != 0 else { return false }
         let mask = hc.pointee.NotePackMask
         return mask & 0x22 != 0 && mask & 0x11 != 0 && hc.pointee.TranslatedNote < 120 && hc.pointee.Smp > 0 && hc.pointee.Smp != midiSample
             && hc.pointee.Smp - 1 != sc.pointee.Smp
@@ -253,7 +288,7 @@ extension IT2Player {
     /// True if a slide to a note on this row is no slide, but the note started, as OpenMPT has it
     /// where the slide would take another sample and the file asks for neither switch.
     func openMPTSlideStartsNote(_ hc: IT2HostPointer) -> Bool {
-        guard module.openMPT?.sampleTakenStartsNote == true, let sc = hc.pointee.SlaveChnPtr else { return false }
+        guard ways.sampleTakenStartsNote, let sc = hc.pointee.SlaveChnPtr else { return false }
         return openMPTSlideTakesSample(hc, sc)
     }
 
@@ -261,7 +296,7 @@ extension IT2Player {
     /// one too, as on the rest (see `openMPTRetrigger`). If a note is to be struck again after its
     /// sample has ended, it is counted for while the channel is silent too.
     func openMPTInitRetrigger(_ hc: IT2HostPointer) {
-        let endedToo = module.openMPT?.retriggersEndedNotes == true
+        let endedToo = ways.retriggersEndedNotes
         guard hc.pointee.Flags & HF_CHAN_ON != 0 || endedToo else { return }
         hc.pointee.Flags |= endedToo ? HF_ALWAYS_UPDATE_EFX : HF_UPDATE_EFX_IF_CHAN_ON
         openMPTRetrigger(hc)
@@ -273,7 +308,7 @@ extension IT2Player {
     func openMPTRetrigger(_ hc: IT2HostPointer) {
         let speed = max(1, Int(hc.pointee.EfxMem_Q & 0x0F)), count = hc.pointee.RetrigCount
         let playing = hc.pointee.Flags & HF_CHAN_ON != 0
-        guard playing || module.openMPT?.retriggersEndedNotes == true else { return }
+        guard playing || ways.retriggersEndedNotes else { return }
         if count != 0, Int(count) % speed == 0 {
             if playing { retrigger(hc) } else { openMPTRestrike(hc) }
         }
@@ -383,7 +418,7 @@ extension IT2Player {
                     sc.pointee.Frac64 = 0
                 }
                 GetLoopInformation(sc)
-                if module.openMPT?.itVibrato == true {
+                if !ownVibrato {
                     sc.pointee.AutoVibratoDepth = 0
                     sc.pointee.AutoVibratoPos = 0
                 }
@@ -410,7 +445,7 @@ extension IT2Player {
         let sliding = slides && hc.pointee.Flags & HF_CHAN_ON != 0 && !openMPTSlideStartsNote(hc)
         if mask & 0x22 != 0, hc.pointee.Bend != 0, !sliding || hc.pointee.SlaveChnPtr?.pointee.Ins != hc.pointee.Ins { hc.pointee.Bend = 0 }
         if mask & 0x11 != 0, hc.pointee.RawNote < 120, !sliding {
-            if module.openMPT?.countsStartWithNotes == true {
+            if ways.countsStartWithNotes {
                 hc.pointee.RetrigCount = 0
                 hc.pointee.TremorCount = 0
             }
@@ -427,15 +462,21 @@ extension IT2Player {
         }
     }
 
-    /// What `openMPTRow` does of vibrato, for an IT file of ModPlug Tracker's or OpenMPT's with
-    /// OpenMPT's own vibrato (see `IT2Player.ownVibrato`): a note that is not slid to starts the
-    /// vibrato's wave a quarter of the way along (but at its start, with "old effects"), and the
-    /// tremolo's at its start.
-    func ownVibratoRow(_ hc: IT2HostPointer) {
+    /// What `openMPTRow` does, of what is followed for an IT file of ModPlug Tracker's or OpenMPT's
+    /// (see `IT2Player.ways`): a note that is not slid to starts the counts of Qxy and Ixy again, if
+    /// the file asks for that (`OpenMPTWays.countsStartWithNotes`); and with OpenMPT's own vibrato
+    /// (see `IT2Player.ownVibrato`), it starts the vibrato's wave a quarter of the way along (but at
+    /// its start, with "old effects"), and the tremolo's at its start.
+    func modPlugRow(_ hc: IT2HostPointer) {
         let mask = hc.pointee.NotePackMask
         guard mask & 0x11 != 0, hc.pointee.RawNote < 120 else { return }
         let slides = mask & 0x88 != 0 && (hc.pointee.Cmd == 7 || hc.pointee.Cmd == 12) || mask & 0x44 != 0 && hc.pointee.RawVolColumn >= 193 && hc.pointee.RawVolColumn <= 202
-        if slides, hc.pointee.Flags & HF_CHAN_ON != 0 { return }
+        if slides, hc.pointee.Flags & HF_CHAN_ON != 0, !openMPTSlideStartsNote(hc) { return }
+        if ways.countsStartWithNotes {
+            hc.pointee.RetrigCount = 0
+            hc.pointee.TremorCount = 0
+        }
+        guard ownVibrato else { return }
         hc.pointee.OpenMPTVibratoPos = module.Flags & ITF_OLD_EFFECTS != 0 ? 0 : 0x10
         hc.pointee.OpenMPTTremoloPos = 0
     }
@@ -849,6 +890,47 @@ extension IT2Player {
         // (Its depth is twice the replayer's.)
         let volume = max(0, min(256, Int(sc.pointee.Vol) * 4 + wave * Int(hc.pointee.TremoloDepth) * 2 / 64))
         sc.pointee.Vol = UInt8((volume + 2) / 4)
+    }
+
+    /// A tick of panbrello in such a file, OpenMPT's own way: ProTracker's wave again, read a sixteenth
+    /// of the way on from where the replayer's would be, at twice its depth (OpenMPT counts four places
+    /// between the speakers to each of the replayer's, and the place is rounded to the nearest); and
+    /// it is over with the row (see `panbrelloOver`).
+    func openMPTOwnPanbrello(_ hc: IT2HostPointer, _ sc: IT2SlavePointer) {
+        hc.pointee.PanbrelloMoved = true
+        let position = (Int(hc.pointee.PanbrelloPos) + 0x10) >> 2 & 0x3F
+        var wave: Int
+        switch hc.pointee.PanbrelloWaveform & 3 {
+        case 1: wave = (position < 32 ? 0 : 255) - position * 4
+        case 2: wave = position < 32 ? 127 : -127
+        case 3: wave = Int(openMPTRandomWave[position])
+        default: wave = Int(openMPTSineWave[position])
+        }
+        if !ways.randomPanbrelloMoves, hc.pointee.PanbrelloWaveform == 3 {
+            // (A random place is kept for as many ticks as the speed.)
+            if hc.pointee.PanbrelloPos == 0 || hc.pointee.PanbrelloPos >= hc.pointee.PanbrelloSpeed {
+                hc.pointee.PanbrelloPos = 0
+                hc.pointee.LastPanbrelloData = UInt8(bitPattern: Int8(truncatingIfNeeded: wave))
+            }
+            hc.pointee.PanbrelloPos &+= 1
+            wave = Int(Int8(bitPattern: hc.pointee.LastPanbrelloData))
+        } else {
+            hc.pointee.PanbrelloPos &+= hc.pointee.PanbrelloSpeed
+        }
+        guard wave != 0, sc.pointee.PanSet != PAN_SURROUND else { return }
+        let depth = Int(hc.pointee.PanbrelloDepth >> 1)
+        let pan = max(0, min(256, Int(sc.pointee.PanSet) * 4 + (wave * depth + 2) / 8))
+        sc.pointee.Pan = UInt8((pan + 2) / 4)
+        sc.pointee.Flags |= SF_RECALC_PAN
+    }
+
+    /// At a row after one of panbrello, in a file where the place it moves a note to is not kept (see
+    /// `IT2Player.panbrelloHolds`): the note goes back to where it was put.
+    func panbrelloOver(_ hc: IT2HostPointer) {
+        hc.pointee.PanbrelloMoved = false
+        guard hc.pointee.Flags & HF_CHAN_ON != 0, let sc = hc.pointee.SlaveChnPtr, sc.pointee.PanSet != PAN_SURROUND else { return }
+        sc.pointee.Pan = sc.pointee.PanSet
+        sc.pointee.Flags |= SF_RECALC_PAN
     }
 
     /// A tick of a sample's own vibrato in such a file, as OpenMPT has it: it comes in by twice

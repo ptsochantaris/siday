@@ -471,7 +471,7 @@ extension IT2Player {
         }
 
         // (In an MPTM file, an instrument alone may start nothing at all: see `openMPTInstrumentAlone`.)
-        if module.openMPT?.instrumentAloneSwapsSample == true, hc.pointee.NotePackMask & 0x11 == 0 {
+        if ways.instrumentAloneSwapsSample, hc.pointee.NotePackMask & 0x11 == 0 {
             openMPTInstrumentAlone(hc, hcFlags)
             return
         }
@@ -871,7 +871,7 @@ extension IT2Player {
         let CmdVal = hc.pointee.CmdVal
         if CmdVal > 0 { hc.pointee.EfxMem_I = CmdVal }
 
-        if module.openMPT?.ownTremor == true {
+        if ways.ownTremor {
             guard hc.pointee.Flags & HF_CHAN_ON != 0 else { return }
             hc.pointee.Flags |= HF_UPDATE_EFX_IF_CHAN_ON
             return openMPTTremor(hc)
@@ -1060,7 +1060,7 @@ extension IT2Player {
         InitNoCommand(hc)
 
         if hc.pointee.CmdVal > 0 { hc.pointee.EfxMem_Q = hc.pointee.CmdVal }
-        if module.openMPT?.ownRetrigger == true { return openMPTInitRetrigger(hc) }
+        if ways.ownRetrigger { return openMPTInitRetrigger(hc) }
 
         if hc.pointee.Flags & HF_CHAN_ON == 0 { return }
 
@@ -1130,7 +1130,10 @@ extension IT2Player {
             InitNoCommand(hc)
 
         case 0x50: // of panbrello
-            if val <= 3 {
+            if ownVibrato {
+                // (OpenMPT's own way takes any, and goes on from where the wave was.)
+                if val <= 7 { hc.pointee.PanbrelloWaveform = val }
+            } else if val <= 3 {
                 hc.pointee.PanbrelloWaveform = val
                 hc.pointee.PanbrelloPos = 0
             }
@@ -1578,7 +1581,7 @@ extension IT2Player {
     }
 
     func CommandI(_ hc: IT2HostPointer) {
-        if module.openMPT?.ownTremor == true { return openMPTTremor(hc) }
+        if ways.ownTremor { return openMPTTremor(hc) }
         guard let sc = hc.pointee.SlaveChnPtr else { return }
         sc.pointee.Flags |= SF_RECALC_VOL
 
@@ -1669,7 +1672,7 @@ extension IT2Player {
     }
 
     func CommandQ(_ hc: IT2HostPointer) {
-        if module.openMPT?.ownRetrigger == true { return openMPTRetrigger(hc) }
+        if ways.ownRetrigger { return openMPTRetrigger(hc) }
         hc.pointee.RetrigCount &-= 1
         if Int8(bitPattern: hc.pointee.RetrigCount) > 0 { return }
 
@@ -1709,7 +1712,7 @@ extension IT2Player {
 
         sc.pointee.Flags |= SF_UPDATE_MIXERVOL | SF_NEW_NOTE | SF_LOOP_CHANGED
         if module.playsAsSymphonie { sc.pointee.Paused = false }
-        if module.openMPT?.ownRetrigger == true {
+        if ways.ownRetrigger {
             // (OpenMPT's own strikes the note anew, and with instruments at its own pitch, not where
             // a slide has taken it.)
             if module.Flags & ITF_INSTR_MODE != 0, hc.pointee.TranslatedNote < 120, sc.pointee.InsPtr?.Tuning == nil {
@@ -1811,7 +1814,7 @@ extension IT2Player {
 
             hc.pointee.Flags &= ~(HF_UPDATE_EFX_IF_CHAN_ON | HF_ALWAYS_UPDATE_EFX)
             if tunings { openMPTTunedRow(hc) }
-            if module.openMPT != nil { openMPTRow(hc) } else if ownVibrato { ownVibratoRow(hc) }
+            if module.openMPT != nil { openMPTRow(hc) } else if ownVibrato || ways.countsStartWithNotes { modPlugRow(hc) }
             if module.playsAsXTracker { xTrackerRow(hc) }
             InitNoCommand(hc)
             hc.pointee.Flags |= HF_ROW_UPDATED
@@ -1829,7 +1832,7 @@ extension IT2Player {
 
             // (Digitrakker's cut turns the note down, and it plays on; and so does OpenMPT's own, in
             // an MPTM file that does not ask for Impulse Tracker's, switch 30.)
-            if module.playsAsDigitrakker || module.openMPT?.cutsOnlySilence == true {
+            if module.playsAsDigitrakker || ways.cutsOnlySilence {
                 hc.pointee.Flags &= ~HF_UPDATE_EFX_IF_CHAN_ON
                 silenceCut(hc)
                 return
@@ -1883,9 +1886,14 @@ extension IT2Player {
         if hc.pointee.Flags & HF_CHAN_ON == 0 { return }
 
         guard let sc = hc.pointee.SlaveChnPtr else { return }
+        if ownVibrato { return openMPTOwnPanbrello(hc, sc) }
+        if !panbrelloHolds { hc.pointee.PanbrelloMoved = true }
 
         var panData: Int8
-        if hc.pointee.PanbrelloWaveform >= 3 {
+        if hc.pointee.PanbrelloWaveform >= 3, ways.randomPanbrelloMoves {
+            // (A new place each tick.)
+            panData = Int8(truncatingIfNeeded: Int(Random() & 127) - 64)
+        } else if hc.pointee.PanbrelloWaveform >= 3 {
             // At random: the speed is how many ticks each place is kept for.
             hc.pointee.PanbrelloPos &-= 1
             if Int8(bitPattern: hc.pointee.PanbrelloPos) <= 0 {
