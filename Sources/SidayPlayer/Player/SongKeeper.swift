@@ -367,7 +367,7 @@ public final class SongKeeper {
     private func tell(plays: Bool) {
         let renderer = player.renderer
         events.append(.loaded(
-            tune: tune, plays: plays, problem: player.problem, info: plays ? renderer?.info : nil,
+            tune: tune, plays: plays, problem: player.problem, info: plays ? player.info : nil,
             songs: plays && player.subsongCount > 1 ? renderer?.songs ?? [] : [], song: player.subsong,
             length: player.length, lengthIsKnown: player.lengthIsKnown, levelKey: plays ? player.levelKey : ""
         ))

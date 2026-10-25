@@ -19,7 +19,11 @@ struct ListedTune: Identifiable, Equatable {
     var note: String
     /// Why it is not played quite as its file asks, once it has been played and found to be so.
     var shortfalls: String?
+    /// The chip it is heard as made by, once it has been played; until then the one its kind of file
+    /// most likely is (see `shownChip`).
+    var chip: SoundChip?
     var name: String { url.lastPathComponent }
+    var shownChip: SoundChip? { chip ?? TuneFormat(url: url)?.likelyChip }
     var folder: String { url.deletingLastPathComponent().lastPathComponent }
 }
 
@@ -418,6 +422,7 @@ final class PlayerModel {
         if let current, files.indices.contains(current) {
             let why = loaded.shortfalls.isEmpty ? nil : loaded.shortfalls.joined(separator: " ")
             if files[current].shortfalls != why { files[current].shortfalls = why }
+            if let chip = loaded.chips.first, files[current].chip != chip { files[current].chip = chip }
         }
         nowPlayingChanged()
     }

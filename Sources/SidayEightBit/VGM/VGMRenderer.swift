@@ -131,6 +131,18 @@ final class VGMRenderer: Renderer, ReferenceComparable {
         info.author = file.author
         info.comment = [file.game, file.date].filter { !$0.isEmpty }.joined(separator: ", ")
         info.detail = file.chipNames + (file.system.isEmpty ? "" : ", \(file.system)")
+        // (What a file for a PC has of its Sound Blaster's samples is written to a Mega Drive's DAC.)
+        info.chips = file.parts.flatMap { part -> [SoundChip] in
+            let chip: SoundChip = switch part.chip {
+            case .opl, .opl2: .opl2
+            case .opl3: .opl3
+            case .ay: .ay8910
+            case .dac: .sbPro
+            case .sn: .sn76489
+            case .saa: .saa1099
+            }
+            return part.two ? [chip, chip] : [chip]
+        }
         if file.unread { info.shortfalls.append("Some of its samples are packed in a way that is not read, and are not heard.") }
         self.info = info
     }

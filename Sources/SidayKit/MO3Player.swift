@@ -18,6 +18,8 @@ final class MO3Player: Renderer {
         info.detail = module.info.detail.isEmpty ? made : made + "; " + module.info.detail
         info.format = "MO3"
         info.shortfalls = packed.shortfalls + module.info.shortfalls
+        // (Heard on the chip the module it was made from is: a MOD's on the Amiga's.)
+        if info.chips.isEmpty { info.chips = [packed.format.likelyChip] }
         self.info = info
     }
 

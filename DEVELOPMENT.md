@@ -40,6 +40,9 @@ The repository is three Swift packages and an app.
   The Finder keeps the previews either side of the one on show and tells them nothing as you move,
   so a preview there watches its window's level to know whether it is on show. Its Info.plist is
   written by the same test as the app's.
+  A tune's picture is the chip it is heard as made by (`TuneInfo.chips`, set by a player that knows,
+  such as S3M's card or a VGM's chips, and otherwise `TuneFormat.likelyChip`), drawn in code by
+  `App/Siday/Views/ChipCard.swift`, which the extension shares.
 
 ## Building and testing
 

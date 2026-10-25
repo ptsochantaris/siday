@@ -104,6 +104,10 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         info.author = author
         info.detail = module.madeWith
         info.shortfalls = shortfalls ?? module.shortfalls()
+        // (OpenMPT's FM voices are an OPL3's; Composer 670's, the AdLib's OPL2.)
+        if module.sound?.adLib != nil {
+            info.chips = format == "C67" ? [.opl2, .sbPro] : [.gf1, .opl3]
+        }
         self.info = info
 
         // Once through each of its songs in silence, to find how long it is.

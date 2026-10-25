@@ -106,6 +106,10 @@ struct PlaylistView: View {
 
         var body: some View {
             HStack {
+                if let chip = tune.shownChip {
+                    ChipCard(chip: chip, size: 36)
+                        .accessibilityHidden(true)
+                }
                 VStack(alignment: .leading) {
                     Text(tune.name)
                         .fontWeight(playing ? .semibold : .regular)

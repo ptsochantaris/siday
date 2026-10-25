@@ -87,6 +87,7 @@ public final class PT3Source: AYFrameSource {
         info.author = mem.text(at: 0x42, length: 32)
         let header = mem.text(at: 0, length: 0x1E)
         info.detail = header.hasPrefix("Vortex") ? "Vortex Tracker II" : (header.hasPrefix("ProTracker 3.") ? "Pro Tracker 3.\(v)" : "")
+        info.chips = Array(repeating: .ay8912, count: chipCount)
         self.info = info
 
         chips = [Chip(), Chip()]

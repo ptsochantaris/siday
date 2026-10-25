@@ -71,6 +71,7 @@
 				Engine/Heard.swift,
 				Engine/SoundRing.swift,
 				Model/Display.swift,
+				Views/ChipCard.swift,
 				Views/Lamps.swift,
 			);
 			target = 5D0A00000000000000000023 /* SidayQuickLook */;

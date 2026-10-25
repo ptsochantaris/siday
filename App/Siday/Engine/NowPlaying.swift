@@ -3,12 +3,19 @@
 
 import MediaPlayer
 import SidayPlayer
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// What the system shows of the tune that is playing (on the lock screen, in Control Center, in the
 /// menu bar's Now Playing), and the controls it has for it: headphones' buttons and the keyboard's
 /// media keys among them.
 final class SystemNowPlaying {
     private let model: PlayerModel
+    private var artworkChip: SoundChip?
+    private var artwork: MPMediaItemArtwork?
 
     init(model: PlayerModel) {
         self.model = model
@@ -60,7 +67,26 @@ final class SystemNowPlaying {
         ]
         if !tune.author.isEmpty { info[MPMediaItemPropertyArtist] = tune.author }
         info[MPMediaItemPropertyAlbumTitle] = tune.songs.count > 1 ? String(localized: "\(tune.format), song \(tune.song + 1) of \(tune.songs.count)") : tune.format
+        // (The chip it is heard as made by, as its picture: made again only when the chip changes.)
+        let chip = tune.chips.first
+        if chip != artworkChip {
+            artworkChip = chip
+            artwork = chip.flatMap { ChipArt.artwork($0) }.map(Self.systemArtwork)
+        }
+        if let artwork { info[MPMediaItemPropertyArtwork] = artwork }
         center.nowPlayingInfo = info
         center.playbackState = model.paused ? .paused : model.finished ? .stopped : .playing
     }
+
+    /// The picture as the system takes it, which asks for it on a queue of its own, not the main one.
+    #if os(macOS)
+    private nonisolated static func systemArtwork(_ image: NSImage) -> MPMediaItemArtwork {
+        nonisolated(unsafe) let image = image
+        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }
+    #else
+    private nonisolated static func systemArtwork(_ image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }
+    #endif
 }

@@ -34,6 +34,13 @@ public final class TunePlayer {
     /// What tunes are heard through.
     private var style = OutputStyle.mono
     public private(set) var renderer: (any Renderer)?
+    /// What is known of the loaded tune: its player's, with the chip its kind of file is most likely
+    /// played on where the player names none.
+    public var info: TuneInfo? {
+        guard var info = renderer?.info else { return nil }
+        if info.chips.isEmpty, let format { info.chips = [format.likelyChip] }
+        return info
+    }
     private var session: TuneSession?
     private var television: Television?
     /// How the loaded tune's channels were placed when it was loaded, if that is something it has:

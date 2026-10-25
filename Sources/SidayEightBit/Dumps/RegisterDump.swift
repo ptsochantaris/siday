@@ -36,6 +36,11 @@ public final class RegisterDumpSource: AYFrameSource {
         self.interleaved = interleaved
         self.registersPerFrame = registersPerFrame
         self.loopFrame = loopFrame >= 0 && loopFrame < frames ? loopFrame : 0
+        // (A YM file is played on a YM2149, but one recorded from a Spectrum or a CPC, at its clock,
+        // is heard as their AY.)
+        if self.info.chips.isEmpty {
+            self.info.chips = [chip == .ym && (clock ?? 2_000_000) > 1_900_000 ? .ym2149 : .ay8912]
+        }
         if let clock, let frameHz {
             let chipName = chip == .ym ? "YM" : "AY"
             let summary = "\(chipName) \(significant(clock / 1_000_000, digits: 4)) MHz, \(significant(frameHz)) Hz"
@@ -74,6 +79,7 @@ public final class RegisterDumpSource: AYFrameSource {
         info.author = strings[1]
         info.comment = strings[4]
         info.detail = [strings[2], strings[3], year > 0 ? String(year) : ""].filter { !$0.isEmpty }.joined(separator: ", ")
+        info.chips = [id == "ym" ? .ym2149 : .ay8912]
         return RegisterDumpSource(info: info, data: raw, base: 0, frames: unpackedSize / 14, interleaved: true, registersPerFrame: 14,
                                   loopFrame: loop, clock: clock > 0 ? Double(clock) : nil, frameHz: rate > 0 ? Double(rate) : nil,
                                   chip: id == "ym" ? .ym : .ay)

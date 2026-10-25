@@ -49,6 +49,7 @@ final class AGIPCRenderer: Renderer {
         self.sound = sound
         info = TuneInfo(format: "AGI")
         info.detail = "PCjr and Tandy 1000"
+        info.chips = [.sn76489]
         knownLength = Double(sound.ticks) / 60
         chip = VGMSN(Self.variant, clock: Self.clock)
     }

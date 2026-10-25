@@ -64,6 +64,7 @@ public final class SIDRenderer: Renderer, SIDWriteLogging {
         info.author = file.author
         info.comment = file.released
         info.detail = [file.released, model == .mos8580 ? "8580" : "6581", ntsc ? "NTSC" : "PAL"].filter { !$0.isEmpty }.joined(separator: ", ")
+        info.chips = [model == .mos8580 ? .sid8580 : .sid6581]
         self.info = info
         select(subsong: defaultSubsong)
     }

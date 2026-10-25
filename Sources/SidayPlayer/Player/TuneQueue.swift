@@ -23,6 +23,8 @@ public struct Tune: Equatable, Sendable {
     /// What its file asks for that is not played as it asks, a sentence each: an instrument that is
     /// not heard, a command that is left out. None, for a tune that is played whole.
     public var shortfalls: [String]
+    /// The chips it is heard as made by, the one that makes the most of it first (`TuneInfo.chips`).
+    public var chips: [SoundChip]
 
     public struct Song: Equatable, Sendable {
         public var title: String
@@ -44,7 +46,8 @@ public struct Tune: Equatable, Sendable {
         }
     }
 
-    public init(format: String, title: String, author: String, detail: String, songs: [Song], song: Int, length: Double, shortfalls: [String] = []) {
+    public init(format: String, title: String, author: String, detail: String, songs: [Song], song: Int, length: Double, shortfalls: [String] = [],
+                chips: [SoundChip] = []) {
         self.format = format
         self.title = title
         self.author = author
@@ -53,12 +56,13 @@ public struct Tune: Equatable, Sendable {
         self.song = song
         self.length = length
         self.shortfalls = shortfalls
+        self.chips = chips
     }
 
     /// A tune as its engine tells of it (`SongKeeper.Event.loaded`).
     public init(_ info: TuneInfo, songs: [SongInfo], song: Int, length: Double) {
         self.init(format: info.format, title: info.title, author: info.author, detail: info.detail,
-                  songs: songs.map(Song.init), song: song, length: length, shortfalls: info.shortfalls)
+                  songs: songs.map(Song.init), song: song, length: length, shortfalls: info.shortfalls, chips: info.chips)
     }
 
     /// A tune from its details in words, as `TunePlayer.details` puts them, of a tune of `count` songs.

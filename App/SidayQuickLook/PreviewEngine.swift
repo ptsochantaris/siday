@@ -157,7 +157,7 @@ nonisolated final class PreviewEngine: @unchecked Sendable {
                     player.companions = companions
                     loaded = player.load(bytes, name: name)
                     let tune = loaded ? player.renderer.map { renderer in
-                        Tune(renderer.info, songs: player.subsongCount > 1 ? renderer.songs : [], song: player.subsong, length: player.length)
+                        Tune(player.info ?? renderer.info, songs: player.subsongCount > 1 ? renderer.songs : [], song: player.subsong, length: player.length)
                     } : nil
                     let problem = loaded ? nil : player.problem
                     shown = (0 ..< player.voiceCount).map { $0 < player.lightsAlwaysShown }

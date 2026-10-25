@@ -12,7 +12,12 @@ struct PreviewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let tune = preview.tune {
-                details(tune)
+                HStack(alignment: .top, spacing: 16) {
+                    if let chip = tune.chips.first {
+                        ChipCard(chip: chip, size: 88)
+                    }
+                    details(tune)
+                }
                 if !tune.shortfalls.isEmpty { shortfalls(tune) }
                 Spacer(minLength: 0)
                 TimelineView(.animation(paused: !preview.playing)) { timeline in

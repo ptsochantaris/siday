@@ -17,6 +17,9 @@ public struct TuneInfo: Sendable {
     /// matter, and is refused (see `TuneError`). Only what the tune itself uses is said, and only
     /// what may be heard: it is known when the file is loaded, and does not change as it plays.
     public var shortfalls: [String] = []
+    /// The chips it is heard as made by, the one that makes the most of it first: set by a player
+    /// that knows better than its kind of file does (`TuneFormat.likelyChip`), and otherwise left empty.
+    public var chips: [SoundChip] = []
 
     public init(format: String) {
         self.format = format

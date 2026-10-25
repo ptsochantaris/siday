@@ -182,6 +182,11 @@ public final class S3MRenderer: Renderer, ReferenceComparable {
         info.title = title ?? module.title
         info.detail = (tracker.map { $0 + ", as Scream Tracker 3 plays it on a " } ?? "Scream Tracker 3, ")
             + (card == .gus ? "Gravis Ultrasound" : "Sound Blaster Pro") + (songList.contains { $0.adLib } ? " and AdLib" : "")
+        // (The card for its samples, and the AdLib's chip for its FM voices: a tune of FM voices alone
+        // is the chip's.)
+        let instruments = module.ins[0 ..< module.insnum]
+        let samples = instruments.contains { $0.type == 1 }, voices = songList.contains { $0.adLib }
+        info.chips = (samples || !voices ? [card == .gus ? .gf1 : .sbPro] : []) + (voices ? [.opl2] : [])
         let apart = stereoApart, stereoSentence = module.stereoSentence
         let played = card == .gus ? [module.extraChannelsSentence] : []
         info.shortfalls = shortfalls + module.shortfalls.filter { (!apart || $0 != stereoSentence) && !played.contains($0) }

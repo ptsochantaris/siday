@@ -157,7 +157,12 @@ struct NowPlaying: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let tune = model.tune {
-                Details(tune: tune)
+                HStack(alignment: .top, spacing: 16) {
+                    if let chip = tune.chips.first {
+                        ChipCard(chip: chip, size: 96)
+                    }
+                    Details(tune: tune)
+                }
                 if model.shows(.analyser) {
                     Analyser(bars: frame.bars, caps: frame.caps)
                 }

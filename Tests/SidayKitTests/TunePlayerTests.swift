@@ -64,6 +64,9 @@ func squareModule() -> [UInt8] {
     #expect(player.problem == nil)
     #expect(player.format == .mod)
     #expect(player.voiceCount == 4)
+    // (Its player names no chip: it is heard as its kind of file is, on the Amiga's.)
+    #expect(player.renderer?.info.chips == [])
+    #expect(player.info?.chips == [.paula])
     let frames = 1024
     let buffer = UnsafeMutablePointer<Float>.allocate(capacity: frames * 2)
     defer { buffer.deallocate() }

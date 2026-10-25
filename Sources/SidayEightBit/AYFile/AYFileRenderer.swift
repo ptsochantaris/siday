@@ -392,6 +392,7 @@ public final class AYFileRenderer: Renderer {
         case .spectrum: info.detail = "ZX Spectrum"
         case .undetected: info.detail = beeperOnly ? "ZX Spectrum beeper" : "ZX Spectrum"
         }
+        info.chips = [kind == .undetected && beeperOnly ? .ula : .ay8912]
         if file.songs[currentSubsong].timingCorrected { info.detail += ", timing corrected" }
     }
 
