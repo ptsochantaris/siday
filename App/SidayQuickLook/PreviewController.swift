@@ -10,6 +10,7 @@ import Quartz
 /// What Quick Look asks for a preview of a tune: a view of it (see `PreviewView`).
 final class PreviewController: NSViewController, QLPreviewingController {
     private let preview = TunePreview()
+    private var level: NSKeyValueObservation?
 
     override func loadView() {
         view = NSHostingView(rootView: PreviewView(preview: preview))
@@ -18,6 +19,19 @@ final class PreviewController: NSViewController, QLPreviewingController {
 
     func preparePreviewOfFile(at url: URL) async throws {
         try preview.open(url)
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        preview.show(true)
+        // Finder keeps the previews of the files either side of the one on show, and tells a kept one
+        // nothing when it goes out of view or comes back into it; but its window is taken down from
+        // the floating level while it is out of view, and put back when it returns.
+        guard level == nil else { return }
+        level = view.window?.observe(\.level, options: [.old, .new]) { [weak self] _, change in
+            guard let old = change.oldValue, let new = change.newValue, old != new else { return }
+            MainActor.assumeIsolated { self?.preview.show(new > old) }
+        }
     }
 
     override func viewWillDisappear() {
@@ -46,6 +60,11 @@ final class PreviewController: UIViewController, QLPreviewingController {
 
     func preparePreviewOfFile(at url: URL) async throws {
         try preview.open(url)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        preview.show(true)
     }
 
     override func viewWillDisappear(_ animated: Bool) {

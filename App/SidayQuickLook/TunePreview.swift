@@ -6,9 +6,12 @@ import Observation
 import SidayFiles
 import SidayPlayer
 
-/// One tune, as a Quick Look preview has it: its details as soon as it is loaded, and its sound when
-/// play is pressed and not before, since a preview is shown whenever a file is looked at. It is played
-/// as the app plays it, with the settings as they are until changed (see `PreviewEngine`).
+/// One tune, as a Quick Look preview has it: its details as soon as it is loaded, and its sound as Quick
+/// Look plays a recording: on the Mac as soon as the preview is on show, and on iPhone and iPad once
+/// play is pressed. Quick Look makes previews of the files beside the one on show ahead of time, and
+/// keeps some after they go out of view, so a preview plays only while it is on show (see `show(_:)`),
+/// and only one plays at a time. It is played as the app plays it, with the settings as they are until
+/// changed (see `PreviewEngine`).
 @Observable final class TunePreview {
     /// What is known of the tune, once it is loaded; why it does not play, if it does not.
     private(set) var tune: Tune?
@@ -23,6 +26,16 @@ import SidayPlayer
     /// True once play has been pressed: until then, there is nothing for the lights to show.
     private(set) var started = false
 
+    /// Whether the preview is on show; and whether it is to play while it is, until the listener pauses it.
+    @ObservationIgnored private var shown = false
+    #if os(macOS)
+    @ObservationIgnored private var wanted = true
+    #else
+    @ObservationIgnored private var wanted = false
+    #endif
+    /// The preview on show, which is the only one let play.
+    private static weak var onShow: TunePreview?
+
     @ObservationIgnored private var engine: PreviewEngine?
     /// The first of the files the tune wants beside it that a preview could not read.
     @ObservationIgnored private var lacking: Companion?
@@ -30,7 +43,7 @@ import SidayPlayer
     /// (The app's pictures to listen by, of which a preview shows none.)
     @ObservationIgnored private let visualisers = Visualisers(mode: .lava)
 
-    /// Reads the file, and has the engine load it, silent until play is pressed.
+    /// Reads the file, and has the engine load it, silent until the preview is on show.
     func open(_ url: URL) throws {
         fileName = url.lastPathComponent
         let bytes = [UInt8](try Data(contentsOf: url))
@@ -55,17 +68,41 @@ import SidayPlayer
         if finished {
             finished = false
             engine.restart()
+            wanted = true
+        } else {
+            wanted = !playing
         }
-        playing.toggle()
-        started = true
-        engine.play(playing)
+        // (A preview whose button is pressed is on show, whatever it has been told.)
+        show(true)
+    }
+
+    /// The preview has come into view, or gone out of it: it plays while it is in view, and the one
+    /// that was in view before it stops.
+    func show(_ on: Bool) {
+        shown = on
+        if on {
+            if let other = Self.onShow, other !== self { other.show(false) }
+            Self.onShow = self
+        } else if Self.onShow === self {
+            Self.onShow = nil
+        }
+        settle()
     }
 
     /// Stops the sound for good: the preview is going away.
     func close() {
+        show(false)
         engine?.stop()
         engine = nil
-        playing = false
+    }
+
+    /// Plays or pauses, as being on show, the listener and the song's end have it.
+    private func settle() {
+        let play = shown && wanted && !finished && tune != nil && engine != nil
+        guard play != playing else { return }
+        playing = play
+        if play { started = true }
+        engine?.play(play)
     }
 
     /// What is shown for one frame of the screen.
@@ -82,6 +119,7 @@ import SidayPlayer
             if tune == nil, let lacking {
                 note = String(localized: "\(fileName) keeps \(lacking.what) \(Companions.whereKept(lacking)), which a preview cannot open. The app can play it.")
             }
+            settle()
         case .ended:
             playing = false
             finished = true

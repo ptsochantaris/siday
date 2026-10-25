@@ -36,8 +36,10 @@ The repository is three Swift packages and an app.
   SwiftUI. Its Quick Look extension (`App/SidayQuickLook`) previews every kind of tune the app declares
   but the recordings, which the system previews itself. It shares the app's sound ring, lamps, scopes
   and display, but not its engine: that renders each song whole and keeps it (23 MB a minute), where
-  the preview's makes the song a sixth of a second ahead of what is heard, and only once play is
-  pressed. Its Info.plist is written by the same test as the app's.
+  the preview's makes the song a sixth of a second ahead of what is heard, and only while it plays.
+  The Finder keeps the previews either side of the one on show and tells them nothing as you move,
+  so a preview there watches its window's level to know whether it is on show. Its Info.plist is
+  written by the same test as the app's.
 
 ## Building and testing
 

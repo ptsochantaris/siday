@@ -172,7 +172,8 @@ siday is also an app for macOS and iOS 26 or later, written in SwiftUI. It has w
 
 It opens every kind of file siday plays: from the Finder or the Files app, by drag and drop, or with
 Add Files and Add Folder. It keeps its list from one day to the next. In the Finder and the Files app,
-Quick Look shows a tune's details, and plays it, with its voices' lights and scopes, when you press play. Every command is in its menus,
+Quick Look shows a tune's details, and plays it with its voices' lights and scopes, as it plays a recording: at once in the Finder, and
+when you press play in the Files app. Every command is in its menus,
 each with a key. It passes the system's accessibility audit (VoiceOver labels, every text size,
 contrast). It is not yet in the App Store, but you can try the beta through
 [TestFlight](https://testflight.apple.com/join/6eXCKs3e).
