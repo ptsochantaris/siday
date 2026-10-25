@@ -83,3 +83,15 @@ func squareModule() -> [UInt8] {
     #expect(player.voicesTaken[0] > 0)
     #expect(player.voicesTaken[1] == 0)
 }
+
+@Test func aTunesChipsGoToThePageInItsDetailsAndBack() {
+    var info = TuneInfo(format: "S3M")
+    info.title = "Captured Sun"
+    info.shortfalls = ["A sentence."]
+    info.chips = [.gf1, .opl2]
+    let songs = [SongInfo(title: "", length: 1), SongInfo(title: "", length: 2)]
+    let tune = Tune(details: TunePlayer.details(of: info, songs: songs), songs: 2, song: 0, length: 1)
+    #expect(tune.chips == [.gf1, .opl2])
+    #expect(tune.shortfalls == ["A sentence."])
+    #expect(tune.songs.count == 2)
+}

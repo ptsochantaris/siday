@@ -1151,7 +1151,95 @@ document.addEventListener("pointerdown", stirred);
 document.addEventListener("fullscreenchange", stirred);
 
 // What the Swift side calls.
+// The browser's own Now Playing (a phone's lock screen, a computer's media controls): what is playing,
+// with the picture of its chip; and what its buttons, and the media keys, do. A browser without it is
+// let be. Most show it only while a media element plays, and the sound here goes through Web Audio
+// alone: so while a tune plays, so does an element of silence, over and over, beside it.
+let shownArtwork = null;
+let quiet = null;
+
+// Ten seconds of silence, as a WAV file of 8-bit samples, 8,000 a second, and an element to play it
+// over and over. (Chrome counts a sound of less than five seconds as a notification's, and shows no
+// controls for it.)
+function silence() {
+  const rate = 8000;
+  const count = rate * 10;
+  const bytes = new Uint8Array(44 + count);
+  const view = new DataView(bytes.buffer);
+  const write = (at, word) => [...word].forEach((letter, index) => (bytes[at + index] = letter.charCodeAt(0)));
+  write(0, "RIFF");
+  view.setUint32(4, 36 + count, true);
+  write(8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  write(36, "data");
+  view.setUint32(40, count, true);
+  bytes.fill(128, 44);
+  const element = new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/wav" })));
+  element.loop = true;
+  return element;
+}
+
+function nowPlaying(title, author, album, artwork, length, position, playing) {
+  const session = navigator.mediaSession;
+  if (!session) return;
+  if (title === "") {
+    quiet?.pause();
+    session.metadata = null;
+    session.playbackState = "none";
+    shownArtwork = null;
+    return;
+  }
+  // (The browser may not let it start until the listener has pressed something on the page, as with
+  // the sound itself; it is tried again the next time.)
+  if (playing) {
+    quiet ??= silence();
+    quiet.play().catch(() => {});
+  } else {
+    quiet?.pause();
+  }
+  const shown = session.metadata;
+  if (!shown || shown.title !== title || shown.artist !== author || shown.album !== album || shownArtwork !== artwork) {
+    const pictures = artwork === "" ? [] : [{ src: new URL(artwork, document.baseURI).href, sizes: "512x512", type: "image/jpeg" }];
+    session.metadata = new MediaMetadata({ title, artist: author, album, artwork: pictures });
+    shownArtwork = artwork;
+  }
+  session.playbackState = playing ? "playing" : "paused";
+  if (length > 0) {
+    try {
+      session.setPositionState({ duration: length, playbackRate: 1, position: Math.max(0, Math.min(position, length)) });
+    } catch {}
+  }
+}
+
+function mediaKeys(pressed) {
+  const session = navigator.mediaSession;
+  if (!session) return;
+  // (A browser that does not have one of these says so by throwing.)
+  const handle = (action, act) => {
+    try {
+      session.setActionHandler(action, act);
+    } catch {}
+  };
+  handle("play", () => pressed(0, 0));
+  handle("pause", () => pressed(1, 0));
+  handle("nexttrack", () => pressed(2, 0));
+  handle("previoustrack", () => pressed(3, 0));
+  handle("seekto", (details) => pressed(4, details.seekTime ?? 0));
+}
+
 Object.assign(globalThis, {
+  sidayNowPlaying(title, author, album, artwork, length, position, playing) {
+    nowPlaying(title, author, album, artwork, length, position, playing);
+  },
+  sidayMediaKeys(pressed) {
+    mediaKeys(pressed);
+  },
   sidayListen(kind, added, loaded, songs, progress, rendered, ended, held, pointed, scrolled, frame) {
     listeners = { kind, added, loaded, songs, progress, rendered, ended, held, pointed, scrolled, frame };
   },

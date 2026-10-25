@@ -41,4 +41,12 @@ fi
 # And FORMATS.md, of which the page shows the part on a format when the format's name is pressed.
 cp ../FORMATS.md generated/
 
+# And the pictures of the chips, drawn as the app draws them (see Scripts/chip-pictures.swift).
+drawer=$package/.build/chip-pictures
+mkdir -p $package/.build
+swiftc -O -parse-as-library ../Sources/SidayFoundation/TuneFormat.swift ../Sources/SidayFoundation/SoundChip.swift \
+  ../App/Siday/Views/ChipCard.swift ../Scripts/chip-pictures.swift -o $drawer
+rm -rf generated/chips
+$drawer generated/chips
+
 ls -l generated | awk 'NR > 1 { printf "%9d  generated/%s\n", $5, $NF }'

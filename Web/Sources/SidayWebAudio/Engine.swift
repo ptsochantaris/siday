@@ -87,7 +87,7 @@ private func pack(_ event: SongKeeper.Event) -> Packed {
     case let .songs(tune, songs):
         message.add(7)
         message.add(Double(tune))
-        message.add(keeper.player.renderer.map { TunePlayer.details(of: $0.info, songs: songs) } ?? "")
+        message.add(keeper.player.info.map { TunePlayer.details(of: $0, songs: songs) } ?? "")
     }
     return message
 }

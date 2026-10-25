@@ -1,7 +1,11 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+// (Also compiled on its own, with the files that say what the chips are, to draw the web player's
+// pictures of them: see Scripts/chip-pictures.swift.)
+#if canImport(SidayPlayer)
 import SidayPlayer
+#endif
 import SwiftUI
 
 /// The picture of a tune: the chip it is heard as made by, as the app's icon has its own, worn and

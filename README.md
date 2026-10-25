@@ -140,6 +140,10 @@ for whatever you drop next. Or drop the folder that holds both.
 
 Alongside the player and its list are:
 
+- **a picture of the chip each tune is made by**, beside its name in the list and in the player: the
+  SID, the AY, Paula, an OPL or the Gravis Ultrasound's GF1 among them. Your browser's own controls
+  for what is playing show it too, on a phone's lock screen or with a computer's media keys, which
+  work the player;
 - **a spectrum analyser;**
 - **a light for each voice of the tune:** red for a voice the chip makes itself, blue for one that
   plays a sample, and pink for a beeper (the loudspeaker a computer's own code clicks);

@@ -70,33 +70,41 @@ struct NowPlaying {
             Shown(player: player)
 
             if let tune = player.tune {
-                div(.class("what")) {
-                    // The format's name is a button: pressed, it tells the format's story, as
-                    // FORMATS.md has it.
-                    if let chapter = player.chapter {
-                        button(.class("format"), .title("About this format")) { tune.format }
-                            .onClick { try? sidayAbout(chapter) }
-                    } else {
-                        span(.class("format")) { tune.format }
+                // Beside its details, the picture of the chip it is heard as made by.
+                div(.class("heading")) {
+                    if let chip = tune.chips.first {
+                        img(.class("chip"), .src("generated/chips/\(chip.rawValue)-small.jpg"), .alt(chipName(chip)), .title(chipName(chip)))
                     }
-                    span(.class("title")) { tune.title.isEmpty ? fileName(player) : tune.title }
-                    if !tune.author.isEmpty {
-                        span(.class("author")) { tune.author }
+                    div(.class("details")) {
+                        div(.class("what")) {
+                            // The format's name is a button: pressed, it tells the format's story, as
+                            // FORMATS.md has it.
+                            if let chapter = player.chapter {
+                                button(.class("format"), .title("About this format")) { tune.format }
+                                    .onClick { try? sidayAbout(chapter) }
+                            } else {
+                                span(.class("format")) { tune.format }
+                            }
+                            span(.class("title")) { tune.title.isEmpty ? fileName(player) : tune.title }
+                            if !tune.author.isEmpty {
+                                span(.class("author")) { tune.author }
+                            }
+                            // A tune that is not played quite as its file asks has a small mark beside its
+                            // name, which says why when the pointer rests on it, and when it is pressed
+                            // writes it out under the details.
+                            if !tune.shortfalls.isEmpty {
+                                ShortfallMark(player: player, why: tune.shortfalls.joined(separator: " "))
+                            }
+                        }
+                        p(.class("detail")) {
+                            [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
+                                .filter { !$0.isEmpty }.joined(separator: " · ")
+                        }
+                        // What the playlist the tune came by says about it.
+                        if let note = player.note {
+                            p(.class("note")) { note }
+                        }
                     }
-                    // A tune that is not played quite as its file asks has a small mark beside its
-                    // name, which says why when the pointer rests on it, and when it is pressed
-                    // writes it out under the details.
-                    if !tune.shortfalls.isEmpty {
-                        ShortfallMark(player: player, why: tune.shortfalls.joined(separator: " "))
-                    }
-                }
-                p(.class("detail")) {
-                    [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
-                        .filter { !$0.isEmpty }.joined(separator: " · ")
-                }
-                // What the playlist the tune came by says about it.
-                if let note = player.note {
-                    p(.class("note")) { note }
                 }
                 if !tune.shortfalls.isEmpty, player.shortfallsShown {
                     p(.class("shortfalls")) {
@@ -529,6 +537,11 @@ struct Row {
         // A row says its place, for what is dropped on it from outside the page (see siday.js). Dragged
         // to another, it is dimmed, and the row it is over shows where it would go.
         li(.class(classes), .custom(name: "data-index", value: "\(index)")) {
+            // The chip its tune is heard as made by, or most likely is.
+            if let chip = player.chip(ofFile: index) {
+                img(.class("chip"), .src("generated/chips/\(chip.rawValue)-small.jpg"), .alt(""))
+                    .onClick { player.play(index) }
+            }
             div(.class("pick")) {
                 span(.class("name")) { lastComponent(player.file(at: index)) }
                 span(.class("folder")) { folder(player.file(at: index)) }
@@ -560,6 +573,27 @@ struct Row {
 }
 
 // MARK: Text
+
+/// A chip as it is known, for those who cannot see its picture.
+private func chipName(_ chip: SoundChip) -> String {
+    switch chip {
+    case .sid6581: "The SID chip, MOS 6581"
+    case .sid8580: "The SID chip, CSG 8580"
+    case .ay8912: "The AY chip, AY-3-8912"
+    case .ay8910: "The AY chip, AY-3-8910"
+    case .ym2149: "The YM chip, YM2149"
+    case .ula: "The ZX Spectrum's ULA, which drove its beeper"
+    case .pokey: "The POKEY chip"
+    case .paula: "The Amiga's Paula chip"
+    case .opl2: "The OPL2 FM chip, YM3812"
+    case .opl3: "The OPL3 FM chip, YMF262"
+    case .saa1099: "The SAA1099 chip"
+    case .sn76489: "The SN76489 chip"
+    case .gf1: "The Gravis Ultrasound's GF1 chip"
+    case .sbPro: "The Sound Blaster Pro's DSP"
+    case .dac: "A recording, played through a digital-to-analogue converter"
+    }
+}
 
 private func fileName(_ player: Player) -> String {
     player.current.map { lastComponent(player.file(at: $0)) } ?? ""

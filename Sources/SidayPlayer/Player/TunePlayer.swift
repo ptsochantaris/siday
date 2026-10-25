@@ -268,7 +268,7 @@ public final class TunePlayer {
     /// Says what the tune is in `text`.
     private func describe() {
         guard let renderer else { return }
-        text = Array(Self.details(of: renderer.info, songs: renderer.subsongCount > 1 ? renderer.songs : []).utf8)
+        text = Array(Self.details(of: info ?? renderer.info, songs: renderer.subsongCount > 1 ? renderer.songs : []).utf8)
     }
 
     /// What a tune is, in words for the page. One line each: format, title, author, detail. Then a
@@ -276,7 +276,8 @@ public final class TunePlayer {
     /// question mark while it is still to be found (`SongInfo.pending`), a tab, a 1 if there is known
     /// to be nothing in it and a 0 if not, a tab, and its name, if it has one. Then a line for each
     /// thing the file asks for that is not played as it asks (`TuneInfo.shortfalls`): an exclamation
-    /// mark, which no song's line begins with, and the sentence. The page takes them apart again.
+    /// mark, which no song's line begins with, and the sentence. Then a line for each chip it is heard
+    /// as made by (`TuneInfo.chips`): a hash and the chip's name. The page takes them apart again.
     public static func details(of info: TuneInfo, songs: [SongInfo]) -> String {
         func tidy(_ field: String) -> String { String(field.map { $0.isNewline || $0 == "\t" ? " " : $0 }) }
         var lines = [info.format, info.title, info.author, info.detail].map(tidy)
@@ -286,6 +287,7 @@ public final class TunePlayer {
             }
         }
         for shortfall in info.shortfalls { lines.append("!" + tidy(shortfall)) }
+        for chip in info.chips { lines.append("#" + chip.rawValue) }
         return lines.joined(separator: "\n")
     }
 

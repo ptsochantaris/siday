@@ -18,7 +18,8 @@ import JavaScriptKit
 ///     details one to a line (format, title, author, detail; then for a tune of several songs a line
 ///     for each: its length in milliseconds if known, a tab, its name if it has one; then a line for
 ///     each thing the file asks for that is not played as it asks: an exclamation mark and a
-///     sentence) or the reason it does not, how many songs it has, which one is playing, and its
+///     sentence; then a line for each chip it is heard as made by: a hash and the chip's name, as
+///     `SoundChip` has it) or the reason it does not, how many songs it has, which one is playing, and its
 ///     length in seconds. A song's length is a question mark while it is still being found.
 ///   - songs: it is known now how long each of the playing tune's songs is, which some were still
 ///     being played through to find: its details again, as `loaded` gave them.
@@ -92,6 +93,19 @@ func sidayFiles(
     _ gather: @escaping (String) -> String,
     _ missed: @escaping (Int, Int, String) -> Void
 ) throws(JSException)
+
+/// Tells the browser what is playing, for its own Now Playing (a phone's lock screen, a computer's
+/// media controls): the title, the author, the album's line (the format, and which song), the address
+/// of the picture of its chip (empty for none), how long the song is and where it has got to, in
+/// seconds, and whether it is playing. An empty title for nothing at all.
+@JSFunction(from: .global)
+func sidayNowPlaying(_ title: String, _ author: String, _ album: String, _ artwork: String, _ length: Double, _ position: Double, _ playing: Bool) throws(JSException)
+
+/// Hands over what the browser's media keys, and the controls of its Now Playing, do: 0 to play, 1 to
+/// pause, 2 for the next tune, 3 for the one before, and 4 to move to a place in the song, in seconds
+/// (the second number). Called once.
+@JSFunction(from: .global)
+func sidayMediaKeys(_ pressed: @escaping (Int, Double) -> Void) throws(JSException)
 
 /// Shows a picture in the canvas of class "picture": so many dots across and down, four bytes a dot
 /// (red, green, blue and 255), in rows from the top, at an address in this module's own memory.

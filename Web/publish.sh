@@ -23,6 +23,7 @@ trap 'rm -rf $site' EXIT
 cp index.html style.css siday.js engine.js worklet.js $site/
 mkdir $site/generated
 cp generated/SidayWeb.wasm generated/SidayWebAudio.wasm generated/instantiate.js generated/runtime.js generated/bridge-js.js generated/FORMATS.md $site/generated/
+cp -R generated/chips $site/generated/
 # GitHub Pages is not to run the site through Jekyll: these are the files, as they are.
 touch $site/.nojekyll
 

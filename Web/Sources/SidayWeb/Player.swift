@@ -101,6 +101,9 @@ final class Player {
     /// each keeps a mark on its row, which says why. (Only a tune that has been loaded can be known
     /// to be one, so the rest of the list has no marks, whatever is in it.)
     private(set) var marked: [Marked] = []
+    /// The chips that the tunes of the list that have been played are heard as made by, by their
+    /// files' names. (A row shows the chip its kind of file most likely is until then.)
+    private(set) var playedChips: [String: SoundChip] = [:]
     /// True while what is not played as the playing tune's file asks is written out under its
     /// details, and not only marked. It stays as it is from one tune to the next.
     private(set) var shortfallsShown = false
@@ -240,7 +243,10 @@ final class Player {
                 if length > 0 { measured(length) }
             },
             { [self] in songEnded() },
-            { [self] in paused = true },
+            { [self] in
+                paused = true
+                tellBrowser()
+            },
             { [self] place, pressed in
                 pointed = place >= 0 ? place : nil
                 if pressed, place >= 0 { seek(to: place) }
@@ -256,6 +262,15 @@ final class Player {
                 if let pixels = visualiser.pixels { try? sidayPaint(Int(bitPattern: pixels), visualiser.width, visualiser.height) }
             }
         )
+        try? sidayMediaKeys { [self] key, seconds in
+            switch key {
+            case 0: if paused || finished { togglePause() }
+            case 1: if !paused, !finished { togglePause() }
+            case 2: next()
+            case 3: previous()
+            default: if let tune, tune.length > 0 { seek(to: seconds / tune.length) }
+            }
+        }
         try? sidayFiles(
             { [self] names in
                 finding.given.add(names.split(separator: "\n").map { String($0) })
@@ -474,6 +489,16 @@ final class Player {
         find()
     }
 
+    /// The chip a row's picture is of: the one its tune is heard as made by, once it has been played,
+    /// and otherwise the one its kind of file most likely is; nil for a file of no kind that is known.
+    func chip(ofFile index: Int) -> SoundChip? {
+        let name = file(at: index)
+        if let chip = playedChips[name] { return chip }
+        let letters = Array(name.utf8)
+        guard let stop = letters.lastIndex(of: UInt8(ascii: ".")) else { return nil }
+        return TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self))?.likelyChip
+    }
+
     /// The file at a place in the list, or nothing if the list is not that long. (A row can be drawn
     /// once more, for the place it had, after a tune has been taken out and the list is shorter.)
     func file(at index: Int) -> String {
@@ -585,6 +610,7 @@ final class Player {
             rest()
             try? sidayStop()
         }
+        tellBrowser()
     }
 
     func play(_ index: Int, song: Int = -1) {
@@ -625,8 +651,11 @@ final class Player {
 
     private func loaded(_ plays: Bool, _ text: String, _ songs: Int, _ song: Int, _ length: Double) {
         perform(queue.loaded(plays ? Tune(details: text, songs: songs, song: song, length: length) : nil, problem: text, isListed: isListed))
-        // And its row in the list is marked from now on, or is not.
+        // And its row in the list shows its chip, and is marked from now on, or is not.
         guard let tune, let current else { return }
+        if let chip = tune.chips.first, files.indices.contains(current), playedChips[files[current]] != chip {
+            playedChips[files[current]] = chip
+        }
         let why = tune.shortfalls.joined(separator: " ")
         if let place = marked.firstIndex(where: { $0.file == current }) {
             if tune.shortfalls.isEmpty { marked.remove(at: place) } else if marked[place].why != why { marked[place].why = why }
@@ -710,6 +739,7 @@ final class Player {
             try? sidayPause(false)
         }
         try? sidaySeek(position)
+        tellBrowser()
     }
 
     /// Pauses or plays. After the last tune of the list has finished, it plays the song that finished
@@ -723,6 +753,19 @@ final class Player {
         paused.toggle()
         if paused { rest() }
         try? sidayPause(paused)
+        tellBrowser()
+    }
+
+    /// Tells the browser what is playing now, for its own Now Playing, with the picture of its chip.
+    private func tellBrowser() {
+        guard let tune, let current else {
+            try? sidayNowPlaying("", "", "", "", 0, 0, false)
+            return
+        }
+        let name = String(file(at: current).split(separator: "/").last ?? "")
+        let album = tune.songs.count > 1 ? "\(tune.format), song \(tune.song + 1) of \(tune.songs.count)" : tune.format
+        try? sidayNowPlaying(tune.title.isEmpty ? name : tune.title, tune.author, album,
+                             tune.chips.first.map { "generated/chips/\($0.rawValue).jpg" } ?? "", tune.length, position, !(paused || finished))
     }
 
     /// Nothing is sounding: the analyser's bars drop, and the lights go out.
