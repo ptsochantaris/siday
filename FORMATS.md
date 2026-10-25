@@ -581,8 +581,9 @@ AMOS, François Lionet's BASIC for the Amiga, kept a program's music as one of t
 voice's notes and commands, with a command to wait between them.
 
 Programs and games written in AMOS have their music in these banks. Each bank is read into a
-ProTracker module as UADE's player of them reads it, and played as one. Five banks of Tyran, which
-crash UADE, are refused here as cut short.
+ProTracker module as UADE's player of them reads it, and played as one. Five banks of Tyran crash
+UADE: their first pattern is 22 lines and a jump, and UADE reads on past the end of the bank for the
+rest of its 64 lines. Here the rest of that pattern is left empty, as it is never heard.
 
 ### The Magnetic Fields Packer
 
@@ -1378,6 +1379,14 @@ tick for tick, except where told below.
   game's three samples and sixteen instruments are carried in siday, as Wanted Team's player for
   EaglePlayer kept them. Thirteen of the instruments are short waves that the player changes as they
   play. The player is made after a reading of its 68000 code.
+- **Ron Klaren** (`.cm`, `.rk`): his music for Battle Squadron, Cyberblast and Plague, with Ivo Zoer's
+  replay routine, "CustomMade". A `.cm` file is the game's own code with its music, as the game had
+  it in memory; a `.rk` file is the same, some kept as an Amiga program. Wanted Team's player for EaglePlayer
+  carries a copy of the routine of its own, from Cyberblast, and plays every file with it, finding in
+  each only its songs, samples and arpeggios. siday ports that player, read in its source. It reads
+  the speed of the game's timer wrongly, a byte of the next instruction for the timer's low byte, so
+  UADE plays the music about one per cent slow. siday plays it at the games' speed. Battle Squadron's
+  four tunes and Plague's ingame are here as DeliTracker's custom modules too, the games' own code.
 - **Soundfactory** (`.psf`): Profiteam's Soundfactory 1.0 of 1989, by Zuheir Urwani and Thomas
   Kolbe, mostly heard in the music of Oliver Becker and Michael Volz (Master Control Program). Each
   voice reads a stream of notes and 29 commands, with calls and returns, loops, a fade and the
@@ -2250,9 +2259,14 @@ They are loaded and called as Wanted Team's player does. Of the 45 that are his,
 UADE in every song. Those two, Frontier's and Midwinter II's, differ only in writes of a value the
 chip already has, which change nothing heard.
 
-Two others named as his are of another kind: the songs alone, for DARKNESS's player of them. They
-are not played. His earlier music is louder than other modules are, and siday turns it down to their
-level.
+Two others are older rips of the same music, Frontier's and Formula One Grand Prix's, of another
+kind: the songs alone, for DARKNESS of Synergy's DeliTracker player of them ("Dave Lowe's Sound
+System", 1997). That player holds Dave Lowe's own replay routine, of the same make as his later
+music's, and siday plays them as it does, read in its 68000 code. They match UADE tick for tick in all
+ten songs. They are the same music, note for note, as the later rips beside them, in another order.
+Only Frontier's intro differs, fading in where the later rip waits six seconds, and so does the last
+chord of Blue Danube, a second and a half shorter. His earlier music is louder than other modules
+are, and siday turns it down to their level.
 
 ## XM — FastTracker 2
 

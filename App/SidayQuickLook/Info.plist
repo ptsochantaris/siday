@@ -33,6 +33,7 @@
 				<string>build.bru.siday.tune.c67</string>
 				<string>build.bru.siday.tune.chan</string>
 				<string>build.bru.siday.tune.cin</string>
+				<string>build.bru.siday.tune.cm</string>
 				<string>build.bru.siday.tune.cmf</string>
 				<string>build.bru.siday.tune.core</string>
 				<string>build.bru.siday.tune.cus</string>
@@ -163,6 +164,8 @@
 				<string>build.bru.siday.tune.rh</string>
 				<string>build.bru.siday.tune.rho</string>
 				<string>build.bru.siday.tune.rjp</string>
+				<string>build.bru.siday.tune.rk</string>
+				<string>build.bru.siday.tune.rkb</string>
 				<string>build.bru.siday.tune.rol</string>
 				<string>build.bru.siday.tune.s3m</string>
 				<string>build.bru.siday.tune.s7g</string>

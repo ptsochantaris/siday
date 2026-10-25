@@ -252,6 +252,12 @@ instruments, which were in the game and are kept only there, in the player's sec
 1691e2912938304d52713afd162f01836b3e6fed92a786c88af92485c3ac2e3f): three samples and sixteen instruments,
 thirteen of them short waves of the game's own. They are carried as they are, in `DavidHanneyData.swift`.
 
+`Sources/SidayAmigaComposers/RonKlaren` plays Ron Klaren's music as Wanted Team's "CustomMade player
+module V1.1 (5 Jan 2004)" plays it ("(c) 1989-90 by Ivo Zoer & Ron Klaren, adapted by Andy Silva & Wanted
+Team", `players/CustomMade`, with its source in `amigasrc/players/wanted_team/CustomMade/CustomMade_v1.asm`),
+whose copy of Ivo Zoer's replay routine was read for that. Nothing of its code is carried here but its
+table of periods.
+
 ## PumaTracker, Pierre Adane's packer, Game Music Creator and Images Music System
 
 `Sources/SidayAmigaComposers/Puma`, `PAP`, `GMC` and `IMS` play these four kinds of game music as their
@@ -391,7 +397,11 @@ an interrupt is as UADE's emulation of the hardware has it (`src/audio.c`, `src/
 General Public License), which was read for that. DeliTracker is Frank Riffel's and Peter Kunath's. Dave
 Lowe's earlier music (`Sources/SidayAmigaMachine/DaveLoweCode`) is loaded and called as Wanted Team's
 player of it does ("Dave Lowe", carried by UADE as `DaveLowe`, with its source in
-`amigasrc/players/wanted_team`), whose code was read for that.
+`amigasrc/players/wanted_team`), whose code was read for that. Its older rips
+(`DaveLoweSoundSystemPlayer.swift`) are played as DeliTracker's player "Dave Lowe's Sound System" plays
+them ("Dave Lowe DeliPlayer V1.0 (3/9/97) by DARKNESS/SYNERGY", carried by UADE as `DaveLowe_Deli`,
+without source), whose replay routine, Dave Lowe's own, was read in a disassembly of it; nothing of its
+code is carried here.
 
 ## Richard Joseph's player and Dave Lowe's
 

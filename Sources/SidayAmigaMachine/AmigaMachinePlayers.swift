@@ -30,7 +30,9 @@ package enum AmigaMachinePlayers {
             // Amiga of their own as DeliTracker hosted them.
             return try PaulaTickRenderer(DeliCustomPlayer(data, name: Companions.fileName(path)), options: options)
         case .dl:
-            // Dave Lowe's earlier music, his own code with it, hosted in the same way.
+            // Dave Lowe's earlier music: ripped as music alone, for DeliTracker's player of his replay
+            // routine (Dave Lowe's Sound System); or his own code with it, hosted in the same way.
+            if DaveLoweSoundSystemPlayer.isOne(data) { return try PaulaTickRenderer(DaveLoweSoundSystemPlayer(data), options: options) }
             return try PaulaTickRenderer(DaveLoweCodePlayer(data, name: Companions.fileName(path)), options: options)
         case .bd:
             // Ben Daglish's drivers, each with its music, run on an Amiga of their own.

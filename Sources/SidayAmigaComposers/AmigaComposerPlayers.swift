@@ -148,6 +148,9 @@ package enum AmigaComposerPlayers {
         case .ast:
             guard ActionAmicsPlayer.isOne(data) else { throw TuneError.unsupported("not a module of Action Amics'") }
             return try PaulaTickRenderer(ActionAmicsPlayer(data), options: options)
+        case .rk:
+            guard RonKlarenPlayer.isOne(data) else { throw TuneError.unsupported("not a module of Ron Klaren's") }
+            return try PaulaTickRenderer(RonKlarenPlayer(data), options: options)
         case .dh:
             guard DavidHanneyPlayer.isOne(data) else { throw TuneError.unsupported("not a module of David Hanney's") }
             return try PaulaTickRenderer(DavidHanneyPlayer(data), options: options)

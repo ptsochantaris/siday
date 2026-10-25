@@ -129,7 +129,7 @@ enum AMOSBankFile {
         for pattern in 0 ... highest {
             for voice in 0 ..< 4 {
                 let track = patterns + Int(Int16(truncatingIfNeeded: try word(patterns + 2 + (pattern * 4 + voice) * 2)))
-                try convert(data, from: track, into: &module, at: 1084 + pattern * 1024 + voice * 4)
+                convert(data, from: track, into: &module, at: 1084 + pattern * 1024 + voice * 4)
             }
         }
 
@@ -140,15 +140,20 @@ enum AMOSBankFile {
     }
 
     /// One voice's pattern, into its column of a ProTracker pattern, as UADE's `.ConvertPatt` does it.
-    private static func convert(_ data: [UInt8], from start: Int, into module: inout [UInt8], at first: Int) throws(TuneError) {
+    ///
+    /// It converts all 64 lines, though a pattern that jumps elsewhere partway is heard only to its
+    /// jump: past it are the words of the next voice's pattern, or the end of the bank. Where they end,
+    /// so does the conversion, and the lines left are empty. (UADE reads on into what is after the bank,
+    /// and comes to grief there: the banks of Tyran, whose first pattern is 22 lines and a jump.)
+    private static func convert(_ data: [UInt8], from start: Int, into module: inout [UInt8], at first: Int) {
         var from = start
-        func next() throws(TuneError) -> Int {
-            guard from >= 0, from + 2 <= data.count else { throw .malformed("an AMOS music bank cut short") }
+        func next() -> Int? {
+            guard from >= 0, from + 2 <= data.count else { return nil }
             defer { from += 2 }
             return Int(data[from]) << 8 | Int(data[from + 1])
         }
-        func peek() throws(TuneError) -> Int {
-            guard from >= 0, from + 2 <= data.count else { throw .malformed("an AMOS music bank cut short") }
+        func peek() -> Int? {
+            guard from >= 0, from + 2 <= data.count else { return nil }
             return Int(data[from]) << 8 | Int(data[from + 1])
         }
         var wait = 0 // lines still to wait (`d3`)
@@ -171,18 +176,19 @@ enum AMOSBankFile {
             var command = going // what this line's command is (`d5`)
             // Words, until one that says how long to wait.
             while true {
-                let value = try next()
+                guard let value = next() else { return }
                 if value & 0x8000 == 0 {
                     if value & 0x7F00 == 0x7F00 {
                         // An old note: this, how long to wait after it, and then its sample's number
                         // (in the top six bits) and its period.
-                        let following = try peek()
+                        guard let following = peek() else { return }
                         var sample = following >> 10 + Int(module[cell + 2] >> 4) + Int(module[cell] & 0x10)
                         sample &= 0xFF
                         module[cell] = UInt8(sample & 0x10)
                         module[cell + 1] = 0
                         module[cell + 2] = module[cell + 2] & 0x0F | UInt8(truncatingIfNeeded: sample << 4)
-                        setWord(0, word(0) | (try next()) & 0x3FF)
+                        setWord(0, word(0) | following & 0x3FF)
+                        from += 2
                         wait = value & 0x7F
                         setWord(2, word(2) | going)
                         line += 1

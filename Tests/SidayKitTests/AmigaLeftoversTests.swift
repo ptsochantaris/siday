@@ -26,8 +26,9 @@ private func text(_ s: String, _ count: Int) -> [UInt8] { Array((Array(s.utf8) +
 // MARK: AMOS
 
 /// An AMOS music bank of one instrument, one song and one pattern, whose first voice plays a note
-/// with vibrato for two lines, then another for one with the vibrato stopped, and ends.
-private func amosBank() -> [UInt8] {
+/// with vibrato for two lines, then another for one with the vibrato stopped, and ends. The fourth
+/// voice's words, if given, are put last, at the end of the bank.
+private func amosBank(fourth: [Int]? = nil) -> [UInt8] {
     var instruments = be16(1)
     // Where its sample is, where its loop is, its length (here unused), no loop, its volume, its
     // length in words, and its name.
@@ -40,9 +41,9 @@ private func amosBank() -> [UInt8] {
     // The patterns: their count, each voice's place, and the voices.
     let first: [Int] = [0x8900, 0x31AC, 0x8C34, 0x9002, 0x30FE, 0x8400, 0x9001, 0x8000]
     let rest: [Int] = [0x8000]
-    let firstAt = 10, restAt = 10 + first.count * 2
-    var patterns = be16(1) + be16(firstAt) + be16(restAt) + be16(restAt) + be16(restAt)
-    patterns += first.flatMap(be16) + rest.flatMap(be16)
+    let firstAt = 10, restAt = 10 + first.count * 2, fourthAt = fourth == nil ? restAt : restAt + rest.count * 2
+    var patterns = be16(1) + be16(firstAt) + be16(restAt) + be16(restAt) + be16(fourthAt)
+    patterns += first.flatMap(be16) + rest.flatMap(be16) + (fourth ?? []).flatMap(be16)
 
     let instrumentsAt = 16
     let songsAt = instrumentsAt + instruments.count + sample.count
@@ -73,6 +74,17 @@ private func amosBank() -> [UInt8] {
     #expect(Array(module.suffix(4)) == [0x10, 0x20, 0x30, 0x40])
     let renderer = try MODRenderer(module, options: LoadOptions())
     #expect(renderer.info.title == "anthem")
+}
+
+@Test func amosMusicBankWhosePatternJumpsAndThenEndsHasTheRestOfItEmpty() throws {
+    // The fourth voice waits a line, then jumps, as Tyran's first patterns do, and the bank ends there,
+    // where UADE's converter would read on.
+    let module = try AMOSBankFile.module(amosBank(fourth: [0x9001, 0x9101]))
+    func cell(_ line: Int) -> [UInt8] { Array(module[1084 + line * 16 + 12 ..< 1084 + line * 16 + 16]) }
+    #expect(cell(0) == [0, 0, 0, 0])
+    #expect(cell(1) == [0, 0, 0x0B, 0x01])
+    #expect((2 ..< 64).allSatisfy { cell($0) == [0, 0, 0, 0] })
+    #expect(module[1084 + 2 * 16 + 2] == 0x0D) // (the first voice's end, as before)
 }
 
 @Test func amosMusicBankCutShortOrNonsenseDoesNotTrap() {

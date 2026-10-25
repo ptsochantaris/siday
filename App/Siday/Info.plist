@@ -36,6 +36,7 @@
 				<string>build.bru.siday.tune.c67</string>
 				<string>build.bru.siday.tune.chan</string>
 				<string>build.bru.siday.tune.cin</string>
+				<string>build.bru.siday.tune.cm</string>
 				<string>build.bru.siday.tune.cmf</string>
 				<string>build.bru.siday.tune.core</string>
 				<string>build.bru.siday.tune.cus</string>
@@ -169,6 +170,8 @@
 				<string>build.bru.siday.tune.rh</string>
 				<string>build.bru.siday.tune.rho</string>
 				<string>build.bru.siday.tune.rjp</string>
+				<string>build.bru.siday.tune.rk</string>
+				<string>build.bru.siday.tune.rkb</string>
 				<string>build.bru.siday.tune.rol</string>
 				<string>build.bru.siday.tune.s3m</string>
 				<string>build.bru.siday.tune.s7g</string>
@@ -272,6 +275,7 @@
 				<string>c67</string>
 				<string>chan</string>
 				<string>cin</string>
+				<string>cm</string>
 				<string>cmf</string>
 				<string>core</string>
 				<string>cus</string>
@@ -406,6 +410,8 @@
 				<string>rh</string>
 				<string>rho</string>
 				<string>rjp</string>
+				<string>rk</string>
+				<string>rkb</string>
 				<string>rol</string>
 				<string>s3m</string>
 				<string>s7g</string>
@@ -861,6 +867,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>cin</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>CM music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.cm</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cm</string>
 				</array>
 			</dict>
 		</dict>
@@ -3071,6 +3094,40 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>rjp</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>RK music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.rk</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>rk</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>RKB music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.rkb</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>rkb</string>
 				</array>
 			</dict>
 		</dict>

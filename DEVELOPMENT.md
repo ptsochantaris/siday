@@ -412,7 +412,9 @@ AMOS:
   another; a tempo as a hundred over AMOS's; and the end of a pattern as a break on the line before.
 - Compared with UADE over their first 40 seconds, eight banks of seven games are 0.995 alike or
   more.
-- Five banks of Tyran crash UADE, and are refused here as cut short.
+- Five banks of Tyran crash UADE: their first pattern jumps at line 22, and the converter reads on for
+  all 64 lines, past the end of the bank. Here a pattern's conversion stops where the bank ends, and
+  its lines left are empty. No oracle plays them; every other bank in the collection renders the same.
 
 Magnetic Fields Packer (`.mfp`):
 
@@ -791,6 +793,7 @@ Results:
 | Paul Summers `.snk` | four files, 23 songs | the same to the tick when played Wanted Team's way | |
 | Action Amics `.ast` | 32 songs, 20 played | all twenty the same to the tick | |
 | David Hanney `.dh` | eight | the same to the tick | |
+| Ron Klaren `.cm`, `.rk` | 24 files, 59 songs | the same to the tick with Wanted Team's timer | 0.93 to 0.96 |
 | Soundfactory `.psf` | one file, five songs | the same to the tick | |
 
 Notes:
@@ -1144,6 +1147,10 @@ Checked against UADE:
 - The earlier programs (`.dl`): all but two of the 45 that are his are the same as UADE's in every
   song over their first 40 seconds. Frontier's and Midwinter II's are the same but for writes of a
   value the chip already has.
+- The two older rips for DARKNESS's DeliTracker player ("Dave Lowe's Sound System", `DaveLowe_Deli`,
+  binary only: read in a disassembly): all ten songs the same as UADE's on every tick, over 40 seconds
+  and to each song's end and past it; loudness envelope 0.93 to 0.99 alike, as UADE is with siday's
+  playing of the later rips. Against those, the same Paula writes song for song (see FORMATS).
 
 Notes:
 
