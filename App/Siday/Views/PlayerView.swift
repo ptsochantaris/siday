@@ -454,17 +454,38 @@ struct PlayerBar: View {
 
     private var output: some View {
         @Bindable var model = model
-        return Picker("Output", selection: $model.output) {
+        let choices = Picker("Output", selection: $model.output) {
             ForEach(PlayerModel.outputs, id: \.self) { style in
                 Text(style.title).tag(style)
             }
         }
-        // (What is chosen, "Stereo", says what it is a choice of: no name beside it.)
-        .labelsHidden()
+        #if os(iOS)
+        // (A menu with its own label: the system's for a picker loses its arrows on an iPad turned
+        // while the bar is changing from one line to two.)
+        return Menu {
+            choices.pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 4) {
+                Text(model.output.title)
+                Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+            }
+        }
         .fixedSize()
+        .accessibilityLabel("Output")
+        .accessibilityValue(model.output.title)
         .disabled(model.remaking)
-        .help("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out (which way round is in the settings), and a television is an early-1980s set's speaker")
+        .help(Self.outputHelp)
+        #else
+        // (What is chosen, "Stereo", says what it is a choice of: no name beside it.)
+        return choices
+            .labelsHidden()
+            .fixedSize()
+            .disabled(model.remaking)
+            .help(Self.outputHelp)
+        #endif
     }
+
+    private static let outputHelp: LocalizedStringKey = "What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out (which way round is in the settings), and a television is an early-1980s set's speaker"
 
     /// All three in a line, the controls in the middle.
     private func line(speakers: Bool) -> some View {
