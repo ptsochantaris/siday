@@ -4,6 +4,19 @@
 import SidayPlayer
 import SwiftUI
 
+/// The app's logo, at a size, with what it shows for those who cannot see it.
+struct Logo: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image("Logo")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityLabel("The siday logo: a chip marked SIDAY, with a stave of music")
+    }
+}
+
 /// What siday is, what it plays (each format's story a press away), whose work it is made from, and
 /// the licence it comes under.
 struct AboutView: View {
@@ -24,11 +37,7 @@ struct AboutList: View {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 16) {
-                        Image("Logo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: logoSize, height: logoSize)
-                            .accessibilityLabel("The siday logo: a chip marked SIDAY, with a stave of music")
+                        Logo(size: logoSize)
                         Text("Siday").font(.largeTitle.weight(.bold))
                     }
                     Text("Chip music and modules from the ZX Spectrum, Amstrad CPC, Atari ST, 8-bit Ataris, Commodore 64, Amiga and PC.")

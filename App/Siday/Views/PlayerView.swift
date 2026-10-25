@@ -5,8 +5,9 @@ import Foundation
 import SidayPlayer
 import SwiftUI
 
-/// What is playing: the tune's details, the spectrum analyser, where in it the song is, its songs, the
-/// controls, a light for each voice, and the picture to listen by.
+/// What is playing: the tune's details, the spectrum analyser, where in it the song is, its songs, a
+/// light for each voice, and the picture to listen by; and at its foot, the controls. Before a tune is
+/// chosen, only the app's logo: what to do first is said in the playlist.
 struct PlayerView: View {
     @Environment(PlayerModel.self) private var model
     @Environment(\.oneAtATime) private var oneAtATime
@@ -17,22 +18,30 @@ struct PlayerView: View {
 
     var body: some View {
         @Bindable var model = model
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                TimelineView(.animation(minimumInterval: 1 / 60, paused: !model.hasTune)) { timeline in
-                    let frame = model.frame(at: timeline.date.timeIntervalSinceReferenceDate)
-                    NowPlaying(frame: frame)
+        Group {
+            if model.current == nil {
+                Logo(size: 160)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TimelineView(.animation(minimumInterval: 1 / 60, paused: !model.hasTune)) { timeline in
+                            let frame = model.frame(at: timeline.date.timeIntervalSinceReferenceDate)
+                            NowPlaying(frame: frame)
+                        }
+                        if model.hasTune, model.shows(.picture) {
+                            PictureSection()
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: 900)
+                    .frame(maxWidth: .infinity)
                 }
-                if model.hasTune, model.shows(.picture) {
-                    PictureSection()
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    PlayerBar()
                 }
             }
-            .padding()
-            .frame(maxWidth: 900)
-            .frame(maxWidth: .infinity)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            OutputBar()
         }
         .takesDroppedTunes(model)
         #if os(iOS)
@@ -41,7 +50,7 @@ struct PlayerView: View {
             if oneAtATime { PlaylistBackSign().frame(width: 0, height: 0).accessibilityHidden(true) }
         }
         #endif
-        .navigationTitle("Player")
+        .navigationTitle("Siday")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -49,13 +58,15 @@ struct PlayerView: View {
             #if os(iOS)
             ToolbarItem { SettingsButton() }
             #endif
-            ToolbarItem {
-                Menu {
-                    ForEach(Part.allCases) { part in
-                        Toggle(part.title, systemImage: part.symbol, isOn: Binding(get: { model.shows(part) }, set: { _ in model.toggle(part) }))
+            if model.current != nil {
+                ToolbarItem {
+                    Menu {
+                        ForEach(Part.allCases) { part in
+                            Toggle(part.title, systemImage: part.symbol, isOn: Binding(get: { model.shows(part) }, set: { _ in model.toggle(part) }))
+                        }
+                    } label: {
+                        Label("Show", systemImage: "eye")
                     }
-                } label: {
-                    Label("Show", systemImage: "eye")
                 }
             }
         }
@@ -161,14 +172,10 @@ struct NowPlaying: View {
                 }
             } else if let problem = model.problem {
                 Text("\(model.fileName): \(problem)")
-            } else if model.current != nil {
+            } else {
                 Text("Loading \(model.fileName)…")
                     .foregroundStyle(.secondary)
-            } else {
-                Text("Nothing is playing yet. Add some tunes in the playlist.")
-                    .foregroundStyle(.secondary)
             }
-            Controls()
             if model.hasTune, !frame.lights.isEmpty, model.shows(.lights) || model.shows(.waves) {
                 Lights(frame: frame, lamps: model.shows(.lights), scopes: model.shows(.waves))
                     .padding(.top, 4)
@@ -235,29 +242,43 @@ struct Details: View {
     }
 }
 
+/// Previous, play and next; and, unless it is elsewhere, shuffle.
 struct Controls: View {
     @Environment(PlayerModel.self) private var model
-
-    var body: some View {
-        // (What the tune is heard through, and how loud, are in the bar at the foot of the player.)
-        transport
-            .frame(maxWidth: .infinity)
-    }
+    var shuffle = true
 
     private var playing: Bool { !(model.paused || model.finished || model.tune == nil) }
 
-    private var transport: some View {
+    var body: some View {
         HStack(spacing: 8) {
             Button { model.previous() } label: { Control.label("Previous", "backward.fill") }
                 .disabled(!model.hasPrevious)
             Button { model.togglePause() } label: { Control.label(playing ? "Pause" : "Play", playing ? "pause.fill" : "play.fill") }
                 .font(.title)
                 .contentTransition(.symbolEffect(.replace))
+                .disabled(model.tune == nil)
             Button { model.next() } label: { Control.label("Next", "forward.fill") }
                 .disabled(!model.hasNext)
-            Toggle(isOn: Binding(get: { model.shuffled }, set: { _ in model.toggleShuffle() })) { Control.label("Shuffle", "shuffle") }
-                .toggleStyle(.button)
+            if shuffle { Shuffle() }
         }
+        .buttonStyle(.borderless)
+    }
+}
+
+/// Shuffle, in the tint while it is on: on a Mac a borderless button shows no other difference. (While
+/// it is off it is left as the other controls are: greyed, it would look as if it could not be pressed.)
+struct Shuffle: View {
+    @Environment(PlayerModel.self) private var model
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { model.shuffled }, set: { _ in model.toggleShuffle() })) {
+            if model.shuffled {
+                Control.label("Shuffle", "shuffle").foregroundStyle(.tint)
+            } else {
+                Control.label("Shuffle", "shuffle")
+            }
+        }
+        .toggleStyle(.button)
         .buttonStyle(.borderless)
     }
 }
@@ -372,17 +393,30 @@ struct WholeScreenPicture: View {
     }
 }
 
-/// The bar at the foot of the player: what the tune is heard through, on the left, and how loud,
-/// on the right.
-struct OutputBar: View {
+/// The bar at the foot of the player, within reach of a thumb: the controls, with what the tune is
+/// heard through on their left and how loud on their right; or, where there is not room for all three
+/// in a line (an iPhone, or an iPad mini beside its playlist), the controls above the other two, with
+/// shuffle between them.
+struct PlayerBar: View {
     @Environment(PlayerModel.self) private var model
 
     var body: some View {
-        HStack(spacing: 16) {
-            output
-            Spacer(minLength: 0)
-            volume
-                .frame(maxWidth: 220)
+        ViewThatFits(in: .horizontal) {
+            line(speakers: true)
+            // (Narrow enough for an iPad's player beside its playlist: the volume's speakers give way.)
+            line(speakers: false)
+            // (Shuffle goes below, out of the way of a thumb on play, and the three above are centred.)
+            VStack(spacing: 4) {
+                Controls(shuffle: false)
+                HStack(spacing: 8) {
+                    output
+                    Spacer(minLength: 0)
+                    Shuffle()
+                    Spacer(minLength: 0)
+                    volume(speakers: true)
+                        .frame(maxWidth: 220)
+                }
+            }
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -405,14 +439,26 @@ struct OutputBar: View {
         .help("What the tune is heard through: stereo is a module's own, or an AY chip's three channels spread out (which way round is in the settings), and a television is an early-1980s set's speaker")
     }
 
-    private var volume: some View {
+    /// All three in a line, the controls in the middle.
+    private func line(speakers: Bool) -> some View {
+        HStack(spacing: 12) {
+            output
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Controls()
+            volume(speakers: speakers)
+                .frame(minWidth: speakers ? 160 : 100, maxWidth: 220)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private func volume(speakers: Bool) -> some View {
         @Bindable var model = model
         return Slider(value: $model.volume, in: 0 ... 1) {
             Text("Volume")
         } minimumValueLabel: {
-            Image(systemName: "speaker.fill").accessibilityHidden(true)
+            if speakers { Image(systemName: "speaker.fill").accessibilityHidden(true) }
         } maximumValueLabel: {
-            Image(systemName: "speaker.wave.3.fill").accessibilityHidden(true)
+            if speakers { Image(systemName: "speaker.wave.3.fill").accessibilityHidden(true) }
         }
         // (The speakers at its ends say what it is: no name beside it, as the output has none.)
         .labelsHidden()
