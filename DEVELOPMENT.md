@@ -33,7 +33,11 @@ The repository is three Swift packages and an app.
 - **`Web/`** is the web player, a package of its own built on SidayPlayer: see
   [The web player](#the-web-player).
 - **`App/`** is the app for macOS and iOS: an Xcode project on SidayPlayer and SidayFiles, written in
-  SwiftUI.
+  SwiftUI. Its Quick Look extension (`App/SidayQuickLook`) previews every kind of tune the app declares
+  but the recordings, which the system previews itself. It shares the app's sound ring, lamps, scopes
+  and display, but not its engine: that renders each song whole and keeps it (23 MB a minute), where
+  the preview's makes the song a sixth of a second ahead of what is heard, and only once play is
+  pressed. Its Info.plist is written by the same test as the app's.
 
 ## Building and testing
 

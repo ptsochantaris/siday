@@ -12,8 +12,9 @@ import Glibc
 @testable import SidayFoundation
 
 // The app's Info.plist says which files it opens, by their extensions, and those are SidayKit's:
-// every one a tune or a playlist can have. So the file is written from SidayKit's lists, by this
-// test, and the test fails when it is out of date, as it is once a format has been added:
+// every one a tune or a playlist can have; and its Quick Look extension's, which kinds of tune it
+// previews. So the files are written from SidayKit's lists, by this test, and the test fails when
+// they are out of date, as they are once a format has been added:
 //
 //     SIDAY_WRITE_APP_TYPES=1 swift test --filter appOpensEveryKindOfFile
 //
@@ -102,22 +103,64 @@ func tuneType(_ ending: String) -> String {
     "build.bru.siday.tune." + String(ending.map { $0 == "_" ? "-" : $0 })
 }
 
-/// Where the app's Info.plist is: App/Siday, beside this repository's Tests.
-private let infoPlistPath: String = {
-    var parts = #filePath.split(separator: "/", omittingEmptySubsequences: false)
-    parts.removeLast(3)
-    return (parts + ["App", "Siday", "Info.plist"]).joined(separator: "/")
-}()
+/// The Info.plist of the app's Quick Look extension, which previews every kind of tune the app declares:
+/// all but the recordings, which the system previews itself.
+func quickLookInfoPlist() -> String {
+    var kinds: [String] = []
+    for ending in TuneFormat.fileExtensions where systemKinds[ending] == nil && !kinds.contains(tuneType(ending)) {
+        kinds.append(tuneType(ending))
+    }
+    var lines = [
+        #"<?xml version="1.0" encoding="UTF-8"?>"#,
+        #"<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">"#,
+        #"<plist version="1.0">"#,
+        "<dict>",
+        "\t<key>NSExtension</key>",
+        "\t<dict>",
+        "\t\t<key>NSExtensionAttributes</key>",
+        "\t\t<dict>",
+        "\t\t\t<key>QLIsDataBasedPreview</key>",
+        "\t\t\t<false/>",
+        "\t\t\t<key>QLSupportedContentTypes</key>",
+        "\t\t\t<array>",
+    ]
+    lines += kinds.map { "\t\t\t\t<string>\($0)</string>" }
+    lines += [
+        "\t\t\t</array>",
+        "\t\t\t<key>QLSupportsSearchableItems</key>",
+        "\t\t\t<false/>",
+        "\t\t</dict>",
+        "\t\t<key>NSExtensionPointIdentifier</key>",
+        "\t\t<string>com.apple.quicklook.preview</string>",
+        "\t\t<key>NSExtensionPrincipalClass</key>",
+        "\t\t<string>$(PRODUCT_MODULE_NAME).PreviewController</string>",
+        "\t</dict>",
+        "</dict>",
+        "</plist>",
+        "",
+    ]
+    return lines.joined(separator: "\n")
+}
 
-@Test func appOpensEveryKindOfFile() throws {
-    let wanted = appInfoPlist()
+/// Where a file of the app's is: under App, beside this repository's Tests.
+private func appPath(_ parts: String...) -> String {
+    var path = #filePath.split(separator: "/", omittingEmptySubsequences: false)
+    path.removeLast(3)
+    return (path.map(String.init) + ["App"] + parts).joined(separator: "/")
+}
+
+private let infoPlistPath = appPath("Siday", "Info.plist")
+private let quickLookPlistPath = appPath("SidayQuickLook", "Info.plist")
+
+/// Writes a file afresh if asked to (SIDAY_WRITE_APP_TYPES), and reads what it holds.
+private func written(_ wanted: String, at path: String) throws -> String {
     if getenv("SIDAY_WRITE_APP_TYPES") != nil {
-        let file = try #require(fopen(infoPlistPath, "w"))
+        let file = try #require(fopen(path, "w"))
         fputs(wanted, file)
         fclose(file)
     }
     var bytes: [UInt8] = []
-    if let file = fopen(infoPlistPath, "r") {
+    if let file = fopen(path, "r") {
         var buffer = [UInt8](repeating: 0, count: 65536)
         while true {
             let count = fread(&buffer, 1, buffer.count, file)
@@ -126,7 +169,14 @@ private let infoPlistPath: String = {
         }
         fclose(file)
     }
-    #expect(String(decoding: bytes, as: UTF8.self) == wanted, "App/Siday/Info.plist is out of date: SIDAY_WRITE_APP_TYPES=1 swift test --filter appOpensEveryKindOfFile")
+    return String(decoding: bytes, as: UTF8.self)
+}
+
+@Test func appOpensEveryKindOfFile() throws {
+    let wanted = appInfoPlist()
+    #expect(try written(wanted, at: infoPlistPath) == wanted, "App/Siday/Info.plist is out of date: SIDAY_WRITE_APP_TYPES=1 swift test --filter appOpensEveryKindOfFile")
+    let preview = quickLookInfoPlist()
+    #expect(try written(preview, at: quickLookPlistPath) == preview, "App/SidayQuickLook/Info.plist is out of date: SIDAY_WRITE_APP_TYPES=1 swift test --filter appOpensEveryKindOfFile")
 }
 
 @Test func everyPlaylistExtensionNamesAKind() {
