@@ -11,6 +11,8 @@ import SwiftUI
 struct PlayerView: View {
     @Environment(PlayerModel.self) private var model
     @Environment(\.oneAtATime) private var oneAtATime
+    /// How tall the space for the player is, between its bars.
+    @State private var visibleHeight: CGFloat = 0
 
     /// Whether what is slid over the player is a panel beside it: not on an iPhone, where it is a
     /// sheet from below.
@@ -36,7 +38,15 @@ struct PlayerView: View {
                     }
                     .padding()
                     .frame(maxWidth: 900)
-                    .frame(maxWidth: .infinity)
+                    // (In the middle of the space it has while it is shorter, and from the top, scrolled,
+                    // once it is longer.)
+                    .frame(maxWidth: .infinity, minHeight: visibleHeight)
+                }
+                // (The container is the space between the bars already: its insets are not to be taken off.)
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.containerSize.height
+                } action: { _, height in
+                    visibleHeight = max(0, height)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     PlayerBar()
@@ -44,6 +54,8 @@ struct PlayerView: View {
             }
         }
         .takesDroppedTunes(model)
+        // (On an iPhone, where the list may not be showing, what is being added is told here too.)
+        .modifier(AddingOneAtATime(model: model, shown: oneAtATime))
         #if os(iOS)
         // (Over the playlist, its back button shows the playlist's sign, and is a back button still.)
         .background {
@@ -82,6 +94,16 @@ struct PlayerView: View {
             // (A sheet is put away by sliding it down or pressing beside it: it needs no button.)
             SlideOverView(closable: false)
         }
+    }
+}
+
+/// Shows what is being added over the player, where it is shown on its own.
+private struct AddingOneAtATime: ViewModifier {
+    let model: PlayerModel
+    let shown: Bool
+
+    func body(content: Content) -> some View {
+        if shown { content.showsAdding(model) } else { content }
     }
 }
 

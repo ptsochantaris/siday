@@ -17,16 +17,16 @@ struct SidayApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environment(model)
-                .onOpenURL { url in model.add([url]) }
-                .task { openGivenOnLaunch() }
-        }
-        .commands {
-            SidebarCommands()
-            SidayCommands(model: model)
-        }
+        // On a Mac, one window: there is one list and one tune playing, and a file opened from the
+        // Finder goes into it, and does not open a window of its own. On an iPad, as many as the
+        // listener likes, as iPadOS has it.
+        #if os(macOS)
+        Window("Siday", id: "player") { player }
+            .commands { commands }
+        #else
+        WindowGroup { player }
+            .commands { commands }
+        #endif
         #if os(macOS)
         // On a Mac, the settings are a window of their own, opened from the app's menu; and what
         // the app is, from the same menu, another.
@@ -41,6 +41,19 @@ struct SidayApp: App {
         }
         .windowResizability(.contentMinSize)
         #endif
+    }
+
+    /// The player and its list, in a window.
+    private var player: some View {
+        ContentView()
+            .environment(model)
+            .onOpenURL { url in model.add([url]) }
+            .task { openGivenOnLaunch() }
+    }
+
+    @CommandsBuilder private var commands: some Commands {
+        SidebarCommands()
+        SidayCommands(model: model)
     }
 
     /// For trying the app out: `-SidayOpen PATH` adds what is at the path, as if it had been chosen.
@@ -127,7 +140,43 @@ struct ContentView: View {
     }
 }
 
+/// That what was added is being looked through, and how far it has got: a wheel turning, and words.
+struct AddingNotice: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text(text)
+                .font(.callout)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .glassEffect(in: .capsule)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
 extension View {
+    /// Shows, at the top of the column, under its bar, what is being done with tunes that were added
+    /// while it takes a moment, as the web page says it.
+    func showsAdding(_ model: PlayerModel) -> some View {
+        overlay(alignment: .top) {
+            if let adding = model.adding {
+                AddingNotice(text: adding)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.default, value: model.adding == nil)
+    }
+
     /// Adds what is dropped on the view, files and folders, as if they had been chosen. Each column
     /// of the split view takes them for itself: on a Mac each is a view of the system's own, and
     /// what is dropped on one goes no further, so that the split view as a whole is given nothing.

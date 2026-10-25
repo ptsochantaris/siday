@@ -126,6 +126,11 @@ final class PlayerModel {
     var showingSettings = false
     /// The name of a folder the listener gave that had nothing in it to play, while they are told so.
     var emptyFolder: String?
+    /// What is being done with what the listener has added, while it takes long enough to be told:
+    /// that it is being looked through, and how many files have been found in it so far.
+    private(set) var adding: String?
+    /// How many lots of what the listener has added are still being looked through.
+    private var addingLots = 0
     /// True while the listener is being asked whether every tune is to be taken out of the list.
     var askingToRemoveAll = false
     /// What the listener is choosing files for, while they are.
@@ -220,10 +225,33 @@ final class PlayerModel {
     /// in the list once they have been found.
     func add(_ urls: [URL], before: Int? = nil) {
         for url in urls { library.add(url) }
-        Task.detached { [urls] in
-            let found = TuneFolders.scan(urls)
-            await MainActor.run { self.added(found, before: before) }
+        // (Said only if it takes a moment, as the web page says it: a file or two comes in at once.)
+        addingLots += 1
+        let telling = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            if !Task.isCancelled, adding == nil { adding = String(localized: "Scanning…") }
         }
+        Task.detached { [urls] in
+            var told = ContinuousClock.now
+            let found = TuneFolders.scan(urls) { count in
+                // (A few times a second at most: a folder of folders is many of them.)
+                guard ContinuousClock.now - told > .milliseconds(150) else { return }
+                told = .now
+                Task { @MainActor in self.looked(count) }
+            }
+            await MainActor.run {
+                telling.cancel()
+                self.added(found, before: before)
+                self.addingLots -= 1
+                if self.addingLots == 0 { self.adding = nil }
+            }
+        }
+    }
+
+    /// So many files have been found so far in what is being looked through.
+    private func looked(_ count: Int) {
+        guard addingLots > 0, adding != nil else { return }
+        adding = String(localized: "Scanning… \(count.formatted()) files")
     }
 
     private func added(_ found: TuneFolders.Found, before: Int?) {

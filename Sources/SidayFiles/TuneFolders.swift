@@ -43,8 +43,11 @@ public enum TuneFolders {
     /// Finds the tunes.
     /// - Parameter oncePerTune: a tune is gathered once, however often it is given or named (true);
     ///   or once for each folder it is in, and for each time it is given itself or by a list given.
-    public static func scan(_ urls: [URL], oncePerTune: Bool = true) -> Found {
+    /// - Parameter looked: told, as folders are looked through, how many files have been found in
+    ///   them so far, for one who waits to be shown how it is going.
+    public static func scan(_ urls: [URL], oncePerTune: Bool = true, looked: (Int) -> Void = { _ in }) -> Found {
         var result = Found()
+        var lookedBefore = 0
         var held = Set<String>()
         func key(_ file: URL) -> String { file.standardizedFileURL.path.lowercased() }
         func take(_ url: URL, note: String = "") {
@@ -65,7 +68,9 @@ public enum TuneFolders {
             let kind = TuneGathering.kind(ofFileNamed: url.lastPathComponent)
             if isDirectory.boolValue {
                 var files: [URL] = []
-                for file in Coordinated.files(below: url) {
+                let below = Coordinated.files(below: url) { looked(lookedBefore + $0) }
+                lookedBefore += below.count
+                for file in below {
                     switch TuneGathering.kind(ofFileNamed: file.lastPathComponent) {
                     case .tune, .playlist: files.append(file)
                     case .songLengths: result.songLengths = file
@@ -196,14 +201,16 @@ public enum Coordinated {
         listing(folder, hidden: true).map(\.url.lastPathComponent)
     }
 
-    /// Every file in a folder and in the folders inside it, hidden ones passed over.
-    public static func files(below folder: URL) -> [URL] {
+    /// Every file in a folder and in the folders inside it, hidden ones passed over; `looked` is
+    /// told how many have been found so far, as each folder is looked through.
+    public static func files(below folder: URL, looked: (Int) -> Void = { _ in }) -> [URL] {
         var found: [URL] = []
         var waiting = [folder]
         while let next = waiting.popLast() {
             for (url, isFolder) in listing(next) {
                 if isFolder { waiting.append(url) } else { found.append(url) }
             }
+            looked(found.count)
         }
         return found
     }

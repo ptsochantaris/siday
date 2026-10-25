@@ -67,6 +67,7 @@ struct PlaylistView: View {
                 #endif
             }
         }
+        .showsAdding(model)
         .navigationTitle("Playlist")
         .toolbar {
             ToolbarItemGroup {

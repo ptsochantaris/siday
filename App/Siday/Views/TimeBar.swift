@@ -22,7 +22,9 @@ struct TimeBar: View {
         // ones are as dark as the tint, and light ones in dark mode.
         let (waiting, ready) = colorScheme == .dark ? (0.45, 0.65) : (0.15, 0.30)
         HStack(spacing: 10) {
+            // (Greyed once it is past the song's end: what is heard then is the fade after its loop.)
             Text(time(dragging ?? position)).monospacedDigit()
+                .foregroundStyle(fading ? .secondary : .primary)
             GeometryReader { space in
                 let width = max(1, space.size.width)
                 ZStack(alignment: .leading) {
@@ -71,9 +73,12 @@ struct TimeBar: View {
             Slider(value: Binding(get: { position }, set: { model.seek(to: $0) }), in: 0 ... end, step: min(5, end)) {
                 Text("Position")
             }
-            .accessibilityValue(Text("\(time(position)) of \(time(length))"))
+            .accessibilityValue(fading ? Text("\(time(position)) of \(time(length)), fading out") : Text("\(time(position)) of \(time(length))"))
         }
     }
+
+    /// True once the song is past its end, and what is heard is it fading after its loop.
+    private var fading: Bool { dragging == nil && length > 0 && position > length }
 
     private func fraction(_ seconds: Double) -> CGFloat {
         guard length > 0 else { return 0 }
