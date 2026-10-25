@@ -258,6 +258,13 @@ Team", `players/CustomMade`, with its source in `amigasrc/players/wanted_team/Cu
 whose copy of Ivo Zoer's replay routine was read for that. Nothing of its code is carried here but its
 table of periods.
 
+`Sources/SidayAmigaComposers/JasonPage` and `SoundControl` play Jason Page's music and SoundControl's as
+Wanted Team's players of them play them, read in their source in `amigasrc/players/wanted_team`: "Jason
+Page player module V1.3 (26 June 2001)" (`players/JasonPage`, `JasonPage/src/Jason Page_v5.s`, by
+Mr.Larmer/Wanted Team and PP/Union), and "Soundcontrol 3.0/3.2/4.0/5.0 player module V1.2 (25 Mar 2002)"
+(`players/SoundControl`, `Soundcontrol/src/Soundcontrol_v3.asm`; "(c) 1989-95 by Holger Gehrmann").
+Nothing of their code is carried here but what it does and its tables of periods.
+
 ## PumaTracker, Pierre Adane's packer, Game Music Creator and Images Music System
 
 `Sources/SidayAmigaComposers/Puma`, `PAP`, `GMC` and `IMS` play these four kinds of game music as their

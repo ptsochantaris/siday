@@ -92,6 +92,8 @@
 				<string>build.bru.siday.tune.jd</string>
 				<string>build.bru.siday.tune.jmf</string>
 				<string>build.bru.siday.tune.jo</string>
+				<string>build.bru.siday.tune.jpn</string>
+				<string>build.bru.siday.tune.jpnd</string>
 				<string>build.bru.siday.tune.jpo</string>
 				<string>build.bru.siday.tune.jt</string>
 				<string>build.bru.siday.tune.kh</string>
@@ -176,6 +178,7 @@
 				<string>build.bru.siday.tune.sb</string>
 				<string>build.bru.siday.tune.scn</string>
 				<string>build.bru.siday.tune.scr</string>
+				<string>build.bru.siday.tune.sct</string>
 				<string>build.bru.siday.tune.scumm</string>
 				<string>build.bru.siday.tune.sdr</string>
 				<string>build.bru.siday.tune.sfx</string>

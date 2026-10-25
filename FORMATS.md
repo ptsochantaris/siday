@@ -1387,6 +1387,20 @@ tick for tick, except where told below.
   the speed of the game's timer wrongly, a byte of the next instruction for the timer's low byte, so
   UADE plays the music about one per cent slow. siday plays it at the games' speed. Battle Squadron's
   four tunes and Plague's ingame are here as DeliTracker's custom modules too, the games' own code.
+- **Jason Page** (`.jpn`, its samples in a `.smp` file beside it): Graftgold's second music driver,
+  for Realms (1991), Fire & Ice (1992), Uridium 2 (1993) and Empire Soccer 94. It is not Steve
+  Turner's, Graftgold's first. Wanted Team's player for EaglePlayer holds the driver as three games
+  had it, Realms', Empire Soccer 94's and ViroCop's, and siday ports the first two from its source.
+  ViroCop's is not played, as no file of it is here to check it by. An instrument is a list of
+  commands: its sample, period, volume, envelope and vibrato, and the copying or morphing of part of
+  one sample towards another as it plays. Realms' ingame tune is played in its sixteen parts, as
+  Wanted Team's player splits it.
+- **SoundControl** (`.sct`): Holger Gehrmann's music system, which he began in 1982 for the VIC-20,
+  and took to the C64, PCs and the Amiga. Wanted Team's player holds its versions 3.0, 3.2, 4.0 and
+  5.0, each as a game had it (Dynatech's, Penthouse Hot Numbers Deluxe's and Biing!'s), and tells
+  them apart by how a module is laid out. siday ports all four from its source. They play the music
+  of Gehrmann's own games, of Allan Pedersen's North Sea Inferno and of Silvio Tognazzi's Penthouse
+  Hot Numbers Deluxe. Version 3.2's routine plays a note it does not move a semitone down, as UADE does.
 - **Soundfactory** (`.psf`): Profiteam's Soundfactory 1.0 of 1989, by Zuheir Urwani and Thomas
   Kolbe, mostly heard in the music of Oliver Becker and Michael Volz (Master Control Program). Each
   voice reads a stream of notes and 29 commands, with calls and returns, loops, a fade and the

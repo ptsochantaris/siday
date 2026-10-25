@@ -125,6 +125,9 @@ public enum CompanionFolder {
 ///   `SDR.title`), or, as the modules of a game share them, `set.smp` (`SMP.set`).
 /// - a module of the Blade Packer's, `title.uds`, has its samples in `title.smp` (`SMP.title` for
 ///   `UDS.title`).
+/// - a score of Jason Page's, `title.jpn`, has its samples in `title.smp` (`SMP.title` for `JPN.title`);
+///   one named `title.jpnd`, in `title.jpns` (`JPNS.title` for `JPND.title`), as the player's loader
+///   turns the name's D to an S.
 /// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
 ///   `Instruments`, each named in the score.
 /// - a module of Startrekker's that has synthesised instruments keeps them in a file beside it, which
@@ -274,6 +277,16 @@ public enum Companions {
         case .uds:
             var names = ["\(stem).smp"]
             if fileName.lowercased().hasPrefix("uds.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .jpn:
+            let lower = fileName.lowercased()
+            if lower.hasSuffix(".jpnd") || lower.hasPrefix("jpnd.") {
+                var names = ["\(stem).jpns"]
+                if lower.hasPrefix("jpnd.") { names.insert("JPNS." + fileName.dropFirst(5), at: 0) }
+                return [Companion(part: .samples, names: names, kind: "jpns", required: true)]
+            }
+            var names = ["\(stem).smp"]
+            if lower.hasPrefix("jpn.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
         case .thm:
             // Its samples in one file beside it; or, failing that, each in a folder of instruments beside it.

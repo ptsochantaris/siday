@@ -148,6 +148,17 @@ package enum AmigaComposerPlayers {
         case .ast:
             guard ActionAmicsPlayer.isOne(data) else { throw TuneError.unsupported("not a module of Action Amics'") }
             return try PaulaTickRenderer(ActionAmicsPlayer(data), options: options)
+        case .jpn:
+            // Jason Page's scores, with their samples beside them; but for ViroCop's, of which there is none
+            // to check a port of its routine by.
+            guard JasonPagePlayer.isOne(data) else { throw TuneError.unsupported("not a score of Jason Page's") }
+            if JasonPagePlayer.kind(of: data) == .third { throw TuneError.unsupported("a score of ViroCop's routine, which is not played") }
+            guard let samples = companions.first ?? nil else { throw Companions.missing(Companions.wanted(for: format, fileName: Companions.fileName(path))[0]) }
+            return try PaulaTickRenderer(JasonPagePlayer(data, samples: samples), options: options)
+        case .sct:
+            // Holger Gehrmann's SoundControl, of its four versions, each with its samples.
+            guard SoundControlPlayer.isOne(data) else { throw TuneError.unsupported("not a SoundControl module") }
+            return try PaulaTickRenderer(SoundControlPlayer(data), options: options)
         case .rk:
             guard RonKlarenPlayer.isOne(data) else { throw TuneError.unsupported("not a module of Ron Klaren's") }
             return try PaulaTickRenderer(RonKlarenPlayer(data), options: options)

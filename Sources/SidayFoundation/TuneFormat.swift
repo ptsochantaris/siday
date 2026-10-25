@@ -51,7 +51,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case cust
     case dl
     case core, jmf, bds, gray, hd, spl, dz, mii, bss, sm, sb, rh, rho, fred, dsr, scumm, scn, mc, mcr, jo, dns, kh, scr, wb, md, jcb, ash, tw
-    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat, thm, psf, sdr, uds, tf, snk, ast, dh, rk
+    case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat, thm, psf, sdr, uds, tf, snk, ast, dh, rk, jpn, sct
     case ogg, mp3, wav
     case mo3
 
@@ -95,6 +95,8 @@ public enum TuneFormat: String, CaseIterable, Sendable {
             // (Ron Klaren's, by the names of the game's own code with the music and of Wanted Team's
             // modules of it.)
             "cm": .rk, "rkb": .rk,
+            // (Jason Page's, of the kind whose samples are named `jpns`.)
+            "jpnd": .jpn,
             // (Martin Walker's, and David Whittaker's, by the other names UADE knows them by.)
             "avp": .mw, "dwold": .dw,
             // (The Sonix Music Driver's scores, of its three kinds.)
@@ -143,7 +145,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     /// for EaglePlayer or DeliTracker that took its place (Infogrames', Fashion Tracker's and the rest).
     public var isPortedGamePlayer: Bool {
         switch self {
-        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf, .sdr, .uds, .tf, .snk, .ast, .dh, .rk: true
+        case .dum, .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf, .sdr, .uds, .tf, .snk, .ast, .dh, .rk, .jpn, .sct: true
         default: false
         }
     }
@@ -164,7 +166,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
         case .jt: "MON"
         case .dl: "DLN"
         case .jmf, .bds, .gray, .hd, .spl, .dz, .mii, .bss, .sm, .sb, .rh, .rho, .fred, .dsr, .scumm, .scn, .mc, .mcr, .jo, .dns, .kh, .scr, .wb, .md, .jcb, .ash, .tw: "CORE"
-        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf, .sdr, .uds, .tf, .snk, .ast, .dh, .rk: "DUM"
+        case .ex, .pvp, .alp, .dsc, .bye, .ems, .fw, .lme, .jam, .amc, .psa, .tme, .jpo, .cin, .ps, .sjs, .dat, .thm, .psf, .sdr, .uds, .tf, .snk, .ast, .dh, .rk, .jpn, .sct: "DUM"
         case .mtm, .dtm, .amf: "MTM"
         case .gdm, .ptm: "GDM"
         case .stx: "STM"

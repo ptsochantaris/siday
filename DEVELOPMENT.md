@@ -794,6 +794,8 @@ Results:
 | Action Amics `.ast` | 32 songs, 20 played | all twenty the same to the tick | |
 | David Hanney `.dh` | eight | the same to the tick | |
 | Ron Klaren `.cm`, `.rk` | 24 files, 59 songs | the same to the tick with Wanted Team's timer | 0.93 to 0.96 |
+| Jason Page `.jpn` | eighteen files, 79 songs | the same to the tick, to each song's end | 0.89 to 0.98 |
+| SoundControl `.sct` | 21 files, 31 songs | the same to the tick | 0.948 to 0.998 |
 | Soundfactory `.psf` | one file, five songs | the same to the tick | |
 
 Notes:
