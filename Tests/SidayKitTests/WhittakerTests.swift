@@ -178,8 +178,9 @@ private struct Told: TFMXOutput {
     #expect(renderer.loopCount >= 1)
 }
 
-@Test func whittakerModulesThatAreDamagedAreRefusedOrPlayed() {
-    let data = bytes(module())
+@Test(arguments: [false, true]) func whittakerModulesThatAreDamagedAreRefusedOrPlayed(hubbard: Bool) {
+    // (Rob Hubbard's too, whose driver runs from Paula's interrupts.)
+    let data = bytes(hubbard ? hubbardModule() : module())
     var refused = 0
     for cut in 0 ..< data.count {
         do {
@@ -194,7 +195,8 @@ private struct Told: TFMXOutput {
     #expect(refused > 0)
     var generator = SplitMix(seed: 7)
     // (Few, for each that plays may be a song that never ends, played through as it is loaded.)
-    for i in 0 ..< 40 {
+    // (Fewer of Rob Hubbard's, whose machine runs as the Amiga's does, which takes longer.)
+    for i in 0 ..< (hubbard ? 8 : 40) {
         var copy = data
         for _ in 0 ... i % 6 { copy[Int(generator.next() % UInt64(copy.count))] = UInt8(truncatingIfNeeded: generator.next()) }
         if let renderer = try? PaulaTickRenderer(WhittakerPlayer(copy), options: LoadOptions()) {
@@ -216,4 +218,136 @@ private struct SplitMix {
         z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
         return z ^ (z >> 31)
     }
+}
+
+/// A module of Rob Hubbard's that the player of Whittaker's plays (as Q-Ball's is), as small as one can
+/// be: a routine that starts a song (calling the one that stops the music, readying its one sample, and
+/// putting its routine for Paula's interrupts at the level 4 interrupt's vector itself), one that stops
+/// the music, one that plays a tick, and the routine for the interrupts. Each tick, each voice takes the
+/// next long of its list (a period, as the driver's pointer would be), going back to the start of the
+/// list at its end, and plays its note as Q-Ball's driver does: its DMA turned off, a wait by the
+/// processor, the sample set, its DMA turned on, and its interrupt cleared and let through. The routine
+/// for the interrupts points each voice that asks at silence to go on with, and shuts its interrupt off.
+/// The first voice's list is three longs, the others' one.
+private func hubbardModule(rte: Bool = true) -> AmigaCode {
+    var c = AmigaCode(at: WhittakerPlayer.moduleAddress)
+    c.label("base")
+    c.w(0x47FA); c.to("base") // LEA base(PC),A3
+    c.w(0x6100); c.to("stop") // BSR stop
+    c.w(0x41FA); c.to("sampleTable") // LEA sampleTable(PC),A0
+    c.w(0x7E00, 0x2418, 0x3618) // MOVEQ #0,D7; MOVE.L (A0)+,D2; MOVE.W (A0)+,D3
+    c.w(0xC0FC, 0x0012) // MULU #18,D0
+    c.w(0x41FA); c.to("songs") // LEA songs(PC),A0
+    c.w(0x41FA); c.to("interrupt") // LEA interrupt(PC),A0
+    c.label("vector")
+    c.w(0x23C8, 0x0000, 0x0070) // MOVE.L A0,$70
+    c.w(0x4E75)
+    c.label("stop")
+    c.w(0x2F0B) // MOVE.L A3,-(A7)
+    c.w(0x47FA); c.to("base") // LEA base(PC),A3
+    c.w(0x33FC, 0x000F, 0x00DF, 0xF096) // MOVE.W #$F,$DFF096
+    c.w(0x33FC, 0x00FF, 0x00DF, 0xF09E) // MOVE.W #$FF,$DFF09E
+    c.w(0x265F, 0x4E75) // MOVEA.L (A7)+,A3; RTS
+    c.label("play")
+    c.w(0x48E7, 0xFFFE) // MOVEM.L D0-D7/A0-A6,-(A7)
+    c.w(0x47FA); c.to("base") // LEA base(PC),A3
+    c.w(0x41FA); c.to("voices") // LEA voices(PC),A0
+    c.w(0x4DF9, 0x00DF, 0xF000, 0x7E00) // LEA $DFF000,A6; MOVEQ #0,D7
+    c.label("step")
+    c.w(0x2028, 0x000C, 0x2468, 0x0008, 0xD5C0, 0x5880) // MOVE.L 12(A0),D0; MOVEA.L 8(A0),A2; ADDA.L D0,A2; ADDQ.L #4,D0
+    c.w(0x4A92, 0x6606, 0x2468, 0x0008, 0x7004, 0x2252) // the end of a list, and back
+    c.w(0x2140, 0x000C) // MOVE.L D0,12(A0)
+    c.w(0x4241, 0x0FC1, 0x33C1, 0x00DF, 0xF096) // CLR.W D1; BSET D7,D1; MOVE.W D1,$DFF096
+    c.w(0x323C, 0x0100, 0x51C9, 0xFFFE) // MOVE.W #$100,D1; DBF D1,*
+    c.w(0x3D49, 0x00A6) // MOVE.W A1,$A6(A6)
+    c.w(0x2D7C); c.address("sound"); c.w(0x00A0) // MOVE.L #sound,$A0(A6)
+    c.w(0x3D7C, 0x0008, 0x00A4, 0x3D7C, 0x0040, 0x00A8) // MOVE.W #8,$A4(A6); MOVE.W #64,$A8(A6)
+    c.w(0x323C, 0x8200, 0x0FC1, 0x33C1, 0x00DF, 0xF096) // MOVE.W #$8200,D1; BSET D7,D1; MOVE.W D1,$DFF096
+    c.w(0x4241, 0x3407, 0x5E42, 0x05C1, 0x33C1, 0x00DF, 0xF09C) // CLR.W D1; MOVE.W D7,D2; ADDQ.W #7,D2; BSET D2,D1; MOVE.W D1,$DFF09C
+    c.w(0x08C1, 0x000F, 0x33C1, 0x00DF, 0xF09A) // BSET #15,D1; MOVE.W D1,$DFF09A
+    c.w(0x41E8, 0x0010, 0xDCFC, 0x0010) // LEA 16(A0),A0; ADDA.W #16,A6
+    c.w(0x5247, 0xBE7C, 0x0004, 0x6600); c.to("step") // ADDQ.W #1,D7; CMP.W #4,D7; BNE.W step
+    c.w(0x4CDF, 0x7FFF, 0x4E75) // MOVEM.L (A7)+,D0-D7/A0-A6; RTS
+    c.label("interrupt")
+    c.w(0x48E7, 0xC080) // MOVEM.L D0/D1/A0,-(A7)
+    c.w(0x41FA); c.to("silence") // LEA silence(PC),A0
+    c.w(0x3039, 0x00DF, 0xF01E, 0xC079, 0x00DF, 0xF01C) // MOVE.W INTREQR,D0; AND.W INTENAR,D0
+    for v in 0 ..< 4 {
+        let bit = UInt16(0x80) << UInt16(v)
+        c.w(0x0800, UInt16(7 + v), 0x6700); c.to("next\(v)") // BTST #7+v,D0; BEQ.W next
+        c.w(0x33FC, bit, 0x00DF, 0xF09A, 0x33FC, bit, 0x00DF, 0xF09C) // its interrupt shut off and cleared
+        c.w(0x33FC, 0x0001, 0x00DF, 0xF0A4 + UInt16(v * 16)) // MOVE.W #1,AUDxLEN
+        c.w(0x23C8, 0x00DF, 0xF0A0 + UInt16(v * 16)) // MOVE.L A0,AUDxLC
+        c.label("next\(v)")
+    }
+    c.w(0x4CDF, 0x0103, rte ? 0x4E73 : 0x4E75) // MOVEM.L (A7)+,D0/D1/A0; RTE
+    c.label("voices")
+    for v in 0 ..< 4 {
+        c.w(0, 0, 0, 0)
+        c.address("list\(v)")
+        c.w(0, 0)
+    }
+    // The song: its speed, and the offset of each voice's list from the base, filled in below.
+    c.label("songs")
+    c.w(0x0001, 0, 0, 0, 0, 0, 0, 0, 0)
+    let periods: [[UInt16]] = [[0x100, 0x200, 0x300], [0x180], [0x1C0], [0x140]]
+    for v in 0 ..< 4 {
+        c.label("list\(v)")
+        for period in periods[v] { c.w(0, period) }
+        c.w(0, 0)
+    }
+    c.label("sampleTable")
+    c.w(0x0000, 0x0010, 0x0000)
+    c.label("sound")
+    c.bytes([UInt8](repeating: 0x40, count: 8) + [UInt8](repeating: 0xC0, count: 8))
+    c.bytes([UInt8](repeating: 0, count: 64))
+    c.label("silence")
+    c.w(0)
+    for v in 0 ..< 4 {
+        c.words[c.offset("songs") / 2 + 2 + v * 2] = UInt16(c.offset("list\(v)"))
+    }
+    return c
+}
+
+/// What Paula is told of each voice's buffers, in order.
+private struct Buffers: TFMXOutput {
+    var starts: [[Int]] = [[], [], [], []]
+    mutating func on(_: Int) {}
+    mutating func off(_: Int) {}
+    mutating func takeNextBuffer(_ voice: Int, start: Int, length _: UInt16) { starts[voice].append(start) }
+    func loopCount(_: Int) -> UInt16 { 0 }
+}
+
+@Test func whittakerHubbardModulesRunFromPaulasInterrupts() throws {
+    let c = hubbardModule()
+    let data = bytes(c)
+    #expect(WhittakerPlayer.isOne(data))
+    let layout = try WhittakerModule(data)
+    #expect(layout.flag == 0xFF && layout.initAt == 0 && layout.playAt == c.offset("play"))
+    #expect(layout.audioInterrupt == c.offset("interrupt") && layout.setsVector == c.offset("vector"))
+    #expect(layout.entrySize == 18 && layout.voices == 4 && layout.songCount == 1)
+    var player = try WhittakerPlayer(data)
+    try player.select(song: 0)  // (Played through first, as its renderer has it played.)
+    // The second, third and fourth voices are back at the start of their lists on the second tick the
+    // driver plays (the host's first tick is over before its timer first calls it), and the second's
+    // counts for the first's as well, as the player has it for Rob Hubbard's modules: the song ends.
+    let length = Int(player.lengthClocks ?? 0)
+    #expect(abs(length - 2 * WhittakerPlayer.tickClocks) < 8)
+    #expect(player.tuneInfo.format == "David Whittaker")
+    // The driver's putting of its routine at the vector is gone, and the routine comes back by RTS.
+    let module = Int(WhittakerPlayer.moduleAddress)
+    let vector = module + c.offset("vector")
+    for i in 0 ..< 3 { #expect(player.memory[vector + 2 * i] == 0x4E && player.memory[vector + 2 * i + 1] == 0x71) }
+    let end = module + c.offset("voices") - 2
+    #expect(player.memory[end] == 0x4E && player.memory[end + 1] == 0x75)
+    // Each voice's note is pointed at silence to go on with by its interrupt, in the tick it starts.
+    var told = Buffers()
+    for _ in 0 ..< 2 { _ = player.run(&told) }
+    let sound = module + c.offset("sound"), silence = module + c.offset("silence")
+    for v in 0 ..< 4 {
+        #expect(told.starts[v].contains(sound))
+        #expect(told.starts[v].last == silence)
+    }
+    // A routine for the interrupts that does not end as the player looks for is refused.
+    #expect(throws: TuneError.self) { let _ = try WhittakerPlayer(bytes(hubbardModule(rte: false))) }
 }

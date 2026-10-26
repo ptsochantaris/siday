@@ -979,6 +979,11 @@ Checked against UADE:
   modules over their first 40 seconds, or to where they stop.
 - Every song ends where UADE's does.
 - Stereo loudness envelope over the first minute: 0.9992 alike on average.
+- Rob Hubbard's Q-Ball, run from Paula's interrupts on the host for DeliTracker's players: its four
+  songs the same on every tick to their ends, but for the second voice's first interrupt, which UADE
+  loses on 71 of its 106 notes in the tune by a race of some 16 clocks (the driver clears the voice's
+  request just after it turns its DMA on); with those two writes swapped in a copy, UADE matches on
+  every tick. Envelope 0.92 to 0.97 alike.
 
 Notes:
 

@@ -1819,8 +1819,12 @@ UnExoticA's collection has 119 files:
   Total Recall, Tetris, Loopz and Alfred Chicken.
 - **Three drivers of Ray Norrish's**, for sound effects alone, made in Whittaker's way and with no
   music in them. They are not played.
-- **Rob Hubbard's Q-Ball**, whose driver is run by Paula's own interrupts. siday's player of these
-  drivers does not run those, so it is not played either.
+- **Rob Hubbard's Q-Ball**, his own small driver made in Whittaker's way, whose samples are each
+  ended by Paula's own interrupts: four songs, the tune and three jingles. siday runs it on its
+  Amiga with those interrupts, as Wanted Team's player sets them up. In UADE the second voice loses
+  its first interrupt on many of its notes, by a race of a few clocks between the driver and Paula;
+  siday's Amiga takes every one, and so does UADE once the driver's two writes are put the other way
+  round.
 
 ### How siday plays it
 

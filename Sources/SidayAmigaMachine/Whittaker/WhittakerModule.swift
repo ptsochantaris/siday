@@ -51,8 +51,10 @@ struct WhittakerModule {
     var cleared: [Int] = []
     var madeNOPs: Range<Int>?
     /// For a module of Rob Hubbard's that the player also plays: the routine its driver puts at the
-    /// level 4 interrupt's vector, to be run by Paula's audio interrupts ($858).
+    /// level 4 interrupt's vector, to be run by Paula's audio interrupts ($858), and where it puts it
+    /// there (its `MOVE.L A0,$70`).
     var audioInterrupt: Int?
+    var setsVector: Int?
     /// A module whose driver the player gives back its volume each tick ($96E).
     var restoresVolume: Bool { calculatedSize == 0x5C82 }
 
@@ -437,6 +439,7 @@ struct WhittakerModule {
                 if try m.word(a2) == 0x23C8 {
                     // A Rob Hubbard module's driver, which runs from Paula's interrupts ($858).
                     audioInterrupt = a2 - 2 + (try m.signedWord(a2 - 2))
+                    setsVector = a2
                     a2 += 6
                     calculatedSize -= 64
                 }

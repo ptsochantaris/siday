@@ -23,6 +23,9 @@ import SidayM68000
 /// start of its list of patterns since the song began or last ended, or when the driver stops the music
 /// (`MOVE.W #$FF,$DFF09E`, which only its routine that stops it writes) other than as a song is started.
 /// Each song's length is found by playing it through in silence.
+///
+/// A module of Rob Hubbard's whose driver runs from Paula's interrupts as well (Q-Ball's) is run as the
+/// Amiga runs, every interrupt taken as it comes due, by `WhittakerInterrupts`.
 struct WhittakerPlayer: ~Copyable {
     /// Where the module is put: where UADE puts it, past the player and its own code.
     static let moduleAddress: UInt32 = 0x11000
@@ -61,6 +64,8 @@ struct WhittakerPlayer: ~Copyable {
     private let image: [UInt8]
     private var machine: AmigaMachine
     private var feed: AmigaPaulaFeed
+    /// For a module whose driver runs from Paula's interrupts: the player run on its own host.
+    private var hosted: WhittakerInterrupts?
     private(set) var writes: [AmigaWrite] = []
     private var signals: [AmigaWrite] = []
     /// What the song's start wrote to Paula, heard as its first tick begins.
@@ -84,9 +89,12 @@ struct WhittakerPlayer: ~Copyable {
     private(set) var lengthClocks: UInt64?
     private var lengths: [UInt64??]
 
-    var memory: UnsafeMutablePointer<UInt8> { machine.memory }
-    var memoryCapacity: Int { machine.memorySize }
-    var silenceAt: Int { Int(Self.moduleAddress) + image.count + Self.room / 2 }
+    var memory: UnsafeMutablePointer<UInt8> { hosted?.memory ?? machine.memory }
+    var memoryCapacity: Int { hosted?.memorySize ?? machine.memorySize }
+    var silenceAt: Int {
+        if let size = hosted?.memorySize { return size - DeliTrackerHost.room / 2 - 1024 }
+        return Int(Self.moduleAddress) + image.count + Self.room / 2
+    }
     var mixingAt: Int { silenceAt }
     var songCount: Int { layout.songCount }
 
@@ -114,9 +122,7 @@ struct WhittakerPlayer: ~Copyable {
         guard Int(Self.moduleAddress) + data.count + Self.room <= machine.memorySize else {
             throw .unsupported("a module of David Whittaker's larger than the Amiga's chip RAM")
         }
-        guard layout.audioInterrupt == nil else {
-            throw .unsupported("a module of Rob Hubbard's whose driver runs from Paula's interrupts, which are not run here")
-        }
+        if layout.audioInterrupt != nil { hosted = try WhittakerInterrupts(data, layout) }
         // (Its songs are played through, to find how long they are, when the renderer asks: `measure`.)
         self.song = song >= 0 && song < layout.songCount ? song : 0
         try start(self.song)
@@ -135,6 +141,18 @@ struct WhittakerPlayer: ~Copyable {
     /// meet none of these in any of UnExoticA's modules. What is made of those that are kept does what the
     /// player's does, and tells the host through its port where the player calls EaglePlayer.
     static func patch(_ data: [UInt8], _ layout: WhittakerModule) -> [UInt8] {
+        var routines: [(pattern: [UInt16], at: UInt32)] = []
+        var at = patchCode
+        for routine in Self.patches(layout) {
+            routines.append((routine.pattern, at))
+            at += UInt32(routine.code.count * 2)
+        }
+        return patch(data, layout, routines)
+    }
+
+    /// The module changed as `patch(_:_:)` has it, each pattern made a call of the routine at the
+    /// address given with it.
+    static func patch(_ data: [UInt8], _ layout: WhittakerModule, _ routines: [(pattern: [UInt16], at: UInt32)]) -> [UInt8] {
         var bytes = data
         for at in layout.cleared where at >= 0 && at < bytes.count { bytes[at] = 0 }
         if let nops = layout.madeNOPs {
@@ -142,12 +160,6 @@ struct WhittakerPlayer: ~Copyable {
                 bytes[at] = 0x4E
                 bytes[at + 1] = 0x71
             }
-        }
-        var routines: [(pattern: [UInt16], at: UInt32)] = []
-        var at = patchCode
-        for routine in Self.patches(layout) {
-            routines.append((routine.pattern, at))
-            at += UInt32(routine.code.count * 2)
         }
         let length = layout.songTable
         for (pattern, address) in routines {
@@ -220,6 +232,12 @@ struct WhittakerPlayer: ~Copyable {
     /// song started as the player's `DTP_InitSound` ($888) starts it: its routine for that called with
     /// the song's number in D0, after the seventh of its table if it has one.
     private mutating func start(_ song: Int) throws(TuneError) {
+        if hosted != nil {
+            endings = 0
+            stops = 0
+            try hosted!.start(song)
+            return
+        }
         machine.powerOn()
         var at = Self.patchCode
         for routine in Self.patches(layout) {
@@ -304,6 +322,22 @@ struct WhittakerPlayer: ~Copyable {
         var none = Unheard()
         var ticks = 0
         var used: Int64 = 0
+        if hosted != nil {
+            // (The host's ticks, each as long as its timer has it, and the processor's time it was busy.)
+            var clocks: UInt64 = 0
+            var last: UInt64 = 0
+            while endings == 0, stops == 0, ticks < Self.mostTicks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget {
+                let busy = hosted!.busyCycles
+                _ = run(&none)
+                ticks += 1
+                last = UInt64(hosted!.ticks.tickClocks)
+                clocks += last
+                used += hosted!.busyCycles - busy
+                dryRuns += hosted!.busyCycles - busy
+            }
+            lengths[song] = .some(endings > 0 || stops > 0 ? clocks - last : nil)
+            return
+        }
         while endings == 0, stops == 0, ticks < Self.mostTicks, used < Self.dryRunBudget, dryRuns < Self.dryRunsBudget {
             _ = run(&none)
             ticks += 1
@@ -321,6 +355,12 @@ struct WhittakerPlayer: ~Copyable {
     /// and what it wrote told `output` at the moments it wrote it. Returns the tick's length in
     /// milliseconds.
     mutating func run<Output: TFMXOutput>(_ output: inout Output) -> Int {
+        if hosted != nil {
+            let (ends, stopped) = hosted!.run(&output)
+            endings += ends
+            stops += stopped
+            return hosted!.ticks.tickClocks * 1000 / 3_546_895
+        }
         feed.beginTick()
         if !startWrites.isEmpty {
             feed.tell(startWrites, &output)
@@ -368,10 +408,10 @@ extension WhittakerPlayer: PaulaTickPlayer {
 
     mutating func prepareToBeHeard() {}
 
-    func fourVoiceTick(_: inout TFMXTiming) -> Int { Self.tickClocks }
+    func fourVoiceTick(_: inout TFMXTiming) -> Int { hosted?.ticks.tickClocks ?? Self.tickClocks }
 
     /// What Paula's registers held as the tick began (see `AmigaPaulaFeed`).
-    func period(_ voice: Int) -> UInt16 { feed.periods[voice] }
-    func volume(_ voice: Int) -> UInt16 { feed.volumes[voice] }
-    var lightFilter: Bool { feed.lightFilter }
+    func period(_ voice: Int) -> UInt16 { hosted?.ticks.feed.periods[voice] ?? feed.periods[voice] }
+    func volume(_ voice: Int) -> UInt16 { hosted?.ticks.feed.volumes[voice] ?? feed.volumes[voice] }
+    var lightFilter: Bool { hosted?.ticks.feed.lightFilter ?? feed.lightFilter }
 }
