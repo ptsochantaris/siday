@@ -118,7 +118,7 @@ struct DeliTrackerHost: ~Copyable {
         var waitAudioDMA: UInt32 = 0
         var level1: UInt32 = 0, level2: UInt32 = 0, level3: UInt32 = 0, level4: UInt32 = 0, level5: UInt32 = 0
         var level6: UInt32 = 0, ciaaInterrupt: UInt32 = 0, ciabInterrupt: UInt32 = 0
-        var idle: UInt32 = 0, waitFrame: UInt32 = 0
+        var idle: UInt32 = 0, waitFrame: UInt32 = 0, frameTick: UInt32 = 0
     }
 
     /// Which system the player is given: score's, as UADE's host gives it; or, for a player that needs
@@ -405,6 +405,17 @@ struct DeliTrackerHost: ~Copyable {
         }
         addCIAAInterrupt(timer: 1, code: routine, data: 0)
         hostTimer = true
+    }
+
+    /// For a player whose music was played from the frame's interrupt in its game, as the host's timer
+    /// plays the rest: `routine` called each frame, as a server of the frame's interrupt (the first frame
+    /// after this), its ticks as long as the frames (`nextTick`).
+    mutating func playByFrame(_ routine: UInt32) {
+        var at = Self.vblankServers
+        while machine.peek32(at) != 0, at < Self.irqLines - 16 { at += 8 }
+        machine.poke32(at, entries.frameTick)
+        machine.poke32(at + 4, routine)
+        machine.poke32(at + 8, 0)
     }
 
     /// For comparing a player with a recording of it made on an Amiga: how far into its frame the host's
@@ -1376,6 +1387,12 @@ struct DeliTrackerHost: ~Copyable {
         a.place(none)
         a.w(0x4CDF, 0x7FFF) // MOVEM.L (A7)+,D0-D7/A0-A6
         a.branch(0x6000, to: idle) // BRA.S idle
+        // A server of the frame's that calls the routine in its data as the CIAs' handler calls one
+        // (`playByFrame`): A0 the routine, A1 nought, A6 exec, and A5 the globals, as the idle loop has them.
+        e.frameTick = a.here
+        a.w(0x2049, 0x93C9, 0x2C78, 0x0004, 0x4BF9) // MOVEA.L A1,A0; SUBA.L A1,A1; MOVEA.L 4.W,A6; LEA globals,A5
+        a.long(globals)
+        a.w(0x4E90, 0x4E75) // JSR (A0); RTS
         // (The order's displacement, put back.)
         var bytes = a.assembled()
         bytes[(orderAt + 1) * 2] = UInt8(words[orderAt + 1] >> 8)

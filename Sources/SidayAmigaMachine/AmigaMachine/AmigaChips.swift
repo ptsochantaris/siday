@@ -65,23 +65,27 @@ final class AmigaChips: M68000Bus {
     /// (SOFT). Off, as it is for a player whose host calls its code itself, nothing asks: INTREQ holds
     /// only what the program writes to it, and the chips are as they were before this was made.
     ///
-    /// On, the frames are as UADE's UAE has them: short ones, of 312 lines (its long-frame bit, which only
-    /// an interlaced display changes, is clear as it starts), and VPOSR says so. Off, every frame is a long
-    /// one of 313, as the players called a tick at a time were made with.
+    /// Every frame is a long one of 313 lines, as on an Amiga that has started its Kickstart, whose
+    /// graphics.library sets the long-frame bit as it starts (Kickstart 1.3 does it 2.5 seconds after it is
+    /// switched on, in Copperline): only an interlaced display changes it after that. So the frame comes
+    /// every 71,051 of Paula's clocks, 49.92 times a second, and VPOSR says it is a long one.
     var interrupts = false {
         didSet { setFrames() }
     }
 
-    /// Whether the frames are long ones of 313 lines while the chips interrupt, as they are on the A500
-    /// that the references of exec's own system (`DeliTrackerHost.System.exec`) were recorded on
-    /// (Copperline's, whose frames start every 71,051 clocks), rather than UAE's short ones. Off unless
-    /// asked for.
-    var longFrames = false {
+    /// Whether the frames are short ones of 312 lines while the chips interrupt, as UADE's UAE has them (it
+    /// starts no Kickstart, and its long-frame bit is clear as it starts): only for comparing with UADE,
+    /// whose frames come 50.08 times a second. `comparingWithUADE` sets it as the chips are switched on.
+    var shortFrames = AmigaChips.comparingWithUADE {
         didSet { setFrames() }
     }
 
+    /// Whether the chips of every Amiga made from now on have UADE's short frames (`shortFrames`): for a
+    /// test that compares what siday's players write with UADE's, moment for moment, never for playing.
+    nonisolated(unsafe) package static var comparingWithUADE = false
+
     private func setFrames() {
-        frameClocks = UInt64(Self.lineClocks * (interrupts && !longFrames ? Self.shortFrameLines : Self.frameLines))
+        frameClocks = UInt64(Self.lineClocks * (interrupts && shortFrames ? Self.shortFrameLines : Self.frameLines))
         nextFrame = (clock / frameClocks + 1) * frameClocks
     }
 
@@ -130,7 +134,7 @@ final class AmigaChips: M68000Bus {
         eTicks = 0
         filterOn = false
         interrupts = false
-        longFrames = false
+        shortFrames = Self.comparingWithUADE
         nextFrame = UInt64(Self.lineClocks * Self.frameLines)
         audio = AmigaAudioDMA()
     }
@@ -326,10 +330,10 @@ final class AmigaChips: M68000Bus {
         case 0x002: return dmacon & 0x07FF
         case 0x004, 0x006:
             if interrupts {
-                // A short frame (bit 15 of VPOSR clear), or a long one if asked for.
+                // A long frame (bit 15 of VPOSR set), or UADE's short one.
                 let inFrame = Int(now(cycles) % frameClocks)
                 let line = inFrame / Self.lineClocks, position = inFrame % Self.lineClocks
-                return register == 0x004 ? (longFrames ? 0x8000 : 0) | UInt16(line >> 8) : UInt16(line & 0xFF) << 8 | UInt16(position)
+                return register == 0x004 ? (shortFrames ? 0 : 0x8000) | UInt16(line >> 8) : UInt16(line & 0xFF) << 8 | UInt16(position)
             }
             let (line, position) = Self.beam(at: now(cycles))
             // Every frame is a long one (bit 15 of VPOSR); the Agnus says nothing of itself.

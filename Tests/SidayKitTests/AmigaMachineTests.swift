@@ -308,9 +308,13 @@ private func waitingProgram(_ setUp: [UInt16], request: UInt16, reading icr: UIn
 @Test func amigaFramesInterrupt() {
     let code = waitingProgram([0x33FC, 0xC020, 0x00DF, 0xF09A], request: 0x0020)
     var m = interrupting(code, level: 3, handler: "handler")
-    // (Short frames, of 312 lines, as UADE's are.)
-    let frame = UInt64(AmigaChips.lineClocks * AmigaChips.shortFrameLines)
+    // (Long frames, of 313 lines, as an Amiga's are once its Kickstart has started; UADE's short ones
+    // only when asked for.)
+    let frame = UInt64(AmigaChips.lineClocks * AmigaChips.frameLines)
     #expect(m.chips.frameClocks == frame)
+    m.chips.shortFrames = true
+    #expect(m.chips.frameClocks == UInt64(AmigaChips.lineClocks * AmigaChips.shortFrameLines))
+    m.chips.shortFrames = false
     #expect(m.run(until: frame * 7 / 2) == .reached)
     #expect(m.peek16(0x3000) == 3)
     let at = times(&m, 0xB6)

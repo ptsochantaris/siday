@@ -299,9 +299,9 @@ private func dnsModuleAndTable(hundred: Bool = false) -> (bytes: [UInt8], entry:
     try p.select(song: p.song)  // (Played through first, as its renderer has it played.)
     #expect(p.songCount == 2)
     #expect(p.tuneInfo.format == "Dynamic Synthesizer" && p.tuneInfo.author == "Chris Hülsbeck")
-    // Fifty ticks a second; the period made $71 at least, the volume through the player's; and the
-    // song's end where the module goes back.
-    #expect(abs(p.tickClocks - 70940) < 5)
+    // A tick each frame, as the game ran it; the period made $71 at least, the volume through the
+    // player's; and the song's end where the module goes back.
+    #expect(abs(p.tickClocks - 71051) < 5)
     var (values, endings) = played(&p, ticks: 4, 0xA6)
     #expect(values.contains(0x71) && !values.contains(0x60))
     #expect(endings == 1)

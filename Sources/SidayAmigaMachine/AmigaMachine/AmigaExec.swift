@@ -223,9 +223,7 @@ struct AmigaExec {
         tasks = [Task(tcb: t, priority: 0, running: true)]
         m.poke32(AmigaMachine.execBase + Self.thisTask, t)
         free = heapTo > heapFrom + 8 ? [((heapFrom + 7) & ~7, (heapTo - ((heapFrom + 7) & ~7)) & ~7)] : []
-        // The frames of the A500 the references were made on, and its Paula's way of starting a voice by
-        // hand (see `AmigaChips`).
-        m.chips.longFrames = true
+        // The A500's Paula's way of starting a voice by hand (see `AmigaChips`).
         m.chips.manualWordStartsBlock = true
     }
 

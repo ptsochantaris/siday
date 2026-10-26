@@ -142,7 +142,7 @@ extension TFMXDecoder {
         lengthClocks = (0, 0)
         repeat {
             duration &+= UInt32(truncatingIfNeeded: run(&silent))
-            lengthClocks.four &+= UInt64(four.fourVoiceTick(rate: rate, timer: ciaTimer))
+            lengthClocks.four &+= UInt64(four.fourVoiceTick(rate: rate, timer: ciaTimer, fiftyIsTheFrame: true))
             lengthClocks.seven &+= UInt64(seven.sevenVoiceTick(tempo: sevenVoiceTempo))
         } while !songEnd && duration < 1000 * 60 * 59
         loopMode = loopModeBefore

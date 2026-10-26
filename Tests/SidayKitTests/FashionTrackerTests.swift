@@ -116,7 +116,7 @@ private func file(_ notes: [(at: Int, voice: Int, period: Int, instrument: Int, 
 /// The song comes to its end as it comes back to its first pattern: 64 rows of six ticks.
 @Test func fashionTrackerSongEnds() throws {
     var player = try FashionTrackerPlayer(file([(16, 0, 428, 1, 0, 0)]))
-    #expect(player.lengthClocks == UInt64(64 * 6 * TFMXTiming.fiftyTimes))
+    #expect(player.lengthClocks == UInt64(64 * 6 * TFMXTiming.frame))
     var none = TFMXSilentOutput()
     for _ in 0 ..< 384 { _ = player.run(&none) }
     #expect(player.endings == 0)

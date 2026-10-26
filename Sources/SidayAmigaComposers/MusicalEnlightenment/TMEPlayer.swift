@@ -27,9 +27,9 @@ import SidayFoundation
 /// end.
 ///
 /// This is the player itself, as EaglePlayer's module runs it in UADE: what it tells Paula is what that player
-/// tells her, tick by tick. It sets no timer of its own (it has only `DTP_Interrupt`, its author's vertical blank),
-/// and so is run by EaglePlayer's, which UADE runs from a CIA's timer of $376B: 70,940 of Paula's clocks, fifty
-/// times a second and a little less. On every tick the voices of the notes begun on the tick before are turned on,
+/// tells her, tick by tick. It is run each frame, 71,051 of Paula's clocks, as its author meant it to be ("a routine to
+/// be added to your vertical-blank-handler", `TME_v3.s`). (EaglePlayer's has only `DTP_Interrupt`, and so in UADE
+/// it is run by a CIA's timer of $376B, 70,940 clocks apart, a little faster.) On every tick the voices of the notes begun on the tick before are turned on,
 /// and `DMAWait` waits for the beam to begin nine lines (of 227 of Paula's clocks); every so many ticks the next
 /// event of each voice is read (its note begun with its voice turned off), the lists of instructions are walked,
 /// the periods and volumes are made, and Paula is told the place, length, period and volume of each of the tune's
@@ -168,7 +168,7 @@ struct TMEPlayer: ~Copyable {
     private var lengths: [UInt64?] = []
 
     /// How long each tick is (see the type's comment).
-    static let tickClocks = TFMXTiming.fiftyTimes
+    static let tickClocks = TFMXTiming.frame
     /// A tune that has not come to its end in an hour is taken never to; and once the tunes played through to
     /// find their lengths have taken four hours in all, the rest are too.
     private static let mostTicks = 50 * 60 * 60

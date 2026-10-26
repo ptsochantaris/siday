@@ -75,10 +75,11 @@ struct ThomasHermannPlayer: ~Copyable {
 
     /// True to run the slides and envelopes as Wanted Team's module does in UADE (`InitSound`): on CIA-B's
     /// timer B, set from EaglePlayer's timer of fifty times a second ($376B) with its bytes swapped ($6B37),
-    /// some 25.8 times a second. False (the game's own way, as Blue Angel 69's custom module plays it): fifty.
+    /// some 25.8 times a second. False (the game's own way, as Blue Angel 69's custom module plays it): each
+    /// frame, 49.92 times a second.
     let wantedTeamsTimer: Bool
     var effectsClocks: UInt64 {
-        wantedTeamsTimer ? UInt64(0x6B37 + 1) * 5 : UInt64(TFMXTiming.fiftyTimes)
+        wantedTeamsTimer ? UInt64(0x6B37 + 1) * 5 : UInt64(TFMXTiming.frame)
     }
 
     // MARK: The player's variables, named as its source names them.

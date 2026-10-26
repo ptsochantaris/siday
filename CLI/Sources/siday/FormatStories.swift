@@ -1065,7 +1065,9 @@ library:
 - **How often the player runs.** The library runs fifty ticks a second, or two fifths of a song's
   beats a minute. TFMX Professional's player and the first player set the computer's timer from the
   song's beats a minute. Professional's runs slower than the library by nearly one part in a
-  hundred.
+  hundred. A song that sets no timer was played each frame of the display, as Hülsbeck's players
+  left it ("vbi is active", says Professional's source): 49.92 times a second on a PAL Amiga, and
+  so in siday. UADE plays it a little faster, on DeliTracker's timer.
 - **How TFMX 7V's four voices are mixed.** They are mixed as the player mixed them: at its own
   16 kHz, with nothing between one sample and the next, and clipped to a byte. A buffer is mixed
   from what the voices were told the tick before, and heard the tick after, as it was on the Amiga.
@@ -1131,6 +1133,10 @@ Three things in siday are not the library's:
   plays them, so there is nothing to compare them with.
 - **Level.** Hippel's music is louder on the Amiga's chip than modules are, and is turned down to
   match.
+- **COSO's speed.** Hippel's COSO player was called "each vbi", its source says: each frame of the
+  display, 49.92 times a second on a PAL Amiga. siday plays it so. The library and UADE play it fifty
+  times a second, a little faster. How the other kinds were called is not known, and they are played
+  as UADE plays them.
 
 All 229 files of music in the collection are played; the one file left over is Amberstar's samples.
 Over the first minute, siday's stereo loudness envelope matches UADE's to 0.975 on average, where
@@ -1209,6 +1215,10 @@ has the list of them that Wanted Team made for it.
 Images Music System's E command turns the Amiga's filter on or off, as ProTracker's E0x does, and is
 heard so. The one file that has it only turns it off.
 
+Images Music System's player was run each frame of the display, from the frame's interrupt, as its own
+code shows. siday plays it so, 49.92 times a second; UADE plays it on DeliTracker's timer, a little
+faster.
+
 ### How siday plays it
 
 Each of the four players is here as its own code is, tick by tick. All 129 files are played, and
@@ -1250,7 +1260,8 @@ tick for tick, except where told below.
 - **Fashion Tracker** (`.ex`): Richard van de Veen's, for Combine and Mini Golf Plus. A file is the
   game's own replayer and its music, at the address the game had them, found as Wanted Team's player
   finds them. A song ends where it comes round to its first pattern. The player says so as its last
-  pattern begins, which would cut that one off.
+  pattern begins, which would cut that one off. The replayer ran each frame of the display, as its own
+  code puts it on the frame's interrupt, and so it does in siday.
 - **Peter Verswyvelen Packer** (`.pvp`): the replayer of Whiz Kidz's Ziriax (1989), with Tomas
   Dahlgren's music for it and Zarathrusta. It is near enough to ProTracker to be taken for a packer
   of its modules. But its vibrato only ever goes down, and twice as far, so siday plays it by its
@@ -1260,6 +1271,8 @@ tick for tick, except where told below.
   Wanted Team's player does nothing with. From the music it looks to be a slide of the volume, which
   the twelfth file does with another command (8). siday plays it as that slide. Without it, Cedric's
   lead holds its notes flat; with it they swell and fade. Heard both ways, the slides are the music.
+  Its replay ran each frame of the display, from the frame's interrupt, as its code shows, and so it
+  does in siday.
 - **Digital Sonix & Chrome** (`.dsc`): David Hanlon's music, with Andrew E. Bailey, for Dragon's
   Breath (1990), by the game's own player. Each row is a sample for each of the four voices, or
   nothing. A sample is played once and then its loop so many times, counted by Paula's interrupts.
@@ -1295,7 +1308,8 @@ tick for tick, except where told below.
   width it varies, with an envelope of four stages.
 - **The Musical Enlightenment** (`.tme`): N. J. Luuring jr's, of 1989 and 1990, for Labyrinth's
   sixteen tunes. Its instruments have lists of instructions for their vibrato and tremolo,
-  envelopes, arpeggios, slides and glides.
+  envelopes, arpeggios, slides and glides. Its author made it "to be added to your
+  vertical-blank-handler", and siday runs it each frame of the display.
 - **Steve Turner** (`.jpo`): Graftgold's first driver, Steve Turner's, at a hundred ticks a second.
   It played his Rainbow Islands and Jason Page's Paradroid 90, Simulcra and Ivan "Ironman" Stewart's
   Super Off Road. Its instruments have up to three parts to their pitch, and envelopes with tremolo,
@@ -1338,7 +1352,7 @@ tick for tick, except where told below.
   Magic Bytes' Beam, Blue Angel 69 and Nightdawn. The samples are in a file beside the module.
   Failing that, each is in an IFF file in the folder `Instruments` beside it, by the name the module
   gives it, in any case. The song runs on a timer of its own, about 43 times a second, and the
-  slides and envelopes on the game's 50 a second.
+  slides and envelopes on the game's frames, 49.92 a second.
 - **Thomas Hermann's songs:** which songs a file has is known only by its size, as the player knows
   it: Blue Angel 69's five, and three in Beam's unused music.
 - **Thomas Hermann's timer:** Wanted Team's player writes the second timer's two bytes the wrong way
@@ -1876,6 +1890,14 @@ What the driver writes to Paula is heard at the moment in the tick it writes it,
 a voice stopped, waited on and started again is heard that way. The same Amiga runs the other
 composers' drivers that come in their own files.
 
+Its display's frames are long ones, of 313 lines, 49.92 a second, as on an Amiga that has started its
+Kickstart: Kickstart sets the bit that makes them so as it starts, and nothing but an interlaced
+display changes it after. UADE starts no Kickstart, and its frames are short ones, of 312 lines, 50.08
+a second. So music a game ran from the frame plays about a third of a percent slower in siday than in
+UADE, as it did on the Amiga. Where a game's own code shows that it ran its music from the frame,
+siday's player runs it so too; where nothing shows how it was run, it is run as UADE's is, on
+DeliTracker's timer, a hair under fifty times a second.
+
 ## MW — Martin Walker's own drivers
 
 Martin Walker wrote the music of games such as Hunter, R-Type II, Dragon Breed, Atomic Robo-Kid,
@@ -2069,7 +2091,9 @@ down by its own amount to the level of the rest.
   Riskant and Wetten dass. There are also Oliver Becker's Cosmic Bouncer and Rock Challenge. 21
   files, 37 songs, of its versions 1.00, 1.09 and "NEW". Each module is an AmigaDOS program whose
   header gives its routines, and may set its own speed, from 48 to 237 ticks a second. Every song
-  matches UADE's tick for tick, and ends where UADE's does.
+  matches UADE's tick for tick, and ends where UADE's does. Final Mission's module sets the frame's
+  interrupt going for its music itself, and is played each frame, 49.92 times a second, where UADE
+  plays it on DeliTracker's timer.
 - **Sound Master** (`.sm`): Michiel Soede's Sound Master 1.0 to 3.0 ("(c) 1991-94"), used mostly by
   Jeroen Soede, Wanted Team write: Doofus and Future Shock, twelve files of a song each. The same as
   UADE's in every song. One, Doofus's third tune in the game, comes round again only after 13:44,
@@ -2168,7 +2192,9 @@ down by its own amount to the level of the rest.
   game's sound effects, which never come, it ends when the voices that are heard have come round.
 - **Dynamic Synthesizer** (`.dns`): Chris Hülsbeck's, of 1987 and 1988, for Hollywood Poker Pro,
   with its samples beside it (`title.smp`). Two files, 13 songs. The code is moved from where it was
-  assembled to run, as the player moves it, and is the same as UADE's.
+  assembled to run, as the player moves it, and is the same as UADE's. The game played it from a
+  copper interrupt at the end of each frame, as its in-game module sets going itself, and siday plays
+  both files each frame, 49.92 times a second, a little slower than UADE.
 
 ## CUST — DeliTracker's custom modules
 

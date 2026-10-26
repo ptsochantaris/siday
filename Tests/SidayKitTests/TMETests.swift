@@ -93,7 +93,7 @@ private func file(mask: Int = 0x0F) -> [UInt8] {
 /// The tune comes to its end as its last entry does, and is said to as it begins again: 32 events of a tick here.
 @Test func tmeTuneEnds() throws {
     var player = try TMEPlayer(file())
-    #expect(player.lengthClocks == UInt64(32 * TFMXTiming.fiftyTimes))
+    #expect(player.lengthClocks == UInt64(32 * TFMXTiming.frame))
     var none = TFMXSilentOutput()
     for _ in 0 ..< 32 { _ = player.run(&none) }
     #expect(player.endings == 0)

@@ -22,9 +22,10 @@ import SidayFoundation
 /// arpeggio, does anything.
 ///
 /// This is the player itself, as EaglePlayer's module runs it in UADE: what it tells Paula is what that
-/// player tells her, tick by tick. It sets no timer of its own (it has only `DTP_Interrupt`), and so is run
-/// by EaglePlayer's, which UADE runs from a CIA's timer of $376B: 70,940 of Paula's clocks, fifty times a
-/// second and a little less. Its speed is six ticks a row, always. At a row each voice with a note is
+/// player tells her, tick by tick. It is run each frame, 71,051 of Paula's clocks, as the tracker's own replay
+/// ran it, from the frame's interrupt (it puts its routine at $6C, in Wanted Team's source of it,
+/// `FashionTracker.asm`). (EaglePlayer's has only `DTP_Interrupt`, and so in UADE it is run by a CIA's timer
+/// of $376B, 70,940 clocks apart, a little faster.) Its speed is six ticks a row, always. At a row each voice with a note is
 /// turned off, told its sample, period and volume, and turned on; a sample that does not go round is told
 /// eight bytes of silence to go on to. On the five ticks after, a voice whose row has the arpeggio has its
 /// period moved up the table of periods by the command's high four bits, its low four, nought, and the
@@ -96,7 +97,7 @@ struct FashionTrackerPlayer: ~Copyable {
     private(set) var lengthClocks: UInt64?
 
     /// How long each tick is (see the type's comment).
-    static let tickClocks = TFMXTiming.fiftyTimes
+    static let tickClocks = TFMXTiming.frame
     /// A song that has not come to its end in an hour is taken never to.
     private static let mostTicks = 50 * 60 * 60
 

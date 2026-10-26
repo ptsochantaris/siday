@@ -107,7 +107,9 @@ struct WantedTeamPlayer<Recipe: WantedTeamRecipe>: ~Copyable {
         host.setSong(songs.first + (song ?? 0))
         try recipe.volume(&host)
         try recipe.initSound(&host)
-        if let interrupt = recipe.interrupt { host.playByTimer(interrupt) }
+        if let interrupt = recipe.interrupt {
+            if recipe.ticksOnFrame { host.playByFrame(interrupt) } else { host.playByTimer(interrupt) }
+        }
         host.idle()
         endings = 0
         stops = 0

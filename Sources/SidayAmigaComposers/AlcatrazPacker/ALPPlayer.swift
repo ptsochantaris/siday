@@ -25,9 +25,11 @@ import SidayFoundation
 /// between rows 1 arpeggio, 2 a slide either way, 3 a slide to the note, 4 vibrato, 5 and 6 those two
 /// with a slide of the volume, 7 tremolo (whose wave moves, and nothing else), 8 a slide of the volume
 /// either way; at the row 9 nothing (but see `volumeSlideOnNine`), A the sample from further in, B a jump, C
-/// the volume, D on to the next pattern, E the filter and fine slides, F the speed. It sets no timer of
-/// its own (it has only `DTP_Interrupt`), and so is run by EaglePlayer's, which UADE runs from a CIA's
-/// timer of $376B: 70,940 of Paula's clocks, fifty times a second and a little less.
+/// the volume, D on to the next pattern, E the filter and fine slides, F the speed. It is run each
+/// frame, 71,051 of Paula's clocks, as the packer's own replay ran it: from the frame's interrupt (its
+/// handler at $6C tests INTREQR for the frame's bit and plays, in Wanted Team's source of it,
+/// `Alcatraz_Packer_v2.asm`). (Their player for EaglePlayer has only `DTP_Interrupt`, and so in UADE it is
+/// run by a CIA's timer of $376B, 70,940 clocks apart, a little faster.)
 ///
 /// It owns the memory Paula plays from: the module, the sample file after it (for one that has one),
 /// and the room `PaulaTickRenderer` wants, whose noughts are where a voice with nothing to play is
@@ -118,7 +120,7 @@ struct ALPPlayer: ~Copyable {
     var stops: Int { 0 }
     private(set) var lengthClocks: UInt64?
 
-    static let tickClocks = TFMXTiming.fiftyTimes
+    static let tickClocks = TFMXTiming.frame
     /// A song that has not come to its end in an hour is taken never to.
     private static let mostTicks = 50 * 60 * 60
 

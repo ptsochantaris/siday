@@ -48,6 +48,10 @@ protocol WantedTeamRecipe {
     /// the recipe has set `dtg_Timer` to another speed by `initSound`); nil for a recipe that has set its
     /// own interrupts going in `initSound` (as `DTP_StartInt` does).
     var interrupt: UInt32? { get }
+    /// Whether `interrupt` is called each frame instead, as the game called the module's tick, from the
+    /// frame's interrupt (by default, not: for most, how the game called it is not known, and it is
+    /// called as UADE's host calls it).
+    var ticksOnFrame: Bool { get }
     /// What the module says of itself: its name, its author's, and anything for `TuneInfo.detail`.
     var title: String { get }
     var author: String { get }
@@ -61,6 +65,7 @@ extension WantedTeamRecipe {
     static var moduleAt: UInt32 { 0xF000 }
     static var gain: Float { 0.46 }
     mutating func volume(_: inout DeliTrackerHost) throws(TuneError) {}
+    var ticksOnFrame: Bool { false }
     var detail: String { "" }
 }
 

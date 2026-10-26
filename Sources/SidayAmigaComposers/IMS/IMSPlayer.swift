@@ -104,11 +104,12 @@ struct IMSPlayer: ~Copyable {
     var stops: Int { 0 }
     private(set) var lengthClocks: UInt64?
 
-    /// How long each tick is: the player is run by EaglePlayer's timer (it has an interrupt and does
-    /// not start one of its own), which UADE's runs on a CIA's timer from $376B, its count for fifty a
-    /// second (score.s, `cia_timer_base_value`); the timer counts down to nought and starts again, $376C
-    /// counts at a fifth of Paula's clock (70,940 of hers, as UADE's ticks are apart).
-    static let tickClocks = (0x376B + 1) * 5
+    /// How long each tick is: a frame, as Images Software ran the player, from the frame's interrupt (the
+    /// replay's own handler at $6C, which tests INTREQR for the frame's bit before it plays: Wanted Team's
+    /// source of it, `Images Music System_v3.asm`). EaglePlayer's has an interrupt and starts none of its
+    /// own, and so in UADE it is run by a CIA's timer from $376B, its count for fifty a second (score.s,
+    /// `cia_timer_base_value`), 70,940 of Paula's clocks apart, a little faster.
+    static let tickClocks = TFMXTiming.frame
     /// A song that has not come to its end in an hour is taken never to.
     private static let mostTicks = 50 * 60 * 60
 

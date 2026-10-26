@@ -192,7 +192,7 @@ extension TFMXPlayer: PaulaTickPlayer {
         playsOnInEndlessPatterns = true
     }
 
-    func fourVoiceTick(_ timing: inout TFMXTiming) -> Int { timing.fourVoiceTick(rate: rate, timer: ciaTimer) }
+    func fourVoiceTick(_ timing: inout TFMXTiming) -> Int { timing.fourVoiceTick(rate: rate, timer: ciaTimer, fiftyIsTheFrame: true) }
 
     /// TFMX's songs are quieter on the Amiga's chip than modules are, by 5 dB in the middle of
     /// UnExoticA's 318, and are turned up by that (2026-10-17).

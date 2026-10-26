@@ -176,9 +176,9 @@ private func run(_ player: inout ThomasHermannPlayer, until: UInt64) -> Recorder
     let slides = r.events.filter { $0.hasPrefix("period 0") }
     #expect(slides.first == "period 0 4")
     #expect(slides.contains("period 0 8"))
-    // Fifty times a second (Wanted Team's timer would run them some 26).
+    // Each frame, as the game ran them (Wanted Team's timer would run them some 26 times a second).
     let times = r.events.indices.filter { r.events[$0].hasPrefix("period 0") }.map { r.times[$0] }
-    #expect(times[1] - times[0] == 70940)
+    #expect(times[1] - times[0] == 71051)
     var wt = try ThomasHermannPlayer(module(note: 0x01, effect: 1), samples: sound, wantedTeamsTimer: true)
     let w = run(&wt, until: 90 * 81925)
     let wtimes = w.events.indices.filter { w.events[$0].hasPrefix("period 0") }.map { w.times[$0] }

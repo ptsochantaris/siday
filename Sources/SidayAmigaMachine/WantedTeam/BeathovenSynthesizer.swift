@@ -57,6 +57,9 @@ struct BeathovenSynthesizer: WantedTeamRecipe {
     private var patches = WantedTeamPatches(), oldPatches = WantedTeamPatches()
 
     var interrupt: UInt32? { tick }
+    /// Whether the module's own code sets the frame's interrupt going for its tick (`MOVE.L #handler,$6C`,
+    /// as Final Mission's does, at $CE of its hunk): its game played it from the frame.
+    private(set) var ticksOnFrame = false
 
     mutating func assemble(_ a: inout AmigaAssembly) {
         // The variables ($16E to $206): the module's routines for a tick, a song's start and its stop, the
@@ -367,6 +370,9 @@ struct BeathovenSynthesizer: WantedTeamRecipe {
             host.machine.poke16(module &+ 0x910A, 0x33A4)
         } else if h[10] == 0x3_F4DE {
             for i in 0 ..< 26 { host.machine.poke32(module &+ 0x3_5D52 &+ UInt32(i * 4), 0) }
+        }
+        ticksOnFrame = stride(from: UInt32(0), to: 0x400, by: 2).contains {
+            host.machine.peek16(module &+ $0) == 0x23FC && host.machine.peek32(module &+ $0 &+ 6) == 0x6C
         }
         // ($74E) The module's routine to be run as it is loaded, if it has one.
         if h[4] != 0 { _ = try host.call(h[4]) }

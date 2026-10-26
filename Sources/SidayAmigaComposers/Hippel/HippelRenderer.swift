@@ -63,5 +63,7 @@ extension HippelPlayer: PaulaTickPlayer {
         loops = true
     }
 
-    func fourVoiceTick(_ timing: inout TFMXTiming) -> Int { timing.fourVoiceTick(rate: rate, timer: nil) }
+    func fourVoiceTick(_ timing: inout TFMXTiming) -> Int {
+        timing.fourVoiceTick(rate: rate, timer: nil, fiftyIsTheFrame: decoder.initKind == .coso)
+    }
 }

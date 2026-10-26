@@ -176,6 +176,33 @@ Under the same headings as FORMATS.md, the detail behind each chapter.
 - **Companion files** are all found by `FileFinder`: by the names they are known to have, beside the
   file that wants them first, and case-insensitively, as Windows matches names.
 
+### The Amiga's frames, and what ticks by them (all Amiga formats)
+
+- **Frames.** The emulated Amiga's frames are long ones, of 313 lines of 227 clocks (71,051 clocks,
+  49.92 a second), as on an Amiga that has started its Kickstart: Kickstart 1.3's graphics.library
+  sets the long-frame bit 2.5 seconds after power-on (a write of VPOSW, seen in Copperline), and only
+  an interlaced display toggles it after that. UADE starts no Kickstart and clears the bit at reset
+  (`src/custom.c`), so its frames are short ones of 312 lines (50.08 a second).
+  `AmigaChips.comparingWithUADE` gives UADE's for a test that compares with it moment for moment; it
+  is never set for playing. Tick for tick comparisons with UADE are not affected: what a tick writes
+  does not depend on how long the frame is.
+- **What ticks by the frame.** A player is run each frame (`TFMXTiming.frame`) where the program it
+  came from shows that it was: TFMX songs that set no timer (TFMX Pro's `installtimer`, "vbi is
+  active"), Hippel's COSO ("CALL h_replay each vbi"), Alcatraz Packer, Fashion Tracker and Images
+  Music System (their replays' own handlers at $6C), The Musical Enlightenment ("a routine to be added
+  to your vertical-blank-handler"), Thomas Hermann's effects (the game's), Beathoven Synthesizer
+  modules whose own code sets the frame's vector (Final Mission's), and the Dynamic Synthesizer
+  (Hollywood Poker Pro's in-game module sets a copper interrupt at each frame's end); MaxTrax already
+  was. All are cited in the code. The rest, whose original caller is not known (most of the
+  composers' drivers and the other ports, which UADE and siday run on DeliTracker's timer of $376B,
+  70,940 clocks), are left so, as is anything with a timer of its own.
+- **Not yet decided:** Cinemaware's driver sets CIA-B to $2E9B with no check for PAL (59,660 clocks on
+  a PAL Amiga, where siday has Wanted Team's 59,115); the Sonix Music Driver's SNX timer is from an
+  NTSC clock ($1B4F4D, 0.9 % slower on PAL); Sonic Arranger's 709,379 against 709,350 (0.004 %); TFMX
+  1.x's mid-song speed, which writes only the timer's high byte; Infogrames' rate, where UADE's
+  $1A00 (106.6 a second) and Andy Silva's DeliTracker player (99.8) differ by 6.7 %; and MOD files of
+  NoiseTracker and its kin, and the first Soundtrackers, which ran on the frame.
+
 ### PT3 — the AY trackers, VTX and AY files
 
 Based on:
@@ -1141,10 +1168,9 @@ exec's own system (`DeliTrackerHost.System.exec`, `AmigaExec`, `AmigaTimerDevice
   first songs, dense music in unison whose beating follows the voices' phase within a tick.
 - The time the system's routines take on an Amiga is spent: each is charged its median as measured
   on Kickstart 1.3, which brings the notes' moments within a tick closer to the reference's.
-- The frames are long ones of 313 lines for these, as on Copperline's A500 (UADE's, which score's
-  modules are checked against, are short ones of 312). A voice whose DMA comes on during a word written
-  by hand starts its block at once (`AmigaChips.manualWordStartsBlock`), as audio.device's every note
-  needs. Both are off for every other module.
+- A voice whose DMA comes on during a word written by hand starts its block at once
+  (`AmigaChips.manualWordStartsBlock`), as audio.device's every note needs. It is off for every other
+  module.
 - Not settled: what a write of more than one cycle does when it runs out with nothing behind it (never
   seen; it is stopped, as 1.3 stops a write of one cycle), and timer waits longer than a frame
   (counted in fiftieths of a second, as the Autodocs have them; never measured).

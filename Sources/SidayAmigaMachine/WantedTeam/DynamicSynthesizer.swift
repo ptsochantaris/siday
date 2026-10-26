@@ -67,6 +67,10 @@ struct DynamicSynthesizer: WantedTeamRecipe {
     private var patches = WantedTeamPatches()
 
     var interrupt: UInt32? { tick }
+    /// Whether the module is played fifty times a second: from the frame, as Hollywood Poker Pro played its
+    /// music (from a copper interrupt at the frame's end, which its in-game module sets going itself);
+    /// otherwise, a hundred times a second, from the host's timer, as Wanted Team's player has it.
+    private(set) var ticksOnFrame = false
 
     mutating func assemble(_ a: inout AmigaAssembly) {
         func bsr(_ routine: Int) {
@@ -259,6 +263,7 @@ struct DynamicSynthesizer: WantedTeamRecipe {
         var at = module &+ 6 &+ UInt32(word(module + 6)) &+ 2
         let rts = long(at) &- origin &+ module &- 6
         if word(rts) == 0x4E75 {
+            ticksOnFrame = true
             move(rts + 2)
             var entry = long(rts + 2)
             move(entry)

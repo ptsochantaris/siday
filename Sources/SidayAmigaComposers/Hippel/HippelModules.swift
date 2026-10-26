@@ -60,7 +60,7 @@ extension HippelDecoder {
         lengthClocks = (0, 0)
         repeat {
             duration &+= UInt32(run(&silent))
-            lengthClocks.four &+= UInt64(four.fourVoiceTick(rate: rate, timer: nil))
+            lengthClocks.four &+= UInt64(four.fourVoiceTick(rate: rate, timer: nil, fiftyIsTheFrame: initKind == .coso))
             lengthClocks.seven &+= UInt64(TFMXSevenVoices.Style.hippel.tickClocks(tempo: sevenVoiceTempo))
         } while !songEnd && duration < 1000 * 60 * 59
         loopMode = loopModeBefore
