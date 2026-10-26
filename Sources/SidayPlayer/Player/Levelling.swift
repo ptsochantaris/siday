@@ -155,8 +155,9 @@ public extension SongLevel {
     /// 17: a ping-pong loop's last point played twice in ModPlug-made IT and MPTM files, and a custom
     /// module's song played through for twenty minutes to find its end; 18: that point where OpenMPT
     /// gives it; 19: the emulated Amiga's frames long ones of 313 lines, as a Kickstart sets them, and
-    /// the players their games and trackers ran from the frame ticked by it.)
-    static let soundVersion = 19
+    /// the players their games and trackers ran from the frame ticked by it; 20: Wings', Sonix's SNX
+    /// and Sonic Arranger's timers as their own code sets them on a PAL Amiga.)
+    static let soundVersion = 20
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {

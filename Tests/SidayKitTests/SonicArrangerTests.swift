@@ -174,7 +174,7 @@ private struct Parts {
     #expect(first.tickClocks == (0x376B + 1) * 5)
     let second = try SonicArrangerPlayer(parts.song, song: 1)
     #expect(second.lengthTicks == 2 * 3)
-    #expect(second.tickClocks == (709_350 / 25 + 1) * 5)
+    #expect(second.tickClocks == (0xAD303 / 25 + 1) * 5)
     #expect(second.lengthClocks == UInt64(6 * second.tickClocks))
     // A jump back to the first position comes round there.
     parts.songs = [[2, 4, 0, 1, 0, 50]]

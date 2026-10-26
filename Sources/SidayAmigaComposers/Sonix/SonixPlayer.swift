@@ -111,9 +111,11 @@ struct SonixPlayer: ~Copyable {
     /// taken up when it next runs out, as UADE's cia.c has it).
     var latch: UInt16 = 0x376B
     private var tickTimer: UInt16 = 0x376B
-    /// The clock the SNX player divides by its tempo for its timer (`Clock`, `InitSound`): EaglePlayer's
-    /// timer as UADE first sets it ($376B, score.s's `cia_timer_base_value`) times 125.
-    static let clock: UInt32 = 0x376B &* 125
+    /// The clock the SNX player divides by its tempo for its timer: the driver's own, $1B4F4D, an NTSC
+    /// Amiga's count for two and a half seconds, which it uses on any Amiga (`lbC01E798`, as Wanted Team's
+    /// source keeps it: "for NTSC timer"), and so on a PAL one its songs go a little slower. (Wanted
+    /// Team's `Clock` is EaglePlayer's timer as UADE first sets it, $376B, times 125, 1,773,375.)
+    static let clock: UInt32 = 0x1B_4F4D
 
     /// What Paula's registers were last given, by voice.
     private(set) var periods = InlineArray<4, UInt16>(repeating: 0)

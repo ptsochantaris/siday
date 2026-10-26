@@ -122,7 +122,7 @@ private func smus(sonix: Bool = true) -> [UInt8] {
     #expect(recorder.events == ["buffer 0 \(buffer) 0", "buffer 0 \(buffer) 16", "on 0"])
     #expect(player.period(0) == 427)
     #expect(player.volume(0) > 0)
-    #expect(player.fourVoiceTicks() == (0x376B * 125 / 120 + 1) * 5)
+    #expect(player.fourVoiceTicks() == (0x1B_4F4D / 120 + 1) * 5)
     recorder.events = []
     _ = player.run(&recorder)
     #expect(recorder.events == ["buffer 0 \(buffer - 0x80) 16", "buffer 0 \(buffer - 0x80) 16"])

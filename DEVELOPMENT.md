@@ -196,12 +196,16 @@ Under the same headings as FORMATS.md, the detail behind each chapter.
   was. All are cited in the code. The rest, whose original caller is not known (most of the
   composers' drivers and the other ports, which UADE and siday run on DeliTracker's timer of $376B,
   70,940 clocks), are left so, as is anything with a timer of its own.
-- **Not yet decided:** Cinemaware's driver sets CIA-B to $2E9B with no check for PAL (59,660 clocks on
-  a PAL Amiga, where siday has Wanted Team's 59,115); the Sonix Music Driver's SNX timer is from an
-  NTSC clock ($1B4F4D, 0.9 % slower on PAL); Sonic Arranger's 709,379 against 709,350 (0.004 %); TFMX
-  1.x's mid-song speed, which writes only the timer's high byte; Infogrames' rate, where UADE's
-  $1A00 (106.6 a second) and Andy Silva's DeliTracker player (99.8) differ by 6.7 %; and MOD files of
-  NoiseTracker and its kin, and the first Soundtrackers, which ran on the frame.
+- **The Amiga is a PAL one.** Where a game's timer was worked out for NTSC and set on any Amiga, it is
+  played as a PAL Amiga ran it: Wings (Cinemaware's CIA-B $2E9B, "NTSC 60Hz timer": 59,660 clocks, where
+  Wanted Team's player has 59,115) and the Sonix Music Driver's SNX scores (its clock $1B4F4D, "for NTSC
+  timer", where Wanted Team's has $376B times 125). Sonic Arranger's timer is the replayer's own $AD303
+  ("only PAL clock") over the song's ticks a second, for modules with their own replayer too, which
+  UADE runs at fifty. Infogrames' rate stays UADE's $1A00 (106.6 a second), not Andy Silva's DeliTracker
+  player's (99.8): Captain Blood's title music, heard against the game, is right at it (the user's ear,
+  2026-10-26).
+- **Not yet decided:** TFMX 1.x's mid-song speed, which writes only the timer's high byte; and MOD files
+  of NoiseTracker and its kin, and the first Soundtrackers, which ran on the frame.
 
 ### PT3 — the AY trackers, VTX and AY files
 

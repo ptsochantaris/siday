@@ -33,10 +33,10 @@ import SidayFoundation
 /// tells her a length of one word and a period of $72 instead); it clears its voices for each song;
 /// and it sets Paula's location whole, where the replayer, ending a note, sets its upper word alone
 /// to the lower word of where its silence is, and clears the upper word of where the voice's
-/// instrument is, leaving the lower (no file of UnExoticA's does either: see `endNote`). It runs as
-/// often as the song says, as the replayer would set its own timer to; UADE runs the replayer fifty
-/// times a second, whatever its song says, from the timer of its own, which the replayer's does not
-/// set.
+/// instrument is, leaving the lower (no file of UnExoticA's does either: see `endNote`). Both run as
+/// often as the song says, as the replayer sets its own timer to (see `timer(ticksASecond:)`); UADE
+/// runs the replayer fifty times a second, whatever its song says, from a timer of its own, which the
+/// replayer's does not set.
 struct SonicArrangerPlayer: ~Copyable {
     /// The module and what follows it, as Paula reads them.
     let memory: UnsafeMutablePointer<UInt8>
@@ -307,20 +307,22 @@ struct SonicArrangerPlayer: ~Copyable {
         paulaVolumes = InlineArray(repeating: 0)
         paulaLocations = InlineArray(repeating: 0)
         paulaLengths = InlineArray(repeating: 0)
-        timer = Self.timer(replayer: replayer, ticksASecond: ticksASecond)
+        timer = Self.timer(ticksASecond: ticksASecond)
         clock = 0
         endings = 0
         comesRound = false
     }
 
-    /// The CIA timer the player is run by. Wanted Team's sets UADE's (`lbC0007D6`) to 50 times its own,
-    /// 709,350, over the song's ticks a second (none leaving it as it was, $376B, and a division too
-    /// big for a word leaving its dividend, of which the lower word is taken); the replayer's own sets
-    /// a timer of the CIA that UADE does not run it by.
-    static func timer(replayer: SonicArrangerLayout.Replayer, ticksASecond: UInt16) -> UInt16 {
-        guard replayer == .wantedTeam, ticksASecond != 0 else { return 0x376B }
-        let quotient = 709_350 / UInt32(ticksASecond)
-        return UInt16(truncatingIfNeeded: quotient > 0xFFFF ? 709_350 : quotient)
+    /// The CIA timer the player is run by, as the replayer sets its own (`lbC0007D6`): $AD303, the CIA's
+    /// count for a second on a PAL Amiga ("only PAL clock", Wanted Team's source of it says), over the
+    /// song's ticks a second; none leaves it fifty a second, $376B, and a division too big for a word
+    /// leaves its dividend, of which the lower word is taken. (Wanted Team's player sets UADE's timer to
+    /// fifty times its own instead, 709,350 over them, a little faster; and UADE runs a module's own
+    /// replayer fifty times a second whatever its song says.)
+    static func timer(ticksASecond: UInt16) -> UInt16 {
+        guard ticksASecond != 0 else { return 0x376B }
+        let quotient = 0xAD303 / UInt32(ticksASecond)
+        return UInt16(truncatingIfNeeded: quotient > 0xFFFF ? 0xAD303 : quotient)
     }
 
     /// How long a tick is, in Paula's clocks: the CIA's timer comes round every one more of its clocks

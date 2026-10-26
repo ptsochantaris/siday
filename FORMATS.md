@@ -1313,8 +1313,9 @@ tick for tick, except where told below.
   with Gregory Haggard's music. It is near enough to MIDI: sixteen channels of notes, programs,
   pitch bends and controllers, given to the four voices as the player chooses. Each instrument has
   envelopes of pitch and volume, vibrato, and up to three IFF samples by the note. The samples come
-  from a folder beside the scores (`Instruments`), as Sonix's scores have theirs. It runs sixty
-  ticks a second, as the game's own timer gave them.
+  from a folder beside the scores (`Instruments`), as Sonix's scores have theirs. The game set its
+  timer to NTSC's sixty ticks a second whatever the Amiga, so on a PAL Amiga it ran a little slower,
+  59.45 a second, and so it does in siday (UADE plays it at sixty).
 - **Paul Shields** (`.ps`): his music on Paul Hunter's player, of 1988 to 1991, for Airball, Jug,
   Goldrunner II, Amiga Soccer and Psygnosis' Amnios. It is played by two of the player's replayers.
   The first has seven waves of its own, one of them 400 bytes of the player's own code played as
@@ -1689,6 +1690,9 @@ Worth knowing, about siday's choices and the player's own ways:
   heard so. No song in the collection turns it on.
 - **Level:** Sonic Arranger's music is louder on Paula, the Amiga's sound chip, than other modules
   are, so siday turns it down to their level.
+- **Speed:** Each song says how many ticks a second it runs at, and the replayer sets the Amiga's
+  timer from the PAL count for a second over that number. siday does the same for every module,
+  those with their own replayer too, which UADE runs fifty times a second whatever the song says.
 
 ## SONIX — the Sonix Music Driver
 
@@ -1735,7 +1739,9 @@ Worth knowing, about siday's choices and the players' own ways:
 - **Timing:** Each player sets the Amiga's timer itself. SNX's player sets it from its tempo, with a
   tick of the score each time the timer runs out. TINY's and SMUS's set it from a table of 128
   tempos, a tick of the score being one to fifteen of the timer's. A tick lasts as long as the timer
-  says, and a timer set during a tick counts from the next, as the Amiga's does.
+  says, and a timer set during a tick counts from the next, as the Amiga's does. SNX's driver works
+  its timer out from an NTSC Amiga's clock on any Amiga, so on a PAL one its songs go about one part
+  in a hundred slower than UADE plays them, and so they do in siday.
 - **The Instruments folder:** The whole Instruments folder beside a score is brought with it, on the
   command line and in the browser alike. The player finds in it the instruments the score names,
   without regard to capitals. On UnExoticA's copies, a full stop in an instrument's name has become

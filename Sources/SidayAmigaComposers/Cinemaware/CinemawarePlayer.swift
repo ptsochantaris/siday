@@ -26,9 +26,10 @@ import SidayFoundation
 /// pitch (its high byte), or the song's end ($10).
 ///
 /// This is the player itself, as EaglePlayer's module runs it in UADE: what it tells Paula is what that player
-/// tells her, tick by tick. It is run sixty times a second (`InitSound` sets EaglePlayer's timer to five sixths of
-/// UADE's $376B: (11822 + 1) * 5 = 59,115 of Paula's clocks), as the game ran it on a CIA's timer of NTSC's sixty
-/// times a second. On every tick the events that have come are acted on (a note is begun with its voice turned
+/// tells her, tick by tick. It is run as the game ran it, on CIA-B's timer A set to $2E9B, NTSC's sixty times a
+/// second, whatever the Amiga (the game's code, kept in Wanted Team's source: "NTSC 60Hz timer"): on a PAL
+/// Amiga, whose CIAs count a little slower, (0x2E9B + 1) * 5 = 59,660 of Paula's clocks, 59.45 times a second.
+/// (Wanted Team's `InitSound` sets EaglePlayer's timer to five sixths of UADE's $376B instead, 59,115 clocks.) On every tick the events that have come are acted on (a note is begun with its voice turned
 /// off and told its sound, its period $80 and its volume nought), and then each voice playing is moved on: its two
 /// envelopes and its vibrato, its period (from a table of 240 steps to an octave, as the wave's frequency over a
 /// frequency of the note), its loop told Paula on its second tick, its volume, a wait for the beam to begin nine
@@ -132,7 +133,7 @@ struct CinemawarePlayer: ~Copyable {
     var stops: Int { 0 }
     private(set) var lengthClocks: UInt64?
     /// How long each tick is (see the type's comment).
-    static let tickClocks = (0x376B * 5 / 6 + 1) * 5
+    static let tickClocks = (0x2E9B + 1) * 5
     /// A song longer than an hour is taken never to end.
     private static let mostTicks = 60 * 60 * 60
     /// Where in the tick, in Paula's clocks, the player's writes fall in UADE (near the medians of its dumps): the
