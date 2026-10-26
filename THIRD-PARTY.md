@@ -265,6 +265,20 @@ Mr.Larmer/Wanted Team and PP/Union), and "Soundcontrol 3.0/3.2/4.0/5.0 player mo
 (`players/SoundControl`, `Soundcontrol/src/Soundcontrol_v3.asm`; "(c) 1989-95 by Holger Gehrmann").
 Nothing of their code is carried here but what it does and its tables of periods.
 
+`Sources/SidayAmigaComposers/SynthPack` plays Karsten Obarski's Synth Pack songs as Wanted Team's "Synth
+Pack player module V1.1 (20 Jun 2000)" plays them ("(c) 1989-92 by Karsten 'Obi' Obarski, adapted by Wanted
+Team"; `players/SynthPack`, 10,000 bytes, of which there is no source), read in a disassembly of it. Its
+waves are worked out in code, and checked to be the same bytes as the player's. Carried as data, in
+`SynthPackTables.swift`, are only what cannot be worked out: from its code hunk (whose byte X is the
+file's byte X + 32), its two tables of noise (the low bytes of the 32 words at $153E, and the 128 bytes
+at $250A), its 72 periods (at $11EE), the seven songs' first positions of Dyter-07's routine (at $8AA),
+and its arpeggios, as the steps they make.
+
+`Sources/SidayAmigaComposers/Silmarils` plays the music of Silmarils' games as Wanted Team's "Silmarils
+player module V1.0 (22 Oct 2001)" plays it ("(c) 1989-92 by Michel Pernot, adapted by Wanted Team";
+`players/Silmarils`, of which there is no source), read in a disassembly of it. Nothing of its code is
+carried here but what it does and its table of periods.
+
 ## PumaTracker, Pierre Adane's packer, Game Music Creator and Images Music System
 
 `Sources/SidayAmigaComposers/Puma`, `PAP`, `GMC` and `IMS` play these four kinds of game music as their

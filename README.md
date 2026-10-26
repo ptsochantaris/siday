@@ -78,7 +78,8 @@ Alcatraz Packer, Digital Sonix & Chrome's, Andrew Parton's, the Editeur Musical 
 Worlds', the Leggless Music Editor, JamCracker, A.M.Composer, Professional Sound Artists, The Musical
 Enlightenment, Steve Turner's, Cinemaware's (with its instruments folder), Paul Shields', Lemmings'
 SoundPlayer, Paul Robotham's, Thomas Hermann's, Soundfactory, Synth Dream, the Blade Packer, Tim
-Follin's, Paul Summers', Action Amics, David Hanney's, Ron Klaren's, Jason Page's, and SoundControl.
+Follin's, Paul Summers', Action Amics, David Hanney's, Ron Klaren's, Jason Page's, SoundControl, and
+Karsten Obarski's Synth Pack, and Silmarils'.
 
 **Music systems:**
 

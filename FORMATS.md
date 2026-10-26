@@ -1401,6 +1401,22 @@ tick for tick, except where told below.
   them apart by how a module is laid out. siday ports all four from its source. They play the music
   of Gehrmann's own games, of Allan Pedersen's North Sea Inferno and of Silvio Tognazzi's Penthouse
   Hot Numbers Deluxe. Version 3.2's routine plays a note it does not move a semitone down, as UADE does.
+- **Synth Pack** (`.osp`, with the samples a game's songs share in `set.smp` beside them): Karsten
+  Obarski's music for Centerbase and Dyter-07. He wrote SoundTracker too, but this shares nothing with
+  it. Wanted Team's player for EaglePlayer holds the two games' routines, which lay out their songs in
+  two ways. An instrument is a sample, or a window of 128 bytes swept through a bank of waves, with an
+  envelope of four stages, tremolo, vibrato, bends of its pitch as it starts and as it is let go, and
+  arpeggios. siday ports both routines from a reading of that player's 68000 code; there is no source.
+- **Silmarils** (`.mok`): the music of Silmarils' games of 1989 to 1992 (Ishar, Crystals of Arborea,
+  Storm Master, Starblade, Colorado, Targhan, Metal Mutant, Boston Bomb Club and others), by Michel
+  Pernot's replayer, on three voices, at 216 ticks a second. A file is one of the games' own resource
+  files, with the game's script in it, which puts the samples in their places and starts a score: siday
+  runs that script as Wanted Team's player for EaglePlayer does, and ports the player from a reading of
+  its 68000 code. Three of Boston Bomb Club's tunes keep only two samples of their own and find the
+  rest in `BostonBombClub.mok` beside them, the file of their name up to its first underscore, as the
+  player looks for it; UADE does not find it there, and plays them only when it is given it under its
+  Amiga name. One note in Colorado's first song is lost in UADE, by a race of the player's with Paula
+  that siday does not follow.
 - **Soundfactory** (`.psf`): Profiteam's Soundfactory 1.0 of 1989, by Zuheir Urwani and Thomas
   Kolbe, mostly heard in the music of Oliver Becker and Michael Volz (Master Control Program). Each
   voice reads a stream of notes and 29 commands, with calls and returns, loops, a fade and the

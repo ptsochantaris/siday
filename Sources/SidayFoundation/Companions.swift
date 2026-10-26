@@ -128,6 +128,11 @@ public enum CompanionFolder {
 /// - a score of Jason Page's, `title.jpn`, has its samples in `title.smp` (`SMP.title` for `JPN.title`);
 ///   one named `title.jpnd`, in `title.jpns` (`JPNS.title` for `JPND.title`), as the player's loader
 ///   turns the name's D to an S.
+/// - a song of Karsten Obarski's Synth Pack, `title.osp`, has its samples in `title.smp`, or, as the
+///   songs of a game share them, `set.smp` (`SMP.title`, then `SMP.set`, for `OSP.title`).
+/// - a module of Silmarils' of no more than two samples, `Game_part.mok`, has the rest in the module of
+///   its name up to its first underscore, `Game.mok` (`mok.Game` for `mok.Game_part`), as the player's
+///   loader looks for it; which is known only once it is read.
 /// - a Cinemaware score, `title.cin`, as Sonix's, has its instruments in the folder beside it,
 ///   `Instruments`, each named in the score.
 /// - a module of Startrekker's that has synthesised instruments keeps them in a file beside it, which
@@ -277,6 +282,18 @@ public enum Companions {
         case .uds:
             var names = ["\(stem).smp"]
             if fileName.lowercased().hasPrefix("uds.") { names.insert("SMP." + fileName.dropFirst(4), at: 0) }
+            return [Companion(part: .samples, names: names, kind: "smp", required: true)]
+        case .mok:
+            let lower = fileName.lowercased()
+            if lower.hasPrefix("mok."), let cut = fileName.dropFirst(4).firstIndex(of: "_") {
+                return [Companion(part: .samples, names: [String(fileName[..<cut])], kind: nil, required: false)]
+            }
+            guard let cut = stem.firstIndex(of: "_") else { return [] }
+            return [Companion(part: .samples, names: ["\(stem[..<cut]).mok"], kind: nil, required: false)]
+        case .osp:
+            // As the player's loader looks for them: the song's own, then the set its folder shares.
+            var names = ["\(stem).smp", "set.smp"]
+            if fileName.lowercased().hasPrefix("osp.") { names.insert(contentsOf: ["SMP." + fileName.dropFirst(4), "SMP.set"], at: 0) }
             return [Companion(part: .samples, names: names, kind: "smp", required: true)]
         case .jpn:
             let lower = fileName.lowercased()

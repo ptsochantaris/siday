@@ -796,6 +796,8 @@ Results:
 | Ron Klaren `.cm`, `.rk` | 24 files, 59 songs | the same to the tick with Wanted Team's timer | 0.93 to 0.96 |
 | Jason Page `.jpn` | eighteen files, 79 songs | the same to the tick, to each song's end | 0.89 to 0.98 |
 | SoundControl `.sct` | 21 files, 31 songs | the same to the tick | 0.948 to 0.998 |
+| Synth Pack `.osp` | seventeen files, 30 songs | the same to the tick, to each song's end | 0.87 to 0.98 |
+| Silmarils `.mok` | fourteen files, 33 songs | all but one the same to the tick; in Colorado's first, one note UADE loses to a race with Paula | 0.974 to 0.993 |
 | Soundfactory `.psf` | one file, five songs | the same to the tick | |
 
 Notes:

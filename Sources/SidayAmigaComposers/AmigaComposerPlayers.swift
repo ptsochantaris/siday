@@ -155,6 +155,18 @@ package enum AmigaComposerPlayers {
             if JasonPagePlayer.kind(of: data) == .third { throw TuneError.unsupported("a score of ViroCop's routine, which is not played") }
             guard let samples = companions.first ?? nil else { throw Companions.missing(Companions.wanted(for: format, fileName: Companions.fileName(path))[0]) }
             return try PaulaTickRenderer(JasonPagePlayer(data, samples: samples), options: options)
+        case .mok:
+            // Silmarils' music; a module of no more than two samples has the rest in the module of its
+            // name up to its first underscore.
+            guard SilmarilsPlayer.isOne(data) else { throw TuneError.unsupported("not a Silmarils module") }
+            let samples = companions.first ?? nil
+            if SilmarilsPlayer.needsCompanion(data), samples == nil { throw Companions.missing(Companions.wanted(for: format, fileName: Companions.fileName(path))[0]) }
+            return try PaulaTickRenderer(SilmarilsPlayer(data, samples: samples), options: options)
+        case .osp:
+            // Karsten Obarski's Synth Pack songs, with the samples their folder shares beside them.
+            guard SynthPackPlayer.isOne(data) else { throw TuneError.unsupported("not a Synth Pack song") }
+            guard let samples = companions.first ?? nil else { throw Companions.missing(Companions.wanted(for: format, fileName: Companions.fileName(path))[0]) }
+            return try PaulaTickRenderer(SynthPackPlayer(data, samples: samples), options: options)
         case .sct:
             // Holger Gehrmann's SoundControl, of its four versions, each with its samples.
             guard SoundControlPlayer.isOne(data) else { throw TuneError.unsupported("not a SoundControl module") }
