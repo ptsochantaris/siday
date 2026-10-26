@@ -2193,6 +2193,17 @@ chip race to a moment, which UADE's processor and siday's reach a little differe
 Immortal and Zany Golf part from UADE early on. siday plays them as a 68000 plays them: their code
 depends on a borrow from a subtraction, which UADE's processor, as it is built, does not keep.
 
+Fifteen of Electronic Arts' modules ask for more than that: Archon and Archon II, Arcticfox, Seven
+Cities of Gold, One-On-One, Skyfox, Marble Madness's six, M1 Tank Platoon's two and World Tour Golf.
+Their music runs as tasks of its own, with messages between them, timed by the system's timer, and
+it plays every note through the system's audio device instead of setting the sound chip itself.
+UADE plays none of them. siday gives them a small system of its own: the tasks, their signals and
+messages, memory given back when freed, the timer's frames, and an audio device that sets Paula as
+Kickstart 1.3's does, in the same order and at about the same moments. That is the Kickstart these
+games were sold for. They were checked against Copperline, an emulator of the whole Amiga, running
+each module on Kickstart 1.3 itself. Their 48 songs have the same notes there, most of them on the
+same tick, and the rest a tick to one side, where the Amiga's own system took longer over them.
+
 Worth knowing, about siday's choices and the host's own ways:
 
 - **Song ends:** Most customs never say when a song has ended. siday plays each song through unheard
@@ -2208,8 +2219,8 @@ Worth knowing, about siday's choices and the host's own ways:
 
 ### Differences and limits
 
-- **Not played:** Eighteen modules call for what UADE's host does not give either (a task of their
-  own, made by the system), or have nothing to call to play. They are not played.
+- **Not played:** Grand Prix Circuit's three custom modules give DeliTracker nothing to call to play
+  them. They are not played. (The game's music plays as Kris Hatlelid's; see CORE.)
 - **Silence:** A few more play silence, or begin with a silent song, as they do in UADE. One of
   those, Lemmings' older custom, wants files from beside it (see the next item).
 - **Files beside them:** Two modules load more of their music from files beside them, as their games

@@ -116,8 +116,16 @@ struct DeliCustomPlayer: ~Copyable {
         ticks = DeliTicks(memorySize: self.host.memorySize)
         var first = 0, count = 1, title = ""
         if refusal == nil {
-            do {
-                try self.host.start(song: nil)
+            do throws(TuneError) {
+                do throws(TuneError) {
+                    try self.host.start(song: nil)
+                } catch {
+                    // A module that needs more of the system than score gives (Electronic Arts' have tasks of
+                    // their own and play their notes through audio.device) is given exec's own.
+                    guard self.host.stoppedOnExec else { throw error }
+                    self.host = try DeliTrackerHost(player: data, name: name, files: files, system: .exec)
+                    try self.host.start(song: nil)
+                }
                 first = self.host.firstSong
                 count = max(1, min(256, self.host.lastSong - self.host.firstSong + 1))
                 title = self.host.namedModule

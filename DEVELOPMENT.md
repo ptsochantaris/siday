@@ -148,7 +148,7 @@ files, of every format, when muting was written.
 | MaxTrax scores | the MaxTrax Music Driver's released source (LGPL), ported | ScummVM's player of it, with its departures from the driver put back: 282 of 283 songs tick for tick |
 | David Whittaker's, Ben Daglish's, Martin Walker's, Special FX's and the Maniacs of Noise's drivers | the drivers themselves, run on an emulated Amiga (siday's 68000, chip memory, Paula heard as she is written, the CIAs and the beam), found and patched as the players of them for EaglePlayer that UADE carries do, read in their 68000 code | those players, run by UADE: what the driver tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (551 of Whittaker's, 129 of Daglish's 135, 106 of Walker's, the 355 of Special FX's that are heard, 87 of the Maniacs of Noise's) |
 | 28 more composers' drivers (see [CORE](#format-notes)) | the drivers themselves, on the same emulated Amiga, found, patched and called as the players of them for EaglePlayer do (most of them Wanted Team's; UADE's own for Fred Monitor and Darius Zendeh), read in their 68000 source or, where there is none, their code | those players, run by UADE: what the driver tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (1,128 songs of 266 files): the same in nearly every song, and where not, only as far as the two Amigas' timing and their sound chips differ by a few clocks |
-| DeliTracker's custom modules, Dave Lowe's earlier music | the modules themselves, hosted on the emulated Amiga, with its interrupts, timers and sound chip as the hardware has them, as UADE's host for the players (`score`) hosts them, read in its 68000 source; Dave Lowe's loaded and called as Wanted Team's player of them does | UADE: what the module tells the sound chip, tick for tick, over the first 40 seconds of 2,381 of the 2,539 songs of UnExoticA's 416 modules; the rest are the same except where the processor and the chip race |
+| DeliTracker's custom modules, Dave Lowe's earlier music | the modules themselves, hosted on the emulated Amiga, with its interrupts, timers and sound chip as the hardware has them, as UADE's host for the players (`score`) hosts them, read in its 68000 source; for Electronic Arts' own, an exec, timer.device and audio.device of siday's, from the Autodocs and Kickstart 1.3 measured; Dave Lowe's loaded and called as Wanted Team's player of them does | UADE: what the module tells the sound chip, tick for tick, over the first 40 seconds of 2,381 of the 2,539 songs of UnExoticA's 416 modules; the rest are the same except where the processor and the chip race. Electronic Arts' 15, on exec's own system: Copperline on Kickstart 1.3, the same notes in all 48 songs over 60 seconds |
 | Richard Joseph's modules, Dave Lowe's later music | each composer's own player, read in its 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of every song of UnExoticA's collection (917 of Richard Joseph's, the 108 of Dave Lowe's that make a sound) |
 | Sonix Music Driver scores | Mark Riley's three players, read in their 68000 code in Wanted Team's player for EaglePlayer | that player, run by UADE: what it tells the sound chip, tick for tick, over the first 40 seconds of all 237 scores of UnExoticA's collection |
 | Epic MegaGames' MASI files and Symphonie modules | OpenMPT's readings of them (BSD) | libopenmpt |
@@ -1118,6 +1118,36 @@ Where UADE is wrong:
   keeps nothing of a borrow from SUB, SUBQ or NEG.
 - With that mended in a UADE of our own, 20 of their 21 songs are the same as siday's in every
   write, and the last is the same but for one write of a volume the voice already had.
+
+Electronic Arts' fifteen (Archon, Marble Madness, M1 Tank Platoon, World Tour Golf and the rest), on
+exec's own system (`DeliTrackerHost.System.exec`, `AmigaExec`, `AmigaTimerDevice`, `AmigaAudioDevice`):
+
+- Based on: the Autodocs of exec, timer.device and audio.device, and what Kickstart 1.3's (exec 34.2,
+  audio.device and timer.device 34.1) were measured doing in Copperline, by the program counter of every
+  write to Paula. No code of a ROM's is carried. A module is given this system only when it stops on a
+  routine of exec's that score does not give; every other module plays on score's as before, bit for bit.
+- Checked against Copperline 1.0.1 (an A500 with 1 MB of chip memory, Kickstart 1.3, the module hosted
+  as DeliTracker hosts it, DTP_Interrupt from CIA-A at level 2 as score calls it), 60 seconds of each of
+  the 48 songs: every song has the same note starts (voice, sample, length, period, volume) as the
+  reference. Most fall on the same tick; the rest fall a tick to one side, where the system's own code
+  takes the Amiga longer than siday's. In M1 Tank Platoon 3 to 6 notes a song differ because the
+  reference lost an interrupt in 1.3's start of a note.
+- The envelopes (ADCMD_PERVOL) are stepped by timer.device at 50 Hz while the music ticks at 60 (45 for
+  World Tour Golf), so how they fall depends on where the first tick lands in the frame. With the
+  reference's phase, most match per tick; without it, they come out as on another Amiga started a moment
+  later.
+- Loudness envelopes against the references, high-passed at 40 Hz: 0.69 to 0.99. Copperline's own runs on
+  Kickstart 3.1 and 1.3 agree with each other at 0.81 to 0.99. The lowest are Skyfox and Marble Madness's
+  first songs, dense music in unison whose beating follows the voices' phase within a tick.
+- The time the system's routines take on an Amiga is spent: each is charged its median as measured
+  on Kickstart 1.3, which brings the notes' moments within a tick closer to the reference's.
+- The frames are long ones of 313 lines for these, as on Copperline's A500 (UADE's, which score's
+  modules are checked against, are short ones of 312). A voice whose DMA comes on during a word written
+  by hand starts its block at once (`AmigaChips.manualWordStartsBlock`), as audio.device's every note
+  needs. Both are off for every other module.
+- Not settled: what a write of more than one cycle does when it runs out with nothing behind it (never
+  seen; it is stopped, as 1.3 stops a write of one cycle), and timer waits longer than a frame
+  (counted in fiftieths of a second, as the Autodocs have them; never measured).
 
 Notes:
 

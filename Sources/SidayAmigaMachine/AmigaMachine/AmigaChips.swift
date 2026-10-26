@@ -69,10 +69,31 @@ final class AmigaChips: M68000Bus {
     /// an interlaced display changes, is clear as it starts), and VPOSR says so. Off, every frame is a long
     /// one of 313, as the players called a tick at a time were made with.
     var interrupts = false {
-        didSet {
-            frameClocks = UInt64(Self.lineClocks * (interrupts ? Self.shortFrameLines : Self.frameLines))
-            nextFrame = (clock / frameClocks + 1) * frameClocks
-        }
+        didSet { setFrames() }
+    }
+
+    /// Whether the frames are long ones of 313 lines while the chips interrupt, as they are on the A500
+    /// that the references of exec's own system (`DeliTrackerHost.System.exec`) were recorded on
+    /// (Copperline's, whose frames start every 71,051 clocks), rather than UAE's short ones. Off unless
+    /// asked for.
+    var longFrames = false {
+        didSet { setFrames() }
+    }
+
+    private func setFrames() {
+        frameClocks = UInt64(Self.lineClocks * (interrupts && !longFrames ? Self.shortFrameLines : Self.frameLines))
+        nextFrame = (clock / frameClocks + 1) * frameClocks
+    }
+
+    /// Whether a voice playing a word written by hand takes up its location and length as soon as its
+    /// DMA is turned on, at its next fetch, and asks for its interrupt with the word after: as the A500's
+    /// Paula of the references of exec's own system does for audio.device, which starts every write so
+    /// (an AUDxDAT word, then the DMA from the interrupt it asks for), its next interrupt coming a line
+    /// or two after the DMA is on. Off, the voice goes on through the length it had left. Off unless
+    /// asked for.
+    var manualWordStartsBlock: Bool {
+        get { audio.manualWordStartsBlock }
+        set { audio.manualWordStartsBlock = newValue }
     }
     /// Set by a write that may ask for an interrupt, while `interrupts` is on: to the interrupts' enables
     /// and requests, the DMA, Paula's voices, or a CIA. The processor stops after the instruction that
@@ -109,6 +130,7 @@ final class AmigaChips: M68000Bus {
         eTicks = 0
         filterOn = false
         interrupts = false
+        longFrames = false
         nextFrame = UInt64(Self.lineClocks * Self.frameLines)
         audio = AmigaAudioDMA()
     }
@@ -304,10 +326,10 @@ final class AmigaChips: M68000Bus {
         case 0x002: return dmacon & 0x07FF
         case 0x004, 0x006:
             if interrupts {
-                // A short frame (bit 15 of VPOSR clear).
+                // A short frame (bit 15 of VPOSR clear), or a long one if asked for.
                 let inFrame = Int(now(cycles) % frameClocks)
                 let line = inFrame / Self.lineClocks, position = inFrame % Self.lineClocks
-                return register == 0x004 ? UInt16(line >> 8) : UInt16(line & 0xFF) << 8 | UInt16(position)
+                return register == 0x004 ? (longFrames ? 0x8000 : 0) | UInt16(line >> 8) : UInt16(line & 0xFF) << 8 | UInt16(position)
             }
             let (line, position) = Self.beam(at: now(cycles))
             // Every frame is a long one (bit 15 of VPOSR); the Agnus says nothing of itself.

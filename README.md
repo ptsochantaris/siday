@@ -429,8 +429,8 @@ mentioned, and only what might be heard.
   - a song packed by the Magnetic Fields Packer, or a TFMX module, whose samples aren't found
     alongside it; a Richard Joseph module without its samples; a Sonix score with no folder of
     instruments beside it;
-  - a DeliTracker custom module that calls for something DeliTracker's host doesn't provide (a task
-    of its own);
+  - a DeliTracker custom module that gives DeliTracker nothing to call to play it (Grand Prix
+    Circuit's three);
   - a song saved by MED before MED4 (MED2, MED3), and a MED4 song whose instruments are kept in files
     of their own;
   - a module of the later SoundFX, with 31 samples.

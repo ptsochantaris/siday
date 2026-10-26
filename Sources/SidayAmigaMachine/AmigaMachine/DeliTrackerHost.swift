@@ -121,8 +121,23 @@ struct DeliTrackerHost: ~Copyable {
         var idle: UInt32 = 0, waitFrame: UInt32 = 0
     }
 
+    /// Which system the player is given: score's, as UADE's host gives it; or, for a player that needs
+    /// more of the system than score gives (tasks of its own, their signals and messages, memory given
+    /// back, timer.device's frames, audio.device), exec's own (`AmigaExec`), with the rest as score has it.
+    enum System {
+        case score, exec
+    }
+
     // MARK: State
 
+    let system: System
+    /// The exec's own system, for `System.exec`.
+    private(set) var exec = AmigaExec()
+    /// Whether exec's own system's routines take the time they took on the Amiga (see `AmigaExec.costs`).
+    var execCosts: Bool {
+        get { exec.costs }
+        set { exec.costs = newValue }
+    }
     private(set) var machine: AmigaMachine
     private let code: [UInt8]
     private var entries = Entries()
@@ -160,6 +175,9 @@ struct DeliTrackerHost: ~Copyable {
     private(set) var songEnds = 0
     /// Why the player stopped, if it has: a call into the system that is not given, or code gone wrong.
     private(set) var failure: String?
+    /// Whether the player stopped on a routine of exec.library's that the system does not give (one that
+    /// exec's own system may: see `System`).
+    private(set) var stoppedOnExec = false
     /// Where the player's code went wrong, if it did (for finding out why).
     private(set) var faultAt: UInt32?
     private(set) var faultStatus: UInt32 = 0
@@ -176,17 +194,19 @@ struct DeliTrackerHost: ~Copyable {
     ///   - module: the module it is to play (none for a custom module).
     ///   - name: the file name the player is told its module has.
     ///   - files: other files the player may load, by their names.
+    ///   - system: score's, or exec's own.
     init(player: [UInt8], module: [UInt8] = [], name: String = "module", files: [(name: String, bytes: [UInt8])] = [],
-         chipRAM: Int = 0x20_0000) throws(TuneError)
+         chipRAM: Int = 0x20_0000, system: System = .score) throws(TuneError)
     {
         playerBytes = player
         self.module = module
+        self.system = system
         moduleName = Array(name.utf8.prefix(120))
         self.files = [(Array(name.utf8.prefix(120)), module.isEmpty ? player : module)]
         for file in files { self.files.append((Array(file.name.utf8), file.bytes)) }
         machine = AmigaMachine(chipRAM: chipRAM)
         var entries = Entries()
-        code = Self.assemble(&entries)
+        code = Self.assemble(&entries, exec: system == .exec)
         self.entries = entries
         var refusal: TuneError?
         do {
@@ -206,12 +226,13 @@ struct DeliTrackerHost: ~Copyable {
     {
         playerBytes = []
         self.module = module
+        system = .score
         moduleName = Array(name.utf8.prefix(120))
         self.files = [(Array(name.utf8.prefix(120)), module)]
         for file in files { self.files.append((Array(file.name.utf8), file.bytes)) }
         machine = AmigaMachine(chipRAM: chipRAM)
         var entries = Entries()
-        code = Self.assemble(&entries)
+        code = Self.assemble(&entries, exec: false)
         self.entries = entries
         self.moduleAt = moduleAt
         guard Int(moduleAt) + module.count + 0x10000 + Self.room <= machine.memorySize else {
@@ -376,9 +397,21 @@ struct DeliTrackerHost: ~Copyable {
         // the timer going, as measured against a timer the player sets going itself at the end of its
         // DTP_InitSound: which of the two's interrupts comes first, when they come close, is as in UADE.)
         pause(clocks: Self.scoreBeforeTimer)
+        if let tickPhase {
+            // The first tick so far into its frame: the timer set going so much later.
+            let frame = machine.chips.frameClocks
+            let period = (UInt64(machine.peek16(Self.globals + Self.dtgTimer)) + 1) * 5
+            pause(clocks: (tickPhase % frame + frame - (machine.now + period) % frame) % frame)
+        }
         addCIAAInterrupt(timer: 1, code: routine, data: 0)
         hostTimer = true
     }
+
+    /// For comparing a player with a recording of it made on an Amiga: how far into its frame the host's
+    /// timer is to first run out, in Paula's clocks, as it did in the recording. (Where a player times
+    /// some of what it does by the frames and the rest by the timer, as Electronic Arts' do, what it
+    /// writes depends on it.) Nil, as when playing, for as soon as the host sets it going.
+    var tickPhase: UInt64?
 
     /// How long score's code between `call_init_sound` and `add_ciaa_interrupt` takes, in Paula's clocks.
     static let scoreBeforeTimer: UInt64 = 265
@@ -391,8 +424,10 @@ struct DeliTrackerHost: ~Copyable {
         _ = run(until: machine.now + clocks)
     }
 
-    /// The rest, score's `playloop`: waiting for each frame, with the globals in A5.
+    /// The rest, score's `playloop`: waiting for each frame, with the globals in A5. (With exec's own
+    /// system, the host's task waits, and the player's go on.)
     mutating func idle() {
+        if system == .exec { return exec.hostIdles(&machine) }
         machine.cpu.registers[13] = Self.globals
         machine.cpu.setStatus(0)
         machine.cpu.registers[15] = Self.userStack - 16
@@ -417,6 +452,7 @@ struct DeliTrackerHost: ~Copyable {
         try load()
         songEnds = 0
         failure = nil
+        stoppedOnExec = false
         faultAt = nil
         hostTimer = false
         busyCycles = 0
@@ -429,6 +465,11 @@ struct DeliTrackerHost: ~Copyable {
         setUpSystem()
         // score's `contplayer`: where AllocMem begins, past the module (for a custom, none).
         memoryPoint = (moduleAt + UInt32(module.count) + 1024) & ~0xFF
+        if system == .exec {
+            // (The exec's code goes above score's.)
+            precondition(Self.codeAt + UInt32(code.count) <= AmigaExec.codeAt)
+            exec.setUp(&machine, heapFrom: memoryPoint, heapTo: UInt32(machine.memorySize - Self.room))
+        }
         let custom = tag(DeliTag.customPlayer) != nil
         loaded[0] = custom ? (0, 0) : (moduleAt, UInt32(module.count))
         setUpGlobals(custom: custom)
@@ -440,6 +481,7 @@ struct DeliTrackerHost: ~Copyable {
     /// Returns D0. A player written in Swift may set other registers as its own code would have them
     /// (`registers`, by their place in `M68000.registers`).
     mutating func call(_ routine: UInt32, with registers: [(Int, UInt32)] = []) throws(TuneError) -> UInt32 {
+        if system == .exec { exec.beginCall(&machine) }
         machine.cpu.setStatus(0)
         machine.cpu.registers[15] = Self.userStack - 16
         machine.poke32(Self.userStack - 20, AmigaMachine.returnAddress)
@@ -485,6 +527,11 @@ struct DeliTrackerHost: ~Copyable {
                    (pc - Self.stubs - 2) % 4 == 0, let call = Call(rawValue: Int(pc - Self.stubs - 2) / 4)
                 {
                     if !perform(call) {
+                        return .failed
+                    }
+                } else if system == .exec, number == 15, let call = AmigaExec.call(at: pc) {
+                    if !exec.perform(call, &machine) {
+                        failure = exec.failure ?? "the player's call into the system went wrong"
                         return .failed
                     }
                 } else {
@@ -689,7 +736,8 @@ struct DeliTrackerHost: ~Copyable {
             // (as its `library_unimplemented_call` does).
             let back = machine.peek32(machine.cpu.registers[15])
             let offset = call == .unimplementedEagle ? UInt16(truncatingIfNeeded: back &- 6 &- Self.globals)
-                : machine.peek16(back &- 2)
+                : call == .unimplementedExec ? calledOffset(back) : machine.peek16(back &- 2)
+            if call == .unimplementedExec { stoppedOnExec = true }
             let library = switch call {
             case .unimplementedExec: "exec.library"
             case .unimplementedDOS: "dos.library"
@@ -700,7 +748,7 @@ struct DeliTrackerHost: ~Copyable {
             }
             let name = call == .unimplementedExec ? Self.execName(Int(Int16(bitPattern: offset))) : nil
             failure = "a player that calls \(library)'s " + (name ?? "routine at \(Int(Int16(bitPattern: offset)))")
-                + ", which UADE's host does not give"
+                + (system == .exec && call == .unimplementedExec ? ", which siday's exec does not give" : ", which UADE's host does not give")
             return false
         case .allocMem:
             // score's `exec_alloc_mem`: from `chippoint`, sixteen bytes past the boundary below its end,
@@ -1040,6 +1088,30 @@ struct DeliTrackerHost: ~Copyable {
         }
     }
 
+    /// The offset of the routine of exec.library's that the player's call came to, the JSR it came from
+    /// ending at `back`: the JSR's own displacement for a JSR d16(A6), as a library is called (and score
+    /// reads it); for another JSR, its target's place in the library's table, or, if its target is a JMP
+    /// d16(A6) (a stub of the player's own, as World Tour Golf's C library has them), that JMP's.
+    private func calledOffset(_ back: UInt32) -> UInt16 {
+        let word = machine.peek16(back &- 4)
+        if word == 0x4EAE { return machine.peek16(back &- 2) }
+        var target: UInt32?
+        if machine.peek16(back &- 6) == 0x4EB9 {
+            target = machine.peek32(back &- 4)
+        } else if word == 0x4EBA {
+            target = back &- 2 &+ UInt32(bitPattern: Int32(Int16(bitPattern: machine.peek16(back &- 2))))
+        } else if word & 0xFFF8 == 0x4EA8 {
+            target = machine.cpu.registers[8 + Int(word & 7)] &+ UInt32(bitPattern: Int32(Int16(bitPattern: machine.peek16(back &- 2))))
+        } else if machine.peek16(back &- 2) & 0xFFF8 == 0x4E90 {
+            target = machine.cpu.registers[8 + Int(machine.peek16(back &- 2) & 7)]
+        }
+        guard let target else { return machine.peek16(back &- 2) }
+        let table = AmigaMachine.execBase &- UInt32(AmigaMachine.libraryRoutines * 6)
+        if target >= table, target < AmigaMachine.execBase { return UInt16(truncatingIfNeeded: target &- AmigaMachine.execBase) }
+        if machine.peek16(target) == 0x4EEE { return machine.peek16(target &+ 2) }
+        return machine.peek16(back &- 2)
+    }
+
     /// The names of the routines of exec.library a player might call that score does not give.
     private static func execName(_ offset: Int) -> String? {
         switch -offset {
@@ -1064,9 +1136,18 @@ struct DeliTrackerHost: ~Copyable {
     // MARK: The host's own code
 
     /// score's code that is kept as 68000 code: its interrupts' handlers, its main loop's wait for the
-    /// next frame, and a few short routines. Each with the instruction it is.
-    private static func assemble(_ e: inout Entries) -> [UInt8] {
+    /// next frame, and a few short routines. Each with the instruction it is. For exec's own system
+    /// (`exec`), each interrupt's handler ends by calling exec's end of an interrupt before its RTE, and
+    /// the frame's gives timer.device its frame.
+    private static func assemble(_ e: inout Entries, exec: Bool) -> [UInt8] {
         var a = AmigaAssembly(at: codeAt)
+        func endInterrupt(_ a: inout AmigaAssembly) {
+            if exec {
+                a.w(0x4EB9)
+                a.long(AmigaExec.stub(.exitInterrupt)) // JSR exitInterrupt
+            }
+            a.w(0x4E73) // RTE
+        }
         // The traps to the host, in the order of `Call`.
         for _ in Call.allCases { a.w(0x4E4F, 0x4E75) } // TRAP #15; RTS
         e.okay = a.here
@@ -1140,16 +1221,20 @@ struct DeliTrackerHost: ~Copyable {
         a.w(0x4CDF, 0x0003, 0x4E75) // MOVEM.L (A7)+,D0-D1; RTS
         // `mylevel1`, `mylevel5`: the request cleared.
         e.level1 = a.here
-        a.w(0x33FC, 0x0007, 0x00DF, 0xF09C, 0x4E73) // MOVE.W #7,$DFF09C; RTE
+        a.w(0x33FC, 0x0007, 0x00DF, 0xF09C) // MOVE.W #7,$DFF09C
+        endInterrupt(&a) // RTE
         e.level5 = a.here
-        a.w(0x33FC, 0x1800, 0x00DF, 0xF09C, 0x4E73) // MOVE.W #$1800,$DFF09C; RTE
+        a.w(0x33FC, 0x1800, 0x00DF, 0xF09C) // MOVE.W #$1800,$DFF09C
+        endInterrupt(&a) // RTE
         // `mylevel2`, `mylevel6`: the request cleared and the CIA's read.
         e.level2 = a.here
         a.w(0x33FC, 0x0008, 0x00DF, 0xF09C) // MOVE.W #8,$DFF09C
-        a.w(0x2F00, 0x1039, 0x00BF, 0xED01, 0x201F, 0x4E73) // MOVE.L D0,-(A7); MOVE.B $BFED01,D0; MOVE.L (A7)+,D0; RTE
+        a.w(0x2F00, 0x1039, 0x00BF, 0xED01, 0x201F) // MOVE.L D0,-(A7); MOVE.B $BFED01,D0; MOVE.L (A7)+,D0
+        endInterrupt(&a) // RTE
         e.level6 = a.here
         a.w(0x33FC, 0x2000, 0x00DF, 0xF09C) // MOVE.W #$2000,$DFF09C
-        a.w(0x2F00, 0x1039, 0x00BF, 0xDD00, 0x201F, 0x4E73) // MOVE.L D0,-(A7); MOVE.B $BFDD00,D0; MOVE.L (A7)+,D0; RTE
+        a.w(0x2F00, 0x1039, 0x00BF, 0xDD00, 0x201F) // MOVE.L D0,-(A7); MOVE.B $BFDD00,D0; MOVE.L (A7)+,D0
+        endInterrupt(&a) // RTE
         // `mylevel3`: the frame counted and each server in score's list called, A1 its data, A5 its code.
         e.level3 = a.here
         let notFrame = a.label(), servers = a.label(), serversDone = a.label()
@@ -1159,6 +1244,10 @@ struct DeliTrackerHost: ~Copyable {
         a.w(0x41F9)
         a.long(frameCount) // LEA framecount,A0
         a.w(0x5290) // ADDQ.L #1,(A0)
+        if exec {
+            a.w(0x4EB9)
+            a.long(AmigaExec.stub(.frame)) // JSR frame (timer.device's)
+        }
         a.w(0x41F9)
         a.long(vblankServers) // LEA lev3serverlist,A0
         a.place(servers)
@@ -1174,7 +1263,8 @@ struct DeliTrackerHost: ~Copyable {
         a.place(serversDone)
         a.w(0x4CDF, 0x2101) // MOVEM.L (A7)+,D0/A0/A5
         a.place(notFrame)
-        a.w(0x33FC, 0x0070, 0x00DF, 0xF09C, 0x4E73) // MOVE.W #$70,$DFF09C; RTE
+        a.w(0x33FC, 0x0070, 0x00DF, 0xF09C) // MOVE.W #$70,$DFF09C
+        endInterrupt(&a) // RTE
         // `mylevel4`: Paula's interrupts, each asked for and let through called in the order 1, 3, 0, 2,
         // one at a time: A5 its code, A1 its data, A0 $DFF000, D1 the requests let through, A6 exec.
         e.level4 = a.here
@@ -1185,7 +1275,8 @@ struct DeliTrackerHost: ~Copyable {
         a.w(0x342A, 0x001C) // MOVE.W INTENAR(A2),D2
         a.w(0x0802, 0x000E) // BTST #14,D2
         a.branch(0x6600, to: enabled) // BNE.S enabled
-        a.w(0x4CDF, 0x7FFF, 0x4E73) // MOVEM.L (A7)+,D0-D7/A0-A6; RTE
+        a.w(0x4CDF, 0x7FFF) // MOVEM.L (A7)+,D0-D7/A0-A6
+        endInterrupt(&a) // RTE
         a.place(enabled)
         a.w(0x47F9)
         a.long(irqLines) // LEA irqlines,A3
@@ -1218,7 +1309,8 @@ struct DeliTrackerHost: ~Copyable {
         a.w(0xC06A, 0x001E) // AND.W INTREQR(A2),D0
         a.w(0x0240, 0x0780) // ANDI.W #$780,D0
         a.branch(0x6600, to: begin) // BNE.S begin
-        a.w(0x4CDF, 0x7FFF, 0x4E73) // MOVEM.L (A7)+,D0-D7/A0-A6; RTE
+        a.w(0x4CDF, 0x7FFF) // MOVEM.L (A7)+,D0-D7/A0-A6
+        endInterrupt(&a) // RTE
         a.place(noHandler)
         a.w(0x7000, 0x0DC0) // MOVEQ #0,D0; BSET D6,D0
         a.w(0x3540, 0x009C) // MOVE.W D0,INTREQ(A2)
@@ -1249,7 +1341,8 @@ struct DeliTrackerHost: ~Copyable {
                 a.w(0x2F00, 0x4E90, 0x201F) // MOVE.L D0,-(A7); JSR (A0); MOVE.L (A7)+,D0
                 a.place(label)
             }
-            a.w(0x4CDF, 0x7FFF, 0x4E73) // MOVEM.L (A7)+,D0-D7/A0-A6; RTE
+            a.w(0x4CDF, 0x7FFF) // MOVEM.L (A7)+,D0-D7/A0-A6
+            endInterrupt(&a) // RTE
         }
         e.ciaaInterrupt = a.here
         cia(&a, request: 0x0008, icr: 0xBFED01, ints: ciaaInts, datas: ciaaDatas)

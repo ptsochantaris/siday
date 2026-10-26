@@ -166,13 +166,13 @@ private struct Writes: TFMXOutput {
 }
 
 @Test func deliCustomsThatCallWhatIsNotGivenAreRefused() {
-    // exec.library's AddTask, which UADE's host does not give either.
-    let file = custom(initPlayer: [0x2C78, 0x0004, 0x4EAE, 0xFEE6]) // MOVEA.L 4.W,A6; JSR -282(A6)
+    // exec.library's CopyMem, which neither UADE's host nor exec's own system (tried next) gives.
+    let file = custom(initPlayer: [0x2C78, 0x0004, 0x4EAE, 0xFD90]) // MOVEA.L 4.W,A6; JSR -624(A6)
     #expect(throws: TuneError.self) { _ = try DeliCustomPlayer(file) }
     do {
         _ = try DeliCustomPlayer(file)
     } catch {
-        #expect("\(error)".contains("AddTask"))
+        #expect("\(error)".contains("CopyMem, which siday's exec does not give"))
     }
     // Not a custom module: a player without DTP_CustomPlayer, or no player at all.
     var notCustom = custom()

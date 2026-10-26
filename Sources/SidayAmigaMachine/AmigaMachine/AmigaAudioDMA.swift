@@ -36,6 +36,11 @@ struct AmigaAudioDMA: Equatable {
     private var voices = InlineArray<4, Voice>(repeating: Voice())
     /// When the next line of the beam starts, in Paula's clocks.
     private var nextLine = UInt64(AmigaChips.lineClocks)
+    /// Whether a voice playing a word written by hand (AUDxDAT) whose DMA is turned on takes up its
+    /// location and length at its next fetch, its length left taken as run out (see
+    /// `AmigaChips.manualWordStartsBlock`). Off, it goes on through the length it had left, as the rest
+    /// of this model has it.
+    var manualWordStartsBlock = false
 
 
     static func == (a: Self, b: Self) -> Bool {
@@ -305,6 +310,8 @@ struct AmigaAudioDMA: Equatable {
         quietUntil = 0
         for v in 0 ..< 4 {
             let on = dmacon & 0x200 != 0 && dmacon & (1 << UInt16(v)) != 0
+            // (A word written by hand, being played as the DMA comes on: see `manualWordStartsBlock`.)
+            if manualWordStartsBlock, on, !voices[v].dma, voices[v].state == 2 || voices[v].state == 3 { voices[v].wordsLeft = 1 }
             voices[v].dma = on
             if on {
                 if voices[v].state == 0 {

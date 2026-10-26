@@ -423,6 +423,11 @@ player of it does ("Dave Lowe", carried by UADE as `DaveLowe`, with its source i
 them ("Dave Lowe DeliPlayer V1.0 (3/9/97) by DARKNESS/SYNERGY", carried by UADE as `DaveLowe_Deli`,
 without source), whose replay routine, Dave Lowe's own, was read in a disassembly of it; nothing of its
 code is carried here.
+Electronic Arts' modules, which need more of the Amiga's system than score gives, are given an exec,
+timer.device and audio.device of siday's own (`AmigaExec.swift`, `AmigaTimerDevice.swift`,
+`AmigaAudioDevice.swift`), written from Commodore's Autodocs and from what Kickstart 1.3's were measured
+doing, write by write, in [Copperline](https://copperline.dev/), an emulator of the whole Amiga; no code
+of any ROM's is carried here.
 
 ## Richard Joseph's player and Dave Lowe's
 
