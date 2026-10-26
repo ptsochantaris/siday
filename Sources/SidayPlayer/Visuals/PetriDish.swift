@@ -20,7 +20,10 @@ import SidayFoundation
 ///
 /// It lives only on what the music gives it. Each note makes the whole picture more ready to be set
 /// off, and the place round it most of all; and that readiness is spent away, slowly. So when the
-/// music stops, the waves that are under way find less and less to carry them, and fade out.
+/// music stops, the waves that are under way find less and less to carry them, and fade out. And
+/// while it plays, the whole picture is never quite as ready as where the notes are: so waves and
+/// spirals left far from the notes now being struck die away, and the picture follows the music as
+/// it changes, from voice to voice and part to part.
 ///
 /// Each wave is the colour of the voice that set it off, and a place takes the colour of the wave
 /// that sets it off: so the colours go where the waves go.
@@ -50,8 +53,9 @@ final class PetriDish: VisualScene {
     private static let starving: Float = 0.25
     /// How long readiness lasts, in seconds, to fall to about a third.
     private static let readinessLasts: Float = 8
-    /// How much readier the whole picture is for each note.
-    private static let readierByANote: Float = 0.15
+    /// How much readier the whole picture is for each note, and how much of that readiness reaches
+    /// places that no note has lately made ready themselves.
+    private static let readierByANote: Float = 0.15, readinessFarAway: Float = 0.8
     /// How wide a place a note charges, and how wide a place round it it makes readier, in places of the grid.
     private static let struckWidth: Float = 3, readyWidth: Float = 12
 
@@ -208,7 +212,7 @@ final class PetriDish: VisualScene {
         let across = across, down = down
         let step = Self.step, spreading = Self.spreading, a = Self.a, b = Self.b
         let quickness = Self.quickness + (Self.quicknessBusiest - Self.quickness) * readiness
-        let starving = Self.starving, readiness = readiness
+        let starving = Self.starving, readiness = readiness, readinessFarAway = Self.readinessFarAway
         var next = charge
         charge.withUnsafeMutableBufferPointer { kept in
             next.withUnsafeMutableBufferPointer { spare in
@@ -230,7 +234,7 @@ final class PetriDish: VisualScene {
                                             let round = charge[at + left] + charge[at + right] + charge[at + up] + charge[at + below] - 4 * here
                                             // A place needs more charge to be set off the more tired it is, and
                                             // the less the music has made it ready.
-                                            let fed = max(readiness, ready[at])
+                                            let fed = max(readinessFarAway * readiness, ready[at])
                                             let needed = (tired[at] + b + starving * (1 - min(1, fed))) / a
                                             let after = max(0, min(1, here + step * (here * (1 - here) * (here - needed) / quickness + spreading * round)))
                                             next[at] = after
