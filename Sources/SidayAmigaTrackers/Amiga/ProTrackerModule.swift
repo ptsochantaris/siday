@@ -72,11 +72,50 @@ final class ProTrackerModule {
     private(set) var samples = [Sample](repeating: Sample(), count: 31)
     let songLength: Int
     /// Where in the order the song begins again when it comes to its end: the start, but for a module of
-    /// Startrekker's, whose player goes to the place the module names (ProTracker's does not).
+    /// Startrekker's, NoiseTracker's or His Master's Noise's, whose players go to the place the module
+    /// names (ProTracker's does not). NoiseTracker V1.1's and V2.0's replays take it from the byte after
+    /// the song's length (`move.b $3b7(a0),mt_songpos`), as NoiseTracker 2.0 does itself (its music
+    /// routine `L505_2`, `MOVE.B $3B7(A0),D0`), and His Master's Noise's player (Wanted Team's
+    /// `NoiseTracker_v4.asm`, after `lbC024730`).
     let restartPosition: Int
     private(set) var orders = [UInt8](repeating: 0, count: 128)
     /// 125 but for a few of the oldest files, which give a tempo of their own.
     let initialTempo: Int
+    /// For a module of the Soundtrackers that set a timer from the tempo the file gives, when that is
+    /// not 120: the count the timer was given, (240 - tempo) * 122, of the E clock's 709,379 a second.
+    /// Karsten Obarski's replay version 27 (29.03.1988, as UADE has it in `EP_Ultimate_ST.s`,
+    /// "initialize timer irq") works it out so from the byte at 471. Ultimate Soundtracker 1.8 brought
+    /// it in ("CIA/BPM Speed adjust appears", in the cmatsuoka/tracker-history notes) and D.O.C.'s
+    /// Soundtracker IX took it up again ("CIA/BPM Speed back in it"). The timer fires once each count
+    /// and one more of the E clock, five of Paula's (UADE's `cia.c`, `CIA_update`: `(ciaata+1) ==
+    /// ciaclocks`), as ProTracker's does (see `ProTrackerReplayer.ticksPerSecond`). Nil for any other.
+    let timerCount: Int?
+    /// True for a module of a tracker whose replay ran once each frame of a PAL Amiga's display, 49.92
+    /// times a second, and had no tempo: NoiseTracker's, His Master's Noise's, and the Soundtrackers'
+    /// whose files give the usual tempo of 120. Its ticks are frames, not ProTracker's timer at 125.
+    ///
+    /// NoiseTracker 2.0's own source says so: its level 3 handler (`L509`, put at $6C) runs the music
+    /// (`BSR L505_2`) when the interrupt is the vertical blank's (`BTST #$5,D1`), and its clock
+    /// (`TIMER`) counts fifty of those a second and one more each 596, as a display of 49.92 frames a
+    /// second needs. Its replays were to be called the same way: NoiseTracker V1.0's and V1.1's
+    /// documents, "call ... "mt_music" every frame", "This replay-routine is not interrupt-driven";
+    /// V2.0's NormalReplay sets no timer and has only a speed (`mt_setspeed`). His Master's Noise's
+    /// replay was called "4 times per frame", and played the tune on one call of the four (Wanted
+    /// Team's player of it, `NoiseTracker_v4.asm`, `Interrupt`). ProTracker was the first of the
+    /// family whose replay was "not raster dependant" (Exotica's Soundtracker history, ProTracker
+    /// 1.00), and its tempo of 125 is "normal vblank speed" (ProTracker 2.0's `PT.ReadMe!`).
+    ///
+    /// The first Soundtracker ran on the frame too, and had no tempo: Karsten Obarski's "Muzak
+    /// Replay-Routine Version 1.2 (.23)" of 8/1987 puts its own handler at $6C (`move.l
+    /// #frameirq,$6c`), which plays the music on the vertical blank (`lev3vb`, `btst #5,d1`), six
+    /// frames to a row; SoundTracker V1.0's instructions say to "call the routine 'mt_music' once
+    /// every vertical blanking interrupt". The Soundtrackers made from it that did not take up
+    /// Ultimate Soundtracker 1.8's timer (The Jungle Command's, D.O.C.'s II to VI and 2.x, Master
+    /// Soundtracker) ran on the frame and kept the tempo at 120 (Warren Willmey's notes to the Weasel
+    /// Audio Library; Fraggie's table, which OpenMPT's `Load_stk.cpp` follows). A file of those that
+    /// set a timer (see `timerCount`) at 120 cannot be told from the others, and is played on the
+    /// frame with them.
+    let ticksOnTheFrame: Bool
     let patterns: UnsafeMutablePointer<Note>
     let memory: UnsafeMutablePointer<Int8>
     /// What gives `patterns` and `memory` back, also for a file that turns out not to be a module.
@@ -224,6 +263,8 @@ final class ProTrackerModule {
         var songLength = Int(file[p])
         p += 1
         var tempo = 125
+        var timer: Int?
+        var onTheFrame = kind == .noiseTracker || kind == .hisMastersNoise
         if kind == nil {
             guard songLength >= 1, songLength <= 128 else { throw TuneError.malformed("not a module") }
             var stated = Int(file[p])
@@ -231,7 +272,9 @@ final class ProTrackerModule {
             // 120, or nothing, is the usual fifty ticks a second. (And one tune by Jesper Kyd gives a
             // tempo that is not meant.)
             if stated == 0 || title == "jjk55" { stated = 120 }
+            onTheFrame = stated == 120
             if stated != 120 {
+                timer = (240 - stated) * 122
                 let hz = (Paula.clockHz / 5.0) / Double((240 - stated) * 122 + 1)
                 tempo = Int(UInt16(hz * (125.0 / 50.0) + 0.5))
             }
@@ -240,11 +283,13 @@ final class ProTrackerModule {
             if kind == .proTracker, songLength == 129 { songLength = 127 }
             guard songLength >= 1, songLength <= 129 else { throw TuneError.malformed("not a module") }
         }
-        let restart = kind == .startrekker ? Int(file[p]) : 0
+        let restart = kind == .startrekker || kind == .noiseTracker || kind == .hisMastersNoise ? Int(file[p]) : 0
         p += 1
         self.songLength = songLength
         restartPosition = restart < songLength ? restart : 0
         initialTempo = tempo
+        ticksOnTheFrame = onTheFrame
+        timerCount = timer
 
         var patternCount = 0
         for i in 0 ..< 128 {
@@ -302,9 +347,24 @@ final class ProTrackerModule {
                 var note = patterns[i]
                 switch kind {
                 case .noiseTracker, .hisMastersNoise:
-                    // A pattern break always goes to the top of the next pattern, and a speed of nothing is nothing.
+                    // A pattern break always goes to the top of the next pattern.
                     if note.command == 0xD { note.parameter = 0 }
-                    if note.command == 0xF, note.parameter == 0 { note.command = 0 }
+                    // There is no tempo, only a speed, of $1F at the most (NoiseTracker V1.1's and
+                    // V2.0's `mt_setspeed`, NoiseTracker 2.0's own `L577_M`, and His Master's Noise's,
+                    // `lbC024BA2` in Wanted Team's player of it).
+                    if note.command == 0xF, note.parameter > 0x1F { note.parameter = 0x1F }
+                    if note.command == 0xF, note.parameter == 0 {
+                        if kind == .hisMastersNoise {
+                            // A speed of nothing is a speed of one, to NoiseTracker 2.0 (`L577_N`,
+                            // `MOVEQ #1,D0`; its NormalReplay's `mt_sp2`), which reads these files
+                            // as its own, and to His Master's Noise's player (`lbC024BB0`).
+                            note.parameter = 1
+                        } else {
+                            // And nothing to NoiseTracker V1.0 and V1.1 (`mt_setspeed`, `beq.s
+                            // mt_rts2`); which tracker it was that wrote "N.T." is not known.
+                            note.command = 0
+                        }
+                    }
                 case .startrekker:
                     if note.command == 0xE {
                         note.command = 0
@@ -334,6 +394,12 @@ final class ProTrackerModule {
                             note.command = 0xA
                         }
                     }
+                    // A Soundtracker that ran on the frame had no tempo, and took a speed from the
+                    // command's last figure only (the SoundTracker V4.0 playroutine of Obarski, The
+                    // Exterminator, Il Scuro and D.O.C., as UADE has it: `and.l #$f,d0`, `move.l
+                    // d0,mt_tempo`; OpenMPT's `Load_stk.cpp`). (A last figure of nothing would stop its
+                    // rows, which wait for their count to come to it; it is nothing here, as F00 is.)
+                    if note.command == 0xF, note.parameter >= 0x10, onTheFrame { note.parameter &= 0x0F }
                     if note.command == 0xF, note.parameter == 0 { note.command = 0 }
                 default:
                     break

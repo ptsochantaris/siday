@@ -141,7 +141,11 @@ extension TFMXDecoder {
     mutating func trackCmdSpeed(_ stepOffset: UInt32) {
         admin.count = Int16(bitPattern: word(stepOffset))
         admin.speed = admin.count
-        ciaTimer = TFMXTiming.timer(afterSpeed: word(stepOffset &+ 2), was: ciaTimer, old: format == .tfmx)
+        let timerBefore = ciaTimer
+        ciaTimer = TFMXTiming.timer(afterSpeed: word(stepOffset &+ 2), was: ciaTimer, old: format == .tfmx,
+                                    startedWithTimer: variant.original != .tfmx || startedWithTimer)
+        // TFMX 1.x, $fe8: a song the frame ran before its timer was set is run by the frame again.
+        if timerBefore != nil, ciaTimer == nil { setRate(50 << 8) }
         // Beats a minute, if any: values like $FF00 that would be below nought are left alone.
         var arg2 = 0x81FF & word(stepOffset &+ 2)
         if arg2 != 0, arg2 < 0x200 {

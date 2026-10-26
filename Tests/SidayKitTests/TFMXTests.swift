@@ -215,10 +215,16 @@ private func play(_ player: inout TFMXPlayer, ticks: Int) -> Recorder {
     #expect(TFMXTiming.timerAtStart(speed: 5, old: false) == nil && TFMXTiming.timerAtStart(speed: 20, old: true) == nil)
     // Too few beats for a word: the 68000 leaves what was to be divided.
     #expect(TFMXTiming.timerAtStart(speed: 16, old: false) == 0x51F8)
-    // The Speed command: below nought or nought leaves the timer; the first player keeps its lower byte.
+    // The Speed command: below nought or nought leaves the timer; the first player keeps its lower byte,
+    // $F0 from its TIMERINIT if the song's start set no timer, and without a tempo goes back to the frame
+    // unless its start set one.
     #expect(TFMXTiming.timer(afterSpeed: 0xFF00, was: 1234, old: false) == 1234)
     #expect(TFMXTiming.timer(afterSpeed: 100, was: nil, old: false) == 17904)
     #expect(TFMXTiming.timer(afterSpeed: 100, was: 0x1234, old: true) == 0x4734) // $1C00 / 100 is 71
+    #expect(TFMXTiming.timer(afterSpeed: 100, was: nil, old: true, startedWithTimer: false) == 0x47F0)
+    #expect(TFMXTiming.timer(afterSpeed: 0xFF00, was: 0x47F0, old: true, startedWithTimer: false) == nil)
+    #expect(TFMXTiming.timer(afterSpeed: 0, was: 0x4700, old: true, startedWithTimer: true) == 0x4700)
+    #expect(TFMXTiming.timer(afterSpeed: 0xFF00, was: 0x47F0, old: false, startedWithTimer: false) == 0x47F0)
     var timing = TFMXTiming()
     // The CIA takes one count more than it is set to to come round.
     #expect(timing.fourVoiceTick(rate: 50 << 8, timer: 14323) == 14324 * 5)
@@ -507,6 +513,38 @@ private func heard(_ file: [UInt8], original: Bool, ticks: Int, loops: (Int, ino
     let old = song([tracks([(0, 0)])], patterns: patterns, macros: macros, header: oldHeader, speed: 125)
     let first = try heard(old, original: true, ticks: 8)
     #expect(first.periods[6][0] == 0x11E && first.periods[7][0] == 0x064E)
+}
+
+@Test func tfmxOldPlayerSetsTheTimersUpperByteOnASpeedMidSong() throws {
+    // A row, Speed with 100 beats a minute, a row, Speed with none ($FF00, as the modules have it), a row, Stop.
+    let short = row(0x1E, 0, 0xF0) + row(0xF3, 1) + row(0xF0)
+    let steps = [tracks([(0, 0)]), command(2, 5, 100), tracks([(0, 0)]), command(2, 5, 0xFF00), tracks([(0, 0)]), command(0)]
+    /// The timers the song sets, as they change, and a tick of each.
+    func timers(_ file: [UInt8], original: Bool) throws -> (timers: [UInt16?], ticks: [Int]) {
+        var player = try TFMXPlayer(file, samples: samples, followsOriginalPlayers: original)
+        var recorder = Recorder(), timing = TFMXTiming()
+        var timers = [player.ciaTimer], ticks = [player.fourVoiceTick(&timing)]
+        for _ in 0 ..< 100 {
+            _ = player.run(&recorder)
+            if player.songEnded { break }
+            if timers.last != player.ciaTimer {
+                timers.append(player.ciaTimer)
+                ticks.append(player.fourVoiceTick(&timing))
+            }
+        }
+        return (timers, ticks)
+    }
+    let macros = [row(0x09, 0x1F) + row(0x07)]
+    // A song started at the frame: TFMX 1.x, $fe0 to $1024, puts $1C00 / 100 in the timer's upper byte,
+    // the lower still $F0 from TIMERINIT's $37F0, and is run by the frame again without a tempo.
+    let atFrame = song(steps, patterns: [short], macros: macros, header: oldHeader)
+    let original = try timers(atFrame, original: true)
+    #expect(original.timers == [nil, 0x47F0, nil] && original.ticks == [TFMXTiming.frame, 0x47F1 * 5, TFMXTiming.frame])
+    // The library's way keeps the timer.
+    #expect(try timers(atFrame, original: false).timers == [nil, 0x47F0])
+    // Started at 125 beats a minute, the lower byte is the nought the start put there, and the timer stays.
+    let atTempo = song(steps, patterns: [short], macros: macros, header: oldHeader, speed: 125)
+    #expect(try timers(atTempo, original: true).timers == [57 << 8, 0x4700])
 }
 
 @Test func tfmxProPlayerKeepsMacroNotesInItsTable() throws {

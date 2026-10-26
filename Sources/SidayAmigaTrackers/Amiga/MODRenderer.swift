@@ -45,8 +45,16 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     private var levels = TickLevels(voices: 4)
     private var notes = TickNotes(voices: 4)
     private var down = (HalfBand(), HalfBand())
-    /// The part of a sample that ticks of a tempo are over by, in 2^-52s, carried from tick to tick.
-    private var remainder: UInt64 = 0
+    /// The part of a sample the ticks so far are over by, carried from tick to tick.
+    struct TickClock {
+        /// For ticks of a tempo, in 2^-52s.
+        var fraction: UInt64 = 0
+        /// For ticks of the frame or of a timer the file gives, exactly, in 3,546,895ths (Paula's
+        /// clock: see `tickLength`).
+        var clocks: UInt64 = 0
+    }
+
+    private var clock = TickClock()
     private static let one: UInt64 = 1 << 52
     // For `renderRaw`: the reference player's dither.
     private var seed: UInt32 = 0x1234_5000
@@ -91,11 +99,11 @@ public final class MODRenderer: Renderer, ReferenceComparable {
             module.restoreSamples()
             var replayer = ProTrackerReplayer(module, model: model, position: start, firstPlayedBy: firstPlayedBy, songNumber: number)
             var frames = 0, ticks = 0
-            var remainder: UInt64 = 0
+            var clock = TickClock()
             var watch = ModuleSongs.Watch()
             while ticks < Self.mostTicks {
                 let more = replayer.runTick()
-                frames += Self.tickLength(tempo: replayer.tempo, &remainder)
+                frames += Self.tickLength(of: module, tempo: replayer.tempo, tempoWasSet: replayer.tempoWasSet, &clock)
                 ticks += 1
                 // (The replayer looks ahead: it says so on the last tick before the earlier song's row.)
                 if watch.tick(frames: frames, playedNote: replayer.playedNote, ledIntoEarlierSong: replayer.ledIntoEarlierSong) { break }
@@ -154,21 +162,41 @@ public final class MODRenderer: Renderer, ReferenceComparable {
         tickPosition = 0
         levels.clear()
         notes.clear()
-        remainder = 0
+        clock = TickClock()
         loopCount = 0
         seed = 0x1234_5000
         ditherLeft = 0
         ditherRight = 0
     }
 
-    /// How many samples the tick just run lasts, at the tempo it left.
-    private static func tickLength(tempo: Int, _ remainder: inout UInt64) -> Int {
+    /// A frame of a PAL Amiga's display, in Paula's clocks: 313 lines of 227 (49.92 a second).
+    private static let frameClocks: UInt64 = 313 * 227
+    /// Paula's clock, `Paula.clockHz`, a whole number of ticks a second.
+    private static let paulaClocks: UInt64 = 28_375_160 / 8
+
+    /// How many samples the tick just run lasts: for a module whose tracker ticked on the frame, a
+    /// frame; for one whose file gives the timer its tracker set (`ProTrackerModule.timerCount`), that
+    /// timer's, until the tune sets a tempo of its own; otherwise ProTracker's timer at the tempo the
+    /// tick left. The first two are worked out in Paula's clocks, five to each of the timer's, with
+    /// the part of a sample they are over by carried exactly.
+    private static func tickLength(of module: ProTrackerModule, tempo: Int, tempoWasSet: Bool, _ clock: inout TickClock) -> Int {
+        var clocks: UInt64 = 0
+        if module.ticksOnTheFrame {
+            clocks = frameClocks
+        } else if let count = module.timerCount, !tempoWasSet {
+            clocks = UInt64(count + 1) * 5
+        }
+        if clocks > 0 {
+            let total = clock.clocks + clocks * UInt64(outputSampleRate)
+            clock.clocks = total % paulaClocks
+            return Int(total / paulaClocks)
+        }
         let exact = Double(outputSampleRate) / ProTrackerReplayer.ticksPerSecond(tempo: tempo)
         let whole = exact.rounded(.towardZero)
         var frames = Int(whole)
-        remainder += UInt64((exact - whole) * Double(Self.one))
-        if remainder >= Self.one {
-            remainder &= Self.one - 1
+        clock.fraction += UInt64((exact - whole) * Double(Self.one))
+        if clock.fraction >= Self.one {
+            clock.fraction &= Self.one - 1
             frames += 1
         }
         return frames
@@ -177,7 +205,7 @@ public final class MODRenderer: Renderer, ReferenceComparable {
     /// Runs the replayer for a tick, unless the tune has stopped it, and makes the sound of that tick.
     private func nextTick() {
         if !replayer.stopped, !replayer.runTick() { loopCount += 1 }
-        tickFrames = Self.tickLength(tempo: replayer.tempo, &remainder)
+        tickFrames = Self.tickLength(of: module, tempo: replayer.tempo, tempoWasSet: replayer.tempoWasSet, &clock)
         tickPosition = 0
         replayer.paula.generate(left: left, right: right, count: tickFrames * 2)
         replayer.paula.takeLevels(into: &levels.now)

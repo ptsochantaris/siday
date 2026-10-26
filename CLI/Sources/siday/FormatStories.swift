@@ -409,7 +409,8 @@ ProTracker among them. ProTracker's file became the one every later tracker's de
 
 A module is played as ProTracker played it. The replayer is ProTracker 2.3D's, by way of pt2-clone's
 port of it to C. It keeps ProTracker's mistakes, because tunes were written by ear against them. Its
-raw output agrees with pt2-clone's to the sample.
+raw output agrees with pt2-clone's to the sample, for every module but those of the trackers before
+ProTracker (below), which pt2-clone plays at ProTracker's speed.
 
 What the replayer would have told Paula, it tells an emulation of Paula: four voices reading
 eight-bit samples out of memory, each at a rate of its own. Paula is run at 96,000 samples a second.
@@ -422,6 +423,23 @@ stereo has its two sides brought most of the way together (see Settings).
 
 Files from other trackers of the family have the few effects they meant differently turned into
 ProTracker's as they are read. A tune ends where it would play a row it has played before.
+
+The trackers before ProTracker played their tunes once each frame of the display, 49.92 times a
+second on a PAL Amiga, and had no tempo, only a speed: NoiseTracker 2.0's own source runs its music
+from the vertical blank, and so does Karsten Obarski's Ultimate Soundtracker replay of 1987. ProTracker
+played by a timer, 125 beats a minute being fifty ticks a second. So a file that shows it came from
+NoiseTracker or His Master's Noise (`N.T.`, `M&K!`, `FEST`), or a fifteen-sample Soundtracker module
+at the tempo of 120 every Soundtracker wrote, is played on the frame, a sixth of a percent slower than
+ProTracker would play it:
+
+- Their F command is a speed alone: above 31 it is 31, and in His Master's Noise's files F00 is
+  speed 1, as their players have it. The later Soundtrackers read only its last figure.
+- NoiseTracker's and His Master's Noise's songs begin again where the file says, not at the start.
+- A Soundtracker module with another tempo was made by Ultimate Soundtracker 1.8 or 2.0, which played
+  by a timer worked out from it, and is played by that timer exactly.
+
+A module tagged `M.K.` may have come from NoiseTracker too, which wrote the same tag, but nothing in it
+says so, and it is played as ProTracker's.
 
 ### Differences and limits
 

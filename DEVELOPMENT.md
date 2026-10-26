@@ -193,7 +193,13 @@ Under the same headings as FORMATS.md, the detail behind each chapter.
   to your vertical-blank-handler"), Thomas Hermann's effects (the game's), Beathoven Synthesizer
   modules whose own code sets the frame's vector (Final Mission's), and the Dynamic Synthesizer
   (Hollywood Poker Pro's in-game module sets a copper interrupt at each frame's end); MaxTrax already
-  was. All are cited in the code. The rest, whose original caller is not known (most of the
+  was. And the MOD files of the trackers before ProTracker: NoiseTracker (`N.T.`) and His Master's
+  Noise (`M&K!`, `FEST`), whose editor's source (NoiseTracker 2.0's, from ftp.untergrund.net's
+  hitchhikr/old/tools) runs the music from its vertical-blank handler `L509` and corrects its clock
+  for 49.92 frames a second; and fifteen-sample Soundtracker files at tempo 120 (Obarski's replay 1.2
+  of 1987 puts `frameirq` at $6C; SoundTracker V1.0's instructions: "once every vertical blanking
+  interrupt"). Those at another tempo tick by Ultimate Soundtracker 1.8's timer exactly, (240 − tempo)
+  × 122 + 1 counts (Obarski's V27, `init6`, in UADE's `EP_Ultimate_ST.s`). All are cited in the code. The rest, whose original caller is not known (most of the
   composers' drivers and the other ports, which UADE and siday run on DeliTracker's timer of $376B,
   70,940 clocks), are left so, as is anything with a timer of its own.
 - **The Amiga is a PAL one.** Where a game's timer was worked out for NTSC and set on any Amiga, it is
@@ -204,8 +210,14 @@ Under the same headings as FORMATS.md, the detail behind each chapter.
   UADE runs at fifty. Infogrames' rate stays UADE's $1A00 (106.6 a second), not Andy Silva's DeliTracker
   player's (99.8): Captain Blood's title music, heard against the game, is right at it (the user's ear,
   2026-10-26).
-- **Not yet decided:** TFMX 1.x's mid-song speed, which writes only the timer's high byte; and MOD files
-  of NoiseTracker and its kin, and the first Soundtrackers, which ran on the frame.
+- **TFMX 1.x's mid-song speed** writes only the CIA timer's upper byte, over the $F0 its own
+  TIMERINIT set (not DeliTracker's $6B), and a speed without a tempo puts a song that began without a
+  timer back on the frame; as the player's source has it. No module of the collection sets a tempo
+  mid-song, so none sounds otherwise for it.
+- **Not known:** which program wrote the `N.T.` tag (no file of the collection has it; it is played
+  on the frame, with F00 as nothing, as NoiseTracker 1.x has it); a Soundtracker module at tempo 120
+  made by Ultimate Soundtracker 1.8, which ran at 48.45 ticks a second, cannot be told from an
+  earlier one's; and Startrekker's timing, for which there is no source.
 
 ### PT3 — the AY trackers, VTX and AY files
 

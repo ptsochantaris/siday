@@ -61,6 +61,8 @@ struct TFMXDecoder {
     /// sets one; nil at the player's own fifty ticks a second. (libtfmxaudiodecoder keeps a rate of its
     /// own instead, `rate`, which is near it, and which is kept as it has it: see `TFMXTiming`.)
     var ciaTimer: UInt16?
+    /// Whether the song's tempo set a timer as it started (TFMX 1.x's $5C(a6), $18f6).
+    var startedWithTimer = false
     /// siday's own, and off unless asked for: a song whose tracks have all either finished or come
     /// to a pattern that goes round for ever plays on, as Chris Hülsbeck's players play it, in place of
     /// being taken to have ended (which libtfmxaudiodecoder does, to find where to stop): its patterns
@@ -381,6 +383,7 @@ struct TFMXDecoder {
         sevenVoiceTempo = 0
         ciaTimer = TFMXTiming.timerAtStart(speed: Int(Int16(bitPattern: word(offsets.header &+ 0x180 &+ (UInt32(songs[admin.startSong]) << 1)))),
                                           old: format == .tfmx)
+        startedWithTimer = ciaTimer != nil
         endings = 0
         stops = 0
         let so = UInt32(songs[admin.startSong]) << 1

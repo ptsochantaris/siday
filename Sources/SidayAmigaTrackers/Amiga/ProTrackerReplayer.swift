@@ -112,6 +112,8 @@ struct ProTrackerReplayer: ~Copyable {
     /// A tempo takes hold a tick after it is set, as the timer that keeps it only looks when it fires.
     private var pendingTempo: Int32 = -1
     private(set) var tempo = 125
+    /// True once the tune has set a tempo of its own, which takes the place of any timer its file gave.
+    private(set) var tempoWasSet = false
     private var stopping = false
     private var wrapped = false
     /// True once the tune has told the tracker to stop (a speed of nothing).
@@ -728,6 +730,7 @@ struct ProTrackerReplayer: ~Copyable {
         if pendingTempo != -1 {
             setTempo(Int(pendingTempo))
             pendingTempo = -1
+            tempoWasSet = true
         }
 
         tick += 1

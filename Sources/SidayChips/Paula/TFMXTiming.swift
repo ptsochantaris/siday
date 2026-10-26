@@ -61,12 +61,18 @@ package struct TFMXTiming {
     }
 
     /// The timer after the song's Speed command: its second word, unless it is below nought or nought,
-    /// as beats a minute (of its lower nine bits). The first player puts its division into the upper
-    /// byte only, leaving the lower as it was (the player's own fifty ticks a second being 14,187).
-    package static func timer(afterSpeed word: UInt16, was: UInt16?, old: Bool) -> UInt16? {
-        guard word & 0x8000 == 0, word & 0x1FF != 0 else { return was }
+    /// as beats a minute (of its lower nine bits). TFMX Professional's player sets the whole timer
+    /// (its `speedsong`). The first player puts its division into the upper byte of CIA B's timer B
+    /// only, leaving the lower as it was: nought after a tempo the song started with, or $F0 from the
+    /// $37F0 its TIMERINIT starts the timer at for a song that set none (Chris Hülsbeck's code, which
+    /// Wanted Team's player keeps as comments where it sets DeliTracker's timer in its place). With no
+    /// beats a minute, a song that started with no timer is run by the frame again (TFMX 1.x, $fe0 to
+    /// $1024: $4A(a6), whether the timer runs the player, is set to $5C(a6), whether the song's start
+    /// set a timer, and then to one if a timer is set). `startedWithTimer` is whether it did.
+    package static func timer(afterSpeed word: UInt16, was: UInt16?, old: Bool, startedWithTimer: Bool = true) -> UInt16? {
+        guard word & 0x8000 == 0, word & 0x1FF != 0 else { return old && !startedWithTimer ? nil : was }
         let bpm = Int(word & 0x1FF)
-        if old { return UInt16(truncatingIfNeeded: (0x1C00 / bpm) & 0xFF) << 8 | (was ?? 14187) & 0xFF }
+        if old { return UInt16(truncatingIfNeeded: (0x1C00 / bpm) & 0xFF) << 8 | (was ?? 0x37F0) & 0xFF }
         return proTimer(bpm)
     }
 
