@@ -161,6 +161,14 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
     #expect((try? TuneLoader.load(Array(it().dropLast(20)), format: .it)) != nil)
     #expect(throws: TuneError.self) { try TuneLoader.load([UInt8](repeating: 0x41, count: 4000), format: .it) }
     #expect(throws: TuneError.self) { try TuneLoader.load(Array(it().prefix(0x60)), format: .it) }
+    // Cut short in its sample's header or in its pattern, it plays what there is, which here is
+    // nothing, and says so.
+    let whole = it(), patternAt = whole.count - 32 - 68 - 8
+    for cut in [patternAt - 0x30, patternAt + 20] {
+        let cutShort = try TuneLoader.load(Array(whole.prefix(cut)), format: .it)
+        #expect(cutShort.info.shortfalls == ["The file is cut short: its samples are missing, and it is silent."])
+        #expect(stereo(cutShort, seconds: 0.5).left.map(abs).max()! < 0.001)
+    }
     #expect(throws: TuneError.self) { try TuneLoader.load(Array("ziRCONia".utf8) + [UInt8](repeating: 0, count: 400), format: .it) }
 }
 
@@ -188,15 +196,54 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
 @Test func itFileWithMoreSamplesThanImpulseTrackerHadRoomForIsPlayed() throws {
     // Impulse Tracker holds a hundred samples, and uses the number after them to mean a note sent
     // out by MIDI. Later trackers wrote files with more: here the hundred-and-first is the one
-    // that is played, and then the two-hundredth.
-    for before in [100, 199] {
+    // that is played, then the two-hundredth, and then the 254th and 255th, which a note names by
+    // the whole of its byte, in a file of more samples than a byte can number.
+    for before in [100, 199, 253, 254] {
         let renderer = try TuneLoader.load(it(before: before), format: .it)
         let sound = stereo(renderer, seconds: 1).left
         #expect(abs(crossings(sound[4800...]) * 10 / 9 - 261) <= 2)
         #expect(sound[4800...].map(abs).max()! > 0.02)
     }
-    // More than a byte can number is more than an IT file can have.
-    #expect(throws: TuneError.self) { try TuneLoader.load(it(before: 253), format: .it) }
+    // More than OpenMPT's 3,999 is more than an IT file can have.
+    var many = it()
+    many[0x24 ... 0x25] = [0xA0, 0x0F]
+    #expect(throws: TuneError.self) { try TuneLoader.load(many, format: .it) }
+}
+
+@Test func itFileWithASamplePastTheByteIsPlayedByItsInstrument() throws {
+    // ModPlug Tracker and OpenMPT name a sample past the 255th by an instrument, with the upper
+    // bytes of its samples' numbers after it. One instrument, all of whose notes play the 300th
+    // sample, the square wave, of 300.
+    let samples = 300
+    var file = Array("IMPM".utf8) + padded(Array("a square wave".utf8), to: 26) + [4, 16]
+    file += word(2) + word(1) + word(samples) + word(1) + word(0x0214) + word(0x0200) + word(1 | 4) + word(0)
+    file += [128, 48, 6, 125, 128, 0] + word(0) + long(0) + long(0)
+    file += [32] + [UInt8](repeating: 32, count: 63) + [UInt8](repeating: 64, count: 64)
+    file += [0, 255]
+    let instrument = file.count + (1 + samples + 1) * 4, headers = instrument + 554 + 120
+    let pattern = headers + samples * 0x50
+    let rows: [UInt8] = [0x81, 0x03, 60, 1] + [UInt8](repeating: 0, count: 64)
+    let sound = pattern + 8 + rows.count
+    file += long(instrument) + (0 ..< samples).flatMap { long(headers + $0 * 0x50) } + long(pattern)
+    var keys = Array("IMPI".utf8) + [UInt8](repeating: 0, count: 13) + [0, 0, 0] + word(0) + [0, 60, 128, 32 | 128, 0, 0] + word(0x0214) + [1, 0]
+    keys += [UInt8](repeating: 0, count: 26) + [0, 0, 0, 0] + word(0)
+    keys += (0 ..< 120).flatMap { [UInt8($0), UInt8(samples & 0xFF)] }
+    keys += [UInt8](repeating: 0, count: 3 * 82) + Array("XTPM".utf8) + [UInt8](repeating: UInt8(samples >> 8), count: 120)
+    #expect(keys.count == 554 + 120)
+    file += keys
+    for _ in 0 ..< samples - 1 { file += padded(Array("IMPS".utf8), to: 0x50) }
+    file += Array("IMPS".utf8) + [UInt8](repeating: 0, count: 13) + [64, 0x11, 64] + padded(Array("square".utf8), to: 26) + [1, 0]
+        + long(32) + long(0) + long(32) + long(8363) + long(0) + long(0) + long(sound) + [0, 0, 0, 0]
+    file += word(rows.count) + word(64) + long(0) + rows
+    file += (0 ..< 32).map { $0 < 16 ? 0x7F : 0x81 }
+    let renderer = try TuneLoader.load(file, format: .it)
+    let sound1 = stereo(renderer, seconds: 1).left
+    #expect(abs(crossings(sound1[4800...]) * 10 / 9 - 261) <= 2)
+    #expect(sound1[4800...].map(abs).max()! > 0.02)
+    // Without the upper bytes the note is of the 44th sample, which is empty.
+    var lower = file
+    lower[instrument + 550 ..< instrument + 554] = [0, 0, 0, 0]
+    #expect(stereo(try TuneLoader.load(lower, format: .it), seconds: 1).left.map(abs).max()! < 0.001)
 }
 
 // MARK: What is not played as the file asks

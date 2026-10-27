@@ -113,7 +113,7 @@ final class IT2Player {
     private var ChannelCountTable = [UInt8](repeating: 0, count: 256), ChannelVolumeTable = [UInt8](repeating: 0, count: 256)
     private var ChannelLocationTable = [IT2SlavePointer?](repeating: nil, count: 256)
     /// See `IT2Module`: the numbers that stand for a MIDI note, and how many samples there is room for.
-    let midiSample: UInt8, midiVoiceSample: UInt8
+    let midiSample: UInt16, midiVoiceSample: UInt16
     private let sampleLimit: Int
     var LastSlaveChannel: IT2SlavePointer?
     /// The channels that have a slide to a note going on by itself: see `carryOnSlideToNote`.
@@ -551,13 +551,13 @@ final class IT2Player {
     /// Looks among the voices for a note that the new one is to take the place of: the same note,
     /// sample or instrument on the same channel, as the instrument asks. Leaves `sc` at the voice
     /// it stopped on.
-    private func DuplicateCheck(_ sc: inout IT2SlavePointer, _ hc: IT2HostPointer, _ hostChnNum: UInt8, _ ins: IT2Instrument, _ DCT: UInt8, _ DCVal: UInt8) -> Bool {
+    private func DuplicateCheck(_ sc: inout IT2SlavePointer, _ hc: IT2HostPointer, _ hostChnNum: UInt8, _ ins: IT2Instrument, _ DCT: UInt8, _ DCVal: UInt16) -> Bool {
         for i in 0 ..< NumChannels {
             sc = sChn + i
             if sc.pointee.Flags & SF_CHAN_ON == 0 || (hc.pointee.Smp != midiSample && sc.pointee.HostChnNum != hostChnNum) || sc.pointee.Ins != hc.pointee.Ins { continue }
-            if DCT == DCT_NOTE, sc.pointee.Note != DCVal { continue }
+            if DCT == DCT_NOTE, UInt16(sc.pointee.Note) != DCVal { continue }
             if DCT == DCT_SAMPLE, sc.pointee.Smp != DCVal { continue }
-            if DCT == DCT_INSTRUMENT, sc.pointee.Ins != DCVal { continue }
+            if DCT == DCT_INSTRUMENT, UInt16(sc.pointee.Ins) != DCVal { continue }
             if hc.pointee.Smp == midiSample {
                 if sc.pointee.Smp == midiVoiceSample, sc.pointee.MIDIChn == hostChnNum {
                     sc.pointee.Flags |= SF_NOTE_STOP
@@ -620,25 +620,25 @@ final class IT2Player {
                 }
             }
 
-            var hostChnNum: UInt8 = 0, DCT: UInt8 = 0, DCVal: UInt8 = 0
+            var hostChnNum: UInt8 = 0, DCT: UInt8 = 0, DCVal: UInt16 = 0
             var doDupeCheck = false
             if hc.pointee.Smp == midiSample {
                 hostChnNum = hc.pointee.MIDIChn
                 DCT = DCT_NOTE
-                DCVal = hc.pointee.TranslatedNote
+                DCVal = UInt16(hc.pointee.TranslatedNote)
                 doDupeCheck = true
             } else if ins.DCT != DCT_DISABLED {
                 hostChnNum = hc.pointee.HostChnNum | CHN_DISOWNED // only among those the channel has let go
                 DCT = ins.DCT
                 if ins.DCT == DCT_NOTE {
-                    DCVal = hc.pointee.RawNote
+                    DCVal = UInt16(hc.pointee.RawNote)
                 } else if ins.DCT == DCT_INSTRUMENT {
-                    DCVal = hc.pointee.Ins
+                    DCVal = UInt16(hc.pointee.Ins)
                 } else {
                     DCVal = hc.pointee.Smp &- 1
                     // No sample, or none that Impulse Tracker could have: no such check. (A file with
-                    // more samples than Impulse Tracker has room for has them up to 253.)
-                    if hc.pointee.Smp == 0 || (sampleLimit <= IT2Module.MAX_SAMPLES && Int8(bitPattern: DCVal) < 0) { break }
+                    // more samples than Impulse Tracker has room for can have them past the 128th.)
+                    if hc.pointee.Smp == 0 || (sampleLimit <= IT2Module.MAX_SAMPLES && Int8(truncatingIfNeeded: DCVal) < 0) { break }
                 }
                 doDupeCheck = true
             }
@@ -951,13 +951,13 @@ final class IT2Player {
         if hc.pointee.NotePackMask & 0x33 != 0 {
             if module.Flags & ITF_INSTR_MODE == 0 || hc.pointee.RawNote >= 120 || hc.pointee.Ins == 0 {
                 hc.pointee.TranslatedNote = hc.pointee.RawNote
-                hc.pointee.Smp = hc.pointee.Ins
+                hc.pointee.Smp = UInt16(hc.pointee.Ins)
                 // (Impulse Tracker takes an instrument beside a note-off for the sample of its
                 // number, whose volume the note is given; OpenMPT, in an MT2 file, for the sample
                 // the instrument plays the last note on.)
                 if module.madTracker, hc.pointee.RawNote >= 120, hc.pointee.Ins != 0, module.Flags & ITF_INSTR_MODE != 0 {
                     let last = hc.pointee.SlaveChnPtr.map { Int($0.pointee.Note) } ?? 60
-                    hc.pointee.Smp = UInt8(module.instrument(Int(hc.pointee.Ins) - 1).SmpNoteTable[min(119, last)] >> 8)
+                    hc.pointee.Smp = module.instrument(Int(hc.pointee.Ins) - 1).sample(forNote: min(119, last))
                 }
             } else {
                 let ins = module.instrument(Int(hc.pointee.Ins) - 1)
@@ -968,7 +968,7 @@ final class IT2Player {
                 // sample for. ModPlug Tracker and OpenMPT went on playing its sample, and a file
                 // of theirs is played as they played it: see `samplesPlayForMIDI`.
                 if ins.MIDIChn == 0 || ins.MIDIChn > 128 || samplesPlayForMIDI {
-                    hc.pointee.Smp = UInt8(entry >> 8)
+                    hc.pointee.Smp = ins.sample(forNote: Int(hc.pointee.RawNote))
                 } else {
                     hc.pointee.MIDIChn = ins.MIDIChn == 17 ? (hc.pointee.HostChnNum & 0x0F) + 1 : ins.MIDIChn
                     hc.pointee.MIDIProg = ins.MIDIProg

@@ -28,6 +28,9 @@ final class ST3Module {
     }
 
     static let mostOrders = 256, mostInstruments = 99, mostPatterns = 100
+    /// The most patterns a file of a later tracker's is taken to have: ModPlug Tracker wrote files of
+    /// more than Scream Tracker's hundred.
+    static let mostPatternsOfLaterTrackers = 256
 
     let title: String
     // The header, by its own names.
@@ -117,16 +120,21 @@ final class ST3Module {
     }
 
     init(_ data: [UInt8]) throws {
-        let f = ByteReader(data)
-        guard data.count > 0x60, f[0x2C] == 0x53, f[0x2D] == 0x43, f[0x2E] == 0x52, f[0x2F] == 0x4D else {
+        guard data.count > 0x60, data[0x2C] == 0x53, data[0x2D] == 0x43, data[0x2E] == 0x52, data[0x2F] == 0x4D else {
             throw TuneError.malformed("not an S3M file")
         }
-        ordnum = f.u16le(0x20)
+        let mended = Self.mended(data)
+        let f = ByteReader(mended ?? data)
+        // Impulse Tracker counts the end of its list of patterns to play as one of them, and so can
+        // write 257 where Scream Tracker has room for 256: the last of them is then that end.
+        let ordersInFile = f.u16le(0x20)
+        ordnum = ordersInFile == Self.mostOrders + 1 && f[0x60 + Self.mostOrders] == 255 ? Self.mostOrders : ordersInFile
         insnum = f.u16le(0x22)
         patnum = f.u16le(0x24)
-        guard ordnum <= Self.mostOrders, insnum <= Self.mostInstruments, patnum <= Self.mostPatterns else {
+        guard ordnum <= Self.mostOrders, insnum <= Self.mostInstruments, patnum <= Self.mostPatternsOfLaterTrackers else {
             throw TuneError.unsupported("an S3M file with more orders, instruments or patterns than Scream Tracker 3 has room for")
         }
+        if patnum > Self.mostPatterns { patp = [[UInt8]?](repeating: nil, count: patnum + 1) }
         title = f.dos(at: 0, length: 27)
         var flags = UInt16(f.u16le(0x26))
         cwtv = UInt16(f.u16le(0x28))
@@ -158,7 +166,7 @@ final class ST3Module {
 
         var at = 0x60
         for i in 0 ..< ordnum { order[i] = f[at + i] }
-        at += ordnum
+        at += ordersInFile
         let insoff = (0 ..< insnum).map { f.u16le(at + $0 * 2) }
         at += insnum * 2
         let patoff = (0 ..< patnum).map { f.u16le(at + $0 * 2) }
@@ -169,9 +177,15 @@ final class ST3Module {
 
         var offsets = [Int](repeating: 0, count: insnum)
         var beyond = false
+        // (What the file ends before: its table of where things are, an instrument's header, a
+        // pattern. What is not there is played as nothing, and said to be missing.)
+        var partsLost = at > data.count ? 1 : 0
         for i in 0 ..< insnum {
             let o = insoff[i] << 4
-            guard o + 0x50 <= data.count else { continue }
+            guard o + 0x50 <= data.count else {
+                if o > 0 { partsLost += 1 }
+                continue
+            }
             ins[i].type = f[o]
             if ins[i].type >= 2, ins[i].type <= 7 {
                 for k in 0 ..< 12 { ins[i].adlib[k] = f[o + 16 + k] }
@@ -190,13 +204,16 @@ final class ST3Module {
         }
         beyondScreamTracker = beyond
 
-        for i in 0 ..< patnum where patoff[i] != 0 {
+        // (A later tracker's file can have more patterns than Scream Tracker's hundred, but the list
+        // of patterns to play names no more than 254 of them, 254 and 255 being marks in it.)
+        for i in 0 ..< min(patnum, Self.mostPatternsOfLaterTrackers - 2) where patoff[i] != 0 {
             let o = patoff[i] << 4
             // A pattern says how long it is, and that length counts the two bytes that say so.
             let length = f.u16le(o)
             var bytes = [UInt8](repeating: 0, count: max(length, 2))
             for k in 0 ..< max(0, length - 2) { bytes[k] = f[o + 2 + k] }
             patp[i] = bytes
+            if o + max(length, 2) > data.count, Self.rows(in: bytes.prefix(max(0, data.count - o - 2))) < 64 { partsLost += 1 }
         }
 
         // Where each sample goes, and how much of it the file has.
@@ -261,7 +278,17 @@ final class ST3Module {
         if cwtv < 0x1320 { readPixPlayPanning() }
         findExtraChannels()
         noteWhatIsNotPlayed(f, insoff)
-        if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if mended != nil { shortfalls.insert(Self.mendedSentence, at: 0) }
+        // A file that has lost parts before its samples has lost them all, as a rule, and says so as
+        // DigiBooster's files do.
+        let sounds = (0 ..< insnum).contains { insoff[$0] != 0 && (ins[$0].type >= 2 || ins[$0].type == 1 && offsets[$0] > 0 && offsets[$0] < data.count && ins[$0].length > 0) }
+        if partsLost > 0, !sounds {
+            shortfalls.append(Shortfall.cutShort("Its samples are missing, and it is silent."))
+        } else if let sentence = cutShort.sentence {
+            shortfalls.append(sentence)
+        } else if partsLost > 0 {
+            shortfalls.append(Shortfall.cutShort("Some of what it has is not there."))
+        }
         for i in 0 ..< Self.mostInstruments { checkins(i) }
         playStereoSamples(asScreamTracker: false)
     }
@@ -291,6 +318,17 @@ final class ST3Module {
             ins[one.instrument].lend512 = one.lend512
             checkins(one.instrument)
         }
+    }
+
+    /// How many rows of a pattern, as Scream Tracker packs it, some bytes hold whole.
+    private static func rows(in pattern: ArraySlice<UInt8>) -> Int {
+        var at = pattern.startIndex, rows = 0
+        while at < pattern.endIndex, rows < 64 {
+            let what = pattern[at]
+            at += 1 + (what & 0x20 != 0 ? 2 : 0) + (what & 0x40 != 0 ? 1 : 0) + (what & 0x80 != 0 ? 2 : 0)
+            if what == 0 { rows += 1 }
+        }
+        return rows
     }
 
     /// One side of a sample, as it lies in the file from a place on.

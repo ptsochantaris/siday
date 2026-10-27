@@ -63,14 +63,14 @@ extension IT2Module {
         }
 
         var sentences: [String] = []
-        var usedSample = [Bool](repeating: false, count: 256)
+        var usedSample = [Bool](repeating: false, count: max(256, sampleLimit + 1))
         if usesInstruments {
             var unheard = 0, midi = 0
             for number in 1 ... 255 where usedInstrument[number] && number <= InsNum {
                 let instrument = instrument(number - 1)
                 var hasSample = false
                 for note in 0 ..< 120 where usedNotes[number * 120 + note] {
-                    let sample = Int(instrument.SmpNoteTable[note] >> 8)
+                    let sample = Int(instrument.sample(forNote: note))
                     guard sample > 0 else { continue }
                     usedSample[sample] = true
                     if let s = self.sample(sample - 1), s.Length > 0 { hasSample = true }
@@ -106,7 +106,15 @@ extension IT2Module {
                                                     why: "which Impulse Tracker did not have") {
             sentences.append(sentence)
         }
-        if let sentence = cutShort.sentence { sentences.append(sentence) }
+        // (A file that has lost parts before its samples has lost them all, as a rule, and says so as
+        // DigiBooster's files do.)
+        if partsLost > 0, !hasSound {
+            sentences.append(Shortfall.cutShort("Its samples are missing, and it is silent."))
+        } else if let sentence = cutShort.sentence {
+            sentences.append(sentence)
+        } else if partsLost > 0 {
+            sentences.append(Shortfall.cutShort("Some of what it has is not there."))
+        }
         return sentences
     }
 }

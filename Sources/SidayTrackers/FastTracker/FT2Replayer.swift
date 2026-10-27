@@ -232,7 +232,9 @@ extension FT2Player {
         ch.instrSeg = ins
         ch.mute = ins.mute
 
-        let smp = ins.ta[Int(ton) - 1] & 0xF
+        // (FastTracker's sixteen samples to an instrument; or the 32 of a later tracker's, in an
+        // instrument of a file that has more than sixteen.)
+        let smp = ins.ta[Int(ton) - 1] & (ins.samp.count > 16 ? 0x1F : 0xF)
         ch.sampleNr = smp
         let s = ins.samp[Int(smp)]
         ch.relTonNr = s.relTon
@@ -824,7 +826,8 @@ extension FT2Player {
 
         var inst = p.instr
         if inst > 0 {
-            if inst <= 128 {
+            // (128 instruments; or as many as a later tracker's file has, where it has more.)
+            if Int(inst) < instr.count {
                 ch.instrNr = inst
             } else {
                 inst = 0

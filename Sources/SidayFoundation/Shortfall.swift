@@ -144,6 +144,22 @@ package enum Shortfall {
         "The file is cut short: " + lowercased(lost)
     }
 
+    /// What to say of the instruments of a file that are lost, which are silent: those the file
+    /// ends before, or those from one on whose header cannot be right, after which nothing in the
+    /// file can be taken at its word. Nil if the song plays none of them.
+    /// - Parameters:
+    ///   - count: how many of the instruments the song plays are lost.
+    ///   - damaged: true if they are lost to a header that cannot be right, not to the file's end.
+    ///   - samplesToo: true if `CutShort` has already said that the file is cut short.
+    package static func instrumentsLost(_ count: Int, damaged: Bool, samplesToo: Bool) -> String? {
+        guard count > 0 else { return nil }
+        let which = (count == 1 ? "one of the instruments it plays is " : "\(number(count)) of the instruments it plays are ")
+        let silent = count == 1 ? ", and is silent." : ", and are silent."
+        if damaged { return "The file is damaged part of the way through: " + which + "lost" + silent }
+        if samplesToo { return capitalNumber(count) + (count == 1 ? " of the instruments it plays is missing too" : " of the instruments it plays are missing too") + silent }
+        return cutShort(which + "missing" + silent)
+    }
+
     /// A sentence's beginning made fit for its middle: its first letter small.
     private static func lowercased(_ text: String) -> String {
         guard let first = text.utf8.first, first >= 0x41, first <= 0x5A else { return text }

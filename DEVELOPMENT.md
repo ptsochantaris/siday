@@ -1302,6 +1302,15 @@ Checked against libopenmpt, for files of other trackers:
   20 came nearer by the spectrum (one from 0.77 to 0.99) and none went further. 80 others picked at
   random were not changed at all.
 
+- **Files FastTracker had no room for (October 2026):** 150 XM files siday used to refuse were
+  compared with libopenmpt over their first minute: more than 128 instruments, more than sixteen
+  samples to an instrument, samples packed by ModPlug's MOD Plugin, files cut short or damaged
+  partway through their instruments, and MED2XM's longer headers. 149 now play, with a loudness
+  envelope of 0.9 or more in all but eight, each of those explained by something siday already did
+  differently from OpenMPT. Instruments over the sixteenth sample, played alone, agree to 0.999.
+  Every XM file of the collection that played before lists as it did, and 155 of them play to the
+  sample as they did.
+
 ### MTM, DTM and AMF — MultiTracker, Digital Tracker and DSMI
 
 Based on:
@@ -1367,6 +1376,17 @@ Notes:
   that say they are Scream Tracker 3.20 and had no filter: Sound Club, PlayerPRO, Velvet Studio.
 - Crawling Despair: OpenMPT plays Z00 to Z0F as pan positions in a file from before Scream Tracker
   3.20 whose Z is only ever that.
+
+Damaged and later trackers' files (October 2026): 22 S3M files and 6 IT files siday used to refuse
+were compared with libopenmpt.
+
+- **Noughts written over:** 17 S3M files have many of their noughts replaced by one byte.
+  `ST3Noughts.swift` puts them back where they are certain, and was checked against a twin of it
+  written apart in Python, which mends the file the same way. On the Sound Blaster, against
+  libopenmpt playing a copy mended the same way, the loudness envelope is 0.71 to 0.997; on the
+  GUS, whose whole ticks drift from libopenmpt's tempo, it is lower.
+- **More patterns, 257 places, and IT files of more than 255 samples:** 0.875 to 0.9995.
+- 352 S3M, IT, MOD and other files that played before play to the sample as they did.
 
 ### STM — Scream Tracker 2, and STX
 

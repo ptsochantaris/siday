@@ -283,10 +283,8 @@ final class ProTrackerModule {
             if kind == .proTracker, songLength == 129 { songLength = 127 }
             guard songLength >= 1, songLength <= 129 else { throw TuneError.malformed("not a module") }
         }
-        let restart = kind == .startrekker || kind == .noiseTracker || kind == .hisMastersNoise ? Int(file[p]) : 0
+        var restart = kind == .startrekker || kind == .noiseTracker || kind == .hisMastersNoise ? Int(file[p]) : 0
         p += 1
-        self.songLength = songLength
-        restartPosition = restart < songLength ? restart : 0
         initialTempo = tempo
         ticksOnTheFrame = onTheFrame
         timerCount = timer
@@ -298,6 +296,31 @@ final class ProTrackerModule {
         }
         patternCount += 1
         p += 128
+        // A module written by a tracker on the PC whose list of patterns has marks in it, as Scream
+        // Tracker 3's, Impulse Tracker's and ModPlug Tracker's lists have: 254 a place that is passed
+        // over, and 255 the end of the song. Such a file holds as many patterns as the rest of the
+        // list names, and is played as those trackers play their lists. (ProTracker counts a module's
+        // patterns by the highest number in its list, and would look for 255 of them.) Here the marks
+        // are taken out of the list, and the places a jump goes to (B) counted again without them.
+        var newPlaces: [Int]?
+        let list = orders
+        if list.prefix(songLength).contains(where: { $0 >= 254 }) {
+            patternCount = 1 + (list.filter { $0 < 254 }.max().map(Int.init) ?? 0)
+            var kept: [UInt8] = [], places = [Int](repeating: 0, count: 256)
+            let end = list.prefix(songLength).firstIndex(of: 255) ?? songLength
+            for i in 0 ..< 256 {
+                // (A jump to a mark goes on to the next place that is a pattern; past the end, it ends the song.)
+                places[i] = kept.count
+                if i < end, list[i] != 254 { kept.append(list[i]) }
+            }
+            guard !kept.isEmpty else { throw TuneError.malformed("not a module") }
+            for i in 0 ..< 128 { orders[i] = i < kept.count ? kept[i] : 0 }
+            restart = places[restart]
+            songLength = kept.count
+            newPlaces = places
+        }
+        self.songLength = songLength
+        restartPosition = restart < songLength ? restart : 0
         guard patternCount <= Self.mostPatterns else { throw TuneError.unsupported("a module of more than a hundred patterns") }
         if kind != nil { p += 4 }
         // A file with no four letters is taken on trust by the tracker this is ported from. Here it must
@@ -338,6 +361,12 @@ final class ProTrackerModule {
                     }
                     patterns[(pattern * Self.rows + row) * Self.channels + channel] = note
                 }
+            }
+        }
+
+        if let newPlaces {
+            for i in 0 ..< patternCount * Self.rows * Self.channels where patterns[i].command == 0xB {
+                patterns[i].parameter = UInt8(newPlaces[Int(patterns[i].parameter)])
             }
         }
 

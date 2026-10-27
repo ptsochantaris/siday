@@ -226,6 +226,96 @@ private func sixChannelMOD(second: Bool = false) -> [UInt8] {
     #expect(stereo(try TuneLoader.load(wide, format: .xm), seconds: 0.5).left[4800...].map(abs).max()! < 0.001)
 }
 
+/// An XM file of two channels and one pattern, whose first row is `row`, with the instruments given,
+/// each its header and its samples' headers and samples (see `square`).
+/// - Parameter count: how many instruments the file says it has, if not as many as are given.
+private func xmOf(_ instruments: [[UInt8]], count: Int? = nil, row: [UInt8]) -> [UInt8] {
+    var file = Array("Extended Module: ".utf8) + padded("a square wave", 20) + [0x1A] + padded("siday", 20) + word(0x0104)
+    file += long(276) + word(1) + word(0) + word(2) + word(1) + word(count ?? instruments.count) + word(1) + word(6) + word(125)
+    file += [UInt8](repeating: 0, count: 256)
+    let rows = row + [UInt8](repeating: 0x80, count: 63 * 2)
+    file += long(9) + [0] + word(64) + word(rows.count) + rows
+    return file + instruments.joined()
+}
+
+/// An instrument whose every note plays its sample `playing` of `samples`, the square wave of
+/// `xm()`; the others are empty. Packed, if asked, as ModPlug Tracker packed samples.
+private func square(samples: Int = 1, playing: Int = 0, packed: Bool = false) -> [UInt8] {
+    var bytes = long(263) + padded("square", 22) + [0] + word(samples) + long(40) + [UInt8](repeating: UInt8(playing), count: 96)
+    bytes += [UInt8](repeating: 0, count: 263 - bytes.count)
+    for j in 0 ..< samples {
+        bytes += j == playing ? long(32) + long(0) + long(32) + [64, 0, 1, 128, 0, packed ? 0xAD : 0] + padded("square", 22)
+            : long(0) + long(0) + long(0) + [64, 0, 0, 128, 0, 0] + padded("", 22)
+    }
+    if packed {
+        // Sixteen differences, and then a sample in each four bits: up to 127, and later down to -128.
+        return bytes + [0, 127, 1] + [UInt8](repeating: 0, count: 13) + [0x01] + [UInt8](repeating: 0, count: 7) + [0x02] + [UInt8](repeating: 0, count: 7)
+    }
+    var sample = [UInt8](repeating: 0, count: 32)
+    sample[0] = 127
+    sample[16] = 1
+    return bytes + sample
+}
+
+/// An instrument with no samples, as most trackers write one.
+private let emptyInstrument = long(263) + [UInt8](repeating: 0, count: 259)
+
+private func heard(_ file: [UInt8]) throws -> [Float] { stereo(try TuneLoader.load(file, format: .xm), seconds: 0.5).left }
+
+@Test func xmOfALaterTrackerHasAllItsSamplesAndInstrumentsPlayed() throws {
+    // FastTracker has room for sixteen samples in an instrument and for 128 instruments; ModPlug
+    // Tracker and OpenMPT for 32 and 255. A file with more is theirs, and is played with them all.
+    let one = try heard(xmOf([square()], row: [0x83, 49, 1, 0x80]))
+    #expect(one[4800...].map(abs).max()! > 0.02)
+    #expect(try heard(xmOf([square(samples: 20, playing: 18)], row: [0x83, 49, 1, 0x80])) == one)
+    #expect(try heard(xmOf(Array(repeating: emptyInstrument, count: 129) + [square()], row: [0x83, 49, 130, 0x80])) == one)
+    // More than 32 samples is not a tracker's, and the instrument cannot be heard.
+    #expect(throws: TuneError.self) { try TuneLoader.load(xmOf([square(samples: 33)], row: [0x83, 49, 1, 0x80]), format: .xm) }
+    // A header longer than FastTracker's, as MED2XM wrote them, is passed over whole.
+    var longer = square()
+    longer.replaceSubrange(0 ..< 4, with: long(264))
+    longer.insert(0, at: 263)
+    #expect(try heard(xmOf([longer], row: [0x83, 49, 1, 0x80])) == one)
+}
+
+@Test func xmSamplePackedByModPlugIsUnpacked() throws {
+    // ModPlug Tracker's own packing, as its MOD Plugin wrote it: the same wave, in half the bytes.
+    let packed = xmOf([square(packed: true), square()], row: [0x83, 49, 1, 0x83, 61, 2])
+    #expect(try heard(packed) == heard(xmOf([square(), square()], row: [0x83, 49, 1, 0x83, 61, 2])))
+    #expect(try TuneLoader.load(packed, format: .xm).info.shortfalls.isEmpty)
+}
+
+@Test func xmCutShortInItsInstrumentsPlaysWhatItHasAndSaysSo() throws {
+    let row: [UInt8] = [0x83, 49, 1, 0x83, 61, 2]
+    let whole = xmOf([square(), square()], row: row)
+    #expect(try TuneLoader.load(whole, format: .xm).info.shortfalls.isEmpty)
+    let alone = try heard(xmOf([square()], row: [0x83, 49, 1, 0x80]))
+
+    // Ending after its first instrument, or in the second's header, the file has lost the
+    // second, which is silent; what is there is played.
+    let missing = ["The file is cut short: one of the instruments it plays is missing, and is silent."]
+    for end in [whole.count - square().count, whole.count - square().count + 100] {
+        let cut = try TuneLoader.load(Array(whole.prefix(end)), format: .xm)
+        #expect(cut.info.shortfalls == missing)
+        #expect(stereo(cut, seconds: 0.5).left == alone)
+    }
+    // An instrument that is lost and that the song does not play is not missed.
+    #expect(try TuneLoader.load(xmOf([square()], count: 2, row: [0x83, 49, 1, 0x80]), format: .xm).info.shortfalls.isEmpty)
+    // A file that has lost all it would be heard by is not a tune.
+    #expect(throws: TuneError.self) { try TuneLoader.load(Array(whole.prefix(whole.count - 2 * square().count)), format: .xm) }
+
+    // A header that says it has 40 samples cannot be right, and nothing after it can be believed.
+    var damaged = whole
+    damaged[whole.count - square().count + 27] = 40
+    let lost = try TuneLoader.load(damaged, format: .xm)
+    #expect(lost.info.shortfalls == ["The file is damaged part of the way through: one of the instruments it plays is lost, and is silent."])
+    #expect(stereo(lost, seconds: 0.5).left == alone)
+
+    // An instrument whose header says it is no length at all is a whole one, as OpenMPT reads it.
+    let noLength = long(0) + [UInt8](repeating: 0, count: 259)
+    #expect(try heard(xmOf([noLength, square()], row: [0x83, 49, 2, 0x80])) == alone)
+}
+
 /// A file as FastTracker 2 itself would write it: it says so, and its name is padded with spaces.
 private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     var file = file
@@ -376,10 +466,10 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     var stereo = xm()
     stereo[stereo.count - 32 - 40 + 14] |= 0x20
     #expect(try shortfalls(stereo).isEmpty)
-    // One packed as ModPlug Tracker packed them.
+    // One packed as ModPlug Tracker packed them, which is read so (see `xmSamplePackedByModPlugIsUnpacked`).
     var packed = xm()
     packed[packed.count - 32 - 40 + 17] = 0xAD
-    #expect(try shortfalls(packed).first?.hasPrefix("One of its samples is packed in a way of ModPlug Tracker's own") == true)
+    #expect(try shortfalls(packed).isEmpty)
 
     // A command of ModPlug Tracker's: Z, which is its 35th, and sets a channel's filter unless
     // the file has macros of its own that say it does something else. The filter is played, and a

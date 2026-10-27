@@ -24,7 +24,7 @@ extension IT2Player {
     func disorderTrackerKeepSample(_ hc: IT2HostPointer) {
         guard hc.pointee.NotePackMask & 0x22 != 0, hc.pointee.Ins != 0, let sc = hc.pointee.SlaveChnPtr, sc.pointee.SmpPtr != nil else { return }
         hc.pointee.Smp = sc.pointee.Smp &+ 1
-        hc.pointee.Ins = hc.pointee.Smp
+        hc.pointee.Ins = UInt8(truncatingIfNeeded: hc.pointee.Smp)
     }
 
     /// A slide up or down (Fxx or Exx) leaves a slide to a note with none of its own to go on the

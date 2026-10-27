@@ -94,6 +94,13 @@ final class IT2Instrument {
     var MIDIBank: UInt16 = 0
     /// For each of 120 notes: the note to play in the low byte, the sample to play it on in the high.
     var SmpNoteTable = [UInt16](repeating: 0, count: 120)
+    /// For an instrument of a file with more samples than a byte can number, as ModPlug Tracker and
+    /// OpenMPT write them: the upper byte of the sample each of the 120 notes plays. Empty for any other.
+    var SmpHighTable: [UInt8] = []
+    /// The sample a note plays, by its number from 1; 0 for none.
+    @inline(__always) func sample(forNote note: Int) -> UInt16 {
+        SmpHighTable.isEmpty ? SmpNoteTable[note] >> 8 : SmpNoteTable[note] >> 8 | UInt16(SmpHighTable[note]) << 8
+    }
     var VolEnv = IT2Envelope(), PanEnv = IT2Envelope(), PitchEnv = IT2Envelope()
     /// For an MPTM file's instrument only: 1 if its filter lets the high through and not the low,
     /// 0 if the low, and `sameFilter` to leave its channel's filter as the last instrument had it,
@@ -173,7 +180,7 @@ struct IT2HostChannel {
     var Flags: UInt16 = 0
     var NotePackMask: UInt8 = 0, RawNote: UInt8 = 0, Ins: UInt8 = 0, RawVolColumn: UInt8 = 0, Cmd: UInt8 = 0, CmdVal: UInt8 = 0
     var OldCmd: UInt8 = 0, OldCmdVal: UInt8 = 0, VolCmd: UInt8 = 0, VolCmdVal: UInt8 = 0
-    var MIDIChn: UInt8 = 0, MIDIProg: UInt8 = 0, TranslatedNote: UInt8 = 0, Smp: UInt8 = 0
+    var MIDIChn: UInt8 = 0, MIDIProg: UInt8 = 0, TranslatedNote: UInt8 = 0, Smp: UInt16 = 0
     var EfxMem_DKL: UInt8 = 0, EfxMem_EFG: UInt8 = 0, EfxMem_O: UInt8 = 0, EfxMem_I: UInt8 = 0, EfxMem_J: UInt8 = 0, EfxMem_N: UInt8 = 0
     var EfxMem_P: UInt8 = 0, EfxMem_Q: UInt8 = 0, EfxMem_T: UInt8 = 0, EfxMem_S: UInt8 = 0, EfxMem_W: UInt8 = 0, EfxMem_G_Compat: UInt8 = 0
     var EfxMem_SFx: UInt8 = 0
@@ -326,7 +333,7 @@ struct IT2SlaveChannel {
     var InsPtr: IT2Instrument?
     var SmpPtr: IT2Sample?
     var Note: UInt8 = 0, Ins: UInt8 = 0
-    var Smp: UInt8 = 0
+    var Smp: UInt16 = 0
     var HostChnPtr: UnsafeMutablePointer<IT2HostChannel>?
     var HostChnNum: UInt8 = 0, NNA: UInt8 = 0, MIDIChn: UInt8 = 0, MIDIProg: UInt8 = 0
     var MIDIBank: UInt16 = 0

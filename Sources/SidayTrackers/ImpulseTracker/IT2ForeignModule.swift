@@ -623,7 +623,7 @@ public extension ITRenderer {
             instrument.resonance = Int(from.FilterResonance)
             instrument.midiChannel = Int(from.MIDIChn)
             instrument.notes = from.SmpNoteTable.map { Int($0 & 0xFF) }
-            instrument.samples = from.SmpNoteTable.map { Int($0 >> 8) }
+            instrument.samples = (0 ..< 120).map { Int(from.sample(forNote: $0)) }
             instrument.volume = envelope(from.VolEnv)
             instrument.panning = envelope(from.PanEnv)
             instrument.pitch = envelope(from.PitchEnv)

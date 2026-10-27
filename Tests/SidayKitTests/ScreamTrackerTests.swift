@@ -700,3 +700,87 @@ private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.
         #expect(struck[0] && pitches[0] > 0)
     }
 }
+
+@Test func s3mCutShortBeforeItsSamplesSaysSo() throws {
+    // Cut short in an instrument's header or in the pattern: what there is is played, which here is
+    // nothing, and that is said.
+    for cut in [0x90, 0x118] {
+        let renderer = try TuneLoader.load(Array(s3m().prefix(cut)), format: .s3m)
+        #expect(renderer.info.shortfalls == ["The file is cut short: its samples are missing, and it is silent."])
+        #expect(stereoSound(renderer, seconds: 0.5).left.map(abs).max()! < 0.001)
+    }
+    // Cut short before the second sample's sound, the first is heard.
+    let renderer = try TuneLoader.load(Array(s3m().prefix(0x280)), format: .s3m)
+    #expect(renderer.info.shortfalls == ["The file is cut short: one of its samples is missing, and is silent."])
+    #expect(stereoSound(renderer, seconds: 0.5).left.map(abs).max()! > 0.02)
+}
+
+@Test func s3mWhoseNoughtsAreWrittenOverIsMendedAndSaysSo() throws {
+    // The square wave's file with no title, and the same file as some on the net are, with many of
+    // its noughts written over by one byte: the title, the header's settings and the bytes it keeps,
+    // the upper halves of the first sample's length, loop and rate, and some of the noughts that
+    // end the pattern's rows. It is played as the whole file is, and says what has happened to it.
+    var whole = s3m()
+    whole.replaceSubrange(0 ..< 28, with: [UInt8](repeating: 0, count: 28))
+    var filled = whole
+    let filler: UInt8 = 0x1C // the 28th channel's byte with nothing after it, which no tracker writes
+    for at in [Int](0 ..< 28) + [0x25, 0x26, 0x27] + [Int](0x36 ... 0x40) { filled[at] = filler }
+    for at in [0x12, 0x13, 0x16, 0x17, 0x1A, 0x1B, 0x22, 0x23] { filled[0x70 + at] = filler }
+    // (The pattern is at 0x110: its length, the row with the note, and then the rows' noughts.)
+    for row in [1, 2, 3, 10, 40, 63] { filled[0x110 + 2 + 3 + row - 1] = filler }
+    let plain = try TuneLoader.load(whole, format: .s3m), mended = try TuneLoader.load(filled, format: .s3m)
+    #expect(plain.info.shortfalls.isEmpty)
+    #expect(mended.info.shortfalls == [ST3Module.mendedSentence])
+    #expect(mended.info.title == plain.info.title)
+    #expect(abs(mended.knownLength! - plain.knownLength!) < 0.001)
+    #expect(stereoSound(mended, seconds: 2).left == stereoSound(plain, seconds: 2).left)
+    // A file whose title is one byte throughout but whose header is otherwise whole is left as it is.
+    var titled = whole
+    titled.replaceSubrange(0 ..< 28, with: [UInt8](repeating: 0x2D, count: 28))
+    #expect(try TuneLoader.load(titled, format: .s3m).info.shortfalls.isEmpty)
+}
+
+/// An S3M file laid out as a later tracker might: its list of patterns to play, then where its one
+/// instrument (the square wave) and its patterns are, of which only `played` has anything in it,
+/// C-4 on its first row.
+private func laterS3M(orders: [UInt8], patterns: Int, played: Int) -> [UInt8] {
+    var file = [UInt8](repeating: 0, count: 28) + [0x1A, 16, 0, 0]
+    file += word(orders.count) + word(1) + word(patterns) + word(0) + word(0x1320) + word(2) + Array("SCRM".utf8)
+    file += [64, 6, 125, 0x30, 16, 0] + [UInt8](repeating: 0, count: 10)
+    file += [0, 8] + [UInt8](repeating: 255, count: 30)
+    file += orders
+    let instrument = (file.count + 2 + patterns * 2 + 15) / 16 * 16, pattern = instrument + 0x50, sound = pattern + 0x50
+    file += word(instrument >> 4) + (0 ..< patterns).flatMap { word($0 == played ? pattern >> 4 : 0) }
+    file = padded(file, to: instrument)
+    file += padded([1] + [UInt8](repeating: 0, count: 12) + [0] + word(sound >> 4) + long(32) + long(0) + long(32) + [64, 0, 0, 1] + long(8363), to: 40)
+        + word(0x100) + [UInt8](repeating: 0, count: 34) + Array("SCRS".utf8)
+    let rows: [UInt8] = [0x20, 0x40, 1] + [UInt8](repeating: 0, count: 64)
+    file += word(rows.count + 2) + rows
+    file = padded(file, to: sound)
+    return file + (0 ..< 32).map { $0 < 16 ? 0xFF : 0x00 }
+}
+
+@Test func s3mOfALaterTrackerWithMorePatternsThanScreamTrackerIsPlayed() throws {
+    // ModPlug Tracker wrote S3M files of more than Scream Tracker's hundred patterns. One of 120,
+    // all of them empty but the 111th, which the list plays.
+    let renderer = try TuneLoader.load(laterS3M(orders: [110, 255], patterns: 120, played: 110), format: .s3m)
+    #expect(abs(renderer.knownLength! - 7.68) < 0.01)
+    #expect(stereoSound(renderer, seconds: 1).left[4800...].map(abs).max()! > 0.02)
+    // More than a list of patterns can name is not taken.
+    #expect(throws: TuneError.self) { try TuneLoader.load(laterS3M(orders: [110, 255], patterns: 257, played: 110), format: .s3m) }
+}
+
+@Test func s3mFromImpulseTrackerWithItsListsEndCountedIsPlayed() throws {
+    // Impulse Tracker counts the end of its list of patterns among them, and can write 257 where
+    // Scream Tracker has room for 256: the last is then that end.
+    var orders = [UInt8](repeating: 254, count: 257)
+    orders[0] = 0
+    orders[1] = 255
+    orders[256] = 255
+    let renderer = try TuneLoader.load(laterS3M(orders: orders, patterns: 1, played: 0), format: .s3m)
+    #expect(abs(renderer.knownLength! - 7.68) < 0.01)
+    #expect(stereoSound(renderer, seconds: 1).left[4800...].map(abs).max()! > 0.02)
+    // But 257 with no end at the last is more than Scream Tracker has room for.
+    orders[256] = 0
+    #expect(throws: TuneError.self) { try TuneLoader.load(laterS3M(orders: orders, patterns: 1, played: 0), format: .s3m) }
+}

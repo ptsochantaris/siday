@@ -86,13 +86,19 @@ private struct IT2MemoryFile {
 ///
 /// Impulse Tracker has room for 100 instruments, 100 samples and 200 patterns. Trackers after it
 /// wrote files with more, and those are taken too, as far as the file format can number them: an
-/// instrument, a sample and a pattern are each named by a single byte, some of whose values mean
-/// other things. A file that ends before something its header points at is refused, but one that
-/// ends part of the way through a sample's sound is played with what there is of it.
+/// instrument and a pattern are each named by a single byte, some of whose values mean other
+/// things, and a sample past the 255th by an instrument in ModPlug Tracker's and OpenMPT's way (see
+/// `readInstrument`). A file that ends before its header does is refused; one that ends before
+/// something its header points at, or part of the way through it, is played with what there is of
+/// it, and says so (see `partsLost` and `cutShort`).
 final class IT2Module {
     static let MAX_PATTERNS = 200, MAX_SAMPLES = 100, MAX_INSTRUMENTS = 100, MAX_ORDERS = 256
     /// The most a file can have and be played: beyond Impulse Tracker's own, up to what a byte can name.
     static let mostPatterns = 254, mostSamples = 253, mostInstruments = 254
+    /// The most samples an IT file of ModPlug Tracker's or OpenMPT's can have: OpenMPT's 3,999. A
+    /// sample past the 255th is named by an instrument, whose table has the upper byte of each of its
+    /// samples' numbers after it (see `readInstrument`).
+    static let mostSamplesOfModPlug = 3999
     /// Room is left before and after each sample's sound for the mixer to read past its ends.
     static let SMP_DAT_OFFSET = 8, SAMPLE_PAD_LENGTH = 16
     /// The slowest a song can start at.
@@ -344,6 +350,9 @@ final class IT2Module {
     let samplesNotRead: [Int]
     /// The samples the file ends before the end of.
     let cutShort: Shortfall.CutShort
+    /// How many of the instruments', samples' and patterns' headers, and of the patterns, the file
+    /// ends before the end of; and whether it has any sound left.
+    let partsLost: Int, hasSound: Bool
     /// The plug-ins ModPlug Tracker and OpenMPT put in a file, and what is played through them.
     let extras: ModPlugExtras
 
@@ -354,9 +363,10 @@ final class IT2Module {
     var patternLimit: Int { patterns.count }
     /// The sample number that stands for a MIDI instrument's note on a channel, and the one that
     /// stands for it on a voice, which is one less. Impulse Tracker has 101 and 100, just past its
-    /// samples; in a file with more samples than that they are 255 and 254, which no sample has.
-    var midiSample: UInt8 { samples.count > Self.MAX_SAMPLES ? 255 : 101 }
-    var midiVoiceSample: UInt8 { samples.count > Self.MAX_SAMPLES ? 254 : 100 }
+    /// samples; in a file with more samples than that they are 255 and 254, which no sample has; and
+    /// in one with more than a byte can number, the highest two numbers there are.
+    var midiSample: UInt16 { samples.count > Self.mostSamples ? 0xFFFF : samples.count > Self.MAX_SAMPLES ? 255 : 101 }
+    var midiVoiceSample: UInt16 { midiSample - 1 }
 
     /// True if notes play instruments; false if they play samples directly.
     var usesInstruments: Bool { Flags & ITF_INSTR_MODE != 0 }
@@ -428,7 +438,7 @@ final class IT2Module {
         ChnlVol = Array(data[volAt ..< volAt + MAX_HOST_CHANNELS])
 
         // (Impulse Tracker does not look; it has no need to, having written the file.)
-        guard OrdNum <= Self.MAX_ORDERS + 1 || openMPT, InsNum <= Self.mostInstruments, SmpNum <= Self.mostSamples, PatNum <= Self.mostPatterns else {
+        guard OrdNum <= Self.MAX_ORDERS + 1 || openMPT, InsNum <= Self.mostInstruments, SmpNum <= Self.mostSamplesOfModPlug, PatNum <= Self.mostPatterns else {
             throw TuneError.unsupported("an IT file with more orders, instruments, samples or patterns than an IT file can number")
         }
         self.OrdNum = OrdNum
@@ -513,18 +523,28 @@ final class IT2Module {
 
         // MARK: Instruments
 
-        let instruments = (0 ..< max(Self.MAX_INSTRUMENTS, InsNum)).map { _ in Self.blankInstrument() }
+        // (Of a file that ends before an instrument's, a sample's or a pattern's header, or before
+        // the end of a header or a pattern, what is there is played: what is lost is nothing.)
+        var partsLost = 0
+        var instruments = (0 ..< max(Self.MAX_INSTRUMENTS, InsNum)).map { _ in Self.blankInstrument() }
         for i in 0 ..< InsNum {
             m.seek(UInt64(PtrListOffset + i * 4))
-            if m.eof { throw Self.cutShort }
-            let InsOffset = try m.u32()
+            guard !m.eof, let InsOffset = try? m.u32() else {
+                partsLost += 1
+                continue
+            }
             if InsOffset == 0 { continue }
             m.seek(UInt64(InsOffset))
-            if m.eof { throw Self.cutShort }
-            if Cmwt >= 0x200 {
-                try Self.readInstrument(&m, instruments[i])
-            } else {
-                try Self.readOldInstrument(&m, instruments[i])
+            do {
+                if m.eof { throw Self.cutShort }
+                if Cmwt >= 0x200 {
+                    try Self.readInstrument(&m, instruments[i], numbersPastAByte: SmpNum > 255)
+                } else {
+                    try Self.readOldInstrument(&m, instruments[i])
+                }
+            } catch {
+                instruments[i] = Self.blankInstrument()
+                partsLost += 1
             }
         }
         self.instruments = instruments
@@ -540,7 +560,7 @@ final class IT2Module {
             let reader = ByteReader(data)
             for i in 0 ..< InsNum where i >= extras.instrumentPlugIns.count || extras.instrumentPlugIns[i] == 0 && !extras.namesPlugIns {
                 let at = reader.u32le(PtrListOffset + i * 4)
-                if at > 0, let plugIn = Self.oldPlugIn(reader, after: at) { extras.set(plugIn: plugIn, ofInstrument: i) }
+                if at > 0, let plugIn = Self.oldPlugIn(reader, after: at, numbersPastAByte: SmpNum > 255) { extras.set(plugIn: plugIn, ofInstrument: i) }
             }
         }
         self.extras = extras
@@ -551,11 +571,16 @@ final class IT2Module {
         let samples = (0 ..< max(Self.MAX_SAMPLES, SmpNum)).map { _ in IT2Sample() }
         for i in 0 ..< SmpNum {
             m.seek(UInt64(SmpPtrOffset + i * 4))
-            if m.eof { throw Self.cutShort }
-            let SmpOffset = try m.u32()
+            guard !m.eof, let SmpOffset = try? m.u32() else {
+                partsLost += 1
+                continue
+            }
             if SmpOffset == 0 { continue }
             m.seek(UInt64(SmpOffset))
-            if m.eof { throw Self.cutShort }
+            if m.eof || Int(SmpOffset) + 0x50 > data.count {
+                partsLost += 1
+                continue
+            }
 
             let s = samples[i]
             m.skip(4)
@@ -711,20 +736,31 @@ final class IT2Module {
         var rows = [UInt16](repeating: 0, count: max(Self.MAX_PATTERNS, PatNum))
         for i in 0 ..< PatNum {
             m.seek(UInt64(PatPtrOffset + i * 4))
-            if m.eof { throw Self.cutShort }
-            let PatOffset = try m.u32()
+            guard !m.eof, let PatOffset = try? m.u32() else {
+                partsLost += 1
+                continue
+            }
             if PatOffset == 0 { continue }
             m.seek(UInt64(PatOffset))
-            if m.eof { throw Self.cutShort }
-
-            let PatLength = try Int(m.u16())
-            rows[i] = try m.u16() // (as many as it says: nothing holds it to the tracker's 200)
+            guard !m.eof, let PatLength = try? Int(m.u16()), let rowCount = try? m.u16() else {
+                partsLost += 1
+                continue
+            }
+            rows[i] = rowCount // (as many as it says: nothing holds it to the tracker's 200)
             if PatLength == 0 || rows[i] == 0 { continue }
-            m.skip(4)
-            let at = try m.bytes(PatLength)
-            patterns[i] = Array(data[at ..< at + PatLength])
+            let start = Int(PatOffset) + 8
+            if start + PatLength <= data.count {
+                patterns[i] = Array(data[start ..< start + PatLength])
+            } else {
+                // What there is of it, and after that rows with nothing in them, each a nought.
+                let there = Array(data[min(start, data.count)...])
+                patterns[i] = there + [UInt8](repeating: 0, count: PatLength - there.count)
+                partsLost += 1
+            }
         }
         self.patterns = patterns
+        self.partsLost = partsLost
+        hasSound = samples.prefix(SmpNum).contains { $0.AdLib != nil || $0.Length > 0 && $0.Flags & SMPF_ASSOCIATED_WITH_HEADER != 0 && Int($0.OffsetInFile) < data.count }
         self.rows = rows
         self.openMPT = nil
 
@@ -915,6 +951,8 @@ final class IT2Module {
         self.rows = rows
         samplesNotRead = []
         cutShort = Shortfall.CutShort()
+        partsLost = 0
+        hasSound = true
         extras = ModPlugExtras()
         var ways = ModPlugWays()
         ways.filter = filter
@@ -964,6 +1002,8 @@ final class IT2Module {
         openMPT = song
         samplesNotRead = file.samplesNotRead
         cutShort = file.cutShort
+        partsLost = file.partsLost
+        hasSound = file.hasSound
         extras = file.extras
     }
 
@@ -1000,8 +1040,12 @@ final class IT2Module {
         return env
     }
 
-    /// An instrument as Impulse Tracker 2 writes it.
-    private static func readInstrument(_ m: inout IT2MemoryFile, _ ins: IT2Instrument) throws {
+    /// An instrument as Impulse Tracker 2 writes it. For an instrument that plays a sample past the
+    /// 255th, ModPlug Tracker and OpenMPT write "XTPM" in the four bytes at its end that Impulse
+    /// Tracker leaves empty, and after them the upper byte of the sample each note plays, for each
+    /// of the 120 (OpenMPT's `ITInstrumentEx`; its versions 1.20 to 1.22 wrote "MPTX"). They are
+    /// read in a file of more than 255 samples.
+    private static func readInstrument(_ m: inout IT2MemoryFile, _ ins: IT2Instrument, numbersPastAByte: Bool = false) throws {
         m.skip(4)
         _ = try m.bytes(13) // its file's name
         ins.NNA = try m.u8()
@@ -1025,6 +1069,15 @@ final class IT2Module {
         ins.VolEnv = try readEnvelope(&m)
         ins.PanEnv = try readEnvelope(&m)
         ins.PitchEnv = try readEnvelope(&m)
+        if numbersPastAByte, let mark = try? m.bytes(4), Self.isExtendedMark(m.data, at: mark), let high = try? m.bytes(120) {
+            ins.SmpHighTable = Array(m.data[high ..< high + 120])
+        }
+    }
+
+    /// True if the four bytes are "XTPM" or "MPTX", which say an instrument is followed by the upper
+    /// bytes of its samples' numbers (see `readInstrument`).
+    static func isExtendedMark(_ data: [UInt8], at at: Int) -> Bool {
+        at + 4 <= data.count && (Array(data[at ..< at + 4]) == Array("XTPM".utf8) || Array(data[at ..< at + 4]) == Array("MPTX".utf8))
     }
 
     /// An instrument as Impulse Tracker 1 wrote it: one envelope, for volume, its points a tick and a
@@ -1083,8 +1136,9 @@ final class IT2Module {
     /// OpenMPT before 1.17 said it: in "MSNI" just after the instrument, which begins "GULP" and the
     /// plug-in's number. Nil if it is not there.
     /// - Parameter at: where the instrument is.
-    static func oldPlugIn(_ file: ByteReader, after at: Int) -> Int? {
-        let data = file.data, piece = at + 554
+    static func oldPlugIn(_ file: ByteReader, after at: Int, numbersPastAByte: Bool = false) -> Int? {
+        // (After the upper bytes of its samples' numbers, if it has them: see `readInstrument`.)
+        let data = file.data, piece = at + 554 + (numbersPastAByte && isExtendedMark(data, at: at + 550) ? 120 : 0)
         guard piece + 13 <= data.count, Array(data[piece ..< piece + 4]) == Array("MSNI".utf8), file.u32le(piece + 4) >= 5,
               Array(data[piece + 8 ..< piece + 12]) == Array("GULP".utf8) else { return nil }
         let plugIn = Int(data[piece + 12])

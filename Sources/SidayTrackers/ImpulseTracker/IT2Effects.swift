@@ -662,7 +662,7 @@ extension IT2Player {
 
     /// A slide to a note that names another sample: the voice goes over to it, from its start.
     /// False if there is no such sample, when the voice is stopped.
-    private func Gxx_ChangeSample(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ sample: UInt8) -> Bool {
+    private func Gxx_ChangeSample(_ hc: IT2HostPointer, _ sc: IT2SlavePointer, _ sample: UInt16) -> Bool {
         sc.pointee.Flags &= ~(SF_NOTE_STOP | SF_LOOP_CHANGED | SF_CHN_MUTED | SF_VOLENV_ON | SF_PANENV_ON | SF_PITCHENV_ON | SF_PAN_CHANGED)
         sc.pointee.Flags |= SF_NEW_NOTE
 

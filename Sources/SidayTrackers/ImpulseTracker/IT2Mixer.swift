@@ -122,7 +122,7 @@ final class IT2Mixer {
     /// For an MPTM file that asks for it: see `OpenMPTSong`.
     private let softPanning: Bool
     /// The sample number that stands for a MIDI note on a voice, which has no sound. See `IT2Module`.
-    private let midiVoiceSample: UInt8
+    private let midiVoiceSample: UInt16
 
     // For a file of ModPlug Tracker's or OpenMPT's with plug-ins or FM instruments that are played
     // (see `ModPlugSound`); for any other, nil and false, and the tick is mixed as it always was.

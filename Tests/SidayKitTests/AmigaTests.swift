@@ -288,6 +288,30 @@ private func mmcmp(size: Int, flags: Int, width: Int, table: [UInt8], data: [UIn
     #expect(throws: TuneError.self) { try MMCMP.unpack(mmcmp(size: 4, flags: 1, width: 8, table: [0x41, 0x42], data: [0, 1, 7, 0])) }
 }
 
+@Test func moduleWithMarksInItsListAsPCTrackersWriteThemIsPlayedAsTheyPlayIt() throws {
+    // A list of patterns with 254, a place passed over, and 255, the song's end, in it, as Scream
+    // Tracker 3's, Impulse Tracker's and ModPlug Tracker's lists have: the pattern twice, and then round.
+    var file = module(notes: [(0, 0, note(period: 428))])
+    file[950] = 4
+    file[952 ..< 956] = [0, 254, 0, 255]
+    let twice = try TuneLoader.load(file, format: .mod)
+    #expect(abs(twice.knownLength! - 15.36) < 0.02)
+    #expect(stereo(twice, seconds: 1).left[4800...].map(abs).max()! > 0.02)
+
+    // A jump to a place in the list goes where the file means, with the marks before it taken out:
+    // to the second pattern, at a speed of three, and on its last row back to the first.
+    let fast = module(notes: [(0, 0, note(period: 428, effect: 0xF, parameter: 3))])
+    file = Array(module(notes: [(0, 0, note(period: 428)), (63, 0, [0, 0, 0x0B, 3])])[..<2108]) + Array(fast[1084...])
+    file[950] = 4
+    file[952 ..< 956] = [0, 254, 254, 1]
+    #expect(abs(try TuneLoader.load(file, format: .mod).knownLength! - 11.52) < 0.02)
+}
+
+@Test func impulseTrackerFileNamedAsAModuleIsPlayedAsWhatItIs() {
+    #expect(TuneFormat.mod.refined(byLeading: Array("IMPM".utf8) + [UInt8](repeating: 0, count: 60)) == .it)
+    #expect(TuneFormat.mod.refined(byLeading: Array(module(notes: []).prefix(TuneFormat.leadingBytes))) == .mod)
+}
+
 @Test func moduleWithMoreThanOneSongHasThemAll() throws {
     // A pattern that stops the song halfway down, twice in the list: the second time is never
     // reached from the first, and is a song of its own.

@@ -95,7 +95,7 @@ public final class ITRenderer: Renderer, ReferenceComparable {
         lights = (0 ..< 64).filter { used[$0] && places[$0] & 128 == 0 }
         startsWithSamples = lights.map { channel in
             guard let (note, instrument) = first[channel] else { return true }
-            let sample = module.usesInstruments ? Int(module.instrument(Int(instrument) - 1).SmpNoteTable[Int(note)] >> 8) : Int(instrument)
+            let sample = module.usesInstruments ? Int(module.instrument(Int(instrument) - 1).sample(forNote: Int(note))) : Int(instrument)
             return module.sample(sample - 1)?.AdLib == nil
         }
 

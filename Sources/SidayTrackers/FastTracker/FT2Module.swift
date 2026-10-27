@@ -146,9 +146,19 @@ final class FT2Module {
         }
     }
     /// What is found on the way through a file that `shortfalls` is made from: samples the file
-    /// ends before the end of, samples in stereo, and samples ModPlug Tracker packed its own way.
+    /// ends before the end of, and samples in stereo.
     private var cutShort = Shortfall.CutShort()
-    private var packedSamples = 0
+    /// Why the instruments of an XM file from one on are not read, which are silent: the file
+    /// ends before them, or what it says of one cannot be right, and nothing after it can be taken
+    /// at its word. Nil for a file whose instruments are all there.
+    private var lost: (from: Int, why: Lost)?
+    private enum Lost { case cutShort, damaged }
+    /// True for an XM file that has what FastTracker 2 had no room for: more than 128 instruments,
+    /// or more than 16 samples in one. It was made by a later tracker, whatever it says.
+    private var beyondFastTracker = false
+    /// The samples ModPlug Tracker packed its own way (see `unpackADPCM`), each by its instrument
+    /// and its place in it, as `instrument << 5 | sample`.
+    private var packedSamples: [Int] = []
     /// The samples that are in stereo, each as FastTracker has it, one side after the other, and
     /// with its two sides apart: see `playStereoSamples`.
     private var inStereo: [(instrument: Int, sample: Int, plain: FT2Sample, sides: FT2Sample)] = []
@@ -240,11 +250,18 @@ final class FT2Module {
             // FastTracker itself reads only an even number of channels, and no more than 32. Other
             // trackers write XM files of any number, and those are played the same way.
             guard antChn >= 1, antChn <= Self.mostChannels else { throw TuneError.unsupported("an XM file of \(antChn) channels") }
-            guard antPtn <= 256, antInstrs <= 128 else {
-                throw TuneError.unsupported("an XM file with more patterns or instruments than FastTracker 2 has room for")
+            // FastTracker has room for 128 instruments. The trackers after it have room for more,
+            // ModPlug Tracker, OpenMPT, MilkyTracker and DigiBooster Pro for 255, and a file with more
+            // than 128 is theirs, whatever it says made it.
+            guard antPtn <= 256, antInstrs <= 255 else {
+                throw TuneError.unsupported("an XM file with more patterns or instruments than any tracker has room for")
             }
             guard headerSize >= 0, headerSize < data.count - 60 else { throw TuneError.malformed("an XM file with nothing after its header") }
             f.seek(60 + headerSize)
+            if antInstrs > 128 {
+                instr += [FT2Instrument?](repeating: nil, count: antInstrs - 128)
+                beyondFastTracker = true
+            }
 
             // (In the letters of DOS, where FastTracker ran; OpenMPT's own files are in Windows'.)
             title = reader.encoded(at: 17, length: 20, as: h[38 ..< 45].elementsEqual("OpenMPT".utf8) ? .windows1252 : .dos)
@@ -261,13 +278,22 @@ final class FT2Module {
 
             if ver < 0x0104 {
                 // The older layout: every instrument's header, then the patterns, then the samples.
-                for i in 1 ..< antInstrs + 1 { try loadInstrHeader(&f, i) }
+                // (An instrument lost here leaves nothing to say where the patterns are, nor
+                // anything of the samples.)
+                for i in 1 ..< antInstrs + 1 where loadInstrHeader(&f, i) != nil {
+                    throw TuneError.malformed("an XM file with a broken instrument")
+                }
                 try loadPatterns(&f, antPtn)
                 for i in 1 ..< antInstrs + 1 { loadInstrSample(&f, i) }
             } else {
                 try loadPatterns(&f, antPtn)
                 for i in 1 ..< antInstrs + 1 {
-                    try loadInstrHeader(&f, i)
+                    if let why = loadInstrHeader(&f, i) {
+                        lost = (i, why)
+                        // (Nothing that follows is taken for what a later tracker wrote after the instruments.)
+                        if why == .damaged { f.seek(data.count) }
+                        break
+                    }
                     loadInstrSample(&f, i)
                 }
             }
@@ -277,7 +303,7 @@ final class FT2Module {
             let extras = ByteReader(data)
             let modPlugWroteMore = f.at + 8 <= data.count && [0x74_78_65_74, 0x49_44_49_4D, 0x4D_41_4E_50, 0x4D_41_4E_43, 0x58_46_48_43, 0x4D_50_54_58, 0x4D_50_54_53]
                 .contains(extras.u32le(f.at)) || (f.at + 4 <= data.count && extras[f.at] == 0x46 && extras[f.at + 1] == 0x58)
-            madeByFastTracker = saysFastTracker && (reader.u16le(58) < 0x0104 || !h[17 ..< 37].contains(0) && !modPlugWroteMore)
+            madeByFastTracker = saysFastTracker && (reader.u16le(58) < 0x0104 || !h[17 ..< 37].contains(0) && !modPlugWroteMore) && !beyondFastTracker
             // (ModPlug Tracker's: by the signs above, or by the name its first versions gave the format.
             // OpenMPT goes by more signs than these, and the two agree on all but about one file in
             // a hundred of those that have them.)
@@ -291,10 +317,33 @@ final class FT2Module {
             noteWhatLaterTrackersAdded(data, after: f.at)
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if let lost {
+            // What is lost is said of only as far as the song plays it; and a file that has lost
+            // all it would have been heard by is not a tune.
+            guard instr[1 ..< lost.from].contains(where: { $0?.samp.contains { $0.len > 0 } ?? false }) else {
+                throw TuneError.malformed("an XM file with a broken instrument")
+            }
+            let played = instrumentsPlayed()
+            let missing = (lost.from ..< instr.count).filter { played[$0] }.count
+            if let sentence = Shortfall.instrumentsLost(missing, damaged: lost.why == .damaged, samplesToo: cutShort.sentence != nil) {
+                shortfalls.append(sentence)
+            }
+        }
         if song.repS > song.len { song.repS = 0 }
         song.timer = 1
         setPosition(0)
         upDateInstrs()
+    }
+
+    /// Which instruments the song plays, by number: those named in the patterns that its order
+    /// list plays.
+    private func instrumentsPlayed() -> [Bool] {
+        var played = [Bool](repeating: false, count: 256)
+        for position in 0 ..< min(256, Int(song.len)) {
+            guard let pattern = patt[Int(song.songTab[position])] else { continue }
+            for note in pattern { played[Int(note.instr)] = true }
+        }
+        return played
     }
 
     /// Says how samples in stereo are to be played. FastTracker 2 knows nothing of them, and no
@@ -364,11 +413,6 @@ final class FT2Module {
     /// and says so in `shortfalls`. Nothing that is played is changed by it.
     /// - Parameter end: where in the file the last of what FastTracker reads ended.
     private func noteWhatLaterTrackersAdded(_ data: [UInt8], after end: Int) {
-        if packedSamples > 0 {
-            shortfalls.append(Shortfall.some(packedSamples, one: "samples is packed in a way of ModPlug Tracker's own, which is not read: it is not heard as it should be, and nor are the samples after it.",
-                                             many: "samples are packed in a way of ModPlug Tracker's own, which is not read: they are not heard as they should be, and nor are the samples after them."))
-        }
-
         // What ModPlug Tracker and OpenMPT write after everything FastTracker reads: macros, and plug-ins.
         var extras = ModPlugExtras()
         let file = ByteReader(data)
@@ -413,15 +457,15 @@ final class FT2Module {
         sound.plugIns = extras.plugIns
         sound.channelPlugIns = Array(extras.channelPlugIns.prefix(Int(song.antChn)))
         sound.plugInScale = openMPTPlugInScale
-        for i in 1 ... 128 where i - 1 < extras.instrumentPlugIns.count { instrumentPlugIns[i] = extras.instrumentPlugIns[i - 1] }
-        for i in 1 ... 128 where i - 1 < extras.resamplings.count && extras.resamplings[i - 1] < IT2Resampling.own { instrumentResamplings[i] = extras.resamplings[i - 1] }
+        for i in 1 ..< instr.count where i - 1 < extras.instrumentPlugIns.count { instrumentPlugIns[i] = extras.instrumentPlugIns[i - 1] }
+        for i in 1 ..< instr.count where i - 1 < extras.resamplings.count && extras.resamplings[i - 1] < IT2Resampling.own { instrumentResamplings[i] = extras.resamplings[i - 1] }
         if !madeByFastTracker, sound.sendsToPlugIns(instruments: instrumentPlugIns) { self.sound = sound }
         // What is not heard: an instrument that is a plug-in that is not played, and nothing else
         // (one with a sample is heard, through its plug-in or without it), and the plug-ins that
         // are somebody else's program.
         var unheard = 0
-        for i in 1 ... 128 where used[i] && extras.playsThroughPlugIn(instrument: i - 1) && !extras.isPlayed(plugIn: instrumentPlugIns[i]) {
-            let hasSample = instr[i].map { ins in (0 ..< 16).contains { ins.samp[$0].len > 0 } } ?? false
+        for i in 1 ..< instr.count where used[i] && extras.playsThroughPlugIn(instrument: i - 1) && !extras.isPlayed(plugIn: instrumentPlugIns[i]) {
+            let hasSample = instr[i].map { ins in ins.samp.contains { $0.len > 0 } } ?? false
             if !hasSample { unheard += 1 }
         }
         shortfalls.append(contentsOf: Shortfall.plugIns(unheard: unheard, bare: 0, channels: 0))
@@ -503,23 +547,46 @@ final class FT2Module {
 
     // MARK: XM
 
-    private func loadInstrHeader(_ f: inout File, _ i: Int) throws {
+    /// Reads an instrument's header, and those of its samples. Says why, if the instrument cannot be
+    /// read, and with it none of those after it.
+    private func loadInstrHeader(_ f: inout File, _ i: Int) -> Lost? {
+        // A file that ends before an instrument has lost it, and the ones after it.
+        guard !f.eof, f.data.count - f.at >= 4 else { return .cutShort }
         // An instrument's header says how long it is, and is read for no longer than FastTracker
-        // knows it to be.
+        // knows it to be. A length of nought is the whole of it, as OpenMPT reads one: ModPlug
+        // Tracker's MOD Plugin, for one, writes an empty instrument so.
         let sizeBytes = f.read(4)
-        var instrSize = Int(Int32(truncatingIfNeeded: ByteReader(sizeBytes).u32le(0)))
+        let stated = Int(Int32(truncatingIfNeeded: ByteReader(sizeBytes).u32le(0)))
+        var instrSize = stated == 0 ? 263 : stated
+        // (Shorter than the four bytes that say how long it is, or so long that it reads as less
+        // than nought, or longer than FastTracker's and than the rest of the file, it cannot be right.)
+        guard instrSize >= 4, instrSize <= 263 || instrSize - 4 <= f.data.count - f.at else { return .damaged }
         if instrSize > 263 { instrSize = 263 }
-        guard instrSize >= 4 else { throw TuneError.malformed("an XM file with a broken instrument") }
         var ih = [UInt8](repeating: 0, count: 263)
         let rest = f.eof ? [] : f.read(instrSize - 4)
         for k in 0 ..< rest.count { ih[4 + k] = rest[k] }
+        // ft2play, which this is ported from, goes on from there; OpenMPT passes over the rest of a
+        // longer one. The one file to hand with a header longer than FastTracker's, MED2XM's, has
+        // the rest, nought, in every one of its instruments, and is laid out to be read past it.
+        if stated > 263 { f.skip(stated - 263) }
         let header = ByteReader(ih)
 
+        // FastTracker has room for sixteen samples in an instrument, and ModPlug Tracker and
+        // OpenMPT for 32, which is as many as OpenMPT reads; a file with more than sixteen is
+        // theirs, whatever it says made it. More than 32 cannot be right.
         let antSamp = header.u16le(27)
-        guard antSamp <= 16 else { throw TuneError.malformed("an XM file with a broken instrument") }
-        guard antSamp > 0 else { return }
+        guard antSamp <= 32 else { return .damaged }
+        guard antSamp > 0 else { return nil }
+        guard !f.eof, f.at + antSamp * 40 <= f.data.count else { return .cutShort }
 
         let ins = allocateInstr(i)
+        if antSamp > 16 {
+            beyondFastTracker = true
+            var more = FT2Sample()
+            more.pan = 128
+            more.vol = 64
+            ins.samp += [FT2Sample](repeating: more, count: 16)
+        }
         for k in 0 ..< 96 { ins.ta[k] = ih[33 + k] }
         for k in 0 ..< 24 {
             ins.envVP[k] = Int16(truncatingIfNeeded: header.u16le(129 + k * 2))
@@ -543,7 +610,6 @@ final class FT2Module {
         ins.mute = ih[247] == 1 ? 1 : 0
         ins.antSamp = Int16(antSamp)
 
-        guard !f.eof, f.at + antSamp * 40 <= f.data.count else { throw TuneError.malformed("an XM file that ends in an instrument") }
         let headers = ByteReader(f.read(antSamp * 40))
         for j in 0 ..< antSamp {
             let at = j * 40
@@ -555,9 +621,11 @@ final class FT2Module {
             ins.samp[j].typ = headers[at + 14]
             ins.samp[j].pan = headers[at + 15]
             ins.samp[j].relTon = Int8(bitPattern: headers[at + 16])
-            // (For `shortfalls`: what a later tracker may say of a sample, which FastTracker does not look at.)
-            if ins.samp[j].len > 0, ins.samp[j].typ & 48 == 0, headers[at + 17] == 0xAD { packedSamples += 1 }
+            // (What ModPlug Tracker says of a sample of eight bits in mono that it packed. FastTracker
+            // writes the length of the sample's name there, which is never more than 22.)
+            if ins.samp[j].typ & 48 == 0, headers[at + 17] == 0xAD { packedSamples.append(i << 5 | j) }
         }
+        return nil
     }
 
     private func checkSampleRepeat(_ s: inout FT2Sample) {
@@ -573,6 +641,19 @@ final class FT2Module {
             // A file cut a little short keeps its last sample's length, and the end of it is silence.
             // One that speaks of far more than it holds is not believed.
             let left = f.eof ? 0 : f.data.count - f.at
+            if packedSamples.contains(i << 5 | j) {
+                // (Packed, a sample takes sixteen bytes and half a byte for each of its own.)
+                let length = Int(ins.samp[j].len)
+                cutShort.add(length: length, there: (left - 16) * 2)
+                if 16 + (length + 1) / 2 - left > Self.mostMissing { ins.samp[j].len = Int32(max(0, left - 16) * 2) }
+                if ins.samp[j].len > 0 {
+                    let stored = 16 + (Int(ins.samp[j].len) + 1) / 2
+                    let there = min(stored, left)
+                    ins.samp[j].pek = sampleMemory(Self.unpackADPCM(Array(f.read(stored).prefix(there)), length: Int(ins.samp[j].len)))
+                }
+                checkSampleRepeat(&ins.samp[j])
+                continue
+            }
             cutShort.add(length: Int(ins.samp[j].len), there: left)
             if Int(ins.samp[j].len) - left > Self.mostMissing { ins.samp[j].len = Int32(left & ~(ins.samp[j].typ & 16 != 0 ? 1 : 0)) }
             if ins.samp[j].len > 0 {
@@ -602,6 +683,23 @@ final class FT2Module {
                 ins.samp[j] = last.sides
             }
         }
+    }
+
+    /// Unpacks an eight-bit sample packed as ModPlug Tracker packed them, as OpenMPT unpacks one:
+    /// sixteen differences, and then two samples a byte, the low four bits first, each the one
+    /// before it moved by the difference those bits pick. What the file does not have is silent.
+    private static func unpackADPCM(_ stored: [UInt8], length: Int) -> [UInt8] {
+        var out = [UInt8](repeating: 0, count: length)
+        guard stored.count >= 16 else { return out }
+        var sample: UInt8 = 0
+        for i in 0 ..< min(stored.count - 16, (length + 1) / 2) {
+            let byte = stored[16 + i]
+            sample &+= stored[Int(byte & 0x0F)]
+            out[i * 2] = sample
+            sample &+= stored[Int(byte >> 4)]
+            if i * 2 + 1 < length { out[i * 2 + 1] = sample }
+        }
+        return out
     }
 
     /// A sample in stereo with its two sides apart, from the bytes of it in the file: the left
@@ -721,7 +819,7 @@ final class FT2Module {
     private func upDateInstrs() {
         for ins in instr {
             guard let ins else { continue }
-            for j in 0 ..< 16 { putInOrder(&ins.samp[j]) }
+            for j in ins.samp.indices { putInOrder(&ins.samp[j]) }
         }
         // A sample in stereo is there twice over, and both are put in order.
         for index in inStereo.indices {

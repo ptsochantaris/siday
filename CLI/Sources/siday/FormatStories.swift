@@ -448,6 +448,9 @@ says so, and it is played as ProTracker's.
 - **Long samples are played whole.** ProTracker has room for 64 KB of each sample and plays no more
   of a longer one. No file of its own has one, but files from other trackers do. Paula can be told
   to play twice that, and the routines that played modules outside the tracker did so.
+- **Marks in the list.** A module written by a PC tracker can have Scream Tracker's marks in its
+  list: 254, a place passed over, and 255, the song's end. Those trackers write as many patterns as
+  the rest of the list names. siday plays the list as they do, and a jump goes where the file means.
 
 ### Settings
 
@@ -2447,7 +2450,20 @@ from the note nearest to where a slide has taken the pitch.
 
 A tune ends where it would play a row it has played before.
 
+A file that ends partway through its instruments plays what it has. The instruments it has lost are
+silent, and siday says how many of those the song plays. So does a file with an instrument's header
+partway through that cannot be right, such as a sample count no tracker could write or a length
+longer than the file, for nothing after it can be believed. A file that ends in its patterns has
+none of its instruments, and is refused.
+
 ### Files from later trackers
+
+FastTracker has room for 128 instruments, and sixteen samples to an instrument. ModPlug Tracker,
+OpenMPT, MilkyTracker and DigiBooster Pro wrote XM files with up to 255 instruments, and ModPlug
+Tracker and OpenMPT with up to 32 samples to one. A file with more than FastTracker had room for is
+theirs, whatever it says made it, and is played with all of them. ModPlug Tracker's MOD Plugin
+packed eight-bit samples into four bits a sample; siday unpacks them as OpenMPT does. An
+instrument's header longer than FastTracker's, as MED2XM wrote them, is passed over whole.
 
 Some things are done as those later trackers did them. A sample can be in stereo in a file of
 theirs, its two sides one after the other. To FastTracker that is one long sample. siday plays the
@@ -2612,6 +2628,11 @@ have more:
   position. On a Sound Blaster, whose channels are each to one side, or in a file in mono, the two
   are mixed into one.
 
+- **More patterns.** ModPlug Tracker wrote S3M files with more than Scream Tracker's hundred
+  patterns. All that the list can name are played.
+- **257 places.** Impulse Tracker counts the end of its list among the places, and so can write 257
+  where Scream Tracker has room for 256. The last is that end.
+
 Such files also have three commands that Scream Tracker passes over and the trackers after it play,
 in an S3M file as in any:
 
@@ -2637,6 +2658,19 @@ are played in such a file:
 
 The card has sixteen pan positions, and the channel is put at the nearest of them. The card's sides
 are less far apart than OpenMPT's.
+
+### Damaged files
+
+Some S3M files on the net have had many of their noughts written over with one byte, a different one
+in each file: in the title, which is then that byte throughout, in the headers, and in the patterns.
+siday knows such a file by bytes that every tracker leaves nought. It puts the noughts back where
+they are certain to have been: the song's settings, the upper halves of the samples' lengths and
+rates, numbers past anything the file holds, and the ends of rows where the pattern can only be read
+as 64 rows that way. Where the byte could be either, as in a sample's volume or an effect's value, it
+is played as the file has it, and the file says so.
+
+A file cut short before its samples, in an instrument's header or in a pattern, plays what there is
+of it and says so.
 
 ### The Z filter
 
@@ -3052,6 +3086,13 @@ wired the same way, as for an MPTM file (see below).
 A plug-in that is anybody else's is left out, and said to be. Older files, which name an
 instrument's plug-in in a place of their own, are read too. An XM file of those trackers can have
 plug-ins too, and is heard through them in the same way: see XM.
+
+ModPlug Tracker and OpenMPT wrote IT files with more samples than a byte can number, up to OpenMPT's
+3,999. An instrument names the samples past the 255th with an extra byte for each note, and those
+samples are played. An Impulse Tracker file named as a MOD is played as the IT file it is.
+
+A file cut short before its samples, in an instrument's header or in a pattern, plays what there is
+of it and says so, as an S3M file does. Before October 2026, such a file was refused.
 
 ### ModPlug Tracker's filter
 

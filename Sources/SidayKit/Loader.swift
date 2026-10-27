@@ -15,13 +15,15 @@ public extension TuneFormat {
     /// The format a file of this kind is, by how it begins, where two formats share a name: Pro Sound
     /// Maker's files for the ZX Spectrum and Epic MegaGames' MASI files are both PSM files, and the
     /// second says what it is in its first bytes; and a SID file is the Commodore 64's, but for one of
-    /// SidMon's for the Amiga, which begins with its player's code. (`leading` is the start of the
-    /// file, as much of it as there is up to `leadingBytes`.)
+    /// SidMon's for the Amiga, which begins with its player's code; and an Impulse Tracker file
+    /// named as a MOD file, which says what it is in its first four letters, is an IT file. (`leading`
+    /// is the start of the file, as much of it as there is up to `leadingBytes`.)
     func refined(byLeading leading: [UInt8]) -> TuneFormat {
         switch self {
         case .psm: TrackerPlayers.isMASI(leading) ? .masi : self
         // (SidMon's own check looks for its code further in too; those found begin with it.)
         case .sid: AmigaComposerPlayers.isSidMon1(leading) ? .sid1 : self
+        case .mod: leading.starts(with: [0x49, 0x4D, 0x50, 0x4D]) ? .it : self // "IMPM"
         default: self
         }
     }
