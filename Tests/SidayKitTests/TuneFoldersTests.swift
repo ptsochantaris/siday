@@ -32,6 +32,20 @@ import Testing
     #expect(TuneFolders.scan([folder.appendingPathComponent("Other/none.pt3")]).problems.count == 1)
 }
 
+@Test func aFolderWithNothingToPlaySaysWhatWasSeenInIt() throws {
+    // (None seen at all is a folder that seemed empty: on some shares an iPad lists none of its files.)
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("siday-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let manager = FileManager.default
+    try manager.createDirectory(at: folder.appendingPathComponent("Empty"), withIntermediateDirectories: true)
+    try manager.createDirectory(at: folder.appendingPathComponent("Papers"), withIntermediateDirectories: true)
+    for name in ["Papers/readme", "Papers/notes.txt"] { try Data([0]).write(to: folder.appendingPathComponent(name)) }
+    let found = TuneFolders.scan([folder.appendingPathComponent("Empty"), folder.appendingPathComponent("Papers")])
+    #expect(found.emptyFolders == ["Empty", "Papers"])
+    #expect(found.emptyFolderPlaces.map(\.files) == [0, 2])
+    #expect(found.emptyFolderPlaces.map(\.url.lastPathComponent) == ["Empty", "Papers"])
+}
+
 @Test func aFolderListedByTheSystemItselfIsListedAsFoundationListsIt() throws {
     // (What an iPhone or iPad falls back on, for a folder on a share that Foundation finds empty.)
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent("siday-" + UUID().uuidString)

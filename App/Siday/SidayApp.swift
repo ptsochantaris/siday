@@ -78,6 +78,11 @@ struct ContentView: View {
     @State private var visualiser: Visualiser?
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
+    #else
+    /// The window this is in, and whether it was put into full screen for the picture (and so is to be
+    /// taken out of it again as the picture is put back).
+    @State private var window = WindowFinder.Found()
+    @State private var madeFullScreen = false
     #endif
 
     var body: some View {
@@ -101,6 +106,7 @@ struct ContentView: View {
         .fileImporter(isPresented: Binding(get: { model.choosing != nil }, set: { if !$0 { model.choosing = nil } }),
                       allowedContentTypes: (model.choosing ?? asked) == .files ? [.data] : [.folder],
                       allowsMultipleSelection: (model.choosing ?? asked) == .files) { result in
+            model.choosingFrom = nil
             guard let urls = try? result.get() else { return }
             if asked == .wanted, let folder = urls.first {
                 model.gaveFolder(folder)
@@ -108,13 +114,26 @@ struct ContentView: View {
                 model.add(urls)
             }
         }
+        .fileDialogDefaultDirectory(model.choosingFrom)
         .onChange(of: model.choosing) { _, wanted in
             if let wanted { asked = wanted }
         }
         .alert("Nothing to Play", isPresented: Binding(get: { model.emptyFolder != nil }, set: { if !$0 { model.emptyFolder = nil } })) {
+            // (A folder that seemed empty may be one whose files the system does not list, as on some
+            // shares on the network on an iPad: they can still be chosen, from the file picker opened in it.)
+            if model.emptyFolderFiles == 0, let place = model.emptyFolderPlace {
+                Button("Choose Files…") {
+                    model.choosingFrom = place
+                    model.choosing = .files
+                }
+            }
             Button("OK", role: .cancel) {}
         } message: {
-            Text("No tunes that Siday plays were found in “\(model.emptyFolder ?? "")”, or the folder could not be looked into.")
+            if model.emptyFolderFiles == 0 {
+                Text("Siday could not see any files in “\(model.emptyFolder ?? "")”. Some shares on the network do not show a folder’s files to apps, but you can still choose them.")
+            } else {
+                Text("None of the \(model.emptyFolderFiles) files in “\(model.emptyFolder ?? "")” is a tune Siday plays.")
+            }
         }
         // (Asked here, over everything, so that it is asked whichever part is showing.)
         .alert("Remove all the tunes?", isPresented: $model.askingToRemoveAll) {
@@ -131,14 +150,67 @@ struct ContentView: View {
             WholeScreenPicture().environment(model).environment(\.visualiser, visualiser)
         }
         #else
+        // (The picture over the window, given this window's picture to listen by, as the overlay is
+        // outside where the rest are given it; and the window put into full screen, unless it is.)
         .overlay {
             if model.pictureFillsScreen {
-                WholeScreenPicture()
+                WholeScreenPicture().environment(\.visualiser, visualiser)
             }
+        }
+        .toolbarVisibility(model.pictureFillsScreen ? .hidden : .automatic, for: .windowToolbar)
+        .background(WindowFinder(found: window))
+        .onChange(of: model.pictureFillsScreen) { _, fills in
+            guard let shown = window.window else { return }
+            let isFullScreen = shown.styleMask.contains(.fullScreen)
+            if fills, !isFullScreen {
+                madeFullScreen = true
+                shown.toggleFullScreen(nil)
+            } else if !fills, madeFullScreen {
+                madeFullScreen = false
+                if isFullScreen { shown.toggleFullScreen(nil) }
+            }
+        }
+        // (Taken out of full screen another way, as by its green button, the picture is put back too.)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { note in
+            guard madeFullScreen, (note.object as? NSWindow) === window.window else { return }
+            madeFullScreen = false
+            model.pictureFillsScreen = false
         }
         #endif
     }
 }
+
+#if os(macOS)
+/// Finds the window a view is in, once it is in one.
+struct WindowFinder: NSViewRepresentable {
+    /// Where the window is kept when found.
+    final class Found {
+        weak var window: NSWindow?
+    }
+
+    let found: Found
+
+    func makeNSView(context: Context) -> NSView { Finding(found: found) }
+    func updateNSView(_: NSView, context: Context) {}
+
+    final class Finding: NSView {
+        let found: Found
+
+        init(found: Found) {
+            self.found = found
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            found.window = window
+        }
+    }
+}
+#endif
 
 /// That what was added is being looked through, and how far it has got: a wheel turning, and words.
 struct AddingNotice: View {

@@ -25,6 +25,9 @@ public enum TuneFolders {
         public var songLengths: URL?
         /// The names of folders given that had nothing in them to play, or could not be looked into.
         public var emptyFolders: [String] = []
+        /// Each of those folders, and how many files were found in it, none of them to play: none at
+        /// all is a folder that could not be looked into, or seemed empty.
+        public var emptyFolderPlaces: [(url: URL, files: Int)] = []
         /// What was given that could not be taken as it was.
         public var problems: [Problem] = []
     }
@@ -77,7 +80,10 @@ public enum TuneFolders {
                     case .companion, .other: break
                     }
                 }
-                if files.isEmpty { result.emptyFolders.append(url.lastPathComponent) }
+                if files.isEmpty {
+                    result.emptyFolders.append(url.lastPathComponent)
+                    result.emptyFolderPlaces.append((url, below.count))
+                }
                 files.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
                 var own = oncePerTune ? held : []
                 let gathered = TuneGathering.folder(
@@ -225,10 +231,15 @@ public enum Coordinated {
         let listed = asked()
         #if os(iOS)
         // On an iPhone or iPad, Foundation first finds a folder on some shares on the network empty
-        // (Apple's r.150542999), though it is not: it is asked again, and then the system itself is.
+        // (Apple's r.150542999), though it is not: it is asked again, after a moment and then after a
+        // longer one, as the share may still be finding what is in it; and then the system itself is.
         if listed.isEmpty {
-            let again = asked()
-            return again.isEmpty ? ((try? reading(folder) { entries(of: $0, hidden: hidden) }) ?? []) : again
+            for wait in [0.0, 0.3, 1.0] {
+                if wait > 0 { Thread.sleep(forTimeInterval: wait) }
+                let again = asked()
+                if !again.isEmpty { return again }
+            }
+            return (try? reading(folder) { entries(of: $0, hidden: hidden) }) ?? []
         }
         #endif
         return listed

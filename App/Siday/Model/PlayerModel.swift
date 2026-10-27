@@ -124,8 +124,14 @@ final class PlayerModel {
     }
     /// The settings, while they are showing over everything (not on a Mac, which has a window for them).
     var showingSettings = false
-    /// The name of a folder the listener gave that had nothing in it to play, while they are told so.
+    /// The name of a folder the listener gave that had nothing in it to play, while they are told so;
+    /// where it is, and how many files were seen in it (none: it could not be looked into, or seemed
+    /// empty, as a folder on some shares on the network does to an iPad, whose files can still be chosen).
     var emptyFolder: String?
+    private(set) var emptyFolderPlace: URL?
+    private(set) var emptyFolderFiles = 0
+    /// The folder the file picker is to open in, when it is opened to choose the files of one.
+    var choosingFrom: URL?
     /// What is being done with what the listener has added, while it takes long enough to be told:
     /// that it is being looked through, and how many files have been found in it so far.
     private(set) var adding: String?
@@ -260,7 +266,11 @@ final class PlayerModel {
             library.add(lengths)
         }
         listNotice = Self.notice(missing: found.missing, of: found.named, in: found.list)
-        if let empty = found.emptyFolders.first { emptyFolder = empty }
+        if let empty = found.emptyFolders.first {
+            emptyFolderPlace = found.emptyFolderPlaces.first?.url
+            emptyFolderFiles = found.emptyFolderPlaces.first?.files ?? 0
+            emptyFolder = empty
+        }
         guard !found.tunes.isEmpty else {
             saveList()
             return

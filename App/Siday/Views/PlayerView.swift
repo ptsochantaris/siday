@@ -409,6 +409,12 @@ struct WholeScreenPicture: View {
     var body: some View {
         Picture()
             .ignoresSafeArea()
+            #if os(iOS)
+            // (Nothing of the system's over it: an iPad's window fills only so much of the screen as
+            // it is given, which an app cannot make more.)
+            .statusBarHidden()
+            .persistentSystemOverlays(.hidden)
+            #endif
             .onTapGesture { model.pictureFillsScreen = false }
             .overlay(alignment: .topTrailing) {
                 Button("Put Back", systemImage: "arrow.down.right.and.arrow.up.left") { model.pictureFillsScreen = false }

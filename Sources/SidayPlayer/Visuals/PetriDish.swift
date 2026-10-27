@@ -55,7 +55,7 @@ final class PetriDish: VisualScene {
     private static let readinessLasts: Float = 8
     /// How much readier the whole picture is for each note, and how much of that readiness reaches
     /// places that no note has lately made ready themselves.
-    private static let readierByANote: Float = 0.15, readinessFarAway: Float = 0.8
+    private static let readierByANote: Float = 0.15, readinessFarAway: Float = 0.7
     /// How wide a place a note charges, and how wide a place round it it makes readier, in places of the grid.
     private static let struckWidth: Float = 3, readyWidth: Float = 12
 
