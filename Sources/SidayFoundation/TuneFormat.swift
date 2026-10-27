@@ -54,6 +54,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case dum, ex, pvp, alp, dsc, bye, ems, fw, lme, jam, amc, psa, tme, jpo, cin, ps, sjs, dat, thm, psf, sdr, uds, tf, snk, ast, dh, rk, jpn, sct, osp, mok
     case ogg, mp3, wav
     case mo3
+    case ml
 
     /// The format a file name's extension stands for, in any case: its own name (`TuneFormat.rawValue`),
     /// or one of the other names files of it are kept under (`otherNames`).

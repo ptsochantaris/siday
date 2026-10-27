@@ -210,6 +210,10 @@ package enum AmigaComposerPlayers {
         case .ims:
             // Images Music System's, with a song for each place in the order its player starts one.
             return try PaulaTickRenderer(IMSPlayer(data), options: options)
+        case .ml:
+            // The Musicline Editor's modules, each tune of the file a song.
+            guard MusiclinePlayer.isOne(data) else { throw TuneError.unsupported("not a Musicline Editor module") }
+            return try PaulaTickRenderer(MusiclinePlayer(data), options: options)
         default:
             return nil
         }

@@ -73,7 +73,7 @@ replayer. That covers modules:
 **Trackers with players of their own**, each played by a port of its own player: PumaTracker, Pierre
 Adane's packed modules (with their samples alongside), Game Music Creator, Images Music System,
 SoundMon 2.0 and 2.2, SidMon and SidMon II, Digital Mugician and Mugician II (seven voices), Delta
-Music 2.0, Sonic Arranger, Infogrames' scores, Fashion Tracker, the Peter Verswyvelen Packer, the
+Music 2.0, Sonic Arranger, the Musicline Editor, Infogrames' scores, Fashion Tracker, the Peter Verswyvelen Packer, the
 Alcatraz Packer, Digital Sonix & Chrome's, Andrew Parton's, the Editeur Musical Séquentiel, Forgotten
 Worlds', the Leggless Music Editor, JamCracker, A.M.Composer, Professional Sound Artists, The Musical
 Enlightenment, Steve Turner's, Cinemaware's (with its instruments folder), Paul Shields', Lemmings'

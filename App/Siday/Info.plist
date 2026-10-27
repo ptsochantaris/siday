@@ -112,6 +112,7 @@
 				<string>build.bru.siday.tune.med</string>
 				<string>build.bru.siday.tune.mfp</string>
 				<string>build.bru.siday.tune.mii</string>
+				<string>build.bru.siday.tune.ml</string>
 				<string>build.bru.siday.tune.mmd0</string>
 				<string>build.bru.siday.tune.mmd1</string>
 				<string>build.bru.siday.tune.mmd2</string>
@@ -356,6 +357,7 @@
 				<string>med</string>
 				<string>mfp</string>
 				<string>mii</string>
+				<string>ml</string>
 				<string>mmd0</string>
 				<string>mmd1</string>
 				<string>mmd2</string>
@@ -2169,6 +2171,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>mii</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>ML music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.ml</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>ml</string>
 				</array>
 			</dict>
 		</dict>

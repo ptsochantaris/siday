@@ -339,6 +339,19 @@ of Excalibur. Their 68000 code was read for that, and nothing of it is carried h
 its tables: of the steps of an octave and of pitch bends, of tempos, of the lengths of notes and rests,
 and of the filters a synthesised instrument is passed through.
 
+## Musicline Editor
+
+`Sources/SidayAmigaComposers/Musicline` is a Swift port of the Musicline Editor's player for
+DeliTracker (`mlineplayer102.asm`, "Musicline Editor DeliPlayer 1.02"), as UADE carries its source
+(`amigasrc/players/other/musicline_editor`), with its tables (its `raw` folder) as Swift arrays.
+
+- Copyright (C) John Carehag; the authors of the work include Conny Cyreus, Christian Cyreus, John
+  Carehag and Jimmy Fredriksson
+- GNU Lesser General Public License. Its source names no version and points to UADE's
+  COPYING.LGPL, which is version 2.1. As its section 3 allows, the port is distributed under the GNU
+  General Public License, version 2 or later, with the rest of this project
+- Source: https://gitlab.com/uade-music-player/uade
+
 ## Wanted Team's players, and more composers' drivers
 
 `Sources/SidayAmigaMachine/WantedTeam` finds, mends and calls the drivers of 28 more of the Amiga's

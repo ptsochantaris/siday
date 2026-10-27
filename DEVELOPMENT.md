@@ -993,6 +993,28 @@ Notes:
 - Level: the Sonix Music Driver's music is 1.9 dB louder on Paula than modules are, in the median of
   the collection, and is turned down by that.
 
+### ML — the Musicline Editor
+
+Based on the Musicline Editor's own player for DeliTracker (`mlineplayer102.asm`, its authors'
+source, which UADE carries), ported routine by routine, its waveform makers in the 68000's integer
+arithmetic.
+
+Checked against UADE running that player, on the collection's one module (Xenex-Remix.ml, two
+tunes), mended as siday mends it (UADE plays nothing of the file as it is):
+
+- The register writes to Paula on every tick are the same as UADE's: all 13,999 ticks of the first
+  tune, past its end at tick 13,249, and all 1,982 of the second.
+- The file siday mends is loaded byte for byte as the mended copy UADE played.
+- Mono loudness envelope over the first minute: 0.91, stretched for UADE's timer, which runs about
+  1% slow and unevenly.
+
+Notes:
+
+- Level: the Musicline Editor's music is about as loud on Paula as modules are, and is turned down
+  0.4 dB to their level.
+- UADE's timer B, which times a note's start within its tick, fires early, so the writes were
+  compared tick by tick and not by their times within it.
+
 ### BD — Ben Daglish's drivers
 
 Based on Wanted Team's player for EaglePlayer ("Benn Daglish player module V1.2", 2004), which UADE

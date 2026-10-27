@@ -1784,6 +1784,54 @@ Worth knowing, about siday's choices and the players' own ways:
 - **Damaged files:** Where a damaged file would have the player divide by zero, or read or write on
   through memory without end, siday stops short instead. No file in the collection comes near it.
 
+## ML — the Musicline Editor
+
+The Musicline Editor was a tracker for the Amiga, made in Sweden by the brothers Conny and Christian
+Cyréus, with John Carehag and Jimmy Fredriksson, and first released in 1995. Its instruments are
+samples, or small waveforms it makes anew at every tick: turned from one waveform into another,
+squeezed, mixed with another, or passed through a filter with or without resonance. Each also has an
+envelope, a vibrato, a tremolo, an arpeggio of its own, and a loop that can move through its sample.
+A module holds several tunes, each with its own tempo, and each voice of a tune plays its own list of
+parts. A tune may have eight voices, which the player mixes two to each of the Amiga's four.
+
+Its authors made a player of it for DeliTracker, and released that player's source under the GNU
+Lesser General Public License; UADE carries it. UnExoticA's collection has one module: Mark Sheeky's
+remix of his own music for the public-domain game Xenex (1996), with a second tune, a short drum loop.
+
+### How siday plays it
+
+siday's player is a port of the authors' player, routine by routine. Each tune of a file is a song.
+On both tunes of Xenex-Remix.ml it matches that player in UADE tick for tick: every period, volume,
+sample and length it gives Paula.
+
+Worth knowing, about siday's choices and the player's own ways:
+
+- **Timing:** The player ticks on a CIA timer at the tune's tempo, fifty times a second at 125. A
+  voice that starts a note is turned off, and on again with its sample a seventh of a millisecond or
+  more later, after a wait the player times with the CIA's other timer. siday's notes begin there.
+- **Song end:** The player never says that a tune has ended. In siday, a tune ends once each voice
+  has come to its end, to a jump back for ever, or past the end of its list. If a voice jumps back,
+  the tune goes round; otherwise it stops there. (Past its list, the player has a voice play the
+  module's first part again and again, which in Xenex-Remix is silence.)
+- **Waveforms:** On an Amiga with memory besides its chip memory, the player copies each waveform
+  it makes into chip memory for Paula to play. UADE's machine has such memory, and siday does the
+  same. On an A500 of half a megabyte, Paula would play the same waveforms where they are made.
+- **Filter:** The command for the Amiga's filter is heard. It is off when a tune starts.
+- **Level:** The Musicline Editor is about as loud on Paula as ProTracker is; siday turns it down
+  0.4 dB, to their level.
+
+### Differences and limits
+
+- **Eight voices:** A tune of eight voices is not played, and says so. There is none in the
+  collection.
+- **A damaged file:** UnExoticA's Xenex-Remix.ml has lost the byte after each CR in it, as a file
+  sent over a terminal's line does. No player can read it as it is; the authors' player stops at the
+  first damaged chunk and plays nothing. siday mends it. Of the thirteen lost bytes, twelve go back
+  where the file's own structure says they were. The thirteenth was in the drum sample, and its place
+  cannot be known, so that sample ends a byte early. The file says so when played.
+- **Missing pieces:** A voice with no list, a part, and a sample the file does not have are silence.
+  The player would read the Amiga's first bytes for them.
+
 ## BD — Ben Daglish's drivers
 
 Ben Daglish came to the Amiga from the Commodore 64. He played his music on it with a driver of his
