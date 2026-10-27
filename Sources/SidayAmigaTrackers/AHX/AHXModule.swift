@@ -46,7 +46,12 @@ final class AHXModule {
     let restart: UInt16
     let trackLength: UInt16
     let highestTrack: UInt8
+    /// How many instruments there are: as many as the file says, or, in one that is cut short,
+    /// those before the first it has not all of.
     let instrumentCount: Int
+    /// What the file asks for that is not played as it asks: for a file cut short, what it has lost
+    /// (see `TuneInfo.shortfalls`).
+    let shortfalls: [String]
     /// Where each of the file's other songs starts in the list of positions.
     let subsongStarts: [UInt16]
     let timerPeriod: UInt16
@@ -97,7 +102,7 @@ final class AHXModule {
         self.restart = restart >= positionCount ? 0 : restart
         trackLength = UInt16(file[10])
         highestTrack = file[11]
-        instrumentCount = Int(file[12])
+        let instrumentsSaid = Int(file[12])
         let subsongs = Int(file[13])
         timerPeriod = Self.timerPeriods[(flags >> 13) & 3]
 
@@ -105,7 +110,7 @@ final class AHXModule {
         // ends of what it has set aside for them. No file that was found does any of it.
         guard positionCount > 0 else { throw TuneError.malformed("an AHX module with no positions") }
         guard trackLength > 0, trackLength <= Self.rows else { throw TuneError.malformed("an AHX module with tracks of \(trackLength) rows") }
-        guard instrumentCount <= Self.mostInstruments else { throw TuneError.malformed("an AHX module with \(instrumentCount) instruments") }
+        guard instrumentsSaid <= Self.mostInstruments else { throw TuneError.malformed("an AHX module with \(instrumentsSaid) instruments") }
 
         var at = 14
         subsongStarts = (0 ..< subsongs).map { UInt16(file.u16be(at + $0 * 2)) }
@@ -130,13 +135,34 @@ final class AHXModule {
             at += trackBytes
         }
 
-        for number in 1 ..< instrumentCount + 1 {
+        // A file cut short plays as far as it goes: what it has lost of its tracks is empty, and the
+        // instruments it has lost, from the first that is not all there, are the stand-in, which is
+        // silent. One that has lost all its instruments has nothing to be heard by.
+        let tracksLost = at > data.count
+        var kept = instrumentsSaid
+        for number in 1 ..< instrumentsSaid + 1 {
             let bytes = Field.list + (Int(file[at + Field.listLength]) << 2)
-            guard at + bytes <= data.count else { throw TuneError.malformed("an AHX module that is cut short") }
+            guard at + bytes <= data.count else {
+                kept = number - 1
+                break
+            }
             for i in 0 ..< bytes { instruments[number * Self.instrumentSpace + i] = file[at + i] }
             at += bytes
         }
-        guard at <= data.count else { throw TuneError.malformed("an AHX module that is cut short") }
+        guard kept > 0 || instrumentsSaid == 0 else { throw TuneError.malformed("an AHX module cut short before its instruments") }
+        var said: [String] = []
+        if kept < instrumentsSaid {
+            var used = Set<Int>()
+            for row in 0 ..< (Int(highestTrack) + 1) * Self.rows {
+                used.insert(Int((tracks[row * 3] & 3) << 4 | tracks[row * 3 + 1] >> 4))
+            }
+            if let sentence = Shortfall.instrumentsLost(used.count { $0 > kept && $0 <= instrumentsSaid }, damaged: false, samplesToo: false) {
+                said.append(sentence)
+            }
+        }
+        if said.isEmpty, tracksLost { said.append(Shortfall.cutShort("Some of what it has is not there.")) }
+        shortfalls = said
+        instrumentCount = kept
 
         // The song's name comes after the music, and the instruments' names after it.
         var name: [UInt8] = []

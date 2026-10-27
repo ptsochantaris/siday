@@ -84,8 +84,10 @@ enum PLMFile {
         var cutShort = Shortfall.CutShort()
         for index in 0 ..< IT2ForeignModule.sampleRoom {
             let at = index < sampleCount ? f.size32le(samplesAt + index * 4) : 0
-            // (A sample that is nowhere, or whose header is not one, is an empty one.)
+            // (A sample that is nowhere, or whose header is not one, is an empty one; and one whose
+            // header the file ends before is missing.)
             guard at > 0, at + 71 <= data.count, data[at ..< at + 4].elementsEqual([0x50, 0x4C, 0x53, 0x1A]) else {
+                if at > 0, at + 71 > data.count { cutShort.addMissing() }
                 made.append(IT2Sample())
                 continue
             }
@@ -138,12 +140,18 @@ enum PLMFile {
             while chunks.count <= number { chunks.append(IT2ForeignModule.Pattern(rows: rowsPerPattern)) }
             return number
         }
+        // (What the file has lost of a pattern is rows with nothing in them.)
+        var patternsLost = false
         for item in items {
             guard item.pattern < patternCount, item.y <= channelCount else { continue }
             let at = f.size32le(patternsAt + item.pattern * 4)
-            guard at > 0, at + 32 <= data.count else { continue }
+            guard at > 0, at + 32 <= data.count else {
+                if at > 0 { patternsLost = true }
+                continue
+            }
             let rows = Int(f[at + 4]), width = Int(f[at + 5])
             guard rows > 0 else { continue }
+            if at + 32 + rows * width * 5 > data.count { patternsLost = true }
             let channels = min(width, channelCount - item.y)
             let itemEnd = item.x + rows
             end = max(end, itemEnd)
@@ -234,13 +242,14 @@ enum PLMFile {
         var shortfalls: [String] = []
         if cutOff { shortfalls.append("Its song is longer than Impulse Tracker's replayer has room for, and the end of it is left out.") }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
 
         let module = IT2Module(title: f.dos(at: 6, length: 48), madeWith: "Disorder Tracker 2", orders: (0 ..< chunks.count).map { UInt8($0) },
                                flags: ITF_STEREO | ITF_OLD_EFFECTS, globalVolume: 128, mixVolume: mixVolume, speed: data[59] == 0 ? 6 : data[59],
                                tempo: data[58], channelPans: pans, samples: made, patterns: patterns, rows: rows)
         module.playsAsDisorderTracker = true
         module.disorderTrackerOffsets = percentOffsets
-        return ITRenderer(module: module, format: "PLM", shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "PLM", shortfalls: shortfalls, options: options)
     }
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are

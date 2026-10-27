@@ -96,6 +96,22 @@ final class FT2Player {
     let vibratoShift: Int
     /// True if a loop inside a pattern is not to leave the next pattern starting on its row.
     let loopsLeaveNothingBehind: Bool
+    /// True if a loop is not begun in a channel while another channel's is going: in DIGI Booster's
+    /// modules, and in the XM files of ModPlug Tracker and of OpenMPT that OpenMPT plays so (see
+    /// `FT2Module.oneLoopAtATime`).
+    let oneLoopAtATime: Bool
+    /// True if a loop that goes back on a row is not cut short by a jump or a break on that row,
+    /// which is then nothing, and a jump or a break to another place in the list ends every loop
+    /// that is going, as OpenMPT plays the XM files of ModPlug Tracker and of its own early
+    /// versions (see `FT2Module.loopsBeforeJumps`). In FastTracker, a jump or break goes on all the same.
+    let loopsBeforeJumps: Bool
+    /// For `loopsBeforeJumps`: on the row being played, where in the list of patterns the song was
+    /// before a jump or break on the row moved it, and the row a loop on it goes back to.
+    var jumpedFrom: Int16?
+    var loopsBackTo: UInt8?
+    /// True if a place in the list of patterns that names a pattern the file has not got is passed
+    /// over: see `FT2Module.passesOverMissingPatterns`.
+    let passesOverMissingPatterns: Bool
     /// True for a file of ModPlug Tracker's or OpenMPT's. A sample that runs out while it is loud
     /// stops dead in FastTracker's mixer, with a click; in theirs, what it last put out dies away,
     /// by a 256th of itself a frame, as it does here for such a file.
@@ -208,16 +224,21 @@ final class FT2Player {
         if position > 0, position < Int(song.len) {
             song.songPos = Int16(position)
             song.pattNr = Int16(song.songTab[position & 0xFF])
-            song.pattLen = Int16(bitPattern: module.pattLens[Int(UInt8(truncatingIfNeeded: song.pattNr))])
             song.pattPos = 0
         }
+        // (The length of the pattern it starts on as it is now, which for an empty one is not as
+        // FastTracker has it in a later tracker's file: see `FT2Module.playAsFastTracker`.)
+        song.pattLen = Int16(bitPattern: module.pattLens[Int(UInt8(truncatingIfNeeded: song.pattNr))])
         instr = module.instr
         linearFrqTab = module.linearFrqTab
         panningIsOfChannels = !module.channelPanning.isEmpty
         speedAndTempoUndoEachOther = module.speedAndTempoUndoEachOther
         vibratoShift = module.vibratoIsAQuarterAsDeep ? 7 : 5
-        loopsLeaveNothingBehind = module.foreign != nil
+        loopsLeaveNothingBehind = module.foreign != nil || module.loopsLeaveNothingBehind && !asFastTracker
         playsAsDigiBooster = module.playsAsDigiBooster
+        oneLoopAtATime = module.playsAsDigiBooster || module.oneLoopAtATime && !asFastTracker
+        loopsBeforeJumps = module.loopsBeforeJumps && !asFastTracker
+        passesOverMissingPatterns = module.passesOverMissingPatterns && !asFastTracker
         let placeholder = module.instr[0]!
         let channels = max(1, Int(module.song.antChn))
         stm = (0 ..< channels).map { FT2Channel(nr: $0, instrument: placeholder) }
@@ -260,6 +281,12 @@ final class FT2Player {
         song.globVol = 64
         song.timer = 1
         P_SetSpeed(song.speed)
+        if passesOverMissingPatterns {
+            passOverMissingPatterns()
+            offTheEnd = false
+            song.pattNr = Int16(song.songTab[Int(UInt8(truncatingIfNeeded: song.songPos))])
+            song.pattLen = Int16(bitPattern: module.pattLens[Int(UInt8(truncatingIfNeeded: song.pattNr))])
+        }
     }
 
     deinit {
@@ -782,7 +809,7 @@ final class FT2Player {
             v.pointee.SPosDec = UInt32(samplesFrac & 0xFFFF) << 16
             v.pointee.SPos = realPos
         } else if let right = v.pointee.SBaseR {
-            // (A sample in stereo: see `FT2Module.playStereoSamples`.)
+            // (A sample in stereo: see `FT2Module.playAsFastTracker`.)
             if v.pointee.sixteen {
                 mix(v, numSamples, base.assumingMemoryBound(to: Int16.self), v.pointee.SRevBase?.assumingMemoryBound(to: Int16.self), shift: 0,
                     right: right.assumingMemoryBound(to: Int16.self), rightReverse: v.pointee.SRevBaseR?.assumingMemoryBound(to: Int16.self))

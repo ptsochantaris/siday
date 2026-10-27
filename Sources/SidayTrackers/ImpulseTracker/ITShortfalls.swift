@@ -106,11 +106,9 @@ extension IT2Module {
                                                     why: "which Impulse Tracker did not have") {
             sentences.append(sentence)
         }
-        // (A file that has lost parts before its samples has lost them all, as a rule, and says so as
-        // DigiBooster's files do.)
-        if partsLost > 0, !hasSound {
-            sentences.append(Shortfall.cutShort("Its samples are missing, and it is silent."))
-        } else if let sentence = cutShort.sentence {
+        // (A file that has lost parts before its samples has lost them all, as a rule, and is not
+        // played: see `nothingToHear`.)
+        if let sentence = cutShort.sentence {
             sentences.append(sentence)
         } else if partsLost > 0 {
             sentences.append(Shortfall.cutShort("Some of what it has is not there."))

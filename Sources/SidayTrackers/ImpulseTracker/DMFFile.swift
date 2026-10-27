@@ -901,6 +901,14 @@ enum DMFFile {
             let size = soundAt + 4 <= sounds.upperBound ? long(f, soundAt) : 0
             let start = min(sounds.upperBound, soundAt + 4)
             let sound = start ..< min(sounds.upperBound, start + size)
+            // (A sample the file ends before the end of: one whose size the file ends before, all of
+            // it, and one that is packed, by the bytes it is packed into.)
+            if soundAt + 4 > sounds.upperBound {
+                sample.wanted = sample.length * (sample.sixteen ? 2 : 1)
+            } else if flags & 0x0C == 0x04, start + size > sounds.upperBound {
+                sample.wanted = size
+                sample.there = sound.count
+            }
             soundAt = sound.upperBound
             if sound.isEmpty {
                 sample.length = 0
@@ -1203,7 +1211,7 @@ extension DMFFile {
         for (number, fast) in slides.enumerated() {
             for (place, speed) in fast { module.xTrackerSlides[place + IT2Player.xTrackerPlace(pattern: number, row: 0, channel: 0)] = speed }
         }
-        return ITRenderer(module: module, format: "DMF", author: song.author, shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "DMF", author: song.author, shortfalls: shortfalls, options: options)
     }
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are

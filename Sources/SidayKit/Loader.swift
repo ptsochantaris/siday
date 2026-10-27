@@ -61,7 +61,7 @@ public enum TuneLoader {
         // Each family of players is asked in turn whether the tune is one of theirs: the Atari's first,
         // as a YM file recorded from an Atari ST is played on the ST's chip before any other. A module
         // of more voices than the Amiga's four is FastTracker 2's to play.
-        let widerModule = { (module: [UInt8]) in try? TrackerPlayers.player(module, format: .xm, path: path, options: options, companions: []) }
+        let widerModule = { (module: [UInt8]) throws in try TrackerPlayers.player(module, format: .xm, path: path, options: options, companions: []) }
         let families: [([UInt8], TuneFormat, String?, LoadOptions, [[UInt8]?]) throws -> (any Renderer)?] = [
             AtariPlayers.player, EightBitPlayers.player, C64Players.player,
             { try AmigaTrackerPlayers.player($0, format: $1, path: $2, options: $3, companions: $4, widerModule: widerModule) },

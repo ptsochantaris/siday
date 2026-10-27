@@ -279,12 +279,14 @@ final class ST3Module {
         findExtraChannels()
         noteWhatIsNotPlayed(f, insoff)
         if mended != nil { shortfalls.insert(Self.mendedSentence, at: 0) }
-        // A file that has lost parts before its samples has lost them all, as a rule, and says so as
-        // DigiBooster's files do.
-        let sounds = (0 ..< insnum).contains { insoff[$0] != 0 && (ins[$0].type >= 2 || ins[$0].type == 1 && offsets[$0] > 0 && offsets[$0] < data.count && ins[$0].length > 0) }
-        if partsLost > 0, !sounds {
-            shortfalls.append(Shortfall.cutShort("Its samples are missing, and it is silent."))
-        } else if let sentence = cutShort.sentence {
+        // A file with nothing to be heard in it, no sample with a sound and no instrument of the
+        // AdLib's, is not a tune: one that has lost parts before its samples has, as a rule, lost
+        // them all.
+        let adLib = (0 ..< insnum).contains { insoff[$0] != 0 && ins[$0].type >= 2 }
+        guard adLib || Shortfall.sounds(UnsafeBufferPointer(start: samples, count: samplesCount)) || inStereo.contains(where: { Shortfall.sounds($0.right) }) else {
+            throw Shortfall.nothingToHear
+        }
+        if let sentence = cutShort.sentence {
             shortfalls.append(sentence)
         } else if partsLost > 0 {
             shortfalls.append(Shortfall.cutShort("Some of what it has is not there."))

@@ -439,7 +439,13 @@ private func mmcmp(size: Int, flags: Int, width: Int, table: [UInt8], data: [UIn
     #expect(try TuneLoader.load(whole, format: .mod).info.shortfalls.isEmpty)
     // A byte or two short is how a great many modules are, and is nothing.
     #expect(try TuneLoader.load(Array(whole.dropLast(2)), format: .mod).info.shortfalls.isEmpty)
-    #expect(try TuneLoader.load(Array(whole.dropLast(32)), format: .mod).info.shortfalls == ["The file is cut short: one of its samples is missing, and is silent."])
+    // Missing its only sample, it has nothing to be heard by, and is not played.
+    do {
+        _ = try TuneLoader.load(Array(whole.dropLast(32)), format: .mod)
+        Issue.record("played")
+    } catch {
+        #expect("\(error)" == "\(Shortfall.nothingToHear)")
+    }
 
     // A sample of more than 64 KB, from a tracker that had the room, is played whole: there is
     // nothing to say of it.

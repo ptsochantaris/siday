@@ -10,11 +10,12 @@ import SidayFoundation
 /// that is not this family's.
 package enum AmigaTrackerPlayers {
     /// - Parameter widerModule: the player for a module of more voices than the Amiga's four, which is
-    ///   a PC tracker's (FastTracker 2's, `TrackerPlayers`), or nil if it is not one.
+    ///   a PC tracker's (FastTracker 2's, `TrackerPlayers`), or nil if it is not one; it throws why it
+    ///   will not play one.
     // (Compiled here, and only called from elsewhere: see `TuneLoader`.)
     @export(interface)
     package static func player(_ data: [UInt8], format: TuneFormat, path: String?, options: LoadOptions,
-                               companions: [[UInt8]?], widerModule: ([UInt8]) -> (any Renderer)?) throws -> (any Renderer)? {
+                               companions: [[UInt8]?], widerModule: ([UInt8]) throws -> (any Renderer)?) throws -> (any Renderer)? {
         switch format {
         case .mfp:
             // A ProTracker module packed with its samples in a file of their own.
@@ -55,7 +56,20 @@ package enum AmigaTrackerPlayers {
                 // (With Startrekker's synthesised instruments from the file beside it, if it has one.)
                 return try MODRenderer(data, options: options, synthesised: companions.first ?? nil)
             } catch let error as TuneError {
-                if case .unsupported = error, let more = widerModule(data) { return more }
+                // (A module of Startrekker's that is nothing without its synthesised instruments wants
+                // the file of them, which is named for it.)
+                if case .missingCompanion = error, let wanted = Companions.wanted(for: format, fileName: Companions.fileName(path)).first {
+                    throw Companions.missing(wanted)
+                }
+                if case .unsupported = error {
+                    do {
+                        if let more = try widerModule(data) { return more }
+                    } catch let wider as TuneError {
+                        // (One that a tracker of the PC's would play, and that has nothing to be
+                        // heard by, is refused for that.)
+                        if "\(wider)" == "\(Shortfall.nothingToHear)" { throw wider }
+                    } catch {}
+                }
                 if let renderer = try unpacked() { return renderer }
                 throw error
             }

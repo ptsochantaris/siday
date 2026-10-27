@@ -98,6 +98,19 @@ Spectrum had a loudspeaker that its processor could push out or pull back, and n
 music is the processor doing that at the right moments, hundreds or thousands of times a second, and
 doing nothing else while it did.
 
+### Damaged files, and files cut short
+
+A module of which nothing can be heard is not played. One whose samples are all missing or silent,
+the file having ended before them or holding nothing but noughts, says so in one sentence, whatever
+tracker made it. An FM instrument, one a tracker synthesises, AHX's and HivelyTracker's, and
+ProTracker's EFx turning a silent loop over are all something to hear. A module whose instruments
+are all plug-ins, all for a MIDI synthesiser, or whose samples are all kept in a form siday does not
+read, is refused as that. A module of Startrekker's that is nothing without its synthesised
+instruments asks for the file of them by name.
+
+A file cut short plays what it has, and says what it has lost: samples, the instruments it plays,
+and patterns, which are played as empty rows.
+
 ### How siday plays it
 
 Each tracker's player here is Sergey Bulba's, from Ay_Emul. Ay_Emul is the program this music has
@@ -2465,6 +2478,29 @@ theirs, whatever it says made it, and is played with all of them. ModPlug Tracke
 packed eight-bit samples into four bits a sample; siday unpacks them as OpenMPT does. An
 instrument's header longer than FastTracker's, as MED2XM wrote them, is passed over whole.
 
+Four more of FastTracker's ways were its own, and a later tracker's file is played without them:
+
+- **Empty patterns.** Reading a file, FastTracker gives a pattern with nothing in it 64 rows,
+  whatever the file says. The trackers after it keep the length, as OpenMPT does, and so does siday
+  in their files.
+- **Missing patterns.** Where the order list of a ModPlug Tracker or OpenMPT file names a pattern
+  the file hasn't got, siday passes over that place, as OpenMPT does; FastTracker plays 64 empty
+  rows there. In their files from before OpenMPT 1.22.02.02, pattern 255 there is the end of the
+  song, the "---" of their lists. Some ModPlug Tracker files pad the list to 256 places with it, and
+  FastTracker would play on through 18 minutes of silence.
+- **Sample marks.** FastTracker's mixer keeps two bits of a sample's kind for its own use: 8 for a
+  voice that is off, and 4 for one playing backwards. Xrns2XMod, which turns Renoise songs into XM
+  files, sets the 8, and FastTracker leaves such a sample silent. In a later tracker's file both
+  bits mean nothing, as they do to OpenMPT.
+- **Pattern loops.** In ModPlug Tracker's files and OpenMPT's own, loops go as OpenMPT plays them:
+  one loop at a time, a loop going back before a jump or break on the same row, and the next pattern
+  starting at its first row. FastTracker starts it on the row the last loop began on, a mistake of
+  its own. DigiBooster Pro's files are played without that mistake too. DigiBooster 3's replayer,
+  which plays DigiBooster's own modules here, doesn't make it, and in these files the first rows of
+  pattern after pattern would otherwise never be heard. OpenMPT plays them with it.
+
+F00 stops the song, as in FastTracker.
+
 Some things are done as those later trackers did them. A sample can be in stereo in a file of
 theirs, its two sides one after the other. To FastTracker that is one long sample. siday plays the
 two sides
@@ -3480,7 +3516,7 @@ music unpacks to, and a checksum of what is packed.
 
 So a J2B file is unpacked first. siday has DEFLATE in Swift of its own, because it uses no library
 of the system it runs on. A file is refused unless the lengths in its header and both checksums are
-right.
+right. A file shorter than its header says is unpacked as far as it goes, and plays what it has.
 
 Galaxy's replayer has never been published. OpenMPT reads these files into the shape of an IT file.
 It plays them as it plays an IT file, with all of Impulse Tracker's ways it knows. siday plays them

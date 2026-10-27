@@ -73,6 +73,18 @@ enum MDLFile {
         return found
     }
 
+    /// The letters of the part that the file ends in the middle of, if it ends in the middle of one.
+    private static func partCutShort(_ data: [UInt8]) -> UInt16? {
+        let f = ByteReader(data)
+        var at = 5
+        while at + 6 <= data.count {
+            let length = long(f, at + 2)
+            if length > data.count - at - 6 { return UInt16(f.u16le(at)) }
+            at += 6 + length
+        }
+        return nil
+    }
+
     private static func id(_ letters: String) -> UInt16 {
         let bytes = Array(letters.utf8)
         return UInt16(bytes[0]) | UInt16(bytes[1]) << 8
@@ -428,6 +440,8 @@ enum MDLFile {
                 let room = max(0, sound.upperBound - soundAt)
                 var sound8: [Int8] = [], sound16: [Int16] = []
                 if packed {
+                    // (Packed, it takes as many bytes as the four before it say.)
+                    cutShort.add(length: room >= 8 ? min(long(f, soundAt), 1 << 28) + 4 : (sixteen ? length * 2 : length), there: room)
                     length = min(length, room * 8 / (sixteen ? 13 : 5) + 1)
                     let (used, decoded) = unpack(data, at: soundAt, end: sound.upperBound, length: length, sixteen: sixteen)
                     soundAt += used
@@ -711,6 +725,12 @@ enum MDLFile {
             shortfalls.append("Its notes that choose one of the tune's envelopes (9xx) have their instrument's own turned on in its place.")
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        // (What the file has lost of its patterns and tracks is empty, and of the rest, nothing.)
+        if let part = partCutShort(data), part == id("PA") || part == id("TR") {
+            shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil))
+        } else if cutShort.sentence == nil, let part = partCutShort(data), part != id("SA") {
+            shortfalls.append(Shortfall.cutShort("Some of what it has is not there."))
+        }
 
         let madeWith = version == 0x11 ? "Digitrakker 3" : version == 0x10 ? "Digitrakker 2.3" : version == 0 ? "Digitrakker 2" : "Digitrakker"
         var flags = ITF_STEREO | ITF_COMPAT_GXX
@@ -721,7 +741,7 @@ enum MDLFile {
         module.digitrakkerHighOffsets = highOffsets
         module.digitrakkerPans = placesBeside
         module.digitrakkerSlides = slides
-        return ITRenderer(module: module, format: "MDL", author: author, shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "MDL", author: author, shortfalls: shortfalls, options: options)
     }
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are

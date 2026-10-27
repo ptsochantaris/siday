@@ -25,6 +25,8 @@ extension SymMODFile {
         var samples = Samples()
         /// Samples of a kind of sound file that is not read here.
         var unreadSamples = 0
+        /// True if the file ends in the middle of a part that is part of the music.
+        var cutShort = false
     }
 
     static func parts(_ data: [UInt8]) throws -> Parts {
@@ -38,6 +40,9 @@ extension SymMODFile {
         let mostSamples = 3999
         while r.canRead(4) {
             let type = Int32(bitPattern: r.u32be())
+            // (A part the file ends in the middle of, which is not the tune's text nor one passed over,
+            // is music that the file has lost, and what follows it is lost too.)
+            defer { if r.overran, !parts.cutShort, type != -16, !(-21 ... -19).contains(type) { parts.cutShort = true } }
             switch type {
             case -1: // the number of channels, which the heading has given
                 r.skip(4)
@@ -342,6 +347,7 @@ extension SymMODFile {
         if tooHigh > 0 { shortfalls.append(Shortfall.some(tooHigh, one: "notes is above the highest that can be played, and is left out.", many: "notes are above the highest that can be played, and are left out.")) }
         if tooMany + unplayable > 0 { shortfalls.append("Its instruments or samples beyond the most there is room for are not heard.") }
         if tooLong > 0 { shortfalls.append("Its places of more than 1024 lines are played as far as that.") }
+        if p.cutShort { shortfalls.append(Shortfall.cutShort("Some of what it has is not there.")) }
 
         // MARK: The rest
 
@@ -399,7 +405,7 @@ extension SymMODFile {
                                filter: .openMPTsCurve, midiData: midi, longList: true)
         module.playsAsSymphonie = true
         module.symphonieCells = cells
-        return ITRenderer(module: module, format: "SymMOD", shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "SymMOD", shortfalls: shortfalls, options: options)
     }
 
     /// Set by measure, so that these files are about as loud as other modules: played as loud as

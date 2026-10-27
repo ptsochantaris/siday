@@ -185,8 +185,9 @@ private let row = 6.0 * 477 / 23863
     #expect(loudness(cut, 0.05, 0.4) > 0.1 && loudness(cut, 0.6, 1) == 0)
     // Scream Tracker mixed no channel whose volume was over 64, and a row can say 66.
     #expect(loudness(try made(stm([[(0, 0, .note(volume: 66))]])), 0.1, 1) == 0)
-    // A sample with no volume of its own is not loaded, and its notes are silence.
-    #expect(loudness(try made(stm([[(0, 0, .note(volume: 40))]], sounds: [Sound(volume: 0)])), 0.1, 1) == 0)
+    // A sample with no volume of its own is not loaded, and its notes are silence: a file whose only
+    // sample it is has nothing to be heard by, and is not played.
+    #expect(throws: TuneError.self) { try made(stm([[(0, 0, .note(volume: 40))]], sounds: [Sound(volume: 0)])) }
     // A sample that does not go round ends.
     let once = try made(stm([[(0, 0, .note())]], sounds: [Sound(frames: [Int8](repeating: 90, count: 4000), loop: nil)]))
     #expect(loudness(once, 0.05, 0.3) > 0.1 && loudness(once, 0.7, 1) == 0)

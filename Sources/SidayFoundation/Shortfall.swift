@@ -125,6 +125,12 @@ package enum Shortfall {
             if there <= 0 { missing += 1 } else { shortened += 1 }
         }
 
+        /// Takes note of a sample whose header the file ends before, and so all of it, however long
+        /// it would have been.
+        package mutating func addMissing() {
+            missing += 1
+        }
+
         /// What to say of them; nil if the file has all that matters of its samples.
         package var sentence: String? {
             let silent = Shortfall.some(missing, one: "samples is missing", many: "samples are missing")
@@ -164,5 +170,55 @@ package enum Shortfall {
     private static func lowercased(_ text: String) -> String {
         guard let first = text.utf8.first, first >= 0x41, first <= 0x5A else { return text }
         return String(decoding: [first + 0x20] + Array(text.utf8.dropFirst()), as: UTF8.self)
+    }
+}
+
+// MARK: Patterns lost
+
+extension Shortfall {
+    /// What to say of the patterns of a file that ends before them, or in them: what is lost of them
+    /// is played as rows with nothing in them.
+    /// - Parameter samplesToo: true if `CutShort` has already said that the file is cut short.
+    package static func patternsLost(samplesToo: Bool) -> String {
+        samplesToo ? "Some of its patterns are missing too, and are empty." : cutShort("Some of its patterns are missing, and are empty.")
+    }
+}
+
+// MARK: Nothing to hear
+
+extension Shortfall {
+    /// Why a module is refused that has nothing in it to be heard: whose samples are all missing,
+    /// the file having ended before them, or nothing but noughts, and which has no instrument that
+    /// makes a sound without a sample (an FM chip's, or one its tracker synthesises).
+    ///
+    /// Every sample the file has is weighed, whether the song plays it or not: what can sound is a
+    /// matter of the file, and a song that plays only its silent samples is played as it was written.
+    package static var nothingToHear: TuneError { .malformed("a module whose samples are all missing or silent") }
+
+    /// Why a module is refused whose samples are all missing or silent, and whose instruments are
+    /// played by plug-ins that make a sound of their own, which are not here to be played.
+    package static var onlyPlugInsToHear: TuneError { .unsupported("a module whose instruments are all plug-ins, which siday does not play") }
+
+    /// Why a module is refused whose samples are all kept in a form that is not read here, or missing
+    /// or silent: it is not the file that has nothing to be heard by.
+    package static var onlyUnreadToHear: TuneError { .unsupported("a module whose samples are all kept in a form siday does not read") }
+
+    /// Why a module is refused whose samples are all missing or silent, and whose instruments are
+    /// sent to a MIDI synthesiser, which is not here to play them.
+    package static var onlyMIDIToHear: TuneError { .unsupported("a module whose instruments are all for a MIDI synthesiser, which siday does not play") }
+
+    /// True if any of so many bytes is not nought: a sample of eight bits or sixteen, signed, that
+    /// has a sound.
+    package static func sounds(_ bytes: UnsafeRawPointer?, count: Int) -> Bool {
+        guard let bytes, count > 0 else { return false }
+        let words = count / 8
+        for i in 0 ..< words where bytes.loadUnaligned(fromByteOffset: i * 8, as: UInt64.self) != 0 { return true }
+        for i in words * 8 ..< count where bytes.load(fromByteOffset: i, as: UInt8.self) != 0 { return true }
+        return false
+    }
+
+    /// True if any of these points is not nought.
+    package static func sounds<Point: BinaryInteger>(_ points: some Collection<Point>) -> Bool {
+        points.contains { $0 != 0 }
     }
 }

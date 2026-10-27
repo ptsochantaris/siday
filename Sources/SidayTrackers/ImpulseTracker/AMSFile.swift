@@ -300,6 +300,7 @@ enum AMSFile {
         let left = data.count - at
         if s.packed {
             guard left > 9 else {
+                cutShort.add(length: s.length * width, there: 0)
                 s.length = 0
                 return 0
             }
@@ -308,7 +309,8 @@ enum AMSFile {
             let most = min(size, left) * 85 / width
             if s.length > most { s.length = most }
             let there = max(0, min(size, left - 9))
-            if there < size { cutShort.add(length: s.length * width, there: there * 85) }
+            // (What is lost of a packed sample is reckoned in the bytes it is packed into.)
+            cutShort.add(length: size, there: there)
             let bytes = unpack(Array(data[(at + 9) ..< (at + 9 + there)]), length: s.length * width, character: character)
             if s.sixteen {
                 s.frames16 = (0 ..< s.length).map { Int16(bitPattern: UInt16(bytes[$0 * 2]) | UInt16(bytes[$0 * 2 + 1]) << 8) }
@@ -585,9 +587,15 @@ enum AMSFile {
         var lost = 0
         var patterns = [[UInt8]?](repeating: nil, count: patternCount)
         var rowCounts = [UInt16](repeating: 64, count: patternCount)
+        // (What the file has lost of its patterns is rows with nothing in them.)
+        var patternsLost = false
         for index in 0 ..< patternCount {
-            guard at + 4 <= data.count else { break }
+            guard at + 4 <= data.count else {
+                patternsLost = true
+                break
+            }
             let start = at + 4, end = min(data.count, start + long(f, at))
+            if start + long(f, at) > data.count { patternsLost = true }
             at = end
             guard start < end else { continue }
             let rows = Int(f[start]) + 1
@@ -623,7 +631,8 @@ enum AMSFile {
         let module = assemble(title: title, madeWith: "Velvet Studio 2.0\(minor)", orders: orders, patterns: patterns, rows: rowCounts,
                               samples: sounds.map(made), instruments: instruments, tempo: tempo, speed: speed, linear: songFlags & 0x40 != 0,
                               shortfalls: &shortfalls, lost: lost, tooMany: tooMany, leftOut: leftOut, cutShort: cutShort)
-        return ITRenderer(module: module, format: "AMS", author: author, shortfalls: shortfalls, options: options)
+        if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
+        return try ITRenderer(module: module, format: "AMS", author: author, shortfalls: shortfalls, options: options)
     }
 
     /// The list of patterns, of as many places as the file says, if it has them all; a pattern's
@@ -671,9 +680,15 @@ enum AMSFile {
         var leftOut = Shortfall.Kinds()
         var lost = 0, tooHigh = 0
         var patterns = [[UInt8]?](repeating: nil, count: patternCount)
+        // (What the file has lost of its patterns is rows with nothing in them.)
+        var patternsLost = false
         for index in 0 ..< patternCount {
-            guard at + 4 <= data.count else { break }
+            guard at + 4 <= data.count else {
+                patternsLost = true
+                break
+            }
             let start = at + 4, end = min(data.count, start + long(f, at))
+            if start + long(f, at) > data.count { patternsLost = true }
             at = end
             let read = readPattern(f, from: start, to: end, rows: 64, newer: false, leftOut: &leftOut)
             var cells = read.cells
@@ -697,7 +712,8 @@ enum AMSFile {
                               rows: [UInt16](repeating: 64, count: patternCount), samples: Array(sounds.prefix(IT2ForeignModule.sampleRoom)).map(made),
                               instruments: [], tempo: 125 * OpenMPTSong.tempoUnit, speed: 6, linear: false, shortfalls: &shortfalls, lost: lost,
                               tooMany: max(0, sounds.count - IT2ForeignModule.sampleRoom), leftOut: leftOut, cutShort: cutShort)
-        return ITRenderer(module: module, format: "AMS", shortfalls: shortfalls, options: options)
+        if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
+        return try ITRenderer(module: module, format: "AMS", shortfalls: shortfalls, options: options)
     }
 
     /// The module of either kind, from what was read: the patterns that the list plays, numbered as it

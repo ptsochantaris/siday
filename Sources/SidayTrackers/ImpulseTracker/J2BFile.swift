@@ -57,14 +57,22 @@ enum J2BFile {
     /// and the length and checksum (CRC-32) of what is packed, and what is packed must unpack to
     /// as many bytes as it says, with zlib's own checksum right. A file that is the RIFF file already
     /// is given back as it is.
-    static func unpacked(_ data: [UInt8]) throws(TuneError) -> [UInt8] {
+    ///
+    /// A file that is shorter than its header says is cut short: what it has is unpacked as far as
+    /// it goes, and it is said to be cut (`cut`).
+    static func unpacked(_ data: [UInt8], cut: inout Bool) throws(TuneError) -> [UInt8] {
         guard data.starts(with: [0x4D, 0x55, 0x53, 0x45]) else { return data }
         let f = ByteReader(data)
         // (Its next four bytes are 0xDEADBEAF for the newer kind, or 0xDEADBABE for the older.)
         let magic = letters(f, 4)
         guard data.count >= 24, magic == 0xAFBE_ADDE || magic == 0xBEBA_ADDE else { throw .malformed("not a J2B file") }
         let fileLength = long(f, 8), crc = letters(f, 12), packedLength = long(f, 16), length = long(f, 20)
-        guard packedLength > 0, fileLength == packedLength + 24, fileLength == data.count else { throw .malformed("a J2B file cut short") }
+        guard packedLength > 0, fileLength == packedLength + 24, fileLength >= data.count else { throw .malformed("a J2B file whose header makes no sense") }
+        if fileLength > data.count {
+            guard length > 0, length <= 1 << 26, length / 1032 <= packedLength else { throw .malformed("a J2B file that does not unpack") }
+            cut = true
+            return try Inflate.zlibCutShort(data, from: 24, to: data.count, size: length)
+        }
         guard Inflate.crc32(data, from: 24, to: data.count) == crc else { throw .malformed("a J2B file whose checksum is wrong") }
         // (DEFLATE makes no more than 1,032 bytes of one, and nothing here is near 64 megabytes.)
         guard length > 0, length <= 1 << 26, length / 1032 <= packedLength else { throw .malformed("a J2B file that does not unpack") }
@@ -188,7 +196,8 @@ enum J2BFile {
     // MARK: Reading
 
     static func renderer(_ data: [UInt8], options: LoadOptions) throws -> ITRenderer {
-        let data = try unpacked(data)
+        var cut = false
+        let data = try unpacked(data, cut: &cut)
         guard let isAM = riffKind(data) else { throw TuneError.malformed("not a J2B file") }
         let f = ByteReader(data)
         let parts = chunks(f, from: 12, to: data.count, even: isAM)
@@ -229,6 +238,9 @@ enum J2BFile {
         var packed = [[UInt8]?](repeating: nil, count: IT2ForeignModule.patternRoom)
         var rowCounts = [UInt16](repeating: 64, count: IT2ForeignModule.patternRoom)
         var highest = -1
+        // (The instruments the patterns play, and those the file has: for a file cut short, which it
+        // has lost.)
+        var played = Set<Int>(), made = Set<Int>()
         for part in all("PATT") {
             let number = Int(f[part.lowerBound])
             let size = long(f, part.lowerBound + 1)
@@ -265,7 +277,10 @@ enum J2BFile {
                     cell.note = 0
                     cell.mask &= ~2
                     cell.instrument = 0
-                    if instrument != 0, Int(instrument) <= IT2Module.mostInstruments { cell.set(instrument: instrument) }
+                    if instrument != 0, Int(instrument) <= IT2Module.mostInstruments {
+                        cell.set(instrument: instrument)
+                        played.insert(Int(instrument))
+                    }
                     // From 1 for the lowest C, as OpenMPT numbers them; 128 lets the key go, and above that
                     // the note fades.
                     if note >= 1, note <= 120 { cell.set(note: note - 1) } else if note == 0x80 { cell.set(note: 255) } else if note > 0x80 { cell.set(note: 246) }
@@ -281,7 +296,14 @@ enum J2BFile {
             rowCounts[number] = UInt16(rows)
         }
         // A pattern the list names that the file does not have is passed over; one below the
-        // highest it has is empty.
+        // highest it has is empty. (In a file cut short, those it has lost are empty too.)
+        var patternsLost = false
+        if cut {
+            for order in orders where order < 254 && Int(order) < packed.count && packed[Int(order)] == nil && Int(order) >= max(highest, 0) {
+                packed[Int(order)] = IT2ForeignModule.Pattern().packed()
+                patternsLost = true
+            }
+        }
         for number in 0 ..< min(max(highest, 0), IT2ForeignModule.patternRoom) where packed[number] == nil {
             packed[number] = IT2ForeignModule.Pattern().packed()
         }
@@ -369,6 +391,7 @@ enum J2BFile {
             }
             instruments[number - 1] = ins
             instrumentCount = max(instrumentCount, number)
+            made.insert(number)
             return ins
         }
         /// Room for one more sample.
@@ -414,10 +437,18 @@ enum J2BFile {
                     // (Its number is taken, whatever comes of it.)
                     samples.append(IT2Sample())
                     let s = sampleFile.data.lowerBound + 4
-                    guard s + 8 <= sampleFile.data.upperBound, letters(f, s) == id("SAMP") else { break }
+                    // (In a file cut short, a sample whose header is not all there is missing, and
+                    // so are those of the instrument's that come after it.)
+                    guard s + 8 <= sampleFile.data.upperBound, letters(f, s) == id("SAMP") else {
+                        if cut { cutShort.addMissing() }
+                        break
+                    }
                     let end = min(sampleFile.data.upperBound, s + 8 + long(f, s + 4))
                     let header = s + 8
-                    guard header + 60 <= end else { break }
+                    guard header + 60 <= end else {
+                        if cut { cutShort.addMissing() }
+                        break
+                    }
                     let flags = f.u16le(header + 40), frames = long(f, header + 44)
                     let start = min(end, header + long(f, header) + 4)
                     let sixteen = flags & 0x04 != 0
@@ -426,6 +457,7 @@ enum J2BFile {
                                                         flags: flags, loopStart: long(f, header + 48), loopEnd: long(f, header + 52),
                                                         rate: long(f, header + 56), vibrato: vibrato)
                 }
+                if cut { for _ in 0 ..< samplesLeft { cutShort.addMissing() } }
             }
         } else {
             for part in all("INST") {
@@ -448,7 +480,11 @@ enum J2BFile {
                 }
                 var at = h + 225
                 for _ in 0 ..< Int(f[h + 30]) {
-                    guard room(), at + 64 <= part.upperBound else { continue }
+                    guard room(), at + 64 <= part.upperBound else {
+                        // (In a file cut short, one whose header is not there is missing.)
+                        if cut, at + 64 > part.upperBound { cutShort.addMissing() }
+                        continue
+                    }
                     let header = at
                     at += 64
                     samples.append(IT2Sample())
@@ -470,6 +506,14 @@ enum J2BFile {
         if let sentence = Shortfall.commandsLeftOut(leftOut.named(leftOutNames)) { shortfalls.append(sentence) }
         if tooMany { shortfalls.append("It has more samples than there is room for, and the last are left out.") }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if cut {
+            // (What it has lost of its instruments and patterns, which is all of those after the
+            // place where it ends, is silent and empty.)
+            let lost = played.count { !made.contains($0) }
+            let instrumentsLost = Shortfall.instrumentsLost(lost, damaged: false, samplesToo: cutShort.sentence != nil)
+            if let instrumentsLost { shortfalls.append(instrumentsLost) }
+            if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil || instrumentsLost != nil)) }
+        }
 
         // MARK: The rest
 
@@ -492,7 +536,7 @@ enum J2BFile {
                                mixVolume: mixVolume, speed: max(1, speed), tempo: tempo, channelPans: pans, samples: samples, patterns: packed,
                                rows: rowCounts, instruments: Array(instruments[0 ..< max(1, instrumentCount)]), openMPT: song)
         module.playsAsGalaxy = true
-        return ITRenderer(module: module, format: "J2B", shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "J2B", shortfalls: shortfalls, options: options)
     }
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are

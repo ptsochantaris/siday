@@ -497,8 +497,14 @@ private func byFastTracker(_ file: [UInt8]) -> [UInt8] {
     #expect(try shortfalls(xm() + extras(plugIn: 1)) == ["Its plug-in is left out, and it is heard without what that does to its sound."])
     #expect(try shortfalls(xm() + extras(plugIn: 2)) == ["Its plug-in is left out, and it is heard without what that does to its sound."])
 
-    // And a file that ends before its sample does.
-    #expect(try shortfalls(Array(xm().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])
+    // And a file that ends before its sample does: before all of it, which leaves it nothing to be
+    // heard by, or before no more than its last byte, which nobody hears.
+    do {
+        _ = try shortfalls(Array(xm().dropLast(32)))
+        Issue.record("played")
+    } catch {
+        #expect("\(error)" == "\(Shortfall.nothingToHear)")
+    }
     #expect(try shortfalls(Array(xm().dropLast(1))).isEmpty)
 }
 
@@ -789,4 +795,96 @@ private func heardAndLit(_ file: [UInt8], format: TuneFormat, calls: Int = 60, f
     let letGo: [UInt8] = [0x83, 49, 1, 0x80] + [0x81, 97, 0x80] + [UInt8](repeating: 0x80, count: 62 * 2)
     let whole = try heardAndLit(xm(pattern: (64, letGo)), format: .xm, calls: 80)
     #expect(whole.contains { !$0.heard } && whole.allSatisfy { $0.heard == $0.lit })
+}
+
+// MARK: The ways of the tracker that made the file
+
+/// An XM file of two channels, the instrument of `square()`, and the patterns and list given: each
+/// pattern as many rows long as it says, with its rows' packed bytes, or none for one left empty.
+/// - Parameters:
+///   - tracker: what it says made it; nil for FastTracker 2 itself (see `byFastTracker`).
+///   - sample: what the kind of the instrument's sample is made, from what it is.
+private func xmOfPatterns(_ patterns: [(rows: Int, data: [UInt8])], list: [UInt8], tracker: String? = "siday",
+                          sample: (UInt8) -> UInt8 = { $0 }) -> [UInt8]
+{
+    var file = Array("Extended Module: ".utf8) + padded("a square wave", 20) + [0x1A] + padded(tracker ?? "", 20) + word(0x0104)
+    file += long(276) + word(list.count) + word(0) + word(2) + word(patterns.count) + word(1) + word(1) + word(6) + word(125)
+    file += list + [UInt8](repeating: 0, count: 256 - list.count)
+    for pattern in patterns { file += long(9) + [0] + word(pattern.rows) + word(pattern.data.count) + pattern.data }
+    var instrument = square()
+    // (The kind of the sample is after its lengths, its volume and its finetune.)
+    instrument[263 + 14] = sample(instrument[263 + 14])
+    file += instrument
+    return tracker == nil ? byFastTracker(file) : file
+}
+
+/// A pattern of two channels whose rows are empty but those given: by row, the packed bytes of
+/// its two notes.
+private func rows(_ count: Int, _ given: [Int: [UInt8]]) -> (rows: Int, data: [UInt8]) {
+    (count, (0 ..< count).flatMap { given[$0] ?? [0x80, 0x80] })
+}
+
+/// The first row of a pattern: C-4 of the instrument on the first channel.
+private let firstNote: [Int: [UInt8]] = [0: [0x83, 49, 1, 0x80]]
+
+private func length(_ file: [UInt8]) throws -> Double { try #require(try TuneLoader.load(file, format: .xm).knownLength) }
+
+@Test func xmOfALaterTrackerKeepsTheLengthOfAnEmptyPattern() throws {
+    // FastTracker gives a pattern with nothing in it 64 rows when it reads it, whatever the file
+    // says: 64 rows and then 16 empty ones are 128 rows. The trackers after it keep the length.
+    let patterns = [rows(64, firstNote), (16, [UInt8]())]
+    #expect(abs(try length(xmOfPatterns(patterns, list: [0, 1], tracker: nil)) - 128 * 0.12) < 0.001)
+    #expect(abs(try length(xmOfPatterns(patterns, list: [0, 1])) - 80 * 0.12) < 0.001)
+    // So too one written out whole, with nothing in it.
+    #expect(abs(try length(xmOfPatterns([rows(64, firstNote), rows(16, [:])], list: [0, 1])) - 80 * 0.12) < 0.001)
+}
+
+@Test func xmOfALaterTrackerHearsASampleFastTrackersMixerTakesForOff() throws {
+    // FastTracker's mixer marks a voice that is off with the 8 of a sample's kind, and a sample
+    // that has it is silent there; to a later tracker it is nothing, and the sample is heard.
+    let pattern = [rows(64, firstNote)]
+    let marked: (UInt8) -> UInt8 = { $0 | 8 }
+    #expect(try heard(xmOfPatterns(pattern, list: [0], tracker: nil, sample: marked)).allSatisfy { $0 == 0 })
+    let later = try heard(xmOfPatterns(pattern, list: [0], sample: marked))
+    #expect(later[4800...].map(abs).max()! > 0.02)
+    #expect(later == (try heard(xmOfPatterns(pattern, list: [0]))))
+}
+
+@Test func xmOfModPlugTrackersPassesOverAPatternItHasNot() throws {
+    // A place in the list that names a pattern the file has not got is an empty pattern of 64 rows
+    // to FastTracker, and is passed over by ModPlug Tracker and OpenMPT.
+    let one = [rows(64, firstNote)]
+    #expect(abs(try length(xmOfPatterns(one, list: [0, 7], tracker: nil)) - 128 * 0.12) < 0.001)
+    #expect(abs(try length(xmOfPatterns(one, list: [0, 7], tracker: "OpenMPT 1.28.00.00")) - 64 * 0.12) < 0.001)
+    // Before OpenMPT 1.22.02.02, a place that names pattern 255 was the end of the song.
+    #expect(abs(try length(xmOfPatterns(one, list: [0, 255, 0], tracker: nil)) - 192 * 0.12) < 0.001)
+    #expect(abs(try length(xmOfPatterns(one, list: [0, 255, 0], tracker: "OpenMPT 1.28.00.00")) - 128 * 0.12) < 0.001)
+    #expect(abs(try length(xmOfPatterns(one, list: [0, 255, 0], tracker: "OpenMPT 1.19.03.00")) - 64 * 0.12) < 0.001)
+}
+
+@Test func xmOfModPlugTrackersHasItsPatternLoops() throws {
+    func rowsPlayed(_ pattern: (rows: Int, data: [UInt8]), _ tracker: String?) throws -> Int? {
+        try TuneLoader.load(xmOfPatterns([pattern], list: [0, 0], tracker: tracker), format: .xm).knownLength.map { Int(($0 / 0.12).rounded()) }
+    }
+    // (An OpenMPT that had none of FastTracker's ways with loops yet.)
+    let modPlug = "OpenMPT 1.17.02.48"
+    let loop: [UInt8] = [0x98, 0x0E, 0x61], start: [UInt8] = [0x98, 0x0E, 0x60], none: [UInt8] = [0x80]
+    // A loop of rows 8 to 15, once over, in a pattern of 32 played twice: FastTracker then starts
+    // the next pattern on row 8, and the later trackers on its first row.
+    let fromEight = rows(32, firstNote.merging([8: start + none, 15: loop + none]) { $1 })
+    #expect(try rowsPlayed(fromEight, nil) == 40 + 32)
+    #expect(try rowsPlayed(fromEight, modPlug) == 40 + 40)
+    #expect(try rowsPlayed(fromEight, "DigiBooster Pro 2.18") == 40 + 40)
+    // A loop and a break on one row: in FastTracker the break is taken all the same, and each
+    // place plays its four rows; in ModPlug Tracker's way the loop goes back first, and the break
+    // then ends the loops that are going.
+    let withBreak = rows(32, firstNote.merging([3: loop + [0x88, 0x0D]]) { $1 })
+    #expect(try rowsPlayed(withBreak, modPlug) == 8 + 8)
+    #expect(try rowsPlayed(withBreak, nil) != 8 + 8)
+    #expect(try rowsPlayed(withBreak, "OpenMPT 1.28.00.00") == rowsPlayed(withBreak, nil))
+    // Two loops on one row: in FastTracker each channel's goes back at once; in ModPlug Tracker's
+    // way the second waits for the first to be done.
+    let two = rows(4, firstNote.merging([3: loop + loop]) { $1 })
+    #expect(try rowsPlayed(two, nil) == 8 + 8)
+    #expect(try rowsPlayed(two, modPlug) == 12 + 12)
 }

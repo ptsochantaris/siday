@@ -65,7 +65,7 @@ public final class XMRenderer: Renderer, ReferenceComparable {
         let firstPlayedBy = UnsafeMutablePointer<UInt8>.allocate(capacity: FT2Player.rowsInAll)
         firstPlayedBy.initialize(repeating: ModuleSongs.unplayed, count: FT2Player.rowsInAll)
         self.firstPlayedBy = firstPlayedBy
-        songList = ModuleSongs.find(places: Int(module.song.len), isPattern: { _ in true }) { start, number in
+        songList = ModuleSongs.find(places: Int(module.song.len), isPattern: { module.namesPattern(at: $0) }) { start, number in
             let player = FT2Player(module, position: start, firstPlayedBy: firstPlayedBy, songNumber: number)
             var frames = 0, ticks = 0
             var watch = ModuleSongs.Watch()
@@ -187,10 +187,11 @@ public final class XMRenderer: Renderer, ReferenceComparable {
     /// The tune from its start as the reference player writes it to a file: sixteen bits, left and
     /// right in turn, clipped where it is too loud for them. For comparing the two.
     public func renderRaw(frames: Int) -> [Int16] {
-        // (That player has a sample in stereo as FastTracker has it: one side after the other.)
-        module.playStereoSamples(asFastTracker: true)
+        // (That player has a sample in stereo as FastTracker has it, one side after the other, and
+        // what else of a later tracker's file is played otherwise here: see `FT2Module.playAsFastTracker`.)
+        module.playAsFastTracker(true)
         defer {
-            module.playStereoSamples(asFastTracker: false)
+            module.playAsFastTracker(false)
             restart()
         }
         restart(asFastTracker: true)

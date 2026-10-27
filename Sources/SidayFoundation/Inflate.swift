@@ -30,6 +30,22 @@ package enum Inflate {
         return inflater.output
     }
 
+    /// What a zlib stream that its file ends in the middle of unpacks to, as far as it goes: the
+    /// bytes it had made when there were no more to read, of the so many it was to come to. A stream
+    /// that is not one, or that is damaged before it runs out, is refused.
+    package static func zlibCutShort(_ data: [UInt8], from start: Int, to end: Int, size: Int) throws(TuneError) -> [UInt8] {
+        guard start >= 0, end <= data.count, end - start >= 2 else { throw refused() }
+        let method = data[start], flags = data[start + 1]
+        guard method & 15 == 8, method >> 4 <= 7, (Int(method) << 8 | Int(flags)) % 31 == 0, flags & 0x20 == 0 else { throw refused() }
+        var inflater = Inflater(data, from: start + 2, to: end, size: size)
+        do {
+            try inflater.run()
+        } catch {
+            guard inflater.at >= end else { throw error }
+        }
+        return Array(inflater.output.prefix(inflater.written))
+    }
+
     /// True for a file packed by gzip, which says so in its first three bytes.
     package static func isGzip(_ data: [UInt8]) -> Bool {
         data.count >= 18 && data[0] == 0x1F && data[1] == 0x8B && data[2] == 8

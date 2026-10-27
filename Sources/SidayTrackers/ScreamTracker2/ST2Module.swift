@@ -113,6 +113,7 @@ final class ST2Module {
                 }
             }
         }
+        let patternsEnd = at
 
         // The samples: those that have a volume and a length, as Scream Tracker loads them.
         var samples = [Sample](repeating: Sample(), count: 32)
@@ -152,8 +153,12 @@ final class ST2Module {
             for i in 0 ..< there { sound[samples[number].base + i] = data[from + i] }
             if used[number] { cut.add(length: Int(samples[number].length), there: data.count - from) }
         }
+        guard Shortfall.sounds(sound, count: room) else { throw Shortfall.nothingToHear }
         self.samples = samples
-        shortfalls = cut.sentence.map { [$0] } ?? []
+        // (What the file has lost of its patterns is rows with nothing in them.)
+        var said = cut.sentence.map { [$0] } ?? []
+        if patternsEnd > data.count { said.append(Shortfall.patternsLost(samplesToo: cut.sentence != nil)) }
+        shortfalls = said
     }
 
     /// The four bytes at a place among the patterns. A pattern the file has none of is one with

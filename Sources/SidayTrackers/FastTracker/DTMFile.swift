@@ -62,7 +62,14 @@ enum DTMFile {
 
         var chunks: [Chunk] = []
         var at = 8 + headerLength
+        // (True if the file ends in the middle of a chunk, and so has lost what came after it; and
+        // which chunk that is.)
+        var endsEarly = false, endsIn: UInt32 = 0
         while at <= data.count - 8 {
+            if file.size32be(at + 4) > data.count - at - 8 {
+                endsEarly = true
+                endsIn = UInt32(file.u16be(at)) << 16 | UInt32(file.u16be(at + 2))
+            }
             let length = min(file.size32be(at + 4), data.count - at - 8)
             chunks.append(Chunk(name: UInt32(file.u16be(at)) << 16 | UInt32(file.u16be(at + 2)), start: at + 8, length: length))
             at += 8 + length
@@ -166,8 +173,13 @@ enum DTMFile {
                 guard number < 128 else { continue }
                 while module.samples.count <= number { module.samples.append(nil) }
                 module.samples[number] = sample(file, record, sounds[number], version, depthOfAll, rateOfAll, &found)
+                // (A sample whose sound is in a chunk that the file ends before is missing.)
+                if sounds[number] == nil, endsEarly { found.cutShort.add(length: file.size32be(record + 4), there: 0) }
             }
         }
+        // (And what else it has lost, patterns among them, is not there: they are empty. The end of
+        // a sample's sound is counted with the samples.)
+        found.partsLost = endsEarly && (endsIn == name("DAPT") || module.orders.contains { module.patterns[Int($0)].notes.isEmpty })
         module.shortfalls = found.sentences
         return module
     }
@@ -182,6 +194,8 @@ enum DTMFile {
         /// Which of `commandsLeftOut` are in the patterns.
         var leftOut = Shortfall.Kinds()
         var cutShort = Shortfall.CutShort()
+        /// True if the file ends before patterns that its song plays, or in one.
+        var partsLost = false
 
         /// The commands of ProTracker's that Digital Tracker does not have and a tune would be
         /// heard to lack, in the order `note` counts them in.
@@ -197,6 +211,7 @@ enum DTMFile {
             if tempoHasFraction { sentences.append("Its tempo has a fraction, and is played at the nearest whole one.") }
             if let sentence = Shortfall.commandsLeftOut(leftOut.named(Self.commandsLeftOut), why: "which Digital Tracker did not have") { sentences.append(sentence) }
             if let sentence = cutShort.sentence { sentences.append(sentence) }
+            if partsLost { sentences.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
             return sentences
         }
     }

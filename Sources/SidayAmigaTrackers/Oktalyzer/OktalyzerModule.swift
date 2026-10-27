@@ -162,11 +162,14 @@ final class OktalyzerModule {
 
         guard patternCount > 0, patternCount <= 256 else { throw TuneError.malformed("an Oktalyzer module with no patterns") }
         for _ in 0 ..< patternCount {
-            guard let body = piece("PBOD"), body.length >= 2 else { throw TuneError.malformed("an Oktalyzer module with a pattern missing") }
+            // (A file that ends before a pattern ends before the samples, which follow the patterns.)
+            guard let body = piece("PBOD") else { throw Shortfall.nothingToHear }
+            guard body.length >= 2 else { throw TuneError.malformed("an Oktalyzer module with a pattern missing") }
             patterns.append(Pattern(lines: reader.u16be(body.place), place: body.place + 2))
         }
         // The samples follow, one for each instrument that says it has a length, in their order.
         var cutShort = Shortfall.CutShort()
+        var sounds = false
         for i in 0 ..< Self.instrumentCount where instruments[i].length != 0 {
             let said = Int(min(instruments[i].length, 1 << 28))
             guard let body = piece("SBOD") else {
@@ -176,7 +179,9 @@ final class OktalyzerModule {
             }
             instruments[i].place = body.place
             cutShort.add(length: said, there: body.length)
+            if !sounds { sounds = Shortfall.sounds(data[body.place ..< body.place + min(body.length, said)]) }
         }
+        guard sounds else { throw Shortfall.nothingToHear }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
 
         silence = data.count

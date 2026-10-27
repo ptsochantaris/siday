@@ -53,6 +53,10 @@ final class ProTrackerModule {
     static let rows = 64
     static let channels = 4
     static let mostPatterns = 100
+    /// Why a module of Startrekker's is not played whose sound is all in the synthesised instruments
+    /// of the file beside it, which it was not given: the loader, which knows the module's name,
+    /// says which file that is (`Companions`).
+    static let synthesisedInstrumentsWanted = TuneError.missingCompanion("its synthesised instruments")
     /// The longest a sample of ProTracker's can be, and the longest that a file can say one is: the
     /// most the Amiga's sound chip can be told to play.
     static let proTrackersSpace = 65534, mostSpace = 131_070
@@ -166,6 +170,11 @@ final class ProTrackerModule {
         self.file = file
         let size = data.count
 
+        // An IFF file, which says how long it is and what kind of thing it holds, is not a module.
+        if size >= 12, data.starts(with: Array("FORM".utf8)), file.u32be(4) + 8 == size, (8 ..< 12).allSatisfy({ data[$0] >= 0x20 && data[$0] < 0x7F }) {
+            throw TuneError.unsupported("an IFF file of a kind this player does not know (\(file.ascii(at: 8, length: 4)))")
+        }
+
         // The four letters, if they are there, and what they say.
         var kind: Kind?
         var channelCount = 4
@@ -194,6 +203,10 @@ final class ProTrackerModule {
                 // notes do not spell anything.
                 throw TuneError.unsupported("a module of a kind this player does not know (\(file.ascii(at: 1080, length: 4)))")
             }
+        } else if size >= 1084, [Array("M.K.".utf8), Array("M!K!".utf8), Array("FLT4".utf8), Array("N.T.".utf8), Array("M&K!".utf8)].contains(Array(data[1080 ..< 1084])) {
+            // A module that says what it is, and ends before its first pattern does: its samples,
+            // which follow its patterns, are all missing.
+            throw Shortfall.nothingToHear
         }
         guard channelCount <= Self.channels else {
             throw TuneError.unsupported("a module of \(channelCount) channels: only those of four, the Amiga's, are played so far")
@@ -321,7 +334,13 @@ final class ProTrackerModule {
         }
         self.songLength = songLength
         restartPosition = restart < songLength ? restart : 0
-        guard patternCount <= Self.mostPatterns else { throw TuneError.unsupported("a module of more than a hundred patterns") }
+        guard patternCount <= Self.mostPatterns else {
+            // (A file with no four letters whose list names more patterns than the file could hold
+            // has not got them: its list is noise, or it is no module. A tracker on the PC may still
+            // read it, as it may one of more patterns.)
+            if kind == nil, size < p + patternCount * 1024 { throw TuneError.unsupported("a module whose list of patterns names more than the file holds") }
+            throw TuneError.unsupported("a module of more than a hundred patterns")
+        }
         if kind != nil { p += 4 }
         // A file with no four letters is taken on trust by the tracker this is ported from. Here it must
         // at least be big enough to hold the patterns it speaks of, and its samples no louder than loud.
@@ -505,6 +524,20 @@ final class ProTrackerModule {
             }
         }
         restoreSamples()
+        // A module with no sample that has a sound and no synthesised instrument has nothing to be
+        // heard by, whether its samples are missing or silent. (But for one of ProTracker's that
+        // turns a loop over as it plays, EFx, which makes a sound of silence. And one of Startrekker's
+        // that is taken to have synthesised instruments, as above, has them in the file beside it,
+        // which is wanted.)
+        let turnsLoopsOver = kind == .proTracker
+            && (0 ..< patternCount * Self.rows * Self.channels).contains { patterns[$0].command == 0xE && patterns[$0].parameter > 0xF0 }
+        // (Read as ProTracker reads it, for setting beside ProTracker, a module is what it is.)
+        guard asProTracker || synth != nil || turnsLoopsOver || (0 ..< 31).contains(where: { Shortfall.sounds(memory + samples[$0].offset, count: samples[$0].length) }) else {
+            if self.kind == .startrekker, instruments == nil, (0 ..< 31).count(where: { used[$0 + 1] && samples[$0].length == 0 }) > 1 {
+                throw Self.synthesisedInstrumentsWanted
+            }
+            throw Shortfall.nothingToHear
+        }
     }
 
     /// Puts the samples back as the file has them. Two of ProTracker's effects rewrite a sample while

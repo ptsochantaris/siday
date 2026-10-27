@@ -76,6 +76,7 @@ enum STXFile {
         let lengthFirst = patterns > 0 && patternSize != 0x1A && f.u16le(first) == patternSize
         var unheardChannels = false
         var tooHigh = Set<Int>()
+        var partsLost = 0
         for pattern in 0 ..< patterns {
             let pointer = f.u16le(patternTable + pattern * 2)
             guard pointer != 0 else { continue }
@@ -116,6 +117,8 @@ enum STXFile {
                 cells[to + 2] = (volume & 0x78) << 1 | command
                 cells[to + 3] = value
             }
+            // (What the file has lost of a pattern is rows with nothing in them.)
+            if row < rows, at >= data.count { partsLost += 1 }
         }
         if unheardChannels {
             shortfalls.append("It has more channels than Scream Tracker 2's four, and those after the fourth are not heard.")
@@ -141,6 +144,11 @@ enum STXFile {
         for index in 0 ..< sampleCount {
             let number = index + 1
             let at = f.u16le(sampleTable + index * 2) << 4
+            // (A sample the tune plays whose header the file ends before is missing.)
+            if at + 0x50 > data.count, used[number] {
+                cut.addMissing()
+                continue
+            }
             let kind = f[at], flags = f[at + 31]
             let length = f.u32le(at + 16), volume = min(f[at + 28], 64)
             let playable = kind == 1 && flags & 6 == 0 && length >= 0 && length <= 0xFFFF && number <= stmSamples
@@ -181,6 +189,11 @@ enum STXFile {
                                              many: "samples are of a kind Scream Tracker 2 could not play, and are silent."))
         }
         if let sentence = cut.sentence { shortfalls.append(sentence) }
+        if partsLost > 0 || patternTable + patterns * 2 > data.count {
+            shortfalls.append(Shortfall.patternsLost(samplesToo: cut.sentence != nil))
+        } else if cut.sentence == nil, sampleTable + sampleCount * 2 > data.count || channelTable + 32 + orderCount * 5 > data.count {
+            shortfalls.append(Shortfall.cutShort("Some of what it has is not there."))
+        }
 
         // The STM file's header: of version 2.21, whose tempo is as it stands, as an STX file's is.
         for i in 0 ..< 20 { header[i] = f[i] }

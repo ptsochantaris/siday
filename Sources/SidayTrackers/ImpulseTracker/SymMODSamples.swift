@@ -16,6 +16,8 @@ struct SymMODBytes {
     let data: [UInt8]
     let start: Int, end: Int
     var at: Int
+    /// True once more has been asked of it than it has: for a file, that it is cut short.
+    var overran = false
 
     init(_ data: [UInt8]) {
         self.data = data
@@ -41,7 +43,10 @@ struct SymMODBytes {
 
     func canRead(_ count: Int) -> Bool { count >= 0 && count <= left }
 
-    mutating func skip(_ count: Int) { at = count >= left ? end : at + max(0, count) }
+    mutating func skip(_ count: Int) {
+        if count > left { overran = true }
+        at = count >= left ? end : at + max(0, count)
+    }
     mutating func rewind() { at = start }
 
     /// To a place counted from the window's start; nowhere if it is beyond the end.
@@ -50,7 +55,10 @@ struct SymMODBytes {
     }
 
     mutating func u8() -> Int {
-        guard at < end else { return 0 }
+        guard at < end else {
+            overran = true
+            return 0
+        }
         at += 1
         return Int(data[at - 1])
     }

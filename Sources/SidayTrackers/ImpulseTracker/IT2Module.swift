@@ -351,10 +351,29 @@ final class IT2Module {
     /// The samples the file ends before the end of.
     let cutShort: Shortfall.CutShort
     /// How many of the instruments', samples' and patterns' headers, and of the patterns, the file
-    /// ends before the end of; and whether it has any sound left.
-    let partsLost: Int, hasSound: Bool
+    /// ends before the end of.
+    let partsLost: Int
     /// The plug-ins ModPlug Tracker and OpenMPT put in a file, and what is played through them.
     let extras: ModPlugExtras
+
+    /// Why the module is not to be played, if nothing in it can be heard: no sample has a sound,
+    /// and there is no instrument of the AdLib's FM chip (see `Shortfall.nothingToHear`). One whose
+    /// instruments play through plug-ins that make a sound of their own, or are sent to a MIDI
+    /// synthesiser, neither of which is here to play them, is said to be that, and so is one with
+    /// samples kept in a form that is not read. Nil for a module that has something to hear.
+    var nothingToHear: TuneError? {
+        let sounds = samples.contains { s in
+            let bytes = Int(s.Length) * (s.Flags & SMPF_16BIT != 0 ? 2 : 1)
+            return s.AdLib != nil || Shortfall.sounds(s.Data, count: bytes) || Shortfall.sounds(s.DataR, count: bytes)
+        }
+        guard !sounds else { return nil }
+        let used = 0 ..< (usesInstruments ? min(instruments.count, InsNum) : 0)
+        if used.contains(where: { extras.playsThroughPlugIn(instrument: $0) && !extras.isPlayed(plugIn: extras.instrumentPlugIns[$0]) }) {
+            return Shortfall.onlyPlugInsToHear
+        }
+        if used.contains(where: { instruments[$0].MIDIChn >= 1 && instruments[$0].MIDIChn <= 17 }) { return Shortfall.onlyMIDIToHear }
+        return samplesNotRead.isEmpty ? Shortfall.nothingToHear : Shortfall.onlyUnreadToHear
+    }
 
     /// How many samples and patterns there is room for: Impulse Tracker's 100 and 200, or as many as
     /// the file has if that is more. A number in the list of patterns at or beyond the second is a
@@ -760,7 +779,6 @@ final class IT2Module {
         }
         self.patterns = patterns
         self.partsLost = partsLost
-        hasSound = samples.prefix(SmpNum).contains { $0.AdLib != nil || $0.Length > 0 && $0.Flags & SMPF_ASSOCIATED_WITH_HEADER != 0 && Int($0.OffsetInFile) < data.count }
         self.rows = rows
         self.openMPT = nil
 
@@ -952,7 +970,6 @@ final class IT2Module {
         samplesNotRead = []
         cutShort = Shortfall.CutShort()
         partsLost = 0
-        hasSound = true
         extras = ModPlugExtras()
         var ways = ModPlugWays()
         ways.filter = filter
@@ -1003,7 +1020,6 @@ final class IT2Module {
         samplesNotRead = file.samplesNotRead
         cutShort = file.cutShort
         partsLost = file.partsLost
-        hasSound = file.hasSound
         extras = file.extras
     }
 

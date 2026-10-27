@@ -81,6 +81,7 @@ public final class AHXRenderer: Renderer, ReferenceComparable {
         info.title = module.title
         info.detail = module.revision == 0 ? "AHX 1" : "AHX 2"
         if module.timerPeriod != 14209 { info.detail += ", \(Int(module.ticksPerSecond.rounded())) ticks a second" }
+        info.shortfalls = module.shortfalls
         self.info = info
 
         // The songs the file says it has. (One said to start past the end of the list is no song: the

@@ -91,6 +91,14 @@ final class SoundFXModule {
         // There are as many patterns as the highest number in the order needs, and the samples
         // follow them.
         patternCount = Int(positions.max() ?? 0) + 1
+        // A module whose samples are all missing or silent has nothing to be heard by. (The routine
+        // clears the first four bytes of each, as below.)
+        var sampleAt = Self.patterns + patternCount * Self.linesInPattern * 16, sounds = false
+        for length in lengths {
+            if !sounds, length > 4 { sounds = Shortfall.sounds(data[min(data.count, sampleAt + 4) ..< min(data.count, sampleAt + length)]) }
+            sampleAt += length
+        }
+        guard sounds else { throw Shortfall.nothingToHear }
 
         silence = data.count
         memorySize = data.count + Self.silenceLength

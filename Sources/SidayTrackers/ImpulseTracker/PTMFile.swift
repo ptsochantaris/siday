@@ -175,6 +175,7 @@ enum PTMFile {
 
         // Every pattern has 64 rows, packed as an S3M file's are but for which bit says what follows.
         var cells = [[Cell]](repeating: [], count: patternCount)
+        var patternsLost = false
         for index in 0 ..< patternCount {
             var pattern = [Cell](repeating: Cell(), count: 64 * 32)
             let segment = f.u16le(352 + index * 2)
@@ -204,6 +205,8 @@ enum PTMFile {
                 }
                 if Int(what & 0x1F) < channelCount { pattern[row * 32 + Int(what & 0x1F)] = cell }
             }
+            // (What the file has lost of a pattern is rows with nothing in them.)
+            if segment != 0, row < 64, at >= data.count { patternsLost = true }
             cells[index] = pattern
         }
 
@@ -333,6 +336,7 @@ enum PTMFile {
         }
         if let sentence = Shortfall.commandsLeftOut(leftOut.named(["sliding by semitones", "the retuning of a sample"])) { shortfalls.append(sentence) }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
 
         let minor = Int(f[29])
         let digits = Array("0123456789abcdef".utf8)
@@ -340,7 +344,7 @@ enum PTMFile {
         let module = IT2Module(title: f.dos(at: 0, length: 28), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: 128, mixVolume: mixVolume, speed: 6, tempo: 125, channelPans: pans, samples: made,
                                patterns: patterns, rows: [UInt16](repeating: 64, count: IT2ForeignModule.patternRoom))
-        return ITRenderer(module: module, format: "PTM", shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "PTM", shortfalls: shortfalls, options: options)
     }
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that the middle one

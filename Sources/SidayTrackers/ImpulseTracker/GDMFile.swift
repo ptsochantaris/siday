@@ -315,7 +315,7 @@ enum GDMFile {
         let module = IT2Module(title: f.dos(at: 4, length: 32), madeWith: madeWith, orders: orders, flags: IT2ForeignModule.flags,
                                globalVolume: min(f[113], 64) * 2, mixVolume: mixVolume, speed: f[114] == 0 ? 6 : f[114],
                                tempo: f[115] == 0 ? 125 : f[115], channelPans: pans, samples: samples, patterns: packed, rows: rows)
-        return ITRenderer(module: module, format: "GDM", author: author == "Unknown" ? "" : author, shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "GDM", author: author == "Unknown" ? "" : author, shortfalls: shortfalls, options: options)
     }
 
     /// The commands a GDM file can have that Impulse Tracker cannot do and a tune would be heard to

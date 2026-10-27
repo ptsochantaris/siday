@@ -1241,7 +1241,7 @@ enum MPTMFile {
                                channelPans: pans, channelVolumes: volumes, patterns: packed, rows: rowCounts,
                                ways: ways)
         if reverbs > 0 { module.reverb = sound }
-        return ITRenderer(module: module, format: "MPTM", shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "MPTM", shortfalls: shortfalls, options: options)
     }
 
     /// Set by measure, so that these files are about as loud as IT files are: played as loud as

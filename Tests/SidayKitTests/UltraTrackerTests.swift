@@ -228,7 +228,7 @@ private func ticks(_ file: [UInt8], _ count: Int, channel: Int = 0) throws -> [(
     #expect(try shortfalls(ult([[(0, 0, .note(25, (0x9, 0x10), (0x9, 0x00)))]])).isEmpty)
     // An arpeggio came with 1.5 and a tremolo with 1.6: before, the numbers were nothing, and are nothing here.
     #expect(try shortfalls(ult([[(0, 0, .note(25, (0x0, 0x37), (0x7, 0x44)))]], version: 2)).isEmpty)
-    let long = [Sound(frames: [Int8](repeating: 0, count: 4000), flags: 0)]
+    let long = [Sound(frames: (0 ..< 4000).map { $0 & 8 == 0 ? 40 : -40 }, flags: 0)]
     #expect(try shortfalls(Array(ult([[(0, 0, .note())]], sounds: long).dropLast(3000))) == ["The file is cut short: its last sample ends in silence."])
 }
 

@@ -72,7 +72,12 @@ final class HVLModule {
     let restart: UInt16
     let trackLength: UInt8
     let highestTrack: UInt8
+    /// How many instruments there are: as many as the file says, or, in one that is cut short,
+    /// those before the first it has not all of.
     let instrumentCount: Int
+    /// What the file asks for that is not played as it asks: for a file cut short, what it has lost
+    /// (see `TuneInfo.shortfalls`).
+    let shortfalls: [String]
     /// Where each of the file's other songs starts in the list of positions.
     let subsongStarts: [UInt16]
     /// How many times in a fiftieth of a second the player is run: from one to four.
@@ -139,7 +144,7 @@ final class HVLModule {
         let restart = ahx ? UInt16(file.u16be(8)) : UInt16(file.u16be(8) & 0x3FF)
         trackLength = file[10]
         highestTrack = file[11]
-        instrumentCount = Int(file[12])
+        let instrumentsSaid = Int(file[12])
         let subsongs = Int(file[13])
         // (The widths are five, and a file is one byte that could say more. The tracker would
         // look past the end of its table; here anything wider is the widest.)
@@ -147,8 +152,8 @@ final class HVLModule {
         mixGain = ahx ? Self.ahxGains[stereo] * 256 / 100 : (Int32(file[14]) << 8) / 100
 
         // The tracker turns these away.
-        guard positionCount <= Self.mostPositions, trackLength <= Self.rows, instrumentCount <= Self.mostInstruments else {
-            throw TuneError.malformed("a HivelyTracker module with \(positionCount) positions, tracks of \(trackLength) rows and \(instrumentCount) instruments")
+        guard positionCount <= Self.mostPositions, trackLength <= Self.rows, instrumentsSaid <= Self.mostInstruments else {
+            throw TuneError.malformed("a HivelyTracker module with \(positionCount) positions, tracks of \(trackLength) rows and \(instrumentsSaid) instruments")
         }
         // And these it takes as they come, and reads and writes past the ends of what it has set
         // aside for them. No file that was found does any of it.
@@ -201,9 +206,14 @@ final class HVLModule {
             }
         }
 
+        // A file cut short plays as far as it goes: what it has lost of its tracks is empty, and the
+        // instruments it has lost, from the first that is not all there, are none, which is silent.
+        // One that has lost all its instruments has nothing to be heard by.
+        let tracksLost = at > data.count
         var instruments = [Instrument()]
         var entries: [ListEntry] = []
-        for _ in 0 ..< instrumentCount {
+        for _ in 0 ..< instrumentsSaid {
+            guard at + 22 + Int(file[at + 21]) * (ahx ? 4 : 5) <= data.count else { break }
             var instrument = Instrument()
             instrument.volume = file[at]
             instrument.filterSpeed = ((file[at + 1] >> 3) & 0x1F) | ((file[at + 12] >> 2) & 0x20)
@@ -266,7 +276,19 @@ final class HVLModule {
             }
             instruments.append(instrument)
         }
-        guard at <= data.count else { throw TuneError.malformed("a HivelyTracker module that is cut short") }
+        let kept = instruments.count - 1
+        guard kept > 0 || instrumentsSaid == 0 else { throw TuneError.malformed("a HivelyTracker module cut short before its instruments") }
+        var said: [String] = []
+        if kept < instrumentsSaid {
+            var used = Set<Int>()
+            for step in 0 ..< (Int(highestTrack) + 1) << 6 { used.insert(Int(tracks[step].instrument)) }
+            if let sentence = Shortfall.instrumentsLost(used.count { $0 > kept && $0 <= instrumentsSaid }, damaged: false, samplesToo: false) {
+                said.append(sentence)
+            }
+        }
+        if said.isEmpty, tracksLost { said.append(Shortfall.cutShort("Some of what it has is not there.")) }
+        shortfalls = said
+        instrumentCount = kept
         self.instruments = instruments
         self.entries = entries
 

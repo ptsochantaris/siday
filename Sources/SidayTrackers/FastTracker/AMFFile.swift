@@ -209,7 +209,12 @@ enum AMFFile {
 
         // The sounds follow in the order of their numbers, and a sample says which number is its
         // own. They are unsigned in the file.
-        for number in 1 ... sampleCount where at < data.count {
+        for number in 1 ... sampleCount {
+            // (The file ends before the sounds of those that are still to come, which are missing.)
+            guard at < data.count else {
+                for header in headers where header.index == number { found.cutShort.add(length: header.length, there: 0) }
+                continue
+            }
             var read = 0
             for (index, header) in headers.enumerated() where header.index == number && index < 128 {
                 while module.samples.count <= index { module.samples.append(nil) }

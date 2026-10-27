@@ -89,6 +89,25 @@ final class FT2Module {
     /// FastTracker drops its lowest three bits (OpenMPT's 76th way, which it had from 1.22.07.19).
     /// See `FT2Player.notePeriod`.
     private(set) var fineTunesFully = false
+    /// How the pattern loops (E6x) of an XM file go where the tracker that made it had them go
+    /// otherwise than FastTracker 2, as OpenMPT plays such a file (see `keepsFastTrackersWay`):
+    /// a loop is not begun in a channel while another channel's is going (where OpenMPT has not
+    /// its 17th way); a loop that goes back on a row is not cut short by a jump or a break on that
+    /// row (its 68th); and a loop leaves nothing behind it for the next pattern (its 63rd). See
+    /// `FT2Player.oneLoopAtATime`, `FT2Player.loopsBeforeJumps` and `FT2Player.loopsLeaveNothingBehind`.
+    private(set) var oneLoopAtATime = false
+    private(set) var loopsBeforeJumps = false
+    private(set) var loopsLeaveNothingBehind = false
+    /// True for an XM file of ModPlug Tracker's or OpenMPT's: a place in its list of patterns that
+    /// names a pattern the file has not got is passed over, as OpenMPT passes over one, where
+    /// FastTracker plays an empty pattern of 64 rows. See `FT2Player.passOverMissingPatterns`.
+    private(set) var passesOverMissingPatterns = false
+    /// And true for such a file from before OpenMPT 1.22.02.02, in which a place that names
+    /// pattern 255, which the file has not got, is the end of the song: the "---" of those
+    /// trackers' lists, as OpenMPT reads one.
+    private(set) var endsAtPattern255 = false
+    /// How many patterns the file has.
+    private(set) var patternCount = 256
     /// How much louder such a file is played than one of FastTracker's own: by its pre-amp, the
     /// composer's, against the usual one of the way it asks to be added up by (48, or 128 in the
     /// ways of OpenMPT 1.17). One for any other file.
@@ -160,8 +179,15 @@ final class FT2Module {
     /// and its place in it, as `instrument << 5 | sample`.
     private var packedSamples: [Int] = []
     /// The samples that are in stereo, each as FastTracker has it, one side after the other, and
-    /// with its two sides apart: see `playStereoSamples`.
+    /// with its two sides apart: see `playAsFastTracker`.
     private var inStereo: [(instrument: Int, sample: Int, plain: FT2Sample, sides: FT2Sample)] = []
+    /// The patterns that are empty, each with as many rows as the file says it has: see
+    /// `keepWaysOfLaterTracker`. Played so in a file of a later tracker's, and as 64 in FastTracker's.
+    private var emptyPatterns: [(pattern: Int, rows: Int)] = []
+    /// The samples of a later tracker's XM file whose kind has the marks FastTracker's mixer takes
+    /// for its own (see `keepWaysOfLaterTracker`), with those marks: played without them, and with
+    /// them as FastTracker has them.
+    private var markedSamples: [(instrument: Int, sample: Int, marks: UInt8)] = []
     private var allocations: [UnsafeMutableRawPointer] = []
 
     deinit {
@@ -258,6 +284,7 @@ final class FT2Module {
             }
             guard headerSize >= 0, headerSize < data.count - 60 else { throw TuneError.malformed("an XM file with nothing after its header") }
             f.seek(60 + headerSize)
+            patternCount = antPtn
             if antInstrs > 128 {
                 instr += [FT2Instrument?](repeating: nil, count: antInstrs - 128)
                 beyondFastTracker = true
@@ -314,15 +341,17 @@ final class FT2Module {
             playsModPlugXCommands = !Self.keepsFastTrackersWay(58, since: 0x0118_0000, data, name: name, byModPlug: byModPlug)
             panningEndsSurround = Self.keepsFastTrackersWay(10, since: 0x0117_0302, data, name: name, byModPlug: byModPlug)
             fineTunesFully = !Self.keepsFastTrackersWay(76, since: 0x0122_0719, data, name: name, byModPlug: byModPlug)
+            keepWaysOfLaterTracker(data, name: name, byModPlug: byModPlug)
             noteWhatLaterTrackersAdded(data, after: f.at)
+        }
+        // A file that has lost all it would have been heard by, or whose samples are silent, is not a
+        // tune (see `Shortfall.nothingToHear`); nor is one whose instruments are plug-ins and nothing else.
+        guard instr.contains(where: { $0?.samp.contains { Shortfall.sounds($0.pek, count: Int($0.len)) || Shortfall.sounds($0.pekR, count: Int($0.len)) } ?? false }) else {
+            throw instrumentPlugIns.contains { $0 > 0 } ? Shortfall.onlyPlugInsToHear : Shortfall.nothingToHear
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
         if let lost {
-            // What is lost is said of only as far as the song plays it; and a file that has lost
-            // all it would have been heard by is not a tune.
-            guard instr[1 ..< lost.from].contains(where: { $0?.samp.contains { $0.len > 0 } ?? false }) else {
-                throw TuneError.malformed("an XM file with a broken instrument")
-            }
+            // What is lost is said of only as far as the song plays it.
             let played = instrumentsPlayed()
             let missing = (lost.from ..< instr.count).filter { played[$0] }.count
             if let sentence = Shortfall.instrumentsLost(missing, damaged: lost.why == .damaged, samplesToo: cutShort.sentence != nil) {
@@ -352,9 +381,85 @@ final class FT2Module {
     /// such samples, play the two sides together, the left side on the left and the right on the
     /// right, each as loud as the channel's place between them makes that side; and that is how
     /// they are played here, the mixer reading the two sides as one voice. They can be had as
-    /// FastTracker has them for setting what is played beside the player this is ported from.
-    func playStereoSamples(asFastTracker: Bool) {
+    /// FastTracker has them for setting what is played beside the player this is ported from; and
+    /// so can the empty patterns and the kinds of samples of a later tracker's file (see
+    /// `keepWaysOfLaterTracker`).
+    func playAsFastTracker(_ asFastTracker: Bool) {
         for one in inStereo { instr[one.instrument]?.samp[one.sample] = asFastTracker ? one.plain : one.sides }
+        for one in markedSamples {
+            guard let ins = instr[one.instrument] else { continue }
+            ins.samp[one.sample].typ = asFastTracker ? ins.samp[one.sample].typ | one.marks : ins.samp[one.sample].typ & ~0x0C
+        }
+        for one in emptyPatterns { pattLens[one.pattern] = UInt16(asFastTracker ? 64 : one.rows) }
+    }
+
+    /// Plays an XM file that a later tracker made with what that tracker did otherwise than
+    /// FastTracker 2 with what is in it, where it is known (FastTracker's own files are left
+    /// as they are):
+    ///
+    /// - An empty pattern is as long as the file says. FastTracker, reading a file, lets go of a
+    ///   pattern with nothing in it and gives it 64 rows, whatever its length was (as the player
+    ///   this is ported from does, and as OpenMPT knows: an empty pattern it saves for FastTracker
+    ///   has a break put in its last row so that it is not one); the trackers after it keep the
+    ///   length, as OpenMPT does. (Not in a file of "Fasttracker II clone"'s, which OpenMPT takes
+    ///   for FastTracker's own.)
+    /// - The two bits of a sample's kind that FastTracker never wrote and its mixer takes for its
+    ///   own marks, 4 for a voice going backwards and 8 for one that is off, are nothing, as they
+    ///   are to OpenMPT, which reads only the loop, sixteen bits and stereo there. (FastTracker's
+    ///   mixer leaves a sample with the 8 silent; Xrns2XMod, which writes Renoise's songs as XM
+    ///   files, sets it.)
+    /// - In a file of ModPlug Tracker's or OpenMPT's, a place in the list that names a pattern the
+    ///   file has not got is passed over (see `passesOverMissingPatterns`).
+    /// - Pattern loops go as they do in OpenMPT for a file of its own or of ModPlug Tracker's (see
+    ///   `oneLoopAtATime`). In a file of DigiBooster Pro's, the next pattern is not started on the
+    ///   row a loop began on, which is FastTracker's mistake alone: DigiBooster 3's replayer, by
+    ///   which DigiBooster Pro's own modules are played here, does not make it, and nor can
+    ///   DigiBooster Pro have, for in its XM files that loop from a later row the first rows of
+    ///   pattern after pattern would never be heard. Its other ways with loops are left as
+    ///   FastTracker's, as OpenMPT plays such a file.
+    private func keepWaysOfLaterTracker(_ data: [UInt8], name: [UInt8], byModPlug: Bool) {
+        if madeByFastTracker {
+            emptyPatterns = []
+            return
+        }
+        if name == Array("Fasttracker II clone".utf8) { emptyPatterns = [] }
+        emptyPatterns = emptyPatterns.filter { $0.rows >= 1 && $0.rows <= 256 }
+        for i in 1 ..< instr.count {
+            guard let ins = instr[i] else { continue }
+            for j in 0 ..< Int(ins.antSamp) where ins.samp[j].typ & 0x0C != 0 {
+                markedSamples.append((i, j, ins.samp[j].typ & 0x0C))
+            }
+        }
+        for k in inStereo.indices { inStereo[k].sides.typ &= ~0x0C }
+        playAsFastTracker(false)
+
+        let version = Self.modPlugVersion(data, name: name)
+        passesOverMissingPatterns = openMPTMix != nil
+        endsAtPattern255 = passesOverMissingPatterns && patternCount <= 255 && (version != 0 || byModPlug) && version < 0x0122_0202
+        oneLoopAtATime = !Self.keepsFastTrackersWay(17, since: 0x0117_0302, data, name: name, byModPlug: byModPlug)
+        loopsBeforeJumps = !Self.keepsFastTrackersWay(68, since: 0x0120_0069, data, name: name, byModPlug: byModPlug)
+        loopsLeaveNothingBehind = !Self.keepsFastTrackersWay(63, since: 0x0118_0201, data, name: name, byModPlug: byModPlug)
+            || name.starts(with: Array("DigiBooster Pro".utf8))
+    }
+
+    /// Whether a place in the list of patterns names a pattern to be played, for finding the songs
+    /// of the file: one that is passed over, or that ends the song, does not (see
+    /// `passesOverMissingPatterns`).
+    func namesPattern(at place: Int) -> Bool {
+        !passesOverMissingPatterns || Int(song.songTab[place]) < patternCount
+    }
+
+    /// The version of OpenMPT that saved a file, by its name or by what it wrote after the song,
+    /// as a number of four bytes; nought if neither says.
+    private static func modPlugVersion(_ data: [UInt8], name: [UInt8]) -> Int {
+        if name.starts(with: Array("OpenMPT ".utf8)) {
+            // (OpenMPT writes each part of its version in hex digits, as "1.27" for 0x0127.)
+            let parts = String(decoding: name.dropFirst(8), as: UTF8.self).split(separator: ".").map { Int($0.filter { $0.isHexDigit }, radix: 16) ?? 0 }
+            return (0 ..< 4).reduce(0) { $0 << 8 | ($1 < parts.count ? min(255, parts[$1]) : 0) }
+        }
+        var extras = ModPlugExtras()
+        extras.readSongExtras(ByteReader(data))
+        return extras.savedWith ?? 0
     }
 
     /// How OpenMPT adds the channels of an XM file up, as its loader works it out, for a file of
@@ -393,14 +498,8 @@ final class FT2Module {
             || name.starts(with: Array("Sk@le Tracker\0".utf8)) { return way != 51 }
         var extras = ModPlugExtras()
         extras.readSongExtras(ByteReader(data))
-        var version = extras.savedWith ?? 0
-        if name.starts(with: Array("OpenMPT ".utf8)) {
-            // (OpenMPT writes each part of its version in hex digits, as "1.27" for 0x0127.)
-            let parts = String(decoding: name.dropFirst(8), as: UTF8.self).split(separator: ".").map { Int($0.filter { $0.isHexDigit }, radix: 16) ?? 0 }
-            version = (0 ..< 4).reduce(0) { $0 << 8 | ($1 < parts.count ? min(255, parts[$1]) : 0) }
-        } else if byModPlug || version == 0 {
-            return !byModPlug
-        }
+        let version = modPlugVersion(data, name: name)
+        if !name.starts(with: Array("OpenMPT ".utf8)), byModPlug || version == 0 { return !byModPlug }
         // (A file with OpenMPT's extras has none of its ways but those they list; one without, all.)
         let listed = { (way: Int) in !extras.hasSongExtras || way < extras.behaviours.count && extras.behaviours[way] }
         var compatible = listed(0)
@@ -482,6 +581,9 @@ final class FT2Module {
         guard !module.orders.isEmpty else { throw TuneError.malformed("\(module.aFile) with no order to play its patterns in") }
         guard module.patterns.count <= 256, module.samples.count <= 128 else {
             throw TuneError.unsupported("\(module.aFile) with more patterns or instruments than FastTracker 2 has room for")
+        }
+        guard module.samples.contains(where: { $0.map { Shortfall.sounds($0.data) || Shortfall.sounds($0.right ?? []) } ?? false }) else {
+            throw Shortfall.nothingToHear
         }
         foreign = (module.format, module.tracker, module.loudness)
         shortfalls = module.shortfalls
@@ -810,6 +912,7 @@ final class FT2Module {
             if patternEmpty(i) {
                 patt[i] = nil
                 pattLens[i] = 64
+                emptyPatterns.append((i, pattLen))
             }
         }
     }

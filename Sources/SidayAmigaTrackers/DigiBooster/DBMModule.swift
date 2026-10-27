@@ -276,7 +276,6 @@ final class DBMModule {
                 p += frames * bytes
             }
         }
-        let noSamples = chunk("SMPL") == nil && sampleCount > 0
         let memory = Memory<Int16>(capacity: max(1, total))
         for (s, sound) in sounds.enumerated() {
             let to = memory.pointer + starts[s]
@@ -289,6 +288,9 @@ final class DBMModule {
                 }
             }
         }
+        // A file with no sample that has a sound, one that has lost its samples among them, has
+        // nothing to be heard by.
+        guard Shortfall.sounds(UnsafeBufferPointer(start: memory.pointer, count: total)) else { throw Shortfall.nothingToHear }
         sampleData = memory
         sampleStarts = starts
         sampleLengths = lengths
@@ -362,9 +364,7 @@ final class DBMModule {
         if let sentence = Shortfall.commandsLeftOut(leftOut.named(Self.commandsLeftOut), why: "which DigiBooster 3's replayer does not play") {
             shortfalls.append(sentence)
         }
-        if noSamples {
-            shortfalls.append(Shortfall.cutShort("Its samples are missing, and it is silent."))
-        } else if let sentence = cut.sentence {
+        if let sentence = cut.sentence {
             shortfalls.append(sentence)
         } else if cutChunk || missingPatterns > 0 {
             shortfalls.append(Shortfall.cutShort("Some of what it has is not there."))

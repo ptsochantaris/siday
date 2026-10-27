@@ -262,7 +262,7 @@ private func ticks(_ file: [UInt8], _ count: Int, channel: Int = 0) throws -> [(
     #expect(try shortfalls(file669([[(0, 0, .command("f", 0))]], extended: true)) == ["It asks for UNIS 669's fastest tempo, and is left at the tempo it had."])
     #expect(try shortfalls(file669([[(0, 0, .command("f", 0))]])).isEmpty)
     // A file that ends before its sample does.
-    let long: [(sound: [UInt8], loops: Bool)] = [([UInt8](repeating: 0x80, count: 4000), false)]
+    let long: [(sound: [UInt8], loops: Bool)] = [((0 ..< 4000).map { $0 & 8 == 0 ? 0xC0 : 0x40 }, false)]
     #expect(try shortfalls(Array(file669([[(0, 0, .note())]], samples: long).dropLast(3000))) == ["The file is cut short: its last sample ends in silence."])
 }
 

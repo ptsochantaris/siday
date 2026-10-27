@@ -72,6 +72,7 @@ public final class HVLRenderer: Renderer, ReferenceComparable {
         info.title = module.title
         info.detail = "HivelyTracker, \(module.channels) channels"
         if module.speedMultiplier > 1 { info.detail += ", \(50 * module.speedMultiplier) ticks a second" }
+        info.shortfalls = module.shortfalls
         self.info = info
 
         // The songs the file says it has. (One said to start past the end of the list is no song:

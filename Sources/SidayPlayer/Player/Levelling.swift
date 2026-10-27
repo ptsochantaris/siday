@@ -158,8 +158,9 @@ public extension SongLevel {
     /// the players their games and trackers ran from the frame ticked by it; 20: Wings', Sonix's SNX
     /// and Sonic Arranger's timers as their own code sets them on a PAL Amiga; 21: NoiseTracker's, His
     /// Master's Noise's and the first Soundtrackers' modules ticked by the frame, with their trackers'
-    /// own speeds, restarts and timers.)
-    static let soundVersion = 21
+    /// own speeds, restarts and timers; 22: later trackers' XM files with their own empty patterns,
+    /// missing patterns, pattern loops and sample kinds.)
+    static let soundVersion = 22
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {

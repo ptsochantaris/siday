@@ -22,6 +22,10 @@ extension MO3Song {
         var file = MO3Bytes(data)
         file.seek(start)
         var unsupported = 0
+        // The samples the file ends before the end of, as so many of their bytes in the file; and
+        // those of them that are packed, whose unpacking fails for that and not for how they are kept.
+        var cut = Shortfall.CutShort()
+        var packedAndCut = Set<Int>()
 
         // Uncompressed samples are read as they come; the others' bytes are found first, because an
         // Ogg sample's shared header may be a later sample's.
@@ -29,8 +33,12 @@ extension MO3Song {
             let info = infos[i]
             let compression = info.flags & 0xF000
             if compression == 0, info.compressedSize == 0 {
+                let frameSize = (info.flags & 0x01 != 0 ? 2 : 1) * (info.flags & 0x400 != 0 ? 2 : 1)
+                cut.add(length: Int(min(samples[i].length, Self.maximumSampleLength)) * frameSize, there: file.bytesLeft)
                 readUncompressed(&samples[i], &file, is16Bit: info.flags & 0x01 != 0, isStereo: info.flags & 0x400 != 0)
             } else if info.compressedSize > 0 {
+                cut.add(length: Int(info.compressedSize), there: file.bytesLeft)
+                if Int(info.compressedSize) > file.bytesLeft { packedAndCut.insert(i) }
                 infos[i].chunk = file.chunk(UInt32(info.compressedSize))
             }
         }
@@ -82,9 +90,9 @@ extension MO3Song {
                     samples[i].data8 = out
                 }
             case 0x3000, 0x7000:
-                if !readVorbis(i, infos: &infos) { unsupported += 1 }
+                if !readVorbis(i, infos: &infos), !packedAndCut.contains(i) { unsupported += 1 }
             case 0x1000:
-                if !readMP3(i, chunk: chunk, encoderDelay: info.encoderDelay, headerLength: info.length) { unsupported += 1 }
+                if !readMP3(i, chunk: chunk, encoderDelay: info.encoderDelay, headerLength: info.length), !packedAndCut.contains(i) { unsupported += 1 }
             case 0x8000:
                 // An OPL patch: a bogus sample of 4 silent points, so that it plays (ModSample::SetAdlib).
                 var c = chunk
@@ -104,6 +112,7 @@ extension MO3Song {
             shortfalls.append(Shortfall.some(unsupported, one: "samples is kept in a way siday cannot unpack, and is silent.",
                                              many: "samples are kept in a way siday cannot unpack, and are silent."))
         }
+        if let sentence = cut.sentence { shortfalls.append(sentence) }
     }
 
     /// `SampleIO::ReadSample` for MO3's uncompressed samples: signed, little-endian, the second channel
@@ -240,7 +249,8 @@ extension MO3Song {
         var final = offset
         if UInt32(length - offset) <= Self.silenceBelieved {
             final = length
-        } else {
+        } else if chunk.length >= Int(info.compressedSize) {
+            // (A sample the file ends before the end of is said to be that, with the others.)
             shortfalls.append("One of its samples decodes to less sound than its header says, and is cut where the sound ends.")
         }
         if s.is16Bit {

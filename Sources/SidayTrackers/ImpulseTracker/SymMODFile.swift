@@ -196,6 +196,7 @@ enum SymMODFile {
         let packed = SymMODBytes.length(r.u32be())
         guard r.canRead(packed) else {
             r.skip(r.left)
+            r.overran = true
             return []
         }
         var part = r.chunk(packed)

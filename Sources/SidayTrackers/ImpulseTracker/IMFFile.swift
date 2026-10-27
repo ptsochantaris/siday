@@ -259,7 +259,9 @@ enum IMFFile {
         guard orderCount <= 256, instrumentCount <= IT2Module.mostInstruments, tempo >= 32, master <= 64, amp >= 4, amp <= 127, channelCount > 0 else {
             throw TuneError.malformed("an Imago Orpheus file whose header makes no sense")
         }
-        guard data.count >= 576 + 256 + patternCount * 4 + instrumentCount * 384 else { throw TuneError.malformed("an Imago Orpheus file that ends too soon") }
+        // (OpenMPT asks for room for every pattern's and instrument's header as well, as a sign that
+        // a file is one. A file cut short before them is played as far as it goes, and says so.)
+        guard data.count >= 576 + 256 else { throw TuneError.malformed("an Imago Orpheus file that ends too soon") }
 
         let title = f.dos(at: 0, length: 32)
         var pans = [UInt8](repeating: 32, count: MAX_HOST_CHANNELS)
@@ -288,9 +290,13 @@ enum IMFFile {
         var patterns = [[UInt8]?](repeating: nil, count: max(IT2Module.MAX_PATTERNS, min(patternCount, IT2ForeignModule.patternRoom)))
         var rowCounts = [UInt16](repeating: 64, count: patterns.count)
         var at = 576 + 256
+        // (What the file has lost of a pattern is rows with nothing in them, and of an instrument's
+        // header, the instrument, which is silent: those the patterns play are counted.)
+        var patternsLost = false, played = Set<Int>(), instrumentsLost = 0
         for index in 0 ..< patternCount {
             let length = f.u16le(at), rowCount = f.u16le(at + 2)
             let start = at + 4, end = length < 4 ? data.count : min(data.count, start + length - 4)
+            if start + max(0, length - 4) > data.count { patternsLost = true }
             at = end
             guard rowCount > 0, rowCount <= 1024, index < IT2ForeignModule.patternRoom else { continue }
             var pattern = IT2ForeignModule.Pattern(rows: rowCount)
@@ -308,6 +314,7 @@ enum IMFFile {
                     let note = f[p], instrument = f[p + 1]
                     p += 2
                     cell.instrument = instrument
+                    played.insert(Int(instrument))
                     if note == 160 {
                         cell.note = 255
                     } else if note != 255 {
@@ -354,11 +361,12 @@ enum IMFFile {
         var samples: [IT2Sample] = []
         var cutShort = Shortfall.CutShort()
         var tooMany = 0
-        for _ in 0 ..< instrumentCount {
+        for index in 0 ..< instrumentCount {
             let ins = IT2Instrument()
             instruments.append(ins)
             let header = at
             at += 384
+            if at > data.count, played.contains(index + 1) { instrumentsLost += 1 }
             ins.GlobVol = 128
             let sampleCount = f.u16le(header + 32 + 120 + 8 + 192 + 24 + 2)
             let first = samples.count + 1
@@ -385,7 +393,8 @@ enum IMFFile {
                 let length = long(f, h + 16), flags = f[h + 48]
                 at += 64
                 let room = data.count - at
-                cutShort.add(length: length, there: room)
+                // (One whose header the file ends before the end of is missing, however long it was.)
+                if at > data.count { cutShort.addMissing() } else { cutShort.add(length: length, there: room) }
                 let there = max(0, min(length, room))
                 defer { at += min(length, max(0, data.count - at)) }
                 guard samples.count < IT2ForeignModule.sampleRoom else {
@@ -430,6 +439,8 @@ enum IMFFile {
         }
         if let sentence = Shortfall.commandsLeftOut(leftOut.named(leftOutNames)) { shortfalls.append(sentence) }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if let sentence = Shortfall.instrumentsLost(instrumentsLost, damaged: false, samplesToo: cutShort.sentence != nil) { shortfalls.append(sentence) }
+        if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil || instrumentsLost > 0)) }
 
         var song = OpenMPTSong()
         var sequence = OpenMPTSong.Sequence()
@@ -449,7 +460,7 @@ enum IMFFile {
                                speed: max(1, speed), tempo: tempo, channelPans: pans, samples: samples, patterns: patterns, rows: rowCounts,
                                instruments: instruments, openMPT: song, filter: .imagoOrpheus)
         module.imagoOrpheus = true
-        return ITRenderer(module: module, format: "IMF", shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "IMF", shortfalls: shortfalls, options: options)
     }
 
     /// Set by measure: see the README.

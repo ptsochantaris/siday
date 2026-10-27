@@ -52,7 +52,9 @@ public final class ITRenderer: Renderer, ReferenceComparable {
     /// tracker's that this replayer is to play (see `IT2ForeignModule`), which says what kind it is.
     /// - Parameter shortfalls: for a module of another tracker's, what its loader left out or made do
     ///   for; nil for an IT file, which is looked over here for what later trackers added to it.
-    init(module: IT2Module, format: String, author: String = "", shortfalls: [String]? = nil, options: LoadOptions) {
+    /// - Throws: for a module with nothing in it to be heard (`IT2Module.nothingToHear`).
+    init(module: IT2Module, format: String, author: String = "", shortfalls: [String]? = nil, options: LoadOptions) throws {
+        if let refusal = module.nothingToHear { throw refusal }
         self.module = module
         // (An MPTM file says how loud it is; an IT file of ModPlug Tracker's or OpenMPT's is as loud as OpenMPT has it.)
         gain = module.openMPT.map { Self.gain * $0.gain } ?? Self.gain * IT2Mixer.modPlugLevel(of: module)

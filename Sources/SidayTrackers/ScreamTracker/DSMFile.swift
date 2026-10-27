@@ -63,6 +63,9 @@ enum DSMFile {
         // The patterns and samples, each in a chunk, in the order they are numbered.
         var patterns: [(at: Int, end: Int)] = [], samples: [(at: Int, end: Int)] = []
         var at = song + songSize
+        // (True if the file ends in the middle of a chunk, and so has lost it and those after it; and
+        // whether that chunk is a pattern.)
+        var cut = false, patternsLost = false
         while at + 8 <= data.count {
             let size = f.size32le(at + 4), start = at + 8, end = min(data.count, start + size)
             switch f.ascii(at: at, length: 4) {
@@ -70,7 +73,21 @@ enum DSMFile {
             case "INST": samples.append((start, end))
             default: break
             }
+            if start + size > data.count {
+                cut = true
+                patternsLost = f.ascii(at: at, length: 4) == "PATT"
+            }
             at = start + size
+        }
+        // A file cut short has lost the patterns and samples that the song says it has and that it
+        // has not got: the patterns are empty, and the samples missing.
+        var cutShort = Shortfall.CutShort()
+        // (One that keeps its samples first and ends before any of its patterns has nothing to play.)
+        if cut, patterns.isEmpty { throw TuneError.malformed("a DSM file cut short before its patterns") }
+        if cut {
+            if patterns.count < min(f.u16le(song + 40), ST3Module.mostPatterns) { patternsLost = true }
+            while patterns.count < min(f.u16le(song + 40), ST3Module.mostPatterns) { patterns.append((data.count, data.count)) }
+            for _ in samples.count ..< max(samples.count, f.u16le(song + 38)) { cutShort.addMissing() }
         }
 
         var shortfalls: [String] = []
@@ -133,7 +150,6 @@ enum DSMFile {
 
         // The samples' headers, and their sound after the patterns.
         var sounds: [[UInt8]] = []
-        var cutShort = Shortfall.CutShort()
         for (index, chunk) in samples.enumerated() {
             let h = chunk.at, o = instrumentsAt + index * 0x50
             put16(o >> 4, at: 0x60 + orders.count + index * 2)
@@ -172,6 +188,7 @@ enum DSMFile {
             out[o + 0x4C ..< o + 0x50] = [0x53, 0x43, 0x52, 0x53]
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
 
         // The patterns, each read and written again with S3M's commands.
         var surround = false

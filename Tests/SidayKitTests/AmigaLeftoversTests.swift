@@ -233,8 +233,19 @@ private func amosBank(fourth: [Int]? = nil) -> [UInt8] {
     pattern[5] = 0xAC
     pattern[6] = 0x20
     file += pattern
-    let renderer = try MODRenderer(file, options: LoadOptions())
-    #expect(renderer.info.shortfalls.contains { $0.contains("Startrekker") })
+    // It has nothing to be heard by without them, and the file of them is wanted, by its name.
+    do {
+        _ = try TuneLoader.load(file, format: .mod, path: "/music/synth.mod")
+        Issue.record("played without its instruments")
+    } catch {
+        #expect("\(error)" == "its instruments are kept in a file of their own, synth_nt.mod, synth.mod.nt or synth.mod.as, which was not found")
+    }
+    // With a third sample that has a sound, which a third note plays, it is played, and says what
+    // it lacks. (The first two bytes of a sample that does not loop are not heard.)
+    file[1084 + 8 ..< 1084 + 11] = [0x01, 0xAC, 0x30]
+    file[20 + 2 * 30 + 22 ..< 20 + 2 * 30 + 24] = [0, 2]
+    file += [0x10, 0x20, 0x30, 0x40]
+    #expect(try MODRenderer(file, options: LoadOptions()).info.shortfalls.contains { $0.contains("Startrekker") })
     // And its file of them is said to be no tune.
     let instruments = Array("ST1.3 ModuleINFO".utf8) + zeros(200)
     #expect(throws: TuneError.self) { try TuneLoader.load(instruments, format: .mod) }

@@ -106,6 +106,8 @@ enum MASIFile {
         var samples: [Int: Sample] = [:]
         var shortfalls: [String] = []
         var cutShort = Shortfall.CutShort()
+        /// True if the file ends before patterns that its songs play.
+        var partsLost = false
         /// True if a sample is to be started from further into it than 65,535 of its samples.
         var farOffsets = false
     }
@@ -144,6 +146,10 @@ enum MASIFile {
         }
         var tune = Tune()
         let songChunks = all.filter { $0.name == "SONG" }
+        // (A file that ends in the middle of a chunk has lost it, and those after it: the songs among
+        // them, which some files keep last, are what is played, and without them there is nothing.)
+        let cut = all.last.map { $0.end < $0.at + f.size32le($0.at - 4) } ?? false
+        if cut, songChunks.isEmpty { throw TuneError.malformed("a PSM file cut short before its songs") }
         for chunk in songChunks {
             // (A song packed some way, which no file is known to be, is not read.)
             guard chunk.end - chunk.at >= 11, f[chunk.at + 9] == 1 else { throw TuneError.unsupported("a PSM file whose songs are packed") }
@@ -337,7 +343,26 @@ enum MASIFile {
             tune.patterns[pattern] = cells
             tune.rows[pattern] = rowCount
         }
+        if cut { noteWhatIsLost(&tune) }
         return tune
+    }
+
+    /// For a file that ends before it should: the samples its patterns play that it has lost, which
+    /// are missing; and the patterns its songs play that it has lost, which are empty. (A pattern a
+    /// whole file has not got ends its song, below; one a file cut short has lost is played.)
+    private static func noteWhatIsLost(_ tune: inout Tune) {
+        var played = Set<Int>()
+        for cells in tune.patterns.values {
+            for cell in cells where cell.sample > 0 { played.insert(cell.sample) }
+        }
+        for number in played where tune.samples[number] == nil { tune.cutShort.addMissing() }
+        for song in tune.songs {
+            for order in song.orders where order >= 0 && tune.patterns[order] == nil {
+                tune.patterns[order] = [Cell](repeating: Cell(), count: 64 * tune.channels)
+                tune.rows[order] = 64
+                tune.partsLost = true
+            }
+        }
     }
 
     /// A newer file's command, as an S3M file has it: its letter and value.
@@ -408,8 +433,11 @@ enum MASIFile {
         }
         tune.songs = [song]
 
+        // (True if the file ends before the samples' headers or the patterns do.)
+        var cut = false
         // The samples: their headers together, each saying where its sound is in the file.
         if sampleAt > 4, f.ascii(at: sampleAt - 4, length: 4) == "PSAH" {
+            if sampleAt + sampleCount * 64 > data.count { cut = true }
             for index in 0 ..< min(sampleCount, max(0, data.count - sampleAt) / 64) {
                 let h = sampleAt + index * 64
                 let number = f.u16le(h + 45)
@@ -461,13 +489,17 @@ enum MASIFile {
         if patternAt > 4, f.ascii(at: patternAt - 4, length: 4) == "PPAT" {
             var at = patternAt
             for pattern in 0 ..< patternCount {
-                guard at + 4 <= data.count else { break }
+                guard at + 4 <= data.count else {
+                    cut = true
+                    break
+                }
                 let size = f.u16le(at), rowCount = Int(f[at + 2])
                 guard size >= 4 else {
                     at += 4
                     continue
                 }
                 let next = at + ((size + 15) & ~15), end = min(data.count, next)
+                if at + size > data.count { cut = true }
                 defer { at = next }
                 guard rowCount > 0 else { continue }
                 var i = at + 4, row = 0
@@ -510,6 +542,7 @@ enum MASIFile {
         if tune.samples.values.contains(where: { $0.loops && $0.backAndForth }) {
             tune.shortfalls.append("Its loops that go back and forth are played forwards, as Scream Tracker 3 plays every loop.")
         }
+        if cut { noteWhatIsLost(&tune) }
         return tune
     }
 
@@ -743,6 +776,7 @@ extension MASIFile.Tune {
             out += sample.bytes
         }
         if let sentence = cutShort.sentence { shortfalls.append(sentence) }
+        if partsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
         // (A file of one song plays it as a file of several plays each; its name is said only where there are several.)
         if songs.count == 1 { songs[0].title = "" }
         return (out, title, songs, shortfalls)

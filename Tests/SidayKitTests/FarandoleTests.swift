@@ -310,3 +310,22 @@ private func heardAndLit(_ file: [UInt8], format: TuneFormat, calls: Int = 60, f
     let held = Sound(frames: [Int16](repeating: 100, count: 8000), loops: false)
     #expect(try heardAndLit(far([[(0, 0, .note())]], sounds: [held]), format: .far, calls: 20).dropFirst(10).allSatisfy { !$0.lit })
 }
+
+@Test func farWithNothingToHearIsRefusedAndOneCutShortSaysWhatItHasLost() throws {
+    func refusal(_ file: [UInt8]) -> String {
+        do {
+            _ = try TuneLoader.load(file, format: .far)
+            return ""
+        } catch {
+            return "\(error)"
+        }
+    }
+    // Its only sample silent, or the file ending before it: nothing to be heard by.
+    #expect(refusal(far([[(0, 0, .note())]], sounds: [Sound(frames: [Int16](repeating: 0, count: 32))])) == "\(Shortfall.nothingToHear)")
+    #expect(refusal(Array(far([[(0, 0, .note())]]).dropLast(32 + 20))) == "\(Shortfall.nothingToHear)")
+    // Ending in the second sample's header, which is all of that sample lost: the first is heard,
+    // and the second is said to be missing.
+    let two = Array(far([[(0, 0, .note()), (1, 1, .note(sample: 1))]], sounds: [Sound(), Sound()]).dropLast(32 + 20))
+    #expect(try TuneLoader.load(two, format: .far).info.shortfalls == ["The file is cut short: one of its samples is missing, and is silent."])
+    #expect(loudness(try heard(two).left, 0.1, 1) > 0.01)
+}

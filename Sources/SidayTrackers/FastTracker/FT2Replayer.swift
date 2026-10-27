@@ -300,17 +300,20 @@ extension FT2Player {
         if param == 0 {
             ch.pattPos = UInt8(truncatingIfNeeded: song.pattPos)
         } else if ch.loopCnt == 0 {
-            // (In DIGI Booster's, as OpenMPT plays it, a loop is not begun while another channel's is going.)
-            if playsAsDigiBooster, stm.contains(where: { $0 !== ch && $0.loopCnt > 0 }) { return }
+            // (In DIGI Booster's, as OpenMPT plays it, and in some later trackers' XM files, a loop is
+            // not begun while another channel's is going: see `oneLoopAtATime`.)
+            if oneLoopAtATime, stm.contains(where: { $0 !== ch && $0.loopCnt > 0 }) { return }
             ch.loopCnt = param
             song.pBreakPos = ch.pattPos
             song.pBreakFlag = true
+            if loopsBeforeJumps { loopsBackTo = ch.pattPos }
             rowsWillRepeat(from: ch.pattPos)
         } else {
             ch.loopCnt &-= 1
             if ch.loopCnt > 0 {
                 song.pBreakPos = ch.pattPos
                 song.pBreakFlag = true
+                if loopsBeforeJumps { loopsBackTo = ch.pattPos }
                 rowsWillRepeat(from: ch.pattPos)
             }
         }
@@ -365,12 +368,14 @@ extension FT2Player {
     }
 
     func posJump(_ param: UInt8) {
+        if loopsBeforeJumps, jumpedFrom == nil { jumpedFrom = song.songPos }
         song.songPos = Int16(param) - 1
         song.pBreakPos = 0
         song.posJumpFlag = true
     }
 
     func pattBreak(_ value: UInt8) {
+        if loopsBeforeJumps, jumpedFrom == nil { jumpedFrom = song.songPos }
         song.posJumpFlag = true
         let param = (value >> 4) &* 10 &+ (value & 0x0F)
         song.pBreakPos = param <= 63 ? param : 0
@@ -1333,6 +1338,7 @@ extension FT2Player {
     // MARK: The song
 
     func getNextPos() {
+        if loopsBeforeJumps { leaveJumpsToLoops() }
         song.pattPos += 1
         if song.pattDelTime > 0 {
             song.pattDelTime2 = song.pattDelTime
@@ -1358,8 +1364,49 @@ extension FT2Player {
                 song.songPos = Int16(bitPattern: song.repS)
                 offTheEnd = true
             }
+            if passesOverMissingPatterns { passOverMissingPatterns() }
             song.pattNr = Int16(song.songTab[Int(UInt8(truncatingIfNeeded: song.songPos))])
             song.pattLen = Int16(bitPattern: module.pattLens[Int(UInt8(truncatingIfNeeded: song.pattNr))])
+        }
+    }
+
+    /// For `loopsBeforeJumps`, at the end of a row: a loop that goes back on it undoes a jump or
+    /// break on it, and a jump or break that goes to another place in the list ends every loop.
+    private func leaveJumpsToLoops() {
+        defer {
+            jumpedFrom = nil
+            loopsBackTo = nil
+        }
+        guard song.posJumpFlag, let from = jumpedFrom else { return }
+        if let row = loopsBackTo {
+            song.songPos = from
+            song.posJumpFlag = false
+            song.pBreakPos = row
+            return
+        }
+        var to = song.songPos &+ 1
+        if to >= Int16(bitPattern: song.len) { to = Int16(bitPattern: song.repS) }
+        if to != from { for ch in stm { ch.loopCnt = 0 } }
+    }
+
+    /// For `passesOverMissingPatterns`: moves on from a place in the list that names a pattern the
+    /// file has not got to the next that names one, and from the end of the list to where the song
+    /// starts again; and in a file whose pattern 255 is the end of the song (see
+    /// `FT2Module.endsAtPattern255`), from a place that names it to there too.
+    func passOverMissingPatterns() {
+        for _ in 0 ..< 256 {
+            let nr = Int(song.songTab[Int(UInt8(truncatingIfNeeded: song.songPos))])
+            if nr < module.patternCount { return }
+            if module.endsAtPattern255, nr == 255 {
+                song.songPos = Int16(bitPattern: song.repS)
+                offTheEnd = true
+                continue
+            }
+            song.songPos &+= 1
+            if song.songPos >= Int16(bitPattern: song.len) {
+                song.songPos = Int16(bitPattern: song.repS)
+                offTheEnd = true
+            }
         }
     }
 

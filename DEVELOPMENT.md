@@ -1265,8 +1265,9 @@ Notes:
 Based on:
 
 - FastTracker 2.09's replayer and mixer, by way of ft2play's port of them to C.
-- `siday --raw file.raw tune.xm` writes what ft2play writes to a file, stereo samples as it has
-  them; the two agree to the sample.
+- `siday --raw file.raw tune.xm` writes what ft2play writes to a file, with stereo samples, empty
+  patterns and sample kinds as FastTracker has them, and without the later trackers' ways with
+  loops and missing patterns; the two agree to the sample.
 
 Checked against libopenmpt, for files of other trackers:
 
@@ -1310,6 +1311,22 @@ Checked against libopenmpt, for files of other trackers:
   differently from OpenMPT. Instruments over the sixteenth sample, played alone, agree to 0.999.
   Every XM file of the collection that played before lists as it did, and 155 of them play to the
   sample as they did.
+
+- **Later trackers' own ways (October 2026):** loudness envelope against libopenmpt, whole songs up
+  to ten minutes, before and after:
+
+  | Rule | Files checked | Median | Nearer / further |
+  |---|---|---|---|
+  | Sample kinds (Xrns2XMod) | 8 | 0.637 to 0.996 | 8 / 0 |
+  | Empty patterns | 29 | 0.996 to 0.998 (least 0.43 to 0.83) | 9 / 0 |
+  | Missing patterns | 14 | 0.804 to 0.998 | 8 / 0 |
+  | Loops, ModPlug and OpenMPT | 18 | 0.739 to 0.997 | 14 / 0 |
+  | Loops, DigiBooster Pro | 12 | 0.998 to 0.826 | 1 / 10 |
+
+  The DigiBooster Pro files move away from libopenmpt on purpose: FastTracker's restart, which
+  libopenmpt keeps for them, would hide about 6,000 notes in 19 files. F00 is unchanged, because
+  libopenmpt alone plays past it. Of the whole collection, 335 XM files change length, each by one
+  of these rules; FastTracker's own files play to the sample as they did.
 
 ### MTM, DTM and AMF — MultiTracker, Digital Tracker and DSMI
 
@@ -1387,6 +1404,13 @@ were compared with libopenmpt.
   GUS, whose whole ticks drift from libopenmpt's tempo, it is lower.
 - **More patterns, 257 places, and IT files of more than 255 samples:** 0.875 to 0.9995.
 - 352 S3M, IT, MOD and other files that played before play to the sample as they did.
+
+Nothing to hear, and files cut short (October 2026): every tracker loader refuses a module whose
+samples are all missing or silent (`Shortfall.nothingToHear`), and says what a cut file has lost. A
+cut-probe of 116 files of 43 kinds, each cut at seven places, finds every cut copy refused or saying
+it is cut, but for five whose loss cannot be heard. The whole collection lists the same but for 29
+refusals and reasons meant, each of the newly refused files having been silence; 298 files of 46
+kinds play to the sample as before.
 
 ### STM — Scream Tracker 2, and STX
 
@@ -1688,7 +1712,8 @@ Based on:
   of the system it runs on.
 - A file is refused unless all of these hold: its header gives its own length rightly; the checksum
   of what is packed is right; what is packed unpacks to exactly the length the header says; and
-  zlib's own checksum of what it unpacked to (Mark Adler's) is right.
+  zlib's own checksum of what it unpacked to (Mark Adler's) is right. A file shorter than its header
+  says is unpacked as far as its stream goes (`Inflate.zlibCutShort`).
 - The Galaxy vibrato behaviour described in FORMATS is `IT2Module.playsAsGalaxy`, used for these
   files and no others.
 

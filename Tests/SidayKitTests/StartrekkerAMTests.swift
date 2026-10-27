@@ -105,12 +105,17 @@ private func ticks(_ data: [UInt8], synthesised: [UInt8]?, count: Int) throws ->
     let data = module([(0, 0, 428, 1)])
     let notes = instruments([1: square])
 
-    // Without the file, the sample is empty, nothing is heard, and the module says what it lacks.
-    let silent = try ticks(data, synthesised: nil, count: 30)
-    #expect(silent.allSatisfy { $0.level == 0 })
-    // (One sample used empty is not enough to say so; two are.)
+    // Without the file, the sample is empty and nothing would be heard: the module is not played.
+    #expect(throws: TuneError.self) { try ticks(data, synthesised: nil, count: 30) }
+    // (One sample used empty is not enough to take it to have instruments elsewhere; two are, and
+    // then it wants the file of them.)
     let two = module([(0, 0, 428, 1), (0, 1, 428, 2)])
-    #expect(try MODRenderer(two, options: LoadOptions()).info.shortfalls.count == 1)
+    do {
+        _ = try MODRenderer(two, options: LoadOptions())
+        Issue.record("played without its instruments")
+    } catch let TuneError.missingCompanion(said) {
+        #expect(said == "its synthesised instruments")
+    }
     #expect(try MODRenderer(two, options: LoadOptions(), synthesised: notes).info.shortfalls.isEmpty)
 
     let heard = try ticks(data, synthesised: notes, count: 30)
@@ -141,13 +146,20 @@ private func ticks(_ data: [UInt8], synthesised: [UInt8]?, count: Int) throws ->
 }
 
 @Test func startrekkerInstrumentsAreForStartrekkerModulesAlone() throws {
-    // ProTracker's modules are not Startrekker's, and take no file beside them.
+    // ProTracker's modules are not Startrekker's, and take no file beside them: this one, whose
+    // sample is empty, has nothing to be heard by, and is not played.
     let square = record(start: 252, attack: (252, 1), secondAttack: (252, 1), sustain: (252, 1, 10), release: 63)
-    let data = module([(0, 0, 428, 1)], tag: "M.K.")
-    let heard = try ticks(data, synthesised: instruments([1: square]), count: 10)
-    #expect(heard.allSatisfy { $0.level == 0 })
+    func refusal(_ data: [UInt8], _ synthesised: [UInt8]) -> String {
+        do {
+            _ = try ticks(data, synthesised: synthesised, count: 10)
+            return ""
+        } catch {
+            return "\(error)"
+        }
+    }
+    #expect(refusal(module([(0, 0, 428, 1)], tag: "M.K."), instruments([1: square])) == "\(Shortfall.nothingToHear)")
     // A file that is not one of instruments is no file of them.
-    #expect(try ticks(module([(0, 0, 428, 1)]), synthesised: [1, 2, 3], count: 10).allSatisfy { $0.level == 0 })
+    #expect(refusal(module([(0, 0, 428, 1)]), [1, 2, 3]) == "\(Shortfall.nothingToHear)")
 }
 
 @Test func startrekkerNoiseAndWildValuesDoNotTrap() throws {

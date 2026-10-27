@@ -1123,7 +1123,7 @@ enum MT2File {
                                samples: made, patterns: packed, rows: rowCounts, instruments: madeInstruments, channelVolumes: channelVolumes,
                                openMPT: song, filter: .openMPTsCurve)
         module.madTracker = true
-        return ITRenderer(module: module, format: "MT2", author: author, shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "MT2", author: author, shortfalls: shortfalls, options: options)
     }
 
     /// A filter's cutoff in hertz as one of Impulse Tracker's 128 settings, on the wider range of

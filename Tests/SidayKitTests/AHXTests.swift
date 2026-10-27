@@ -440,3 +440,20 @@ private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.
     let first = try #require(moved)
     #expect(lit == first && hit == first)
 }
+
+@Test func ahxCutShortPlaysWhatItHasAndSaysSo() throws {
+    let names = Array("a square wave".utf8).count + 1 + Array("square".utf8).count + 1
+    // Without its names it has lost nothing that is heard, and says nothing.
+    let whole = tune(tracks: [[0: played], empty])
+    #expect(try TuneLoader.load(Array(whole.dropLast(names)), format: .ahx).info.shortfalls.isEmpty)
+    // Said to have a second instrument, which a note plays and the file ends before: the first is
+    // heard, and the second is said to be missing.
+    var two = tune(tracks: [[0: played, 8: row(note: 37, instrument: 2)], empty])
+    two[12] = 2
+    two.removeLast(names)
+    let renderer = try TuneLoader.load(two, format: .ahx)
+    #expect(renderer.info.shortfalls == ["The file is cut short: one of the instruments it plays is missing, and is silent."])
+    #expect(stereo(renderer, seconds: 0.3).left[4800...].map(abs).max()! > 0.02)
+    // Ending in its only instrument, it has nothing to be heard by.
+    #expect(throws: TuneError.self) { try TuneLoader.load(Array(whole.dropLast(names + 2)), format: .ahx) }
+}

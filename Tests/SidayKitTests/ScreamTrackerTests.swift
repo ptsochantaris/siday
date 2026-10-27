@@ -702,12 +702,15 @@ private func height(_ scope: [UInt8]) -> Int { scope.map { abs(Int($0) - 128) }.
 }
 
 @Test func s3mCutShortBeforeItsSamplesSaysSo() throws {
-    // Cut short in an instrument's header or in the pattern: what there is is played, which here is
-    // nothing, and that is said.
+    // Cut short in an instrument's header or in the pattern: it has lost its samples, and with them
+    // everything it would be heard by, and is not played.
     for cut in [0x90, 0x118] {
-        let renderer = try TuneLoader.load(Array(s3m().prefix(cut)), format: .s3m)
-        #expect(renderer.info.shortfalls == ["The file is cut short: its samples are missing, and it is silent."])
-        #expect(stereoSound(renderer, seconds: 0.5).left.map(abs).max()! < 0.001)
+        do {
+            _ = try TuneLoader.load(Array(s3m().prefix(cut)), format: .s3m)
+            Issue.record("played")
+        } catch {
+            #expect("\(error)" == "\(Shortfall.nothingToHear)")
+        }
     }
     // Cut short before the second sample's sound, the first is heard.
     let renderer = try TuneLoader.load(Array(s3m().prefix(0x280)), format: .s3m)

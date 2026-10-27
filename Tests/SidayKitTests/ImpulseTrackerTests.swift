@@ -161,13 +161,16 @@ private func loudness(_ samples: ArraySlice<Float>) -> Float {
     #expect((try? TuneLoader.load(Array(it().dropLast(20)), format: .it)) != nil)
     #expect(throws: TuneError.self) { try TuneLoader.load([UInt8](repeating: 0x41, count: 4000), format: .it) }
     #expect(throws: TuneError.self) { try TuneLoader.load(Array(it().prefix(0x60)), format: .it) }
-    // Cut short in its sample's header or in its pattern, it plays what there is, which here is
-    // nothing, and says so.
+    // Cut short in its sample's header or in its pattern, it has lost its sample, and with it
+    // everything it would be heard by: it is not played.
     let whole = it(), patternAt = whole.count - 32 - 68 - 8
     for cut in [patternAt - 0x30, patternAt + 20] {
-        let cutShort = try TuneLoader.load(Array(whole.prefix(cut)), format: .it)
-        #expect(cutShort.info.shortfalls == ["The file is cut short: its samples are missing, and it is silent."])
-        #expect(stereo(cutShort, seconds: 0.5).left.map(abs).max()! < 0.001)
+        do {
+            _ = try TuneLoader.load(Array(whole.prefix(cut)), format: .it)
+            Issue.record("played")
+        } catch {
+            #expect("\(error)" == "\(Shortfall.nothingToHear)")
+        }
     }
     #expect(throws: TuneError.self) { try TuneLoader.load(Array("ziRCONia".utf8) + [UInt8](repeating: 0, count: 400), format: .it) }
 }
@@ -683,18 +686,23 @@ private func withInstruments(_ file: [UInt8], pans: [UInt8?]) -> [UInt8] {
     #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x9B]))).isEmpty)
     #expect(try shortfalls(it(row: [0x81, 0x0B, 60, 1, 19, 0x9B])).isEmpty)
     #expect(try shortfalls(byOpenMPT(it(row: [0x81, 0x0B, 60, 1, 19, 0x99]))).isEmpty)
-    // A sample kept in a form that is not read (here, as TX-Wave's twelve bits a sample), which a
-    // note plays; and the same sample with no note to play it, which is nobody's loss.
+    // A file whose only sample is kept in a form that is not read (here, as TX-Wave's twelve bits a
+    // sample) has nothing to be heard by here, and says why; and one that ends before its sample's
+    // sound begins has nothing either.
+    func refusal(_ file: [UInt8]) -> String {
+        do {
+            _ = try TuneLoader.load(file, format: .it)
+            return ""
+        } catch {
+            return "\(error)"
+        }
+    }
     var odd = it()
     let convert = try #require(odd.firstRange(of: Array("IMPS".utf8))).lowerBound + 0x2E
     #expect(odd[convert] == 1)
     odd[convert] = 0x11
-    #expect(try shortfalls(odd) == ["One of its samples is kept in a form this player does not read, and is silent."])
-    var unplayed = it(row: [0x81, 0x08, 1, 0x06])
-    unplayed[try #require(unplayed.firstRange(of: Array("IMPS".utf8))).lowerBound + 0x2E] = 0x11
-    #expect(try shortfalls(unplayed).isEmpty)
-    // A file that ends before its sample's sound begins.
-    #expect(try shortfalls(Array(it().dropLast(32))) == ["The file is cut short: one of its samples is missing, and is silent."])
+    #expect(refusal(odd) == "unsupported: a module whose samples are all kept in a form siday does not read")
+    #expect(refusal(Array(it().dropLast(32))) == "\(Shortfall.nothingToHear)")
 }
 
 // MARK: Voices left out

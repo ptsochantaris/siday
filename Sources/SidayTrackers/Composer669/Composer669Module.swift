@@ -77,6 +77,7 @@ final class Composer669Module {
         cells = Array(data[patternsAt ..< soundAt])
 
         var cut = Shortfall.CutShort()
+        var sounds = false
         for sample in 0 ..< samples {
             let at = Self.header + sample * Self.sampleHeader
             let length = file.u32le(at + 13), loopStart = file.u32le(at + 17)
@@ -90,9 +91,11 @@ final class Composer669Module {
             // Unsigned in the file. What the file has lost of a sample is silence.
             var frames = [Int8](repeating: 0, count: length)
             for i in 0 ..< there { frames[i] = Int8(bitPattern: data[soundAt + i] ^ 0x80) }
+            if !sounds { sounds = Shortfall.sounds(frames) }
             bank.add(eightBit: frames, loop: loopEnd != 0 ? (loopStart, loopEnd) : nil)
             soundAt += length
         }
+        guard sounds else { throw Shortfall.nothingToHear }
 
         var shortfalls: [String] = []
         if let sentence = cut.sentence { shortfalls.append(sentence) }

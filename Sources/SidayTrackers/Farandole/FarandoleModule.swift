@@ -64,6 +64,8 @@ final class FarandoleModule {
         var at = max(listsAt + Self.lists, file.u16le(47))
         var patterns = [Pattern](repeating: Pattern(), count: 256)
         var cells: [UInt8] = []
+        // (What the file has lost of a pattern is rows with nothing in them.)
+        var patternsLost = false
         for pattern in 0 ..< 256 {
             let size = file.u16le(listsAt + 259 + pattern * 2)
             guard size != 0 else { continue }
@@ -77,6 +79,7 @@ final class FarandoleModule {
                 patterns[pattern] = one
                 for i in 0 ..< rows * Self.channels * 4 { cells.append(file[at + 2 + i]) }
             }
+            if rows > 0, at + size > data.count { patternsLost = true }
             at += size
         }
         self.patterns = patterns
@@ -86,8 +89,11 @@ final class FarandoleModule {
         let which = at
         at += 8
         var cut = Shortfall.CutShort()
+        var sounds = false
         for sample in 0 ..< 64 {
             guard file[which + sample >> 3] & (1 << (sample & 7)) != 0, at + Self.sampleHeader <= data.count else {
+                // (A sample whose header the file ends before is missing.)
+                if file[which + sample >> 3] & (1 << (sample & 7)) != 0 { cut.addMissing() }
                 bank.add([])
                 continue
             }
@@ -103,17 +109,22 @@ final class FarandoleModule {
             if sixteen {
                 var frames = [Int16](repeating: 0, count: length / 2)
                 for i in 0 ..< there / 2 { frames[i] = Int16(truncatingIfNeeded: file.u16le(at + i * 2)) }
+                if !sounds { sounds = Shortfall.sounds(frames) }
                 loopStart /= 2
                 loopEnd /= 2
                 bank.add(frames, loop: loops && loopEnd > loopStart ? (loopStart, loopEnd) : nil)
             } else {
                 var frames = [Int8](repeating: 0, count: length)
                 for i in 0 ..< there { frames[i] = Int8(bitPattern: data[at + i]) }
+                if !sounds { sounds = Shortfall.sounds(frames) }
                 bank.add(eightBit: frames, loop: loops && loopEnd > loopStart ? (loopStart, loopEnd) : nil)
             }
             at += length
         }
-        shortfalls = cut.sentence.map { [$0] } ?? []
+        guard sounds else { throw Shortfall.nothingToHear }
+        var said = cut.sentence.map { [$0] } ?? []
+        if patternsLost { said.append(Shortfall.patternsLost(samplesToo: cut.sentence != nil)) }
+        shortfalls = said
     }
 
     /// What a channel has on a row of a pattern: four bytes, as the file has them.

@@ -48,10 +48,14 @@ enum C67File {
             if length != 0 || data[patch ..< patch + 11].contains(where: { $0 != 0 }) { anything = true }
         }
         guard anything, data[1698 ..< 1954].allSatisfy({ $0 < 128 || $0 == 0xFF }) else { throw refuse() }
+        // (OpenMPT asks for every pattern to be in the file as well. One that ends before them is cut
+        // short, and is played as far as it goes: what it has lost of its patterns is empty.)
         var soundAt = patternsAt
+        var patternsLost = false
         for pattern in 0 ..< 128 {
             let at = long(f, header + pattern * 4), length = long(f, header + 512 + pattern * 4)
-            guard at <= 0xFFFFFF, length >= 3, length <= 0x1000, data.count >= patternsAt + at + length else { throw refuse() }
+            guard at <= 0xFFFFFF, length >= 3, length <= 0x1000 else { throw refuse() }
+            if patternsAt + at + length > data.count { patternsLost = true }
             soundAt = max(soundAt, patternsAt + at + length)
         }
 
@@ -62,7 +66,7 @@ enum C67File {
         for index in 0 ..< 128 {
             var pattern = IT2ForeignModule.Pattern()
             var at = patternsAt + long(f, header + index * 4)
-            let end = at + long(f, header + 512 + index * 4)
+            let end = min(data.count, at + long(f, header + 512 + index * 4))
             var row = 0
             while row < 64, at < end {
                 let command = data[at]
@@ -148,7 +152,9 @@ enum C67File {
         let module = IT2Module(title: "", madeWith: "Composer 670", orders: orders, flags: IT2ForeignModule.flags | ITF_LINEAR_FRQ,
                                globalVolume: 128, mixVolume: mixVolume, speed: data[0], tempo: 143, channelPans: pans, samples: samples,
                                patterns: patterns, rows: rows, restart: Int(data[1]), sound: sound)
-        return ITRenderer(module: module, format: "C67", shortfalls: cutShort.sentence.map { [$0] } ?? [], options: options)
+        var shortfalls = cutShort.sentence.map { [$0] } ?? []
+        if patternsLost { shortfalls.append(Shortfall.patternsLost(samplesToo: cutShort.sentence != nil)) }
+        return try ITRenderer(module: module, format: "C67", shortfalls: shortfalls, options: options)
     }
 
     /// How loud the samples and the chip are made. OpenMPT has each at 48 for a file it has just

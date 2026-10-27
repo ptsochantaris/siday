@@ -365,7 +365,7 @@ enum ULTFile {
                                globalVolume: 128, mixVolume: mixVolume, speed: 6, tempo: 125, channelPans: pans, samples: made,
                                patterns: patterns, rows: [UInt16](repeating: 64, count: IT2ForeignModule.patternRoom), slidesToNotesCarryOn: true,
                                instrumentAloneStartsNothing: true)
-        return ITRenderer(module: module, format: "ULT", shortfalls: shortfalls, options: options)
+        return try ITRenderer(module: module, format: "ULT", shortfalls: shortfalls, options: options)
     }
 
     /// How loud the whole is made, of Impulse Tracker's 128: set by measure, so that these files are

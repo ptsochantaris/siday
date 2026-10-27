@@ -443,6 +443,19 @@ final class MEDModule {
             }
             songs.append(song)
         }
+        // A module with nothing in it to be heard, no sample with a sound and no synthetic sound, is
+        // not a tune; nor is one whose instruments are for a MIDI synthesiser and nothing else.
+        let instruments = songs.flatMap { $0.instruments }
+        let sounds = instruments.contains { instrument in
+            guard instrument.program < 0 else { return true }
+            guard instrument.kind != .absent, instrument.offset >= 0, instrument.offset < size else { return false }
+            let octaves = if case let .octaves(count) = instrument.kind { (1 << count) - 1 } else { 1 }
+            let bytes = min(size - instrument.offset, instrument.length * octaves * (instrument.stereo ? 2 : 1))
+            return Shortfall.sounds(data[instrument.offset ..< instrument.offset + max(0, bytes)])
+        }
+        guard sounds else {
+            throw instruments.contains { $0.midiChannel > 0 } ? Shortfall.onlyMIDIToHear : Shortfall.nothingToHear
+        }
         self.songs = songs
         self.cells = .allocate(capacity: max(1, cells.count))
         self.commands = .allocate(capacity: max(1, commands.count))
