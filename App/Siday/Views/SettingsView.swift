@@ -23,7 +23,7 @@ struct SettingsView: View {
                 }
                 Section {
                     if model.kept.files.isEmpty {
-                        Text("The ROMs of a CM-32L or LAPC-I (its control ROM and its PCM ROM, whole or in halves, of any names), added like tunes, are kept, and MIDI files written for the MT-32 are then played on that synthesiser. A Songlengths.md5 added is kept too.")
+                        Text("The ROMs of a CM-32L or LAPC-I (its control ROM and its PCM ROM, whole or in halves, of any names), added like tunes, are kept, and MIDI files written for the MT-32 are then played on that synthesiser; and so are an SC-55's (firmware 1.21: its two program ROMs and three wave ROMs), on which the other MIDI files are then played. A Songlengths.md5 added is kept too.")
                             .font(.footnote)
                     } else {
                         ForEach(model.kept.summary, id: \.self) { line in

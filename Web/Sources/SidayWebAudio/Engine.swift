@@ -196,6 +196,7 @@ public func sidayKeep(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
     let known = KeptFile.recognise(file)
     if known != nil { kept.add(file) }
     keeper.setMT32ROMs(kept.mt32ROMs)
+    keeper.setSC55ROMs(kept.sc55ROMs)
     if let lengths = kept.songLengths { keeper.setSongLengths(lengths) }
     packed = Array(([known?.keptName ?? ""] + kept.summary).joined(separator: "\n").utf8)
     return Int32(packed.count)
@@ -207,6 +208,7 @@ public func sidayKeep(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
 public func sidayForgetKept() {
     kept.forgetAll()
     keeper.setMT32ROMs(nil)
+    keeper.setSC55ROMs(nil)
 }
 
 /// The level the page kept under `key` (see `SongLevel.key`), as the news of a song's level gave it,

@@ -30,6 +30,8 @@ public enum SoundChip: String, CaseIterable, Sendable {
     case sbPro
     /// Roland's LA32, the synthesiser of the MT-32 and of its later kind, the CM-32L and the LAPC-I card.
     case la32
+    /// Roland's PCM chip of the first Sound Canvas, the SC-55, with the controller that plays it.
+    case sc55
     /// No chip of its own: a recording, played through a digital-to-analogue converter.
     case dac
 }

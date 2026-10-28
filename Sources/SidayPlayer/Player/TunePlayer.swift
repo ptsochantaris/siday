@@ -315,6 +315,12 @@ public final class TunePlayer {
         options.mt32ROMs = roms
     }
 
+    /// The ROMs of an SC-55 (see `KeptFiles`), on which the MIDI files loaded after it are played (those
+    /// written for the MT-32 only when there are no MT-32 ROMs); nil for none, and FM.
+    public func setSC55ROMs(_ roms: SC55ROMSet?) {
+        options.sc55ROMs = roms
+    }
+
     /// Changes the listener's settings: a value for each, in the order of `Setting`'s cases. Returns
     /// true if the tune that is loaded has to be loaded again to be heard as they now are.
     public func setSettings(_ values: [Double]) -> Bool {

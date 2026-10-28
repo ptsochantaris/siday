@@ -306,6 +306,7 @@ final class PlayerModel {
     /// Gives the engine what is kept.
     private func useKept() {
         engine.send(.mt32ROMs(kept.mt32ROMs))
+        engine.send(.sc55ROMs(kept.sc55ROMs))
         if let lengths = kept.files.last(where: { $0.kind == .songLengths }), let data = kept.data(of: lengths) {
             engine.send(.songLengths(data))
         }
@@ -315,6 +316,7 @@ final class PlayerModel {
     func forgetKept() {
         keptStore?.forgetAll(in: &kept)
         engine.send(.mt32ROMs(nil))
+        engine.send(.sc55ROMs(nil))
     }
 
     // MARK: Moving

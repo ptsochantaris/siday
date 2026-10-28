@@ -44,11 +44,18 @@ package enum EightBitPlayers {
             return try FMTTune.renderer(data)
         case .mid:
             // A MIDI file: one written for the MT-32 on the LAPC-I's synthesiser if its ROMs have been
-            // given, any other on the OPL3; with the system exclusive messages kept beside it that set the
-            // synthesiser up, if any were found.
+            // given; any other on the SC-55 if its ROMs have been, and one for the MT-32 there too, set to
+            // its MT-32 sounds, if the LAPC-I's have not; and otherwise on the OPL3. With the system
+            // exclusive messages kept beside it that set the synthesiser up, if any were found.
             let companion = companions.first ?? nil
-            if let roms = options.mt32ROMs, MIDIFMRenderer.isWrittenForMT32(data, companion: companion) {
-                return try MIDILA32Renderer(data, companion: companion, roms: roms, options: options)
+            let forMT32 = MIDIFMRenderer.isWrittenForMT32(data, companion: companion)
+            switch MIDISynthesiser.choose(writtenForMT32: forMT32, mt32ROMs: options.mt32ROMs != nil, sc55ROMs: options.sc55ROMs != nil) {
+            case .la32:
+                if let roms = options.mt32ROMs { return try MIDILA32Renderer(data, companion: companion, roms: roms, options: options) }
+            case .sc55:
+                if let roms = options.sc55ROMs { return try MIDISC55Renderer(data, companion: companion, roms: roms, options: options) }
+            case .fm:
+                break
             }
             return try MIDIFMRenderer(data, companion: companion, options: options)
         case .vgm:
@@ -98,3 +105,17 @@ package enum EightBitPlayers {
         }
     }
 }
+
+/// The synthesisers a MIDI file may be played on.
+enum MIDISynthesiser: Equatable {
+    case fm, la32, sc55
+
+    /// Which one a file is played on, by whether it was written for the MT-32 and whose ROMs siday has: a
+    /// file for the MT-32 on the LAPC-I's synthesiser, or failing that on the Sound Canvas set to its MT-32
+    /// sounds; any other on the Sound Canvas; and on FM when the ROMs it would be played with are not had.
+    static func choose(writtenForMT32: Bool, mt32ROMs: Bool, sc55ROMs: Bool) -> MIDISynthesiser {
+        if writtenForMT32, mt32ROMs { return .la32 }
+        return sc55ROMs ? .sc55 : .fm
+    }
+}
+

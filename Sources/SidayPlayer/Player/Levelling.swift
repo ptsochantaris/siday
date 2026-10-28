@@ -128,9 +128,13 @@ public extension SongLevel {
 
     /// What a key says a tune was played on, where the same file may be played on one synthesiser or
     /// another by what siday has been given: the control ROM of the MT-32 a MIDI file is played on, for
-    /// one played on it; nil otherwise.
+    /// one played on it; the SC-55's firmware, for one played on it; nil otherwise.
     static func playedOn(_ renderer: any Renderer, options: LoadOptions) -> String? {
-        renderer.info.chips.first == .la32 ? options.mt32ROMs?.control.rawValue : nil
+        switch renderer.info.chips.first {
+        case .la32: options.mt32ROMs?.control.rawValue
+        case .sc55: options.sc55ROMs.map { "sc55_" + $0.version }
+        default: nil
+        }
     }
 
     /// What a file is known by in a `key`, with its companions, those that were found, if any were:

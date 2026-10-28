@@ -16,4 +16,5 @@
 @_exported import SidayFoundation
 @_exported import SidayM68000
 @_exported import SidayMT32
+@_exported import SidaySC55
 @_exported import SidayTrackers

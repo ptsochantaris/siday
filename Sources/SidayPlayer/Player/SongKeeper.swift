@@ -274,6 +274,11 @@ public final class SongKeeper {
         player.setMT32ROMs(roms)
     }
 
+    /// The ROMs of an SC-55, for the MIDI files loaded after them (see `TunePlayer.setSC55ROMs`).
+    public func setSC55ROMs(_ roms: SC55ROMSet?) {
+        player.setSC55ROMs(roms)
+    }
+
     /// The level the front end kept for the song, from when it was measured before (as `Event.level`
     /// gave it), or nil if none was.
     public func setKeptLevel(key: String, text: String?, now: Double) {

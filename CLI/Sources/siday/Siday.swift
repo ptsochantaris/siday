@@ -98,7 +98,7 @@ struct Siday: ParsableCommand {
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
 
-    @Option(parsing: .upToNextOption, help: "Files or folders of an MT-32's ROMs, which siday keeps from then on: a CM-32L's or LAPC-I's control ROM and PCM ROM, whole or in halves, of any names (they are known by what is in them). MIDI files written for the MT-32 are then played on that synthesiser. A Songlengths.md5 among them is kept too. Also read, for one run and never kept, from a folder named by $SIDAY_KEPT, which then stands for what is kept.")
+    @Option(parsing: .upToNextOption, help: "Files or folders of an MT-32's or a Sound Canvas's ROMs, which siday keeps from then on: a CM-32L's or LAPC-I's control ROM and PCM ROM, whole or in halves, or an SC-55's (firmware 1.21) two program ROMs and three wave ROMs, of any names (they are known by what is in them). MIDI files written for the MT-32 are then played on the MT-32's synthesiser, and the others on the SC-55. A Songlengths.md5 among them is kept too. Also read, for one run and never kept, from a folder named by $SIDAY_KEPT, which then stands for what is kept.")
     var roms: [String] = []
 
     @Flag(help: "Say which files siday keeps (see --roms), and where.")
@@ -201,6 +201,7 @@ struct Siday: ParsableCommand {
         options.sidFilterCurve = sidFilterCurve
         let kept = KeptFilesInUse.current
         options.mt32ROMs = kept.mt32ROMs
+        options.sc55ROMs = kept.sc55ROMs
         return TuneFiles(options: options, songLengthsPath: songLengthsPath, keptSongLengths: kept.songLengths)
     }
 

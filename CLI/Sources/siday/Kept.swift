@@ -45,7 +45,7 @@ enum KeptFilesInUse {
                 taken += 1
                 say("kept \(added.file.name) (from \(url.lastPathComponent))" + (store.readOnly ? ", for this run only" : ""))
             }
-            if taken == 0 { say("no new MT-32 ROM or song lengths found in \(paths.joined(separator: ", "))") }
+            if taken == 0 { say("no new MT-32 or SC-55 ROM or song lengths found in \(paths.joined(separator: ", "))") }
         }
         cache.withLock { $0 = kept }
         if list || !paths.isEmpty {

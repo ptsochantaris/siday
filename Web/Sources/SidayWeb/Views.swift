@@ -251,12 +251,12 @@ struct SettingsPanel {
                     ForEach(Array(player.keptSummary.indices), key: { String($0) }) { index in
                         p { player.keptSummary[index] }
                     }
-                    button(.title("Forget the MT-32 ROMs and song lengths this browser keeps")) { "Forget kept files" }
+                    button(.title("Forget the MT-32 and SC-55 ROMs and song lengths this browser keeps")) { "Forget kept files" }
                         .onClick { player.forgetKept() }
                 }
             }
             div(.class("bar")) {
-                span(.class("hint")) { "Rest the pointer on a setting to read what it does. They are kept for your next visit. MT-32 ROMs or a Songlengths.md5 added like tunes are kept too." }
+                span(.class("hint")) { "Rest the pointer on a setting to read what it does. They are kept for your next visit. MT-32 or SC-55 ROMs or a Songlengths.md5 added like tunes are kept too." }
                 button(.title("Put every setting back as it comes")) { "Reset to defaults" }
                     .attributes(.disabled, when: player.settingsAreStandard)
                     .onClick { player.resetSettings() }
@@ -603,6 +603,7 @@ private func chipName(_ chip: SoundChip) -> String {
     case .sbPro: "The Sound Blaster Pro's DSP"
     case .dac: "A recording, played through a digital-to-analogue converter"
     case .la32: "Roland's LA32 synthesiser chip, the LAPC-I's"
+    case .sc55: "Roland's PCM chip, the Sound Canvas SC-55's"
     }
 }
 

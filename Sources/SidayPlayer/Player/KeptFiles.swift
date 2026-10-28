@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 /// A file the listener gives siday once and that it keeps from then on, until told to forget it: a ROM of
-/// an MT-32 or its kind, by which MIDI files written for the MT-32 are played on its synthesiser; or HVSC's
-/// list of song lengths, `Songlengths.md5`. What it is is known by what is in it, never by its name: a ROM
-/// by its size and its SHA-1 digest, as Munt knows them; a list of song lengths by its having lengths in it.
+/// an MT-32 or its kind, by which MIDI files written for the MT-32 are played on its synthesiser; a ROM of a
+/// Roland SC-55, by which the others are played on the Sound Canvas; or HVSC's list of song lengths,
+/// `Songlengths.md5`. What it is is known by what is in it, never by its name: an MT-32's ROM by its size and
+/// its SHA-1 digest, as Munt knows them; an SC-55's by its size and its SHA-256 digest, as jcmoyer's Nuked
+/// SC-55 knows them; a list of song lengths by its having lengths in it.
 public struct KeptFile: Sendable, Hashable {
     public enum Kind: String, Sendable, CaseIterable {
         case mt32ROM = "mt32rom"
+        case sc55ROM = "sc55rom"
         case songLengths = "songlengths"
     }
 
@@ -15,7 +18,7 @@ public struct KeptFile: Sendable, Hashable {
     /// Its SHA-1 digest, in lower-case hexadecimal.
     public let sha1: String
     public let size: Int
-    /// What it is, for a listener: Munt's name for a ROM.
+    /// What it is, for a listener: Munt's name for an MT-32's ROM, Roland's part number for an SC-55's.
     public let name: String
 
     /// The name it is kept under: its kind and its digest, so that the same file is kept once, whatever it
@@ -26,6 +29,9 @@ public struct KeptFile: Sendable, Hashable {
     public static func recognise(_ data: [UInt8]) -> KeptFile? {
         if let rom = MT32ROMFile.identify(data) {
             return KeptFile(kind: .mt32ROM, sha1: rom.sha1, size: data.count, name: rom.name)
+        }
+        if let rom = SC55ROMFile.identify(data) {
+            return KeptFile(kind: .sc55ROM, sha1: SHA1.hex(data), size: data.count, name: rom.name)
         }
         if mayBeSongLengths(data.prefix(64)), !SongLengthDatabase(data).isEmpty {
             return KeptFile(kind: .songLengths, sha1: SHA1.hex(data), size: data.count, name: "HVSC's song lengths (Songlengths.md5)")
@@ -40,10 +46,10 @@ public struct KeptFile: Sendable, Hashable {
     }
 
     /// True if a file of `size` bytes beginning with `start` may be one that siday keeps, for a look
-    /// through many files that reads only those that may: the size of a ROM Munt knows, or the start of a
-    /// list of song lengths.
+    /// through many files that reads only those that may: the size of a ROM Munt or Nuked SC-55 knows, or the
+    /// start of a list of song lengths.
     public static func mayBe(size: Int, start: [UInt8]) -> Bool {
-        MT32ROMFile.known.contains { $0.size == size } || mayBeSongLengths(start)
+        MT32ROMFile.known.contains { $0.size == size } || SC55ROMFile.sizes.contains(size) || mayBeSongLengths(start)
     }
 
     /// HVSC's list begins with a heading, "[Database]"; one that begins with a comment line is looked at too.
@@ -54,13 +60,15 @@ public struct KeptFile: Sendable, Hashable {
 }
 
 /// The files siday keeps (see `KeptFile`), with what they are for: the MT-32's ROMs that make a whole set
-/// of the LAPC-I's kind, and the list of song lengths. A front end keeps them where it keeps its own things,
+/// of the LAPC-I's kind, the SC-55's that make a whole SC-55, and the list of song lengths. A front end keeps them where it keeps its own things,
 /// and hands them here as they are read back, and as they are given.
 public struct KeptFiles: Sendable {
     public private(set) var files: [KeptFile] = []
     private var contents: [String: [UInt8]] = [:]
     /// The ROMs kept, made into a set for the LAPC-I's synthesiser; nil while they do not make one.
     public private(set) var mt32ROMs: MT32ROMSet?
+    /// The ROMs kept, made into a whole SC-55; nil while they do not make one.
+    public private(set) var sc55ROMs: SC55ROMSet?
     /// The list of song lengths kept, if one is.
     public private(set) var songLengths: SongLengthDatabase?
 
@@ -114,6 +122,8 @@ public struct KeptFiles: Sendable {
     private mutating func update() {
         let roms = files.filter { $0.kind == .mt32ROM }.compactMap { contents[$0.keptName] }
         mt32ROMs = roms.isEmpty ? nil : MT32ROMSet.assemble(roms)
+        let canvas = files.filter { $0.kind == .sc55ROM }.compactMap { contents[$0.keptName] }
+        sc55ROMs = canvas.isEmpty ? nil : SC55ROMSet.assemble(canvas)
         songLengths = files.last { $0.kind == .songLengths }.flatMap { contents[$0.keptName] }.map { SongLengthDatabase($0) }
     }
 
@@ -135,6 +145,15 @@ public struct KeptFiles: Sendable {
         for file in roms where used.contains(file) { lines.append("Kept: " + file.name) }
         let others = roms.count - used.count
         if others > 0 { lines.append("Kept: \(others) other MT-32 ROM" + (others == 1 ? "" : "s") + ", not used") }
+        let canvas = files.filter { $0.kind == .sc55ROM }
+        if let set = sc55ROMs {
+            lines.append("MIDI files written for General MIDI, GS and XG are played on the " + set.name
+                + (mt32ROMs == nil ? ", and those written for the MT-32 there too, on its MT-32 sounds." : "."))
+        } else if !canvas.isEmpty {
+            lines.append("The SC-55 ROMs kept are not yet a whole SC-55 (firmware " + SC55ROMSet.versions.joined(separator: ", ")
+                + "): it wants its two program ROMs and its three wave ROMs; MIDI files are played on FM until then.")
+        }
+        for file in canvas { lines.append("Kept: " + file.name) }
         for file in files where file.kind == .songLengths { lines.append("Kept: " + file.name) }
         return lines
     }

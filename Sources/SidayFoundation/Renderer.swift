@@ -274,6 +274,10 @@ public struct LoadOptions: Sendable {
     /// The ROMs of an MT-32 of the LAPC-I's generation, kept by the front end once they were given it:
     /// a MIDI file written for the MT-32 is played on it when they are here, and on FM when they are not.
     public var mt32ROMs: MT32ROMSet?
+    /// The ROMs of an SC-55, kept by the front end once they were given it: MIDI files written for General
+    /// MIDI, GS or XG are played on it when they are here, and those written for the MT-32 too when no MT-32's
+    /// ROMs are; on FM when they are not.
+    public var sc55ROMs: SC55ROMSet?
 
     public init() {}
 }

@@ -256,7 +256,7 @@ function keep(name, value) {
 }
 
 /// The files the listener gave once that siday keeps (see `KeptFiles` in SidayPlayer): the ROMs of an
-/// MT-32 of the LAPC-I's kind and HVSC's Songlengths.md5. They are kept in the browser's IndexedDB, which
+/// MT-32 of the LAPC-I's kind, those of an SC-55, and HVSC's Songlengths.md5. They are kept in the browser's IndexedDB, which
 /// holds files of a megabyte as they are, from one visit to the next, under the names the engine gives
 /// them; a file just given is kept under a name of its own until the engine has said what it is. What
 /// the engine last said is kept too, as text, to be shown before it has started.

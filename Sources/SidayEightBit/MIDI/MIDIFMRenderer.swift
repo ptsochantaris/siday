@@ -85,7 +85,8 @@ final class MIDIFMRenderer: Renderer {
             info.shortfalls.append("It was written for the Roland MT-32, and the sounds it sets the MT-32 up with"
                 + (origin.byCompanion ? " (in the file of them beside it)" : "")
                 + " are not heard on FM: its parts are played with General MIDI's instruments of the same numbers."
-                + " Given the ROMs of a CM-32L or LAPC-I once (dropped on the player, or with --roms), siday keeps them and plays it on that synthesiser.")
+                + " Given the ROMs of a CM-32L or LAPC-I once (dropped on the player, or with --roms), siday keeps them and plays it on that synthesiser;"
+                + " given a Roland SC-55's, on the Sound Canvas's own MT-32 sounds.")
         }
         self.info = info
 

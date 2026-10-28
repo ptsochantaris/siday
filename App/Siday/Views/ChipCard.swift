@@ -73,6 +73,7 @@ extension SoundChip {
         case .sbPro: return Face(name: "SB PRO", short: "SB", part: "CT1341", machine: "Sound Blaster Pro", board: Color(red: 0.10, green: 0.40, blue: 0.18), pinsASide: 20, square: false)
         case .dac: return Face(name: "DAC", short: "DAC", part: "PCM", machine: "recording", board: Color(white: 0.34), pinsASide: 8, square: false)
         case .la32: return Face(name: "LA32", short: "LA32", part: "Roland LA32", machine: "LAPC-I · CM-32L · MT-32", board: Color(red: 0.06, green: 0.28, blue: 0.24), pinsASide: 20, square: true)
+        case .sc55: return Face(name: "SC-55", short: "SC-55", part: "Roland PCM", machine: "Sound Canvas SC-55", board: Color(red: 0.17, green: 0.18, blue: 0.21), pinsASide: 20, square: true)
         }
     }
 }

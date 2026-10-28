@@ -12,7 +12,7 @@ import SidayFoundation
 /// lies at one of as many places between two input samples as the larger of the two numbers: each place
 /// has its own row of the filter, worked out beforehand. Where there would be too many places, there
 /// are `mostPlaces`, and an output sample's row is had from the two nearest it.
-struct Resampler {
+package struct Resampler {
     /// How many input samples there are on either side of an output sample's place, at the most, when
     /// the rate is brought up: the filter's length, and so how steep it is.
     static let reach = 64
@@ -24,18 +24,18 @@ struct Resampler {
 
     /// Input samples to each `places` of the output: the step from one output sample to the next is
     /// `step / places` of an input sample.
-    let step: Int, places: Int
+    package let step: Int, places: Int
     /// Input samples on either side of an output sample's place: `reach`, more when the rate is brought
     /// down, so that the filter is as steep at the lower rate.
-    let taps: Int
+    package let taps: Int
     /// True if each output sample lies at its own row, with no need to have it from two.
-    let exact: Bool
+    package let exact: Bool
     /// `rows` rows of `2 * taps` weights (one more row when they are had from two), for the input
     /// samples from `taps - 1` before an output sample's place to `taps` after it.
-    let rows: Int
-    let weights: [Float]
+    package let rows: Int
+    package let weights: [Float]
 
-    init(from inRate: Int, to outRate: Int) {
+    package init(from inRate: Int, to outRate: Int) {
         var a = inRate, b = outRate
         while b != 0 { (a, b) = (b, a % b) }
         let common = max(1, a)
