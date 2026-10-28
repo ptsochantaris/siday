@@ -149,7 +149,7 @@ private let mt32Patch: [UInt8] = [0x41, 0x10, 0x16, 0x12, 0x03, 0x00, 0x00, 0x00
     #expect(mt32.info.playedOtherwiseWith == [.mt32, .sc55])
     let plain = try TuneLoader.load(smf(format: 0, [track(oneNote)]), format: .mid)
     #expect(plain.info.detail.hasPrefix("General MIDI;"))
-    #expect(plain.info.shortfalls.isEmpty)
+    #expect(plain.info.shortfalls == ["It is played on FM, as a Sound Blaster played General MIDI. Given the ROMs of a Roland SC-55 once (dropped on the player, or with --roms), siday keeps them and plays it on the Sound Canvas, the General MIDI synthesiser of its day."])
     #expect(plain.info.chips == [.opl3])
     #expect(plain.info.playedOtherwiseWith == [.sc55])
 }
@@ -197,7 +197,7 @@ private let mt32Patch: [UInt8] = [0x41, 0x10, 0x16, 0x12, 0x03, 0x00, 0x00, 0x00
     var cut = smf([track(oneNote), track([0x00, 0x90, 60, 100, 0x60, 0x80, 60, 0])])
     cut.removeLast(6)
     let renderer = try TuneLoader.load(cut, format: .mid)
-    #expect(renderer.info.shortfalls == ["The file is cut short: one of its tracks ends early."])
+    #expect(renderer.info.shortfalls.first == "The file is cut short: one of its tracks ends early.")
     // A file of messages alone has nothing to be heard.
     #expect(throws: TuneError.self) { try TuneLoader.load(smf(format: 0, [track(sysex(mt32Patch))]), format: .mid) }
     #expect(throws: TuneError.self) { try TuneLoader.load(Array("MThd".utf8) + [0, 0], format: .mid) }

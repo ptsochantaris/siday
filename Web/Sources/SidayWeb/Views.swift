@@ -109,7 +109,7 @@ struct NowPlaying {
                 if !tune.shortfalls.isEmpty, player.shortfallsShown {
                     p(.class("shortfalls")) {
                         ForEach(Array(tune.shortfalls.indices), key: { String($0) }) { index in
-                            span { tune.shortfalls[index] }
+                            span { index < tune.shortfalls.count ? tune.shortfalls[index] : "" }
                         }
                     }
                 }
@@ -245,18 +245,22 @@ struct SettingsPanel {
                     }
                 }
             }
-            if !player.keptSummary.isEmpty {
-                div(.class("group kept")) {
-                    h2 { "Kept files" }
-                    ForEach(Array(player.keptSummary.indices), key: { String($0) }) { index in
-                        p { player.keptSummary[index] }
-                    }
+            div(.class("group kept")) {
+                h2 { "Kept files" }
+                if player.keptSummary.isEmpty {
+                    p { "The ROMs of a CM-32L or LAPC-I (its control ROM and its PCM ROM, whole or in halves, of any names), dropped on the page or added like tunes, are kept in this browser, and MIDI files written for the MT-32 are then played on that synthesiser; and so are an SC-55's (firmware 1.21: its two program ROMs and three wave ROMs), on which the other MIDI files are then played. A Songlengths.md5 added is kept too." }
+                }
+                // (Read with care: as the list empties, a row can be drawn once more with its old place.)
+                ForEach(Array(player.keptSummary.indices), key: { String($0) }) { index in
+                    p { index < player.keptSummary.count ? player.keptSummary[index] : "" }
+                }
+                if !player.keptSummary.isEmpty {
                     button(.title("Forget the MT-32 and SC-55 ROMs and song lengths this browser keeps")) { "Forget kept files" }
                         .onClick { player.forgetKept() }
                 }
             }
             div(.class("bar")) {
-                span(.class("hint")) { "Rest the pointer on a setting to read what it does. They are kept for your next visit. MT-32 or SC-55 ROMs or a Songlengths.md5 added like tunes are kept too." }
+                span(.class("hint")) { "Rest the pointer on a setting to read what it does. They are kept for your next visit." }
                 button(.title("Put every setting back as it comes")) { "Reset to defaults" }
                     .attributes(.disabled, when: player.settingsAreStandard)
                     .onClick { player.resetSettings() }

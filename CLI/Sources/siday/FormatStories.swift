@@ -4582,9 +4582,10 @@ and siday's writes to the chip are libADLMIDI's, register for register.
 
 ### Differences and limits
 
-- **Three synthesisers.** Without ROMs, everything is heard on FM. Files written for Yamaha's XG are
-  played on the Sound Canvas as General MIDI, as a GS synthesiser played them: it has not their sounds
-  or effects, and they say so. A GS file that also sets up an MT-32 on the same cable is a GS file.
+- **Three synthesisers.** Without ROMs, everything is heard on FM, and each file says whose ROMs
+  would have it heard as it was written. Files written for Yamaha's XG are played on the Sound Canvas
+  as General MIDI, as a GS synthesiser played them: it has not their sounds or effects, and they say
+  so. A GS file that also sets up an MT-32 on the same cable is a GS file.
 - **No ROMs come with siday.** They are Roland's: siday plays MIDI files on FM until it is given them.
 - **The first Sound Canvas.** siday plays the SC-55 with firmware 1.21: not the SC-55mkII (1993) and
   its larger set of sounds, nor the SC-88 and after.

@@ -196,7 +196,6 @@ final class Player {
     /// What siday keeps, as it says it: a line for each (see `KeptFiles.summary`).
     private(set) var keptSummary: [String] = []
 
-    /// Forgets the files siday keeps: MIDI files are played on FM again.
     /// The synthesisers whose ROMs are kept whole, as siday last said.
     private var synthesisers: Set<KeptROMs> = []
 
@@ -216,6 +215,7 @@ final class Player {
         play(current, song: tune.song)
     }
 
+    /// Forgets the files siday keeps: MIDI files are played on FM again.
     func forgetKept() {
         try? sidayForgetKept()
         keptSummary = []

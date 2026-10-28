@@ -89,6 +89,16 @@ final class MIDIFMRenderer: Renderer {
                 + " are not heard on FM: its parts are played with General MIDI's instruments of the same numbers."
                 + " Given the ROMs of a CM-32L or LAPC-I once (dropped on the player, or with --roms), siday keeps them and plays it on that synthesiser;"
                 + " given a Roland SC-55's, on the Sound Canvas's own MT-32 sounds.")
+        } else {
+            // (The Sound Canvas is siday's General MIDI synthesiser: on FM, any other file is played as
+            // a Sound Blaster played it, and says where it would be heard as it was written.)
+            let written = switch origin.standard {
+            case .gs: "It was written for Roland's GS, the Sound Canvas's own, and is played on FM with General MIDI's instruments."
+            case .xg: "It was written for Yamaha's XG, and is played on FM as General MIDI."
+            default: "It is played on FM, as a Sound Blaster played General MIDI."
+            }
+            info.shortfalls.append(written
+                + " Given the ROMs of a Roland SC-55 once (dropped on the player, or with --roms), siday keeps them and plays it on the Sound Canvas, the General MIDI synthesiser of its day.")
         }
         self.info = info
 
