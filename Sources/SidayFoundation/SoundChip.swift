@@ -42,6 +42,7 @@ public extension TuneFormat {
         case .sid: .sid6581
         case .sap: .pokey
         case .cmf, .rol, .fmt, .c67, .vgm: .opl2
+        case .mid: .opl3
         case .stm, .stx, .composer669: .sbPro
         case .xm, .s3m, .it, .mptm, .mt2, .mtm, .dtm, .amf, .gdm, .ptm, .ult, .far, .mdl, .j2b, .dmf, .imf, .ams, .plm, .dsm, .masi, .mo3: .gf1
         case .ogg, .mp3, .wav: .dac

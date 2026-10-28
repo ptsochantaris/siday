@@ -1193,6 +1193,27 @@ through until something is written there.
   distributed under the GNU General Public License, version 2 or later, with the rest of this project
 - Source: https://github.com/nukeykt/Nuked-OPL3
 
+## libADLMIDI — General MIDI on the FM chip
+
+`Sources/SidayEightBit/MIDI/ADLMIDISynth.swift` and `MIDIFMRenderer.swift` are a Swift port of
+libADLMIDI 1.6.2.1's MIDI player and OPL3 driver (`src/adlmidi_midiplay.cpp`, `src/adlmidi_opl3.cpp`,
+and the playing loop of `src/adlmidi.cpp`). `Sources/SidayMIDI` follows its sequencer's rules
+(`src/midiseq`) and the volume model of Windows 9x (`src/models/model_win9x.c`, with the brightness
+table of `model_generic.c`).
+
+- Copyright (c) 2010-2014 Joel Yliluoma (ADLMIDI), (c) 2015-2026 Vitaly Novichkov
+- The player and driver: GNU General Public License, version 3 or later ("Other parts of library are
+  licensed under GPLv3+", its README). The sequencer and the volume models: MIT licence
+- Source: https://github.com/Wohlstand/libADLMIDI
+
+The instruments are The Fat Man's two-operator General MIDI set, as libADLMIDI 1.6.2.1 carries it
+(`fm_banks_new/fatman-2op.woplx`, with `LICENSE-TheFatMan.txt`), in `FatManBank.swift`, which holds its
+full notice.
+
+- "Tone libraries for OPL2 and OPL3 chips produced by The Fat Man. Developed by K. Weston Phelan and
+  George Alistair Sanger. Copyright (c) 1993-2025 The Fat Man (TM)"
+- MIT licence
+
 ## SAASound — the SAA1099
 
 `Sources/SidayEightBit/SAA1099/SAA1099.swift` is a Swift port of SAASound

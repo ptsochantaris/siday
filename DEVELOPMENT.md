@@ -2187,6 +2187,35 @@ Level:
 
 - Turned down by half, by measure, to be as loud as CMF and ROL files.
 
+### MID — Standard MIDI Files
+
+Based on:
+
+- `SidayMIDI`, a module of its own: reading Standard MIDI Files and RMID (`MIDIFile`), the sequencer
+  (`MIDISequencer`: libADLMIDI's timing and loops, and a prelude of the sysex kept beside a file),
+  and what a file was written for (`MIDIStandard`, `MIDIOrigin`). A synthesiser takes the messages
+  through `MIDIReceiver`.
+- The FM synthesiser in `SidayEightBit/MIDI`: a port of libADLMIDI's MIDI player and OPL3 driver
+  (`ADLMIDISynth`), with The Fat Man's bank (`FatManBank`), played by `MIDIFMRenderer`.
+
+Checked against libADLMIDI 1.6.2.1, built with a log of its writes to its Nuked OPL3:
+
+- Same bank, same volume model, same chip; the writes over the first minute. 107 of 110 files write
+  the same registers at the same chip samples. In two, 19 of about 11,000 writes land a sample apart,
+  where libADLMIDI's own output loop lets its chip catch up. In the third, the last write differs,
+  where siday goes back to the song's loop.
+- libADLMIDI's chip runs one sample behind its output; siday leaves the chip's first sample unmade.
+- What each file was written for was checked on the pairs of the same games' music kept in two
+  versions (the Wing Commanders, Ultima VII, Leisure Suit Larry 3, Space Quest 1 and others): no
+  General MIDI copy is taken for the MT-32's, and every MT-32 copy whose setup is in it or beside it
+  is taken for the MT-32's. 62 MT-32 rips with no setup anywhere are left as saying nothing: no sign
+  in their notes alone tells them apart well enough (the best, the MT-32's timpani as program 112, is
+  in 64% of MT-32 rips and 3% of General MIDI files).
+
+Level:
+
+- Measured over the first minute of 100 files, as loud as CMF files.
+
 ### VGM — what was written to the chip, and when
 
 History:

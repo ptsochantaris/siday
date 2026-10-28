@@ -55,6 +55,7 @@ public enum TuneFormat: String, CaseIterable, Sendable {
     case ogg, mp3, wav
     case mo3
     case ml
+    case mid
 
     /// The format a file name's extension stands for, in any case: its own name (`TuneFormat.rawValue`),
     /// or one of the other names files of it are kept under (`otherNames`).
@@ -119,6 +120,8 @@ public enum TuneFormat: String, CaseIterable, Sendable {
             // (Recordings: Ogg Vorbis by the name the Ogg container's makers gave a file of sound in it;
             // MPEG audio of the first two layers, which the decoder of the third plays too; and WAV.)
             "oga": .ogg, "mp2": .mp3, "mp1": .mp3, "wave": .wav,
+            // (A Standard MIDI File by its other names: wrapped in RIFF by Microsoft, with karaoke words.)
+            "midi": .mid, "smf": .mid, "rmi": .mid, "kar": .mid,
         ]
         // (A module packed by one of the packers games and demos used, named for the packer, which
         // is read into a module; but for Game Music Creator's, which ProWizard would make a

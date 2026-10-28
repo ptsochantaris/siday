@@ -99,6 +99,7 @@
 				<string>build.bru.siday.tune.jpnd</string>
 				<string>build.bru.siday.tune.jpo</string>
 				<string>build.bru.siday.tune.jt</string>
+				<string>build.bru.siday.tune.kar</string>
 				<string>build.bru.siday.tune.kh</string>
 				<string>build.bru.siday.tune.kris</string>
 				<string>build.bru.siday.tune.lion</string>
@@ -111,6 +112,8 @@
 				<string>build.bru.siday.tune.mdl</string>
 				<string>build.bru.siday.tune.med</string>
 				<string>build.bru.siday.tune.mfp</string>
+				<string>build.bru.siday.tune.mid</string>
+				<string>build.bru.siday.tune.midi</string>
 				<string>build.bru.siday.tune.mii</string>
 				<string>build.bru.siday.tune.ml</string>
 				<string>build.bru.siday.tune.mmd0</string>
@@ -177,6 +180,7 @@
 				<string>build.bru.siday.tune.rjp</string>
 				<string>build.bru.siday.tune.rk</string>
 				<string>build.bru.siday.tune.rkb</string>
+				<string>build.bru.siday.tune.rmi</string>
 				<string>build.bru.siday.tune.rol</string>
 				<string>build.bru.siday.tune.s3m</string>
 				<string>build.bru.siday.tune.s7g</string>
@@ -196,6 +200,7 @@
 				<string>build.bru.siday.tune.sid2</string>
 				<string>build.bru.siday.tune.sjs</string>
 				<string>build.bru.siday.tune.sm</string>
+				<string>build.bru.siday.tune.smf</string>
 				<string>build.bru.siday.tune.smn</string>
 				<string>build.bru.siday.tune.smod</string>
 				<string>build.bru.siday.tune.smus</string>
@@ -344,6 +349,7 @@
 				<string>jpnd</string>
 				<string>jpo</string>
 				<string>jt</string>
+				<string>kar</string>
 				<string>kh</string>
 				<string>kris</string>
 				<string>lion</string>
@@ -356,6 +362,8 @@
 				<string>mdl</string>
 				<string>med</string>
 				<string>mfp</string>
+				<string>mid</string>
+				<string>midi</string>
 				<string>mii</string>
 				<string>ml</string>
 				<string>mmd0</string>
@@ -423,6 +431,7 @@
 				<string>rjp</string>
 				<string>rk</string>
 				<string>rkb</string>
+				<string>rmi</string>
 				<string>rol</string>
 				<string>s3m</string>
 				<string>s7g</string>
@@ -442,6 +451,7 @@
 				<string>sid2</string>
 				<string>sjs</string>
 				<string>sm</string>
+				<string>smf</string>
 				<string>smn</string>
 				<string>smod</string>
 				<string>smus</string>
@@ -1959,6 +1969,23 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
+			<string>KAR music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.kar</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>kar</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
 			<string>KH music</string>
 			<key>UTTypeIdentifier</key>
 			<string>build.bru.siday.tune.kh</string>
@@ -2154,6 +2181,40 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>mfp</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MID music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.mid</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>mid</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MIDI music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.midi</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>midi</string>
 				</array>
 			</dict>
 		</dict>
@@ -3234,6 +3295,23 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
+			<string>RMI music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.rmi</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>rmi</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
 			<string>ROL music</string>
 			<key>UTTypeIdentifier</key>
 			<string>build.bru.siday.tune.rol</string>
@@ -3548,6 +3626,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>sm</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>SMF music</string>
+			<key>UTTypeIdentifier</key>
+			<string>build.bru.siday.tune.smf</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>smf</string>
 				</array>
 			</dict>
 		</dict>

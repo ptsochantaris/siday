@@ -4497,6 +4497,56 @@ what OpenMPT sets.
 
 It is heard as CMF and ROL files are, and turned down, by measure, to be as loud as they are.
 
+## MID — Standard MIDI Files
+
+MIDI, the Musical Instrument Digital Interface, was agreed by the synthesiser makers in 1983 so that
+one keyboard could play another. The Standard MIDI File (1988) keeps what is sent down the cable,
+with the time of each message, so that a sequencer can send it again. A file of format 0 has one
+track, one of format 1 several played together, and one of format 2 several songs, a track each.
+
+A MIDI file has no sound of its own: it sounds like whatever synthesiser plays it. Roland's MT-32
+(1987), on which most of the games of its day were scored, came first. General MIDI (1991) then
+fixed which instrument each of 128 programs is, and which drum each note of channel 10 is, so that a
+file would sound like itself on any synthesiser that kept to it. Roland's GS (the Sound Canvas, 1991)
+and Yamaha's XG (1994) added to it. A file says which it was written for in its system exclusive
+messages, if it says at all.
+
+### How siday plays it
+
+On a PC with a Sound Blaster and no synthesiser, a MIDI file was played on the card's FM chip, by a
+driver with a bank of FM instruments. siday plays every MIDI file that way for now: on an OPL3, with
+The Fat Man's General MIDI instruments, and the volume and pitch of Windows 95's and 98's driver for
+the Sound Blaster 16. That is how libADLMIDI plays them with its bank "The Fat Man 2op set; Win9x",
+and siday's writes to the chip are libADLMIDI's, register for register.
+
+- **What it was written for.** siday reads it from the file itself: a GS reset, Yamaha's XG, General
+  MIDI switched on, or the MT-32's own messages. Never from the folder it is in, since the same
+  game's music is often found as an MT-32 rip in one place and its General MIDI version in another.
+  A file that says nothing is taken for General MIDI.
+- **The MT-32's setup.** Most games set up instruments of their own on the MT-32 before their music
+  began. Rips of their music keep that setup in the file, or beside it: a `.SYX` file of the same
+  name, the one `.SYX` file of a folder, or Ultima VII's `sysex.mid`. siday sends it first, at the
+  cable's own speed. For now, a file written for the MT-32 is played with General MIDI's instruments
+  of the same numbers, and says so.
+- **Loops.** Songs loop where the software that wrote them meant: by the FOR and NEXT of Miles' Audio
+  Interface Library (controllers 116 and 117), kept in the games' music converted to MIDI files, and
+  by the markers "loopStart" and "loopEnd". A loop a game held while the player stayed somewhere,
+  with more of the song after it, is played through.
+- **Ends.** A song ends a second after its last message.
+- **Voices.** The lamps, scopes and mute buttons are the sixteen MIDI channels. The chip's eighteen
+  channels are handed to whichever notes need them, so each MIDI channel shows the chip channels
+  playing for it.
+
+### Differences and limits
+
+- **One synthesiser for now.** Files written for the Sound Canvas, for XG or for the MT-32 are heard
+  on FM, not on what they were written for.
+- **A game's own FM.** A game played its music with its own driver and FM instruments. Those are not
+  in the files, so a game's music is heard with The Fat Man's General MIDI instruments, the set
+  libADLMIDI names for Windows 9x.
+- **More than sixteen channels.** A file that names devices for its tracks has them folded into
+  sixteen channels.
+
 ## VGM — what was written to the chip, and when
 
 A VGM file (Video Game Music) holds no tune and no player. It is a recording of what a machine wrote

@@ -271,7 +271,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .plm: false
             case .dsm, .masi: false
             case .digi: false
-            case .vgm: false
+            case .vgm, .mid: false
             case .sap: false
             case .agi: false
             case .mfp: false

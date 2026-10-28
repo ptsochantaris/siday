@@ -48,8 +48,30 @@ final class OPLCard {
 
     @inline(__always) private func keepWaves() {
         guard let waves else { return }
-        for ii in 0 ..< wavesChannels { waves.store(wavesFrom + ii, at: wavesMade, Float(chip.pointee.channelOutput(ii))) }
+        if let voiceOf {
+            // Each channel added to the voice it is playing for.
+            for voice in 0 ..< wavesChannels { voiceSums[voice] = 0 }
+            for ii in 0 ..< 18 where voiceOf[ii] >= 0 && voiceOf[ii] < wavesChannels {
+                voiceSums[voiceOf[ii]] += Float(chip.pointee.channelOutput(ii))
+            }
+            for voice in 0 ..< wavesChannels { waves.store(wavesFrom + voice, at: wavesMade, voiceSums[voice]) }
+        } else {
+            for ii in 0 ..< wavesChannels { waves.store(wavesFrom + ii, at: wavesMade, Float(chip.pointee.channelOutput(ii))) }
+        }
         wavesMade += 1
+    }
+
+    /// For a tune whose voices are not the chip's channels but take them as they need them: which
+    /// voice each of the eighteen channels is playing for now, -1 for none, kept by the player.
+    private var voiceOf: UnsafeMutablePointer<Int>?
+    private var voiceSums: [Float] = []
+
+    /// Keeps each of so many voices' sound for its scope, in `waves` from `first` on, at the chip's
+    /// rate: the sum of the channels `voiceOf` says are playing for it.
+    func keepWaves(in waves: ChannelWaves, first: Int, voices: Int, voiceOf: UnsafeMutablePointer<Int>) {
+        self.voiceOf = voiceOf
+        voiceSums = Array(repeating: 0, count: voices)
+        keepWaves(in: waves, first: first, channels: voices)
     }
 
     /// Moves the voices on past what has been kept of them, once a render is done.

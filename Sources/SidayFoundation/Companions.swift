@@ -138,6 +138,11 @@ public enum CompanionFolder {
 /// - a module of Startrekker's that has synthesised instruments keeps them in a file beside it, which
 ///   Startrekker named for the module with `.nt` after it (`.as` from Audio Sculpture), and the
 ///   collections as `title_nt.mod` beside `title.mod`.
+/// - a MIDI file written for an MT-32 that does not set it up itself has the system exclusive messages
+///   that do kept beside it: back to back in `TITLE.SYX`, or, where every song of a game shares them, in
+///   the one `.syx` file of its folder (as the Wing Commander packs of the 2010s keep them); or in a
+///   MIDI file of them alone, `sysex.mid`, `sysexmain.mid` or `sysintroend.mid` (as the Ultima VII
+///   rips of the 1990s do). A file that sends system exclusive messages of its own takes none of them.
 /// - a ROL tune takes its instruments from a bank of its own name, `TUNE.BNK` for `TUNE.ROL`, and then
 ///   from `STANDARD.BNK`, and what neither has from the bank built into the player.
 public enum Companions {
@@ -152,11 +157,12 @@ public enum Companions {
 
     /// The endings of the names of companion files, of every kind: a file with one of these is part of
     /// a tune, not a tune.
-    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss", "mcs", "ins", "ssd"]
+    public static let endings: Set<String> = ["smp", "bnk", "smpl", "sam", "instr", "ss", "mcs", "ins", "ssd", "syx"]
 
     /// The names, whole, of companion files kept under a name of their own and not an ending: Kris
-    /// Hatlelid's replayer and Jesper Olsen's games' driver.
-    public static let names: Set<String> = ["songplay", "wantedteam.bin"]
+    /// Hatlelid's replayer, Jesper Olsen's games' driver, and the MIDI files that set an MT-32 up for the
+    /// songs beside them.
+    public static let names: Set<String> = ["songplay", "wantedteam.bin", "sysex.mid", "sysexmain.mid", "sysintroend.mid"]
 
     /// True if a file of this extension, in any case, is a companion of a tune.
     public static func are(fileExtension: String) -> Bool {
@@ -319,6 +325,10 @@ public enum Companions {
             // it is read: so not required, and any other module plays as it is (`StartrekkerSynth`).
             let ending = bytes.lastIndex(of: 0x2E).map { String(decoding: bytes[($0 + 1)...], as: UTF8.self) } ?? "mod"
             return [Companion(part: .instruments, names: ["\(stem)_nt.\(ending)", "\(fileName).nt", "\(fileName).as"], kind: nil, required: false)]
+        case .mid:
+            // Not needed by a file that sets its synthesiser up itself, or by one for General MIDI.
+            let names = ["\(stem).syx", "sysex.mid", "sysexmain.mid", "sysintroend.mid"]
+            return [Companion(part: .instruments, names: names, kind: "syx", required: false)]
         case .rol:
             let own = Companion(part: .instruments, names: ["\(stem).bnk"], required: false)
             let standard = Companion(part: .instruments, names: ["standard.bnk"], required: false)

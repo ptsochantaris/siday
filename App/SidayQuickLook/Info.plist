@@ -96,6 +96,7 @@
 				<string>build.bru.siday.tune.jpnd</string>
 				<string>build.bru.siday.tune.jpo</string>
 				<string>build.bru.siday.tune.jt</string>
+				<string>build.bru.siday.tune.kar</string>
 				<string>build.bru.siday.tune.kh</string>
 				<string>build.bru.siday.tune.kris</string>
 				<string>build.bru.siday.tune.lion</string>
@@ -108,6 +109,8 @@
 				<string>build.bru.siday.tune.mdl</string>
 				<string>build.bru.siday.tune.med</string>
 				<string>build.bru.siday.tune.mfp</string>
+				<string>build.bru.siday.tune.mid</string>
+				<string>build.bru.siday.tune.midi</string>
 				<string>build.bru.siday.tune.mii</string>
 				<string>build.bru.siday.tune.ml</string>
 				<string>build.bru.siday.tune.mmd0</string>
@@ -171,6 +174,7 @@
 				<string>build.bru.siday.tune.rjp</string>
 				<string>build.bru.siday.tune.rk</string>
 				<string>build.bru.siday.tune.rkb</string>
+				<string>build.bru.siday.tune.rmi</string>
 				<string>build.bru.siday.tune.rol</string>
 				<string>build.bru.siday.tune.s3m</string>
 				<string>build.bru.siday.tune.s7g</string>
@@ -190,6 +194,7 @@
 				<string>build.bru.siday.tune.sid2</string>
 				<string>build.bru.siday.tune.sjs</string>
 				<string>build.bru.siday.tune.sm</string>
+				<string>build.bru.siday.tune.smf</string>
 				<string>build.bru.siday.tune.smn</string>
 				<string>build.bru.siday.tune.smod</string>
 				<string>build.bru.siday.tune.smus</string>

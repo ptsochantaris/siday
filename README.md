@@ -47,7 +47,7 @@ siday is built, and how each part was checked, is in [DEVELOPMENT.md](DEVELOPMEN
 | Epic MegaGames' DOS games | PSM files of MASI, their music system (Epic Pinball, Silverball, Jazz Jackrabbit, Extreme Pinball, Sinaria), told apart from the ZX Spectrum's PSM by how they begin | converted for Scream Tracker 3's replayer |
 | Sierra's adventure games, King's Quest to Manhunter | AGI sounds | either of Sierra's own two routines for the Amiga, on the Amiga's sound chip; or the PCjr's and Tandy 1000's chip, as Sierra's interpreter wrote to it |
 | Recordings, such as the CD audio of CD32 and CDTV games | Ogg Vorbis, MP3 (and MP2), WAV | ports of stb_vorbis and minimp3; brought to 48 kHz, a voice for each side |
-| AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver and OpenMPT's reading, on the FM chip; a recording's own writes, at their own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
+| AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; MIDI files (on the FM chip, for now); VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver, OpenMPT's reading and libADLMIDI's General MIDI driver, on the FM chip; a recording's own writes, at their own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
 
 A playlist, in Ay_Emul's AYL format or an M3U (such as VGM packs come with), plays the tunes it
 names, in its order, whatever kind of tune each is.
@@ -487,8 +487,9 @@ mentioned, and only what might be heard.
 
 GNU General Public License, version 2 or (at your option) any later version; see `LICENSE`. Two parts,
 the driver for CMF files and the replayer for STM files, come from work under the Apache License 2.0,
-which is compatible with version 3 of the GPL but not version 2. So the player as a whole is passed
-on under version 3 or later.
+which is compatible with version 3 of the GPL but not version 2, and the FM driver for MIDI files is
+ported from libADLMIDI's, under version 3 or later. So the player as a whole is passed on under
+version 3 or later.
 
 This project stands on other people's work: the emulators, players and readings below are ported
 from theirs, or written to behave as theirs do and checked against them. `THIRD-PARTY.md` lists what
@@ -650,6 +651,10 @@ came from where, and under which terms.
   OPLx, and AdLib's sound driver as OPLx, Stas'M and Jepael have it there, from the code AdLib gave
   programmers. Visual Composer, the ROL format and the first bank of instruments are AdLib's; the
   instruments built into the player are theirs and those of the many people who added to that bank.
+- [libADLMIDI](https://github.com/Wohlstand/libADLMIDI) by Vitaly Novichkov, after Joel Yliluoma's
+  ADLMIDI: General MIDI on the FM chip. Its player and OPL3 driver are ported, with Windows 9x's
+  volume model; MIDI files' timing and loops follow its sequencer. The instruments are The Fat Man's
+  (K. Weston Phelan and George Alistair Sanger), under the MIT licence.
 - [libvgm](https://github.com/ValleyBell/libvgm) by Valley Bell: the player VGM files were compared
   with. From it come how a file's volume and its chips' volumes are read, when a write is made, and
   how its streams of samples are written and its blocks of them unpacked. None of its own code is in

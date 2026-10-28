@@ -5,7 +5,7 @@ import SidayFoundation
 
 /// The players of the 8-bit machines' music, and of the PC's FM chips: the ZX Spectrum's trackers,
 /// recordings of the AY chip and AY files, the 8-bit Atari's SAP files, Sierra's AGI sounds, the AdLib's
-/// CMF, ROL and FMT tunes, and VGM recordings.
+/// CMF, ROL and FMT tunes, MIDI files on its OPL3, and VGM recordings.
 ///
 /// The loader asks each family in turn for a player (`TuneLoader`): nil is for a tune of a format
 /// that is not this family's.
@@ -42,6 +42,10 @@ package enum EightBitPlayers {
             return try ROLTune.renderer(data, banks: companions.compactMap { $0.map { AdLibBank($0) } })
         case .fmt:
             return try FMTTune.renderer(data)
+        case .mid:
+            // A MIDI file, on the OPL3; with the system exclusive messages kept beside it that set the
+            // synthesiser up, if any were found.
+            return try MIDIFMRenderer(data, companion: companions.first ?? nil, options: options)
         case .vgm:
             // What was written to the AdLib's or Sound Blaster's FM chip, and when. (A VGZ file has
             // been unpacked by the loader.)
