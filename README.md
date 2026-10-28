@@ -47,7 +47,8 @@ siday is built, and how each part was checked, is in [DEVELOPMENT.md](DEVELOPMEN
 | Epic MegaGames' DOS games | PSM files of MASI, their music system (Epic Pinball, Silverball, Jazz Jackrabbit, Extreme Pinball, Sinaria), told apart from the ZX Spectrum's PSM by how they begin | converted for Scream Tracker 3's replayer |
 | Sierra's adventure games, King's Quest to Manhunter | AGI sounds | either of Sierra's own two routines for the Amiga, on the Amiga's sound chip; or the PCjr's and Tandy 1000's chip, as Sierra's interpreter wrote to it |
 | Recordings, such as the CD audio of CD32 and CDTV games | Ogg Vorbis, MP3 (and MP2), WAV | ports of stb_vorbis and minimp3; brought to 48 kHz, a voice for each side |
-| AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; MIDI files (on the FM chip, for now); VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver, OpenMPT's reading and libADLMIDI's General MIDI driver, on the FM chip; a recording's own writes, at their own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
+| AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; MIDI files (on the FM chip, but see the MT-32); VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver, OpenMPT's reading and libADLMIDI's General MIDI driver, on the FM chip; a recording's own writes, at their own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
+| The Roland MT-32 (as the LAPC-I and CM-32L) | MIDI files written for it, once siday has been given its ROMs | A port of Munt's mt32emu |
 
 A playlist, in Ay_Emul's AYL format or an M3U (such as VGM packs come with), plays the tunes it
 names, in its order, whatever kind of tune each is.
@@ -254,6 +255,7 @@ each thing.
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, from bright to dark (default 0.5). Real chips varied this much. reSIDfp only |
 | `--songlengths path` | A copy of HVSC's `Songlengths.md5`, asked before the built-in lengths; remembered for later runs. A file with no lengths in it is ignored |
+| `--roms files or folders` | A CM-32L's or LAPC-I's ROMs (whole or in halves, of any names), which siday keeps from then on, and plays MIDI files written for the MT-32 with. A `Songlengths.md5` among them is kept too. `--kept` says what is kept, `--forget-kept` forgets it, and `$SIDAY_KEPT` names a folder of them for one run that is never written |
 | `--mute 2,4` / `--solo n` | Leave these voices out of every tune, or hear only this one: see [Muting a voice](#muting-a-voice) |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
 | `--list` | Show what would be played, with format, length and title. A `*` after the length marks a tune that isn't played quite as its file asks |
@@ -289,7 +291,8 @@ up or down.
   browser alike), and a tune is found among them by its content.
   - A copy of the collection's own `Songlengths.md5` is asked first, when there is one: named with
     `--songlengths` (once is enough), in `$SIDAY_SONGLENGTHS`, or found in a `DOCUMENTS` folder
-    above the tune. That is the way to use a newer release's lengths. It also finds a tune by its
+    above the tune, or one kept with `--roms`, or dropped on the app or the web page (they keep it).
+    That is the way to use a newer release's lengths. It also finds a tune by its
     path inside HVSC when its content differs.
   - A SID tune in neither gets `--default-time`.
 - **CMF and ROL files** end where their music does, plus a second for the last notes to die away.
@@ -488,7 +491,8 @@ mentioned, and only what might be heard.
 GNU General Public License, version 2 or (at your option) any later version; see `LICENSE`. Two parts,
 the driver for CMF files and the replayer for STM files, come from work under the Apache License 2.0,
 which is compatible with version 3 of the GPL but not version 2, and the FM driver for MIDI files is
-ported from libADLMIDI's, under version 3 or later. So the player as a whole is passed on under
+ported from libADLMIDI's, under version 3 or later. (The MT-32's synthesiser, ported from Munt, is
+under the LGPL 2.1 or later.) So the player as a whole is passed on under
 version 3 or later.
 
 This project stands on other people's work: the emulators, players and readings below are ported
@@ -655,6 +659,9 @@ came from where, and under which terms.
   ADLMIDI: General MIDI on the FM chip. Its player and OPL3 driver are ported, with Windows 9x's
   volume model; MIDI files' timing and loops follow its sequencer. The instruments are The Fat Man's
   (K. Weston Phelan and George Alistair Sanger), under the MIT licence.
+- [Munt](https://github.com/munt/munt) by Dean Beeler, Jerome Fisher and Sergey V. Mikayev: the
+  MT-32's synthesiser, mt32emu, ported whole for the LAPC-I. The ROMs it plays are Roland's, and don't
+  come with the player.
 - [libvgm](https://github.com/ValleyBell/libvgm) by Valley Bell: the player VGM files were compared
   with. From it come how a file's volume and its chips' volumes are read, when a write is made, and
   how its streams of samples are written and its blocks of them unpacked. None of its own code is in

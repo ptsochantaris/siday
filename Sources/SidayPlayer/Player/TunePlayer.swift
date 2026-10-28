@@ -241,7 +241,7 @@ public final class TunePlayer {
             following = false
         }
         session?.keepChannelWaves()
-        let key = SongLevel.key(digest: digest, song: song, options: options, policy: policy)
+        let key = SongLevel.key(digest: digest, song: song, options: options, policy: policy, playedOn: SongLevel.playedOn(renderer, options: options))
         if key != levelKey {
             levelKey = key
             level = nil
@@ -307,6 +307,12 @@ public final class TunePlayer {
     /// HVSC's own list of song lengths, to be asked before the lengths that are built in; nil for none.
     public func setSongLengths(_ database: SongLengthDatabase?) {
         options.songLengths = database
+    }
+
+    /// The ROMs of an MT-32 of the LAPC-I's kind (see `KeptFiles`), on whose synthesiser the MIDI files
+    /// written for the MT-32 that are loaded after it are played; nil for none, and FM.
+    public func setMT32ROMs(_ roms: MT32ROMSet?) {
+        options.mt32ROMs = roms
     }
 
     /// Changes the listener's settings: a value for each, in the order of `Setting`'s cases. Returns

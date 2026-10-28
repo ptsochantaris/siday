@@ -19,6 +19,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         case output(OutputStyle)
         case settings([Double])
         case songLengths([UInt8]?)
+        case mt32ROMs(MT32ROMSet?)
         case keptLevel(key: String, text: String?)
         case stop
         /// What was found of a tune's songs by playing them through, away from this thread.
@@ -223,6 +224,9 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             keeper.setSettings(values)
         case let .songLengths(bytes):
             keeper.setSongLengths(bytes.map { SongLengthDatabase($0) })
+        case let .mt32ROMs(roms):
+            keeper.setMT32ROMs(roms)
+            measuring.async { [measuredPlayer] in measuredPlayer.setMT32ROMs(roms) }
         case let .keptLevel(key, text):
             keeper.setKeptLevel(key: key, text: text, now: time)
         case let .measured(tune, key, measures):

@@ -47,7 +47,7 @@ struct PlayerView {
                     TuneFormat.allCases.map { $0.rawValue.uppercased() }.joined(separator: ", ")
                 }
                 p {
-                    "SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first."
+                    "SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is kept and used first."
                 }
                 p {
                     "siday is free software, written in Swift. "
@@ -245,8 +245,18 @@ struct SettingsPanel {
                     }
                 }
             }
+            if !player.keptSummary.isEmpty {
+                div(.class("group kept")) {
+                    h2 { "Kept files" }
+                    ForEach(Array(player.keptSummary.indices), key: { String($0) }) { index in
+                        p { player.keptSummary[index] }
+                    }
+                    button(.title("Forget the MT-32 ROMs and song lengths this browser keeps")) { "Forget kept files" }
+                        .onClick { player.forgetKept() }
+                }
+            }
             div(.class("bar")) {
-                span(.class("hint")) { "Rest the pointer on a setting to read what it does. They are kept for your next visit." }
+                span(.class("hint")) { "Rest the pointer on a setting to read what it does. They are kept for your next visit. MT-32 ROMs or a Songlengths.md5 added like tunes are kept too." }
                 button(.title("Put every setting back as it comes")) { "Reset to defaults" }
                     .attributes(.disabled, when: player.settingsAreStandard)
                     .onClick { player.resetSettings() }
@@ -592,6 +602,7 @@ private func chipName(_ chip: SoundChip) -> String {
     case .gf1: "The Gravis Ultrasound's GF1 chip"
     case .sbPro: "The Sound Blaster Pro's DSP"
     case .dac: "A recording, played through a digital-to-analogue converter"
+    case .la32: "Roland's LA32 synthesiser chip, the LAPC-I's"
     }
 }
 

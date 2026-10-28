@@ -122,8 +122,15 @@ public extension SongLevel {
     /// is measured and levelled before any television it is played through.)
     /// (A tune's companions, the files it takes its samples or its instruments from, are as much a
     /// part of how it sounds as its own file is.)
-    static func key(of file: [UInt8], companions: [[UInt8]?] = [], song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
-        key(digest: digest(of: file, companions: companions), song: song, options: options, policy: policy)
+    static func key(of file: [UInt8], companions: [[UInt8]?] = [], song: Int, options: LoadOptions, policy: PlaybackPolicy, playedOn: String? = nil) -> String {
+        key(digest: digest(of: file, companions: companions), song: song, options: options, policy: policy, playedOn: playedOn)
+    }
+
+    /// What a key says a tune was played on, where the same file may be played on one synthesiser or
+    /// another by what siday has been given: the control ROM of the MT-32 a MIDI file is played on, for
+    /// one played on it; nil otherwise.
+    static func playedOn(_ renderer: any Renderer, options: LoadOptions) -> String? {
+        renderer.info.chips.first == .la32 ? options.mt32ROMs?.control.rawValue : nil
     }
 
     /// What a file is known by in a `key`, with its companions, those that were found, if any were:
@@ -163,7 +170,7 @@ public extension SongLevel {
     static let soundVersion = 22
 
     /// The same, from the file's `digest`.
-    static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy) -> String {
+    static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy, playedOn: String? = nil) -> String {
         func milli(_ value: Double?) -> String { value.map { String(Int(($0 * 1000).rounded())) } ?? "-" }
         let parts = [
             String(soundVersion), digest, String(song),
@@ -175,8 +182,10 @@ public extension SongLevel {
         ]
         // (Said only where it is not as it is unless changed, so that the keys made before it was a
         // choice still stand.)
-        if options.agiReplay != .amiga { return (parts + ["agi=" + options.agiReplay.rawValue]).joined(separator: " ") }
-        return parts.joined(separator: " ")
+        var said: [String] = []
+        if options.agiReplay != .amiga { said.append("agi=" + options.agiReplay.rawValue) }
+        if let playedOn { said.append("on=" + playedOn) }
+        return (parts + said).joined(separator: " ")
     }
 
     /// The level as it can be kept in a line of text: the loudness and the true peak, in thousandths.

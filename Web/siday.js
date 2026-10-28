@@ -113,6 +113,12 @@ function audio() {
     engine.postMessage({ type: "measurer", port: between.port1 }, [between.port1]);
     measurer.postMessage({ type: "measuring", port: between.port2 }, [between.port2]);
     await join(engine, output);
+    // The files kept, which the engines are given first of all.
+    measuring = measurer;
+    for (const stored of await keptFiles()) {
+      engine.postMessage({ type: "keep", bytes: stored.bytes, answer: true, token: stored.name });
+      measurer.postMessage({ type: "keep", bytes: stored.bytes });
+    }
     engine.postMessage({ type: "style", style });
     if (settings) engine.postMessage({ type: "settings", values: settings });
     if (songLengths) engine.postMessage({ type: "songlengths", bytes: songLengths });
@@ -249,6 +255,70 @@ function keep(name, value) {
   } catch {}
 }
 
+/// The files the listener gave once that siday keeps (see `KeptFiles` in SidayPlayer): the ROMs of an
+/// MT-32 of the LAPC-I's kind and HVSC's Songlengths.md5. They are kept in the browser's IndexedDB, which
+/// holds files of a megabyte as they are, from one visit to the next, under the names the engine gives
+/// them; a file just given is kept under a name of its own until the engine has said what it is. What
+/// the engine last said is kept too, as text, to be shown before it has started.
+const keptSizes = [32768, 65536, 131072, 262144, 524288, 1048576];
+let keptSummary = (kept("siday.kept") ?? "").split("\n").filter((line) => line);
+let toldKept;
+let keptGiven = 0;
+/// The other worker, which plays songs through, and needs the ROMs too.
+let measuring;
+function keptStore(mode, use) {
+  return new Promise((resolve) => {
+    try {
+      const opening = indexedDB.open("siday-kept", 1);
+      opening.onupgradeneeded = () => opening.result.createObjectStore("files");
+      opening.onerror = () => resolve(null);
+      opening.onsuccess = () => {
+        const store = opening.result.transaction("files", mode).objectStore("files");
+        const asked = use(store);
+        store.transaction.oncomplete = () => resolve(asked?.result ?? null);
+        store.transaction.onerror = () => resolve(null);
+      };
+    } catch {
+      resolve(null);
+    }
+  });
+}
+async function keptFiles() {
+  const names = (await keptStore("readonly", (store) => store.getAllKeys())) ?? [];
+  const files = (await keptStore("readonly", (store) => store.getAll())) ?? [];
+  return names.map((name, which) => ({ name, bytes: files[which] }));
+}
+/// Hands a file to the engines, which say what it is: it is then kept under the engine's name for it,
+/// or not at all.
+function offerKept(stored) {
+  void sound?.then(({ engine }) => {
+    engine.postMessage({ type: "keep", bytes: stored.bytes, answer: true, token: stored.name });
+    measuring?.postMessage({ type: "keep", bytes: stored.bytes });
+  });
+}
+async function keptAnswer({ token, name, summary }) {
+  if (name !== token) {
+    const bytes = (await keptFiles()).find((stored) => stored.name === token)?.bytes;
+    await keptStore("readwrite", (store) => store.delete(token));
+    if (name && bytes) await keptStore("readwrite", (store) => store.put(bytes, name));
+  }
+  keptSummary = summary;
+  keep("siday.kept", summary.join("\n"));
+  toldKept?.(summary.join("\n"));
+}
+/// Takes, of what was chosen, the files that may be ones siday keeps: by their size, or how they begin.
+async function takeKept(chosen) {
+  for (const item of chosen) {
+    if (kindOf(item.name) !== 0) continue;
+    const start = new Uint8Array(await item.file.slice(0, 16).arrayBuffer());
+    const text = new TextDecoder().decode(start).replace(/^\uFEFF/, "");
+    if (!keptSizes.includes(item.file.size) && !text.startsWith("[Database]") && !text.startsWith(";")) continue;
+    const stored = { name: `given-${Date.now()}-${keptGiven++}`, bytes: await item.file.arrayBuffer() };
+    await keptStore("readwrite", (store) => store.put(stored.bytes, stored.name));
+    offerKept(stored);
+  }
+}
+
 /// The levels of songs measured in this browser (see `SongLevel`), by what each is kept under: read
 /// once, when one is first wanted. Only so many are kept, the oldest let go first.
 let levels;
@@ -334,6 +404,7 @@ function heard(message) {
   if (message.type === "connected") return direct();
   // A song's level is kept whichever song is playing now.
   if (message.type === "level") return keepLevel(message.key, message.text);
+  if (message.type === "kept") return void keptAnswer(message);
   // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
   if ("tune" in message ? message.tune !== asked : message.serial !== serial) return;
   switch (message.type) {
@@ -633,6 +704,8 @@ function put(accepted, anchor = null) {
 
 /// Takes in what was chosen or dropped: just before `anchor`, a tune in the list, if one is given.
 async function add(chosen, anchor = null) {
+  // The files siday keeps, the MT-32's ROMs and the song lengths, known by what is in them.
+  await takeKept(chosen);
   // HVSC's song-length database is taken for what it is and not for a tune.
   const database = chosen.find((item) => item.name.split("/").pop().toLowerCase() === "songlengths.md5");
   if (database) {
@@ -1344,6 +1417,19 @@ Object.assign(globalThis, {
   },
   sidayRememberedSettings() {
     return kept("siday.settings") ?? "";
+  },
+  sidayListenKept(told) {
+    toldKept = told;
+    told(keptSummary.join("\n"));
+  },
+  sidayForgetKept() {
+    keptSummary = [];
+    keep("siday.kept", "");
+    void keptStore("readwrite", (store) => store.clear());
+    void sound?.then(({ engine }) => {
+      engine.postMessage({ type: "forgetkept" });
+      measuring?.postMessage({ type: "forgetkept" });
+    });
   },
 });
 

@@ -182,6 +182,33 @@ public func sidaySetSongLengths(_ data: UnsafePointer<UInt8>, _ length: Int32) -
     return database.isEmpty ? 0 : 1
 }
 
+/// The files the listener gave once, which the page keeps and gives again at each visit (see `KeptFiles`).
+nonisolated(unsafe) private var kept = KeptFiles()
+
+/// A file the page keeps, or has just been given and may keep: taken if it is one siday keeps, and its
+/// ROMs or song lengths used from now on. Returns the length of a text at `siday_packed`: the name it is
+/// kept under (empty for a file that is not one), and then what is kept, a line for each
+/// (`KeptFiles.summary`).
+@_expose(wasm, "siday_keep")
+@_cdecl("siday_keep")
+public func sidayKeep(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
+    let file = bytes(data, length)
+    let known = KeptFile.recognise(file)
+    if known != nil { kept.add(file) }
+    keeper.setMT32ROMs(kept.mt32ROMs)
+    if let lengths = kept.songLengths { keeper.setSongLengths(lengths) }
+    packed = Array(([known?.keptName ?? ""] + kept.summary).joined(separator: "\n").utf8)
+    return Int32(packed.count)
+}
+
+/// Forgets every file kept: MIDI files are played on FM again.
+@_expose(wasm, "siday_forget_kept")
+@_cdecl("siday_forget_kept")
+public func sidayForgetKept() {
+    kept.forgetAll()
+    keeper.setMT32ROMs(nil)
+}
+
 /// The level the page kept under `key` (see `SongLevel.key`), as the news of a song's level gave it,
 /// both in UTF-8; none (a length of 0), if none was kept.
 @_expose(wasm, "siday_set_kept_level")

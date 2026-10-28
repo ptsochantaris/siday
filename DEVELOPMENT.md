@@ -2197,6 +2197,15 @@ Based on:
   through `MIDIReceiver`.
 - The FM synthesiser in `SidayEightBit/MIDI`: a port of libADLMIDI's MIDI player and OPL3 driver
   (`ADLMIDISynth`), with The Fat Man's bank (`FatManBank`), played by `MIDIFMRenderer`.
+- `SidayMT32`, a module of its own with no Foundation: the port of Munt's mt32emu, played by
+  `MIDILA32Renderer` for files written for the MT-32 when the ROMs are kept (`MT32ROMSet`,
+  `LoadOptions.mt32ROMs`). `MT32Tables.swift` holds libmt32emu's own tables as numbers it printed, so
+  they are the same on every platform whatever its maths library.
+- Kept files: `KeptFile` and `KeptFiles` in SidayPlayer know a file by its contents (an MT-32 ROM by
+  Munt's SHA-1 table, song lengths by reading them); `KeptFileStore` in SidayFiles is the folder they
+  are kept in (`Application Support/siday/Kept` for the command line, the app container's for the
+  app); the web player keeps them in IndexedDB (`siday-kept`). `$SIDAY_KEPT` names a folder that is
+  read for one run, never written.
 
 Checked against libADLMIDI 1.6.2.1, built with a log of its writes to its Nuked OPL3:
 
@@ -2212,9 +2221,22 @@ Checked against libADLMIDI 1.6.2.1, built with a log of its writes to its Nuked 
   in their notes alone tells them apart well enough (the best, the MT-32's timpani as program 112, is
   in 64% of MT-32 rips and 3% of General MIDI files).
 
+Checked against libmt32emu 2.8.3, built with `-ffp-contract=off`, by a harness that takes siday's
+messages (`MIDILA32Renderer.eventLog`: the sample at 32 kHz and the bytes) and renders them with the
+integer renderer, analogue mode ACCURATE, DAC input GENERATION2, MIDI delay DELAY_SHORT_MESSAGES_ONLY,
+the "nice" amp ramp, panning and partial mixing off, and 32 partials:
+
+- 49 whole songs (Sierra's rips, the Wing Commanders, Ultima VII and Serpent Isle, with their setups
+  in the file or beside it) are the same, sample for sample.
+- The MT-32's renderer always renders blocks of 1,024 frames, whatever it is asked for: mt32emu draws
+  random numbers for each partial's timer as it renders, partial by partial, so its sound depends on
+  how much is rendered at a time. The harness renders the same blocks.
+
 Level:
 
-- Measured over the first minute of 100 files, as loud as CMF files.
+- FM: measured over the first minute of 100 files, as loud as CMF files.
+- MT-32: no gain. The same files are about 2 dB louder on it than on FM, between CMF files and the
+  rest of the FM MIDI files.
 
 ### VGM — what was written to the chip, and when
 

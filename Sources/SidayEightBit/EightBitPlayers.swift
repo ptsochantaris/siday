@@ -43,9 +43,14 @@ package enum EightBitPlayers {
         case .fmt:
             return try FMTTune.renderer(data)
         case .mid:
-            // A MIDI file, on the OPL3; with the system exclusive messages kept beside it that set the
+            // A MIDI file: one written for the MT-32 on the LAPC-I's synthesiser if its ROMs have been
+            // given, any other on the OPL3; with the system exclusive messages kept beside it that set the
             // synthesiser up, if any were found.
-            return try MIDIFMRenderer(data, companion: companions.first ?? nil, options: options)
+            let companion = companions.first ?? nil
+            if let roms = options.mt32ROMs, MIDIFMRenderer.isWrittenForMT32(data, companion: companion) {
+                return try MIDILA32Renderer(data, companion: companion, roms: roms, options: options)
+            }
+            return try MIDIFMRenderer(data, companion: companion, options: options)
         case .vgm:
             // What was written to the AdLib's or Sound Blaster's FM chip, and when. (A VGZ file has
             // been unpacked by the loader.)

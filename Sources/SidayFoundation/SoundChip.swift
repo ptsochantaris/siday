@@ -28,6 +28,8 @@ public enum SoundChip: String, CaseIterable, Sendable {
     case gf1
     /// The Sound Blaster Pro's DSP, which played what a tracker had mixed.
     case sbPro
+    /// Roland's LA32, the synthesiser of the MT-32 and of its later kind, the CM-32L and the LAPC-I card.
+    case la32
     /// No chip of its own: a recording, played through a digital-to-analogue converter.
     case dac
 }

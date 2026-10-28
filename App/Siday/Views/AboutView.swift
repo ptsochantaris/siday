@@ -41,7 +41,7 @@ struct AboutList: View {
                         Text("Siday").font(.largeTitle.weight(.bold))
                     }
                     Text("Chip music and modules from the ZX Spectrum, Amstrad CPC, Atari ST, 8-bit Ataris, Commodore 64, Amiga and PC.")
-                    Text("SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is used first.")
+                    Text("SID tunes take their lengths from the High Voltage SID Collection, release \(BuiltInSongLengths.release); a newer Songlengths.md5 from it, added like a tune, is kept and used first.")
                         .font(.footnote)
                         .foregroundStyle(Explanation.colour)
                 }

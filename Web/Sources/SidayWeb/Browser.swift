@@ -218,6 +218,17 @@ func sidaySettings(_ values: String, _ remembered: String) throws(JSException)
 @JSFunction(from: .global)
 func sidayRememberedSettings() throws(JSException) -> String
 
+/// Hands over the callback that is told what siday keeps (see SidayPlayer's `KeptFiles`): the MT-32 ROMs
+/// and song lengths the listener gave once, which the browser keeps from one visit to the next. A line
+/// for each thing said of them, none if nothing is kept; told at once, with what was said last, and
+/// again whenever it changes.
+@JSFunction(from: .global)
+func sidayListenKept(_ told: @escaping (String) -> Void) throws(JSException)
+
+/// Forgets every file siday keeps.
+@JSFunction(from: .global)
+func sidayForgetKept() throws(JSException)
+
 /// The name of the output style remembered from the last visit; empty if there was none.
 @JSFunction(from: .global)
 func sidayRememberedOutput() throws(JSException) -> String

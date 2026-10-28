@@ -23,6 +23,9 @@ public enum TuneFolders {
         public var list = ""
         /// HVSC's list of song lengths, if one was among them.
         public var songLengths: URL?
+        /// Files that may be ones siday keeps (see `KeptFile`), by their size or their first bytes: to be
+        /// read and known by what is in them.
+        public var keepable: [URL] = []
         /// The names of folders given that had nothing in them to play, or could not be looked into.
         public var emptyFolders: [String] = []
         /// Each of those folders, and how many files were found in it, none of them to play: none at
@@ -77,7 +80,7 @@ public enum TuneFolders {
                     switch TuneGathering.kind(ofFileNamed: file.lastPathComponent) {
                     case .tune, .playlist: files.append(file)
                     case .songLengths: result.songLengths = file
-                    case .companion, .other: break
+                    case .companion, .other: if !KeptFileStore.keepable(in: [file]).isEmpty { result.keepable.append(file) }
                     }
                 }
                 if files.isEmpty {
@@ -119,6 +122,8 @@ public enum TuneFolders {
                 result.songLengths = url
             } else if kind == .tune {
                 take(url)
+            } else if !KeptFileStore.keepable(in: [url]).isEmpty {
+                result.keepable.append(url)
             } else {
                 result.problems.append(.notATune(url))
             }

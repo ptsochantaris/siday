@@ -268,6 +268,12 @@ public final class SongKeeper {
         player.setSongLengths(database)
     }
 
+    /// The ROMs of an MT-32 of the LAPC-I's kind, for the MIDI files written for the MT-32 loaded after
+    /// them (see `TunePlayer.setMT32ROMs`).
+    public func setMT32ROMs(_ roms: MT32ROMSet?) {
+        player.setMT32ROMs(roms)
+    }
+
     /// The level the front end kept for the song, from when it was measured before (as `Event.level`
     /// gave it), or nil if none was.
     public func setKeptLevel(key: String, text: String?, now: Double) {

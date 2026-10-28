@@ -1214,6 +1214,21 @@ full notice.
   George Alistair Sanger. Copyright (c) 1993-2025 The Fat Man (TM)"
 - MIT licence
 
+## Munt — the MT-32's synthesiser
+
+`Sources/SidayMT32` is a Swift port of mt32emu, from libmt32emu 2.8.3 (tag `libmt32emu_2_8_3`):
+`Synth.cpp`, `Part.cpp`, `Partial.cpp`, `PartialManager.cpp`, `Poly.cpp`, `TVA.cpp`, `TVF.cpp`, `TVP.cpp`,
+`LA32Ramp.cpp`, `LA32WaveGenerator.cpp` (the integer one), `BReverbModel.cpp` (the integer one),
+`Analog.cpp`, `Tables.cpp` (as numbers), `Structures.h` and `MemoryRegion.h`. The table of ROMs by their
+SHA-1 digests comes from `ROMInfo.cpp`.
+
+- Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 Dean Beeler, Jerome Fisher; Copyright (C) 2011-2024
+  Dean Beeler, Jerome Fisher, Sergey V. Mikayev
+- GNU Lesser General Public License, version 2.1 or (at your option) any later version
+- Source: https://github.com/munt/munt
+
+The ROMs it plays are Roland's. They are not part of siday: a listener gives them to the player.
+
 ## SAASound — the SAA1099
 
 `Sources/SidayEightBit/SAA1099/SAA1099.swift` is a Swift port of SAASound

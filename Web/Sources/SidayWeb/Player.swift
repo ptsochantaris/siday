@@ -193,8 +193,18 @@ final class Player {
         didSet { try? sidayVolume(max(0, min(100, volume ?? 100)) / 100) }
     }
 
+    /// What siday keeps, as it says it: a line for each (see `KeptFiles.summary`).
+    private(set) var keptSummary: [String] = []
+
+    /// Forgets the files siday keeps: MIDI files are played on FM again.
+    func forgetKept() {
+        try? sidayForgetKept()
+        keptSummary = []
+    }
+
     /// Connects the page to the JavaScript side. Called once.
     func start() {
+        try? sidayListenKept { [self] text in keptSummary = text.split(separator: "\n").map { String($0) } }
         try? sidayListen(
             { name in
                 switch TuneGathering.kind(ofFileNamed: name) {

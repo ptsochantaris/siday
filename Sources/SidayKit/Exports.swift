@@ -15,4 +15,5 @@
 @_exported import SidayEightBit
 @_exported import SidayFoundation
 @_exported import SidayM68000
+@_exported import SidayMT32
 @_exported import SidayTrackers

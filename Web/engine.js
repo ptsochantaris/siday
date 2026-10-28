@@ -258,6 +258,19 @@ self.onmessage = async (event) => {
     case "songlengths":
       withBytes(message.bytes, (data, length) => core.siday_set_songlengths(data, length));
       break;
+    case "keep": {
+      // A file the page keeps, or may: the module says what it is, and what is kept now. (In the other
+      // worker it may come before the module has been started there: it is taken in a moment.)
+      if (!core) return void setTimeout(() => self.onmessage(event), 50);
+      const length = withBytes(message.bytes, (data, count) => core.siday_keep(data, count));
+      const [name, ...summary] = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_packed(), length)).split("\n");
+      if (message.answer) postMessage({ type: "kept", token: message.token, name, summary });
+      break;
+    }
+    case "forgetkept":
+      if (!core) return void setTimeout(() => self.onmessage(event), 50);
+      core.siday_forget_kept();
+      break;
   }
   if (core) pass();
 };

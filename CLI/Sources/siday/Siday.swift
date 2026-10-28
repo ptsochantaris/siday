@@ -98,6 +98,15 @@ struct Siday: ParsableCommand {
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
 
+    @Option(parsing: .upToNextOption, help: "Files or folders of an MT-32's ROMs, which siday keeps from then on: a CM-32L's or LAPC-I's control ROM and PCM ROM, whole or in halves, of any names (they are known by what is in them). MIDI files written for the MT-32 are then played on that synthesiser. A Songlengths.md5 among them is kept too. Also read, for one run and never kept, from a folder named by $SIDAY_KEPT, which then stands for what is kept.")
+    var roms: [String] = []
+
+    @Flag(help: "Say which files siday keeps (see --roms), and where.")
+    var kept = false
+
+    @Flag(help: "Forget every file siday keeps.")
+    var forgetKept = false
+
     @Option(help: "Render each tune to a WAV file in this folder instead of playing.")
     var wav: String?
 
@@ -161,7 +170,7 @@ struct Siday: ParsableCommand {
     var raw: String?
 
     func validate() throws {
-        if paths.isEmpty, !testTone, zex == nil, sidTrace == nil, about == nil {
+        if paths.isEmpty, !testTone, zex == nil, sidTrace == nil, about == nil, roms.isEmpty, !kept, !forgetKept {
             throw ValidationError("Give at least one file or folder.")
         }
         if !(0 ... 1).contains(sidFilterCurve) { throw ValidationError("--sid-filter-curve should be between 0 and 1") }
@@ -190,7 +199,9 @@ struct Siday: ParsableCommand {
         options.s3mCard = s3mCard
         options.agiReplay = agi
         options.sidFilterCurve = sidFilterCurve
-        return TuneFiles(options: options, songLengthsPath: songLengthsPath)
+        let kept = KeptFilesInUse.current
+        options.mt32ROMs = kept.mt32ROMs
+        return TuneFiles(options: options, songLengthsPath: songLengthsPath, keptSongLengths: kept.songLengths)
     }
 
     /// The file named with `--songlengths`, when it is a song-length database.
@@ -265,6 +276,10 @@ struct Siday: ParsableCommand {
             return
         }
 
+        if !roms.isEmpty || kept || forgetKept {
+            try KeptFilesInUse.handle(keep: roms, list: kept, forget: forgetKept)
+            if paths.isEmpty { return }
+        }
         rememberSongLengths()
         var wanted = Set(TuneFormat.allCases)
         if let formats {

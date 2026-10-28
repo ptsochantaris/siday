@@ -4518,21 +4518,45 @@ and siday's writes to the chip are libADLMIDI's, register for register.
 - **The MT-32's setup.** Most games set up instruments of their own on the MT-32 before their music
   began. Rips of their music keep that setup in the file, or beside it: a `.SYX` file of the same
   name, the one `.SYX` file of a folder, or Ultima VII's `sysex.mid`. siday sends it first, at the
-  cable's own speed. For now, a file written for the MT-32 is played with General MIDI's instruments
-  of the same numbers, and says so.
+  cable's own speed. A file written for the MT-32 is played on the MT-32's own synthesiser, once
+  siday has its ROMs (below). Until then it is played with General MIDI's instruments of the same
+  numbers, and says so.
+- **The MT-32's synthesiser.** Roland's LA32 chip played the MT-32's sounds: partials of square and
+  sawtooth waves through a resonant filter, or sampled attacks from a PCM ROM, two to a pair, mixed or
+  ring-modulated, then a Boss reverb chip. The later units of its kind, the CM-32L and the LAPC-I
+  card, had a new controller program, another reverb and a PCM ROM twice as large. siday plays MT-32
+  files as an LAPC-I plays them, on a port of Munt's mt32emu (libmt32emu 2.8.3): its integer model of
+  the LA32, the CM-32L's reverb, and the analogue stage after the DAC as Munt models it for the CM-32L
+  and the LAPC-I, which comes out at 48,000 samples a second and needs no resampling. Its output is
+  Munt's, sample for sample, given the same messages at the same moments.
+- **The ROMs.** siday is given the ROMs of a CM-32L or LAPC-I once, and keeps them: dropped on the app
+  or the web page, or named with `--roms` on the command line. That is the control ROM, version 1.00
+  or 1.02, and the PCM ROM, whole or in its two halves. Their names don't matter: they are known by
+  their contents, as Munt knows them.
 - **Loops.** Songs loop where the software that wrote them meant: by the FOR and NEXT of Miles' Audio
   Interface Library (controllers 116 and 117), kept in the games' music converted to MIDI files, and
   by the markers "loopStart" and "loopEnd". A loop a game held while the player stayed somewhere,
   with more of the song after it, is played through.
 - **Ends.** A song ends a second after its last message.
-- **Voices.** The lamps, scopes and mute buttons are the sixteen MIDI channels. The chip's eighteen
-  channels are handed to whichever notes need them, so each MIDI channel shows the chip channels
-  playing for it.
+- **Voices.** On FM, the lamps, scopes and mute buttons are the sixteen MIDI channels. The chip's
+  eighteen channels are handed to whichever notes need them, so each MIDI channel shows the chip
+  channels playing for it. On the MT-32, they are its nine parts: eight that each play one timbre,
+  and the rhythm part, as the MT-32's front panel shows them.
 
 ### Differences and limits
 
-- **One synthesiser for now.** Files written for the Sound Canvas, for XG or for the MT-32 are heard
-  on FM, not on what they were written for.
+- **Two synthesisers.** Files written for the Sound Canvas or for XG are heard on FM, not on what
+  they were written for. Files written for the MT-32 are heard on the LAPC-I only once siday has been
+  given its ROMs. A GS file that also sets up an MT-32 on the same cable is a GS file, and plays on FM.
+- **No ROMs come with siday.** They are Roland's: siday plays MT-32 files on FM until it is given them.
+- **The LAPC-I, not the first MT-32.** The first MT-32s (control ROMs 1.0x) sounded different, with
+  another reverb and their controller's own quirks. siday plays the later kind.
+- **The MIDI cable.** Short messages reach the synthesiser one after another, as down a cable (Munt's
+  way). System exclusive messages in a file are taken at once; those of a file beside it are sent
+  first, at the cable's speed.
+- **Munt's jitter.** Munt varies the timing of the controller's pitch changes by random numbers, as a
+  real unit's timer fires when it can. siday draws the same numbers in the same order, so it sounds
+  the same every time.
 - **A game's own FM.** A game played its music with its own driver and FM instruments. Those are not
   in the files, so a game's music is heard with The Fat Man's General MIDI instruments, the set
   libADLMIDI names for Windows 9x.

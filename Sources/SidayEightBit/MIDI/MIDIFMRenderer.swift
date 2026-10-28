@@ -82,7 +82,8 @@ final class MIDIFMRenderer: Renderer {
         if origin.standard == .mt32, origin.mt32Messages > 0 {
             info.shortfalls.append("It was written for the Roland MT-32, and the sounds it sets the MT-32 up with"
                 + (origin.byCompanion ? " (in the file of them beside it)" : "")
-                + " are not heard on FM: its parts are played with General MIDI's instruments of the same numbers.")
+                + " are not heard on FM: its parts are played with General MIDI's instruments of the same numbers."
+                + " Given the ROMs of a CM-32L or LAPC-I once (dropped on the player, or with --roms), siday keeps them and plays it on that synthesiser.")
         }
         self.info = info
 
@@ -91,6 +92,14 @@ final class MIDIFMRenderer: Renderer {
         sequencer = MIDISequencer(file.songs[0], of: file, prelude: prelude)
         for index in songs.indices { songs[index].length = Self.measure(file.songs[index], of: file, prelude: prelude).length }
         select(subsong: 0)
+    }
+
+    /// True for a file written for the MT-32, by its own messages or those of the file beside it, which sets
+    /// the MT-32 up: one that the LAPC-I's synthesiser plays, when siday has its ROMs.
+    static func isWrittenForMT32(_ data: [UInt8], companion: [UInt8]?) -> Bool {
+        guard let file = try? MIDIFile(data) else { return false }
+        let origin = MIDIOrigin(file, companion: companion.map { MIDIFile.messages(ofCompanion: $0) } ?? [])
+        return origin.standard == .mt32 && origin.mt32Messages > 0
     }
 
     /// What is said of the tune: what it was written for, and what it is played on.

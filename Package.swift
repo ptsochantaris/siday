@@ -45,18 +45,19 @@ let package = Package(
         family("SidayTrackers", ["SidayFoundation", "SidayChips"]),
         family("SidayC64", ["SidayFoundation"]),
         family("SidayMIDI", ["SidayFoundation"]),
-        family("SidayEightBit", ["SidayFoundation", "SidayChips", "SidayMIDI"]),
+        family("SidayMT32", ["SidayFoundation"]),
+        family("SidayEightBit", ["SidayFoundation", "SidayChips", "SidayMIDI", "SidayMT32"]),
         family("SidayAtari", ["SidayFoundation", "SidayM68000"]),
         family("SidayCodecs", ["SidayFoundation"]),
         family("SidayKit", [
             "SidayFoundation", "SidayChips", "SidayM68000", "SidayAmigaTrackers", "SidayAmigaComposers",
-            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari", "SidayCodecs", "SidayMIDI",
+            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari", "SidayCodecs", "SidayMIDI", "SidayMT32",
         ]),
         family("SidayPlayer", ["SidayKit", "SidayFoundation"]),
         family("SidayFiles", ["SidayPlayer", "SidayFoundation"]),
         .testTarget(name: "SidayKitTests", dependencies: [
             "SidayFiles", "SidayPlayer", "SidayKit", "SidayFoundation", "SidayChips", "SidayM68000", "SidayAmigaTrackers", "SidayAmigaComposers",
-            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari", "SidayCodecs", "SidayMIDI",
+            "SidayAmigaMachine", "SidayTrackers", "SidayC64", "SidayEightBit", "SidayAtari", "SidayCodecs", "SidayMIDI", "SidayMT32",
         ]),
     ]
 )

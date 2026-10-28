@@ -115,10 +115,10 @@ final class Levels: @unchecked Sendable {
         var options = files.options
         // (What is found for a SID tune's length depends on whether there is a database of them.)
         if TuneFormat(url: song.url) == .sid {
-            options.songLengths = SongLengthFiles.find(explicitPath: files.songLengthsPath, near: song.url)
+            options.songLengths = SongLengthFiles.find(explicitPath: files.songLengthsPath, near: song.url) ?? files.keptSongLengths
         }
         let key = SongLevel.key(of: [UInt8](data), companions: CompanionFiles.read(for: song.url, format: TuneFormat(url: song.url) ?? .mod).companions,
-                                song: number, options: options, policy: policy)
+                                song: number, options: options, policy: policy, playedOn: SongLevel.playedOn(renderer, options: options))
         var level = state.withLock { $0.kept[key] }
         if level == nil {
             let measurement = SongMeasurement(renderer: renderer, policy: policy)

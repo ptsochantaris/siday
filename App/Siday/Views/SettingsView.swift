@@ -22,6 +22,19 @@ struct SettingsView: View {
                     }
                 }
                 Section {
+                    if model.kept.files.isEmpty {
+                        Text("The ROMs of a CM-32L or LAPC-I (its control ROM and its PCM ROM, whole or in halves, of any names), added like tunes, are kept, and MIDI files written for the MT-32 are then played on that synthesiser. A Songlengths.md5 added is kept too.")
+                            .font(.footnote)
+                    } else {
+                        ForEach(model.kept.summary, id: \.self) { line in
+                            Text(line)
+                        }
+                        Button("Forget Kept Files", role: .destructive) { model.forgetKept() }
+                    }
+                } header: {
+                    Text("Kept Files")
+                }
+                Section {
                     Button("Reset to Defaults", role: .destructive) { model.resetSettings() }
                         .disabled(model.settingsAreStandard)
                     Text("Settings are kept for the next time the app is opened.")

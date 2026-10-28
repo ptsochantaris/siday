@@ -185,6 +185,10 @@ final class PlayerModel {
     private(set) var settings: [Double]
 
     @ObservationIgnored private(set) var engine: PlaybackEngine!
+    /// The files the listener gave once that the app keeps, in its own Application Support folder (see
+    /// `KeptFiles`): the MT-32's ROMs and HVSC's song lengths.
+    @ObservationIgnored private let keptStore = KeptFileStore.standard
+    private(set) var kept = KeptFiles()
     /// Levels found for songs, by their keys (see `SongLevel.key`).
     @ObservationIgnored private var levels: [String: String]
 
@@ -203,6 +207,8 @@ final class PlayerModel {
         engine = PlaybackEngine { [weak self] news in self?.hear(news) }
         engine.send(.output(output))
         engine.send(.settings(settings))
+        kept = keptStore?.load() ?? KeptFiles()
+        useKept()
         engine.setVolume(volume)
         let silent = ProcessInfo.processInfo.arguments.contains("-SidaySilent") || UserDefaults.standard.bool(forKey: "SidaySilent")
         engine.startOutput(silent: silent)
@@ -264,6 +270,16 @@ final class PlayerModel {
         if let lengths = found.songLengths, let data = try? Coordinated.data(lengths) {
             engine.send(.songLengths([UInt8](data)))
             library.add(lengths)
+            if let keptStore { _ = try? keptStore.keep([UInt8](data), in: &kept) }
+        }
+        // The files the app keeps, known by what is in them.
+        if let keptStore, !found.keepable.isEmpty {
+            var changed = false
+            for url in found.keepable {
+                guard let data = try? Coordinated.data(url) else { continue }
+                if (try? keptStore.keep([UInt8](data), in: &kept)) != nil { changed = true }
+            }
+            if changed { useKept() }
         }
         listNotice = Self.notice(missing: found.missing, of: found.named, in: found.list)
         if let empty = found.emptyFolders.first {
@@ -283,6 +299,22 @@ final class PlayerModel {
         if let waiting = wanting, waiting >= place { wanting = waiting + found.tunes.count }
         perform(queue.add(found.tunes.count, at: place))
         saveList()
+    }
+
+    // MARK: Kept files
+
+    /// Gives the engine what is kept.
+    private func useKept() {
+        engine.send(.mt32ROMs(kept.mt32ROMs))
+        if let lengths = kept.files.last(where: { $0.kind == .songLengths }), let data = kept.data(of: lengths) {
+            engine.send(.songLengths(data))
+        }
+    }
+
+    /// Forgets every file kept: MIDI files written for the MT-32 are played on FM again.
+    func forgetKept() {
+        keptStore?.forgetAll(in: &kept)
+        engine.send(.mt32ROMs(nil))
     }
 
     // MARK: Moving
