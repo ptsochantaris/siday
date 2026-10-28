@@ -988,3 +988,23 @@ private func balancedColumn(_ visualiser: Visualiser, brighter than: UInt8 = 60)
     #expect(left.reduce(0, +) > 100 && right.reduce(0, +) > 100)
     #expect(zip(left, right).reduce(0) { $0 + abs($1.0 - $1.1) } > 120)
 }
+
+/// A harmonograph's picture after some seconds of two voices playing these notes, as how bright each
+/// dot is.
+private func harmonograph(_ upper: Float, _ lower: Float) -> [Double] {
+    let visualiser = Visualiser(mode: .harmonograph)
+    visualiser.resize(width: 160, height: 100)
+    watch(visualiser, seconds: 6, levels: [1, 0.8], pitches: [lower, upper])
+    guard let pixels = visualiser.pixels else { return [] }
+    return (0 ..< 160 * 100).map { Double(pixels[$0 * 4]) + Double(pixels[$0 * 4 + 1]) + Double(pixels[$0 * 4 + 2]) }
+}
+
+@Test func harmonographDrawsTheInterval() {
+    func difference(_ a: [Double], _ b: [Double]) -> Double { zip(a, b).reduce(0) { $0 + abs($1.0 - $1.1) } / Double(a.count) }
+    // The figure is the interval's, wherever the two notes are: a fifth is a fifth, high or low; and
+    // it is not a fourth's.
+    let fifth = harmonograph(67, 60), higherFifth = harmonograph(76, 69), fourth = harmonograph(65, 60)
+    #expect(fifth.reduce(0, +) / Double(fifth.count) > 5)
+    #expect(difference(fifth, higherFifth) < 2)
+    #expect(difference(fifth, fourth) > 10)
+}
