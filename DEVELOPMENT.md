@@ -2201,8 +2201,16 @@ Based on:
   `MIDILA32Renderer` for files written for the MT-32 when the ROMs are kept (`MT32ROMSet`,
   `LoadOptions.mt32ROMs`). `MT32Tables.swift` holds libmt32emu's own tables as numbers it printed, so
   they are the same on every platform whatever its maths library.
+- `SidaySC55`, a module of its own with no Foundation: the port of Nuked SC-55 (`SC55MCU`: the
+  H8/532, its timers, serial port and interrupts; `SC55Instructions`: upstream's original
+  interpreter, `mcu_opcodes.cpp`; `SC55PCM` and `SC55PCMLoop`: the PCM chip; `SC55ROMs`: the digests;
+  `SC55Synth`: the start, bytes by frame, rendering and parts), played by `MIDISC55Renderer` for every
+  file the MT-32 does not take when the SC-55's ROMs are kept (`SC55ROMSet`, `LoadOptions.sc55ROMs`;
+  `MIDISynthesiser.choose` decides). Its 64 kHz is brought to 48 kHz by `SidayCodecs.Resampler`.
+  Firmware 1.21 keeps the part of each PCM slot at static RAM 0xA318 + slot, in GS block order: found
+  by playing notes on known channels and reading the RAM.
 - Kept files: `KeptFile` and `KeptFiles` in SidayPlayer know a file by its contents (an MT-32 ROM by
-  Munt's SHA-1 table, song lengths by reading them); `KeptFileStore` in SidayFiles is the folder they
+  Munt's SHA-1 table, an SC-55 ROM by Nuked SC-55's SHA-256 table, song lengths by reading them); `KeptFileStore` in SidayFiles is the folder they
   are kept in (`Application Support/siday/Kept` for the command line, the app container's for the
   app); the web player keeps them in IndexedDB (`siday-kept`). `$SIDAY_KEPT` names a folder that is
   read for one run, never written.
@@ -2236,11 +2244,29 @@ the "nice" amp ramp, panning and partial mixing off, and 32 partials:
   random numbers for each partial's timer as it renders, partial by partial, so its sound depends on
   how much is rendered at a time. The harness renders the same blocks.
 
+Checked against Nuked SC-55, J.C. Moyer's fork at 66d12727cc43 (0.8.0) built with
+`-DNUKED_ENABLE_DECODER2=OFF`, by a harness on its back end that takes siday's bytes
+(`MIDISC55Renderer.eventLog`: each byte with the output frame it is posted before, counted from the end
+of the start), runs `SC55Synth.startSteps` (1,666,667) steps first, posts the bytes due before each step,
+and writes the back end's frames at 64 kHz (`MIDISC55Renderer.rawLog` is siday's side, before resampling):
+
+- 50 whole files (capped at ten minutes) are the same, sample for sample: Roland's GS files from
+  bestmid, GS and General MIDI pop files, the games' General MIDI versions (the Wing Commanders, Ultima
+  VII and VIII, Daggerfall, System Shock, The 7th Guest), four XG files and three MT-32 files with
+  SCMODE's setup.
+- The fork's own decoder ("decoder2", its default) is not the same as upstream's on the SC-55: it
+  raises no address errors, and firmware 1.21 makes one as it starts (a word read at 0xAB15, MCU step
+  594,398), whose handler is an RTE. siday follows upstream's interpreter, so compare with decoder2 off.
+- Nuked SC-55 gives the same output for the same input whatever the block size, so siday's renderer
+  needs no fixed blocks.
+
 Level:
 
 - FM: measured over the first minute of 100 files, as loud as CMF files.
 - MT-32: no gain. The same files are about 2 dB louder on it than on FM, between CMF files and the
   rest of the FM MIDI files.
+- SC-55: 1.68 (+4.5 dB), the median gap to FM over the first minute of 60 files (−24.9 LUFS against
+  −21.4). One of them, Ultima VII's "Arrival", touches full scale for a few hundred samples.
 
 ### VGM — what was written to the chip, and when
 

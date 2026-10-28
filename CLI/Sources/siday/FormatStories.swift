@@ -4514,7 +4514,7 @@ messages, if it says at all.
 ### How siday plays it
 
 On a PC with a Sound Blaster and no synthesiser, a MIDI file was played on the card's FM chip, by a
-driver with a bank of FM instruments. siday plays every MIDI file that way for now: on an OPL3, with
+driver with a bank of FM instruments. siday plays a MIDI file that way when it has no synthesiser's ROMs: on an OPL3, with
 The Fat Man's General MIDI instruments, and the volume and pitch of Windows 95's and 98's driver for
 the Sound Blaster 16. That is how libADLMIDI plays them with its bank "The Fat Man 2op set; Win9x",
 and siday's writes to the chip are libADLMIDI's, register for register.
@@ -4527,8 +4527,9 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   began. Rips of their music keep that setup in the file, or beside it: a `.SYX` file of the same
   name, the one `.SYX` file of a folder, or Ultima VII's `sysex.mid`. siday sends it first, at the
   cable's own speed. A file written for the MT-32 is played on the MT-32's own synthesiser, once
-  siday has its ROMs (below). Until then it is played with General MIDI's instruments of the same
-  numbers, and says so.
+  siday has its ROMs (below). Until then it is played on the Sound Canvas, if siday has its ROMs, set
+  to the MT-32 sounds it has, as its owners set it with Mark Fontana's SCMODE (1992); and otherwise
+  with General MIDI's instruments of the same numbers on FM. Either way it says so.
 - **The MT-32's synthesiser.** Roland's LA32 chip played the MT-32's sounds: partials of square and
   sawtooth waves through a resonant filter, or sampled attacks from a PCM ROM, two to a pair, mixed or
   ring-modulated, then a Boss reverb chip. The later units of its kind, the CM-32L and the LAPC-I
@@ -4541,6 +4542,24 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   or the web page, or named with `--roms` on the command line. That is the control ROM, version 1.00
   or 1.02, and the PCM ROM, whole or in its two halves. Their names don't matter: they are known by
   their contents, as Munt knows them.
+- **The Sound Canvas.** Roland's SC-55 (1991), the first Sound Canvas, was the General MIDI
+  synthesiser of its day, and the one the GS files of 1991 to 1993 were mostly written on. Its
+  controller, a Hitachi H8/532 running Roland's firmware, takes MIDI at its serial port and programs a
+  PCM chip of Roland's own: 24 voices of samples from three wave ROMs, with their filters and
+  envelopes, and the reverb and chorus the chip runs too. Once siday has its ROMs, every MIDI file not
+  written for the MT-32 is played on it: GS files and General MIDI files alike, as the games' General
+  MIDI versions (Wing Commander, Ultima VII and VIII, Daggerfall, System Shock, The 7th Guest) were
+  heard on it. siday plays it as Nuked SC-55 emulates it (nukeykt, 2021 to 2024: the processors from
+  their datasheets, the PCM chip from photographs of the chip opened up). Its port of the controller,
+  instruction by instruction, and of the PCM chip gives the same output, sample for sample, given the
+  same bytes at the same moments. The firmware is started first, a second of its own time, before it
+  is sent anything, and the bytes reach it one after another as down a MIDI cable, ten bits a byte at
+  31,250 bits a second. The chip makes 64,000 frames a second (it works at 32,000 and doubles them);
+  siday brings them to 48,000 through the windowed sinc it plays recordings through.
+- **Its ROMs.** siday is given the SC-55's five ROMs once and keeps them, as it keeps the MT-32's:
+  its two program ROMs of firmware 1.21 (R15199778 and R15209363) and its three wave ROMs (R15209276,
+  R15209277 and R15209281). Their names don't matter: they are known by their SHA-256 digests, as
+  jcmoyer's Nuked SC-55 knows them.
 - **Loops.** Songs loop where the software that wrote them meant: by the FOR and NEXT of Miles' Audio
   Interface Library (controllers 116 and 117), kept in the games' music converted to MIDI files, and
   by the markers "loopStart" and "loopEnd". A loop a game held while the player stayed somewhere,
@@ -4556,19 +4575,29 @@ and siday's writes to the chip are libADLMIDI's, register for register.
 - **Voices.** On FM, the lamps, scopes and mute buttons are the sixteen MIDI channels. The chip's
   eighteen channels are handed to whichever notes need them, so each MIDI channel shows the chip
   channels playing for it. On the MT-32, they are its nine parts: eight that each play one timbre,
-  and the rhythm part, as the MT-32's front panel shows them.
+  and the rhythm part, as the MT-32's front panel shows them. On the Sound Canvas, they are its
+  sixteen parts. Which part each of the chip's 24 voices plays is read where the firmware keeps it. A
+  part's lamp, scope and mute are its voices' sound, and its pitch, notes and side are those its MIDI
+  channel is sent.
 
 ### Differences and limits
 
-- **Two synthesisers.** Files written for the Sound Canvas or for XG are heard on FM, not on what
-  they were written for. Files written for the MT-32 are heard on the LAPC-I only once siday has been
-  given its ROMs. A GS file that also sets up an MT-32 on the same cable is a GS file, and plays on FM.
-- **No ROMs come with siday.** They are Roland's: siday plays MT-32 files on FM until it is given them.
+- **Three synthesisers.** Without ROMs, everything is heard on FM. Files written for Yamaha's XG are
+  played on the Sound Canvas as General MIDI, as a GS synthesiser played them: it has not their sounds
+  or effects, and they say so. A GS file that also sets up an MT-32 on the same cable is a GS file.
+- **No ROMs come with siday.** They are Roland's: siday plays MIDI files on FM until it is given them.
+- **The first Sound Canvas.** siday plays the SC-55 with firmware 1.21: not the SC-55mkII (1993) and
+  its larger set of sounds, nor the SC-88 and after.
+- **An MT-32 file on the Sound Canvas.** It is played on the Sound Canvas's own MT-32 sounds, set up
+  as SCMODE set them: a GS reset, then bank 127 and the MT-32's first programs and pans on channels 1
+  to 9, and the CM-64's rhythm set on 10. The instruments a game set up on its MT-32 are not heard.
 - **The LAPC-I, not the first MT-32.** The first MT-32s (control ROMs 1.0x) sounded different, with
   another reverb and their controller's own quirks. siday plays the later kind.
-- **The MIDI cable.** Short messages reach the synthesiser one after another, as down a cable (Munt's
-  way). System exclusive messages in a file are taken at once; those of a file beside it are sent
-  first, at the cable's speed.
+- **The MIDI cable.** On the MT-32, short messages reach the synthesiser one after another, as down a
+  cable (Munt's way). System exclusive messages in a file are taken at once; those of a file beside it
+  are sent first, at the cable's speed. On the Sound Canvas every byte crosses the cable at its own
+  speed, system exclusive messages too. That is siday's choice: Nuked SC-55's renderer sends each
+  message at once, and its serial port takes a byte every 150 microseconds.
 - **Munt's jitter.** Munt varies the timing of the controller's pitch changes by random numbers, as a
   real unit's timer fires when it can. siday draws the same numbers in the same order, so it sounds
   the same every time.

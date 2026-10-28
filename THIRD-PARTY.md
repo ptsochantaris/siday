@@ -1229,6 +1229,26 @@ SHA-1 digests comes from `ROMInfo.cpp`.
 
 The ROMs it plays are Roland's. They are not part of siday: a listener gives them to the player.
 
+## Nuked SC-55 — the Sound Canvas
+
+`Sources/SidaySC55` is a Swift port of Nuked SC-55's emulation of the Roland SC-55: `mcu.cpp`,
+`mcu_interrupt.cpp`, `mcu_timer.cpp`, `mcu_opcodes.cpp` (the original interpreter) and `pcm.cpp`, as J.C.
+Moyer's fork keeps them. The table of ROMs by their SHA-256 digests and part numbers (firmware 1.21
+only) comes from the fork's `standard_romsets.cpp`.
+
+- Copyright (C) 2021, 2024 nukeykt; Copyright (C) 2024-2026 J.C. Moyer
+- GNU General Public License, version 2 or (at your option) any later version (both repositories'
+  README and LICENSE, and every ported file's header)
+- Source: https://github.com/nukeykt/Nuked-SC55 (archived 12 September 2026, commit cc801b26a83a) and
+  https://github.com/jcmoyer/Nuked-SC55 (commit 66d12727cc43, version 0.8.0)
+- Its own thanks: John McMaster, for opening up the SC-55's PCM chip, and org/ogamespec, for the
+  deroute tool. Nothing of MAME's, nor the fork's SHA code (RFC 6234), is used.
+
+The ROMs it plays are Roland's. They are not part of siday: a listener gives them to the player.
+
+SCMODE 1.0 (Mark Fontana, 1992, freeware), which set a Sound Canvas to its MT-32 sounds: what it sends
+was read from its program. None of it is in siday but those MIDI messages.
+
 ## SAASound — the SAA1099
 
 `Sources/SidayEightBit/SAA1099/SAA1099.swift` is a Swift port of SAASound
