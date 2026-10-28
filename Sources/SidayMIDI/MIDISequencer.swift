@@ -317,6 +317,80 @@ public final class MIDISequencer {
         return true
     }
 
+    /// What playing a song through unheard tells of it, at `granularity`: how long it is (to a second
+    /// after its last message, or, for one that loops for ever, to where it first goes back), the length
+    /// of that loop, and when the first note of its music is struck (see `Unheard`).
+    public static func measure(_ song: MIDISong, of file: MIDIFile, prelude: [[UInt8]], granularity: Double) -> (length: Double?, loop: Double?, firstNote: Double?) {
+        let sequencer = MIDISequencer(song, of: file, prelude: prelude)
+        let listener = Unheard()
+        var time = 0.0, delay = 0.0
+        while time < 3600 {
+            listener.now = sequencer.time + delay
+            delay = sequencer.tick(delay, granularity: granularity, to: listener)
+            listener.settle(at: sequencer.time)
+            if let loop = sequencer.foreverLoop { return (loop.end, loop.end - loop.start, listener.firstNote ?? listener.struck.first?.time) }
+            if sequencer.atEnd { return (sequencer.time + delay, nil, listener.firstNote ?? listener.struck.first?.time) }
+            time = sequencer.time
+            if delay <= 0 { delay = granularity }
+        }
+        return (nil, nil, listener.firstNote ?? listener.struck.first?.time)
+    }
+
+    /// Takes the events of a song played through unheard, and finds the first note of its music: one
+    /// struck at a velocity above 1, and not stopped at once by all notes off or all sound off.
+    /// (A note of velocity 1 at the start, before the music, is a placeholder that holds the time a
+    /// setup takes: nine files of the collection have one, a Sierra rip and Roland GS arrangements among
+    /// them, from one to four seconds before their music. And the music of Wing Commander II and its
+    /// Academy strikes a note on its third channel and stops it with all notes off a thousandth of a
+    /// second later, before its music: a mark of Origin's that is no part of the music, heard as a blip on
+    /// its own in two of the ten files that have it, two seconds and three quarters of a second before
+    /// their music.)
+    private final class Unheard: MIDIReceiver {
+        /// The sequencer's time for the messages now being received.
+        var now = 0.0
+        /// Notes struck that may yet be stopped at once: channel and time.
+        var struck: [(channel: UInt8, time: Double)] = []
+        var firstNote: Double?
+        /// How soon a note stopped is taken to be stopped at once.
+        static let atOnce = 0.02
+
+        func receive(_ event: MIDIEvent) {
+            guard firstNote == nil else { return }
+            if event.kind == .noteOn, event.data2 > 1 {
+                struck.append((event.channel, now))
+            } else if event.kind == .controller, event.data1 == 120 || event.data1 == 123 {
+                struck.removeAll { $0.channel == event.channel && now - $0.time < Self.atOnce }
+            }
+        }
+
+        /// The first note struck long enough ago not to have been stopped at once is the music's first.
+        func settle(at time: Double) {
+            guard firstNote == nil, let first = struck.first, time - first.time >= Self.atOnce else { return }
+            firstNote = first.time
+        }
+
+        func songBegins() {}
+    }
+
+    /// When the first note of the music of each song of a file is struck, found with the events of each
+    /// moment in the file's own order: libADLMIDI's order, which siday plays them in, can put a note
+    /// stopped at once after the message that stops it. Nil for a song with none.
+    public static func firstNotes(of data: [UInt8], prelude: [[UInt8]], granularity: Double) -> [Double?] {
+        guard let written = try? MIDIFile(data, order: .asWritten) else { return [] }
+        return written.songs.map { measure($0, of: written, prelude: prelude, granularity: granularity).firstNote }
+    }
+
+    /// How much of a song's start is played unheard, before it is heard from: up to a twentieth of a
+    /// second before its first note (and no more than a minute). What comes before that only sets the
+    /// synthesiser up: the setup of a file beside it, sent first, and the time a rip of a game's music
+    /// leaves at its start for its own setup to cross the cable. A game sent its setup while it loaded,
+    /// and its music began with its first note; so it does here, the synthesiser set up as the file
+    /// leaves it.
+    public static func unheardStart(firstNote: Double?) -> Double {
+        guard let firstNote else { return 0 }
+        return min(60, max(0, firstNote - 0.05))
+    }
+
     /// True if a song has a loop that goes round for ever: a FOR of nought, and a NEXT after it with no
     /// note started after that.
     public static func loopsForEver(_ song: MIDISong) -> Bool {

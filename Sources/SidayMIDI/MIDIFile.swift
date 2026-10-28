@@ -70,8 +70,17 @@ public struct MIDIFile: Sendable {
     /// What the file asks for that cannot be played, a sentence for each (see `TuneInfo.shortfalls`).
     public var shortfalls: [String] = []
 
-    /// Reads a Standard MIDI File, or one wrapped in RIFF as an RMID file.
-    public init(_ data: [UInt8]) throws {
+    /// The order the events of a moment of a track are played in.
+    public enum Order: Sendable {
+        /// libADLMIDI's (see `sort`), which siday plays them in.
+        case libADLMIDI
+        /// The file's own: to find where a song's music begins (see `MIDISequencer.firstNotes`).
+        case asWritten
+    }
+
+    /// Reads a Standard MIDI File, or one wrapped in RIFF as an RMID file, with the events of each moment
+    /// in `order`.
+    public init(_ data: [UInt8], order: Order = .libADLMIDI) throws {
         let file = ByteReader(data)
         var start = 0
         if file.ascii(at: 0, length: 4) == "RIFF", file.ascii(at: 8, length: 4) == "RMID" {
@@ -121,7 +130,7 @@ public struct MIDIFile: Sendable {
             let end = at + 8 + length
             if end > data.count { cutShort += 1 }
             var track = MIDITrack()
-            Self.read(file, from: at + 8, to: min(end, data.count), into: &track, markers: &markers)
+            Self.read(file, from: at + 8, to: min(end, data.count), into: &track, markers: &markers, order: order)
             tracks.append(track)
             at = end
         }
@@ -196,7 +205,7 @@ public struct MIDIFile: Sendable {
     }
 
     /// Reads one track's events into rows, as libADLMIDI's sequencer does.
-    private static func read(_ file: ByteReader, from start: Int, to end: Int, into track: inout MIDITrack, markers: inout LoopMarkers) {
+    private static func read(_ file: ByteReader, from start: Int, to end: Int, into track: inout MIDITrack, markers: inout LoopMarkers, order: Order) {
         var at = start
         /// A number of the variable length MIDI keeps times in: seven bits to a byte, the highest
         /// set on all but the last. Nil if the track ends before it does.
@@ -217,7 +226,7 @@ public struct MIDIFile: Sendable {
         /// Whether each note of each channel is on, from the rows before: see `sort`.
         var notes = [Bool](repeating: false, count: 2048)
         func flush(delay: UInt64) {
-            sort(&row, notes: &notes)
+            if order == .libADLMIDI { sort(&row, notes: &notes) }
             let first = track.events.count
             track.events += row
             track.rows.append(MIDITrack.Row(tick: tick, delay: delay, events: first ..< track.events.count))

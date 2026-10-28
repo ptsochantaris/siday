@@ -2227,7 +2227,11 @@ integer renderer, analogue mode ACCURATE, DAC input GENERATION2, MIDI delay DELA
 the "nice" amp ramp, panning and partial mixing off, and 32 partials:
 
 - 49 whole songs (Sierra's rips, the Wing Commanders, Ultima VII and Serpent Isle, with their setups
-  in the file or beside it) are the same, sample for sample.
+  in the file or beside it) are the same, sample for sample. (That was before songs were heard from
+  just before their first note. What is heard since is the same output with the unheard start cut
+  off: checked on all 49 and on 23 files on FM. Where the music starts is found with each moment's
+  events in the file's own order, `MIDIFile.Order.asWritten`: libADLMIDI's order, which siday plays
+  them in, puts a note after the all notes off that stops it at the same moment.)
 - The MT-32's renderer always renders blocks of 1,024 frames, whatever it is asked for: mt32emu draws
   random numbers for each partial's timer as it renders, partial by partial, so its sound depends on
   how much is rendered at a time. The harness renders the same blocks.

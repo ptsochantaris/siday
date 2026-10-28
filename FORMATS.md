@@ -4537,6 +4537,13 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   Interface Library (controllers 116 and 117), kept in the games' music converted to MIDI files, and
   by the markers "loopStart" and "loopEnd". A loop a game held while the player stayed somewhere,
   with more of the song after it, is played through.
+- **Starts.** A song is heard from a twentieth of a second before its first note. What comes before
+  only sets the synthesiser up: the setup of a file beside it, and the seconds a rip leaves at its
+  start for its own setup to cross the cable. A game sent its setup while it loaded, and its music
+  began with its first note. So here the setup is played unheard, a moment before the song is heard.
+  Two kinds of note before the music don't count as its start. One is a note of velocity 1, which
+  some files have to hold that time. The other is a note stopped at once by "all notes off", as
+  Wing Commander II's music strikes one before it begins (perhaps a cue for the game's scenes).
 - **Ends.** A song ends a second after its last message.
 - **Voices.** On FM, the lamps, scopes and mute buttons are the sixteen MIDI channels. The chip's
   eighteen channels are handed to whichever notes need them, so each MIDI channel shows the chip

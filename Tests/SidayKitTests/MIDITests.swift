@@ -68,7 +68,8 @@ private let oneNote: [UInt8] = [0x00, 0xFF, 0x51, 0x03, 0x0F, 0x42, 0x40, 0x60, 
         + [UInt8(inner.count & 0xFF), UInt8(inner.count >> 8), 0, 0] + inner
     let renderer = try TuneLoader.load(riff, format: TuneFormat(fileExtension: "rmi")!)
     #expect(renderer.info.format == "MID")
-    #expect(abs(renderer.knownLength! - 3.0) < 0.001)
+    // Heard from a twentieth of a second before its note, a second in, to a second after its end.
+    #expect(abs(renderer.knownLength! - 2.05) < 0.001)
 }
 
 @Test func midiNoteIsTimedToTheSampleAndWrittenAsWindows9xDid() throws {
@@ -89,7 +90,7 @@ private let oneNote: [UInt8] = [0x00, 0xFF, 0x51, 0x03, 0x0F, 0x42, 0x40, 0x60, 
     // The second track's End of Track is an hour later than anything in it.
     let late = track([0x00, 0xC0, 0x01, 0x83, 0xE0, 0x80, 0x00, 0xFF, 0x2F, 0x00], end: false)
     let renderer = try TuneLoader.load(smf([track(oneNote), late]), format: .mid)
-    #expect(abs(renderer.knownLength! - 3.0) < 0.001)
+    #expect(abs(renderer.knownLength! - 2.05) < 0.001)
 }
 
 @Test func midiLoopsByTheAudioInterfaceLibrarysForAndNext() throws {
@@ -165,8 +166,28 @@ private let mt32Patch: [UInt8] = [0x41, 0x10, 0x16, 0x12, 0x03, 0x00, 0x00, 0x00
     let file = try MIDIFile(smf(format: 0, [track(oneNote)]))
     let sequencer = MIDISequencer(file.songs[0], of: file, prelude: MIDIFile.messages(ofCompanion: syx))
     #expect(abs(sequencer.preludeLength - 2 * (11.0 * 10 / 31250 + 0.04)) < 1e-9)
+    // What comes before the first note is played unheard, the setup with it.
+    let measured = MIDISequencer.measure(file.songs[0], of: file, prelude: MIDIFile.messages(ofCompanion: syx), granularity: 1.0 / 49716)
+    #expect(abs(measured.firstNote! - (1.0 + sequencer.preludeLength)) < 0.001)
     let renderer = try MIDIFMRenderer(smf(format: 0, [track(oneNote)]), companion: syx)
-    #expect(abs(renderer.knownLength! - (3.0 + sequencer.preludeLength)) < 0.001)
+    #expect(abs(renderer.knownLength! - 2.05) < 0.001)
+}
+
+@Test func midiIsHeardFromJustBeforeItsFirstNote() throws {
+    // A note a second in: heard a twentieth of a second after the song is.
+    let renderer = try MIDIFMRenderer(smf(format: 0, [track(oneNote)]), companion: nil)
+    var buffer = [Float](repeating: 0, count: 48000 * 2)
+    buffer.withUnsafeMutableBufferPointer { renderer.render(into: $0.baseAddress!, frames: 48000) }
+    let first = try #require(buffer.firstIndex { $0 != 0 }) / 2
+    #expect(abs(first - 2400) < 48)
+
+    // A note stopped by all notes off a thousandth of a second after it is struck, as Wing Commander
+    // II's music does before it begins, and a note of velocity 1, are not the music's first note.
+    let marks: [UInt8] = [0x00, 0xFF, 0x51, 0x03, 0x0F, 0x42, 0x40, 0x00, 0x92, 48, 64, 0x00, 0x99, 40, 1, 0x01, 0xB2, 123, 0]
+    let file = try MIDIFile(smf(format: 0, [track(marks + oneNote.dropFirst(7))]))
+    let measured = MIDISequencer.measure(file.songs[0], of: file, prelude: [], granularity: 1.0 / 32000)
+    // (All notes off a tick after the notes, and the music's note a beat after that.)
+    #expect(abs(measured.firstNote! - 97.0 / 96) < 0.001)
 }
 
 @Test func midiDamagedOrEmptyIsSaidOrRefused() throws {

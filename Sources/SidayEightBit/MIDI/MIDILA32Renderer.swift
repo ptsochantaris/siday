@@ -26,6 +26,8 @@ final class MIDILA32Renderer: Renderer {
 
     private let file: MIDIFile
     private let prelude: [[UInt8]]
+    /// When the first note of each song's music is struck (see `MIDISequencer.firstNotes`).
+    private var firstNotes: [Double?] = []
     private let roms: MT32ROMSet
     private let mono: Bool
     private var synth: MT32Synth
@@ -82,30 +84,19 @@ final class MIDILA32Renderer: Renderer {
         synth = MT32Synth(roms: roms)
         sequencer = MIDISequencer(file.songs[0], of: file, prelude: prelude)
         receiver = Receiver()
-        for index in songs.indices { songs[index].length = Self.measure(file.songs[index], of: file, prelude: prelude).length }
+        firstNotes = MIDISequencer.firstNotes(of: data, prelude: prelude, granularity: Self.granularity)
+        for index in songs.indices { songs[index].length = measure(index).length }
         select(subsong: 0)
     }
 
     deinit { block.deallocate() }
 
-    /// How long a song is, as `MIDIFMRenderer` measures it, at the synthesiser's granularity.
-    static func measure(_ song: MIDISong, of file: MIDIFile, prelude: [[UInt8]]) -> (length: Double?, loop: Double?) {
-        let sequencer = MIDISequencer(song, of: file, prelude: prelude)
-        let listener = Unheard()
-        var time = 0.0, delay = 0.0
-        while time < 3600 {
-            delay = sequencer.tick(delay, granularity: granularity, to: listener)
-            if let loop = sequencer.foreverLoop { return (loop.end, loop.end - loop.start) }
-            if sequencer.atEnd { return (sequencer.time + delay, nil) }
-            time = sequencer.time
-            if delay <= 0 { delay = granularity }
-        }
-        return (nil, nil)
-    }
-
-    private final class Unheard: MIDIReceiver {
-        func receive(_: MIDIEvent) {}
-        func songBegins() {}
+    /// How long a song is as it is heard, as `MIDIFMRenderer` measures it, at the synthesiser's
+    /// granularity.
+    private func measure(_ index: Int) -> (length: Double?, loop: Double?, unheard: Double) {
+        let measured = MIDISequencer.measure(file.songs[index], of: file, prelude: prelude, granularity: Self.granularity)
+        let unheard = MIDISequencer.unheardStart(firstNote: index < firstNotes.count ? firstNotes[index] : measured.firstNote)
+        return (measured.length.map { $0 - unheard }, measured.loop, unheard)
     }
 
     /// Hands each message to the synthesiser, at the sample it is due.
@@ -146,7 +137,7 @@ final class MIDILA32Renderer: Renderer {
         receiver.synth = synth
         receiver.log = eventLog
         sequencer = MIDISequencer(file.songs[currentSubsong], of: file, prelude: prelude)
-        let measured = Self.measure(file.songs[currentSubsong], of: file, prelude: prelude)
+        let measured = measure(currentSubsong)
         knownLength = measured.length
         loopLength = measured.loop
         delay = 0
@@ -159,6 +150,21 @@ final class MIDILA32Renderer: Renderer {
         endFrame = nil
         hasEnded = false
         waves?.ahead = 0
+        playUnheard(seconds: measured.unheard)
+    }
+
+    /// Plays the start of the song that is not heard: the synthesiser's setup, before the first note.
+    /// (Its blocks are rendered as ever, so what is heard is the same as Munt's from there on.)
+    private func playUnheard(seconds: Double) {
+        var frames = Int(seconds * Double(outputSampleRate))
+        guard frames > 0 else { return }
+        let scratch = UnsafeMutablePointer<Float>.allocate(capacity: Self.blockFrames * 2)
+        defer { scratch.deallocate() }
+        while frames > 0 {
+            let count = min(frames, Self.blockFrames)
+            render(into: scratch, frames: count)
+            frames -= count
+        }
     }
 
     var endsByLooping: Bool { file.songs[currentSubsong].loopsForEver }

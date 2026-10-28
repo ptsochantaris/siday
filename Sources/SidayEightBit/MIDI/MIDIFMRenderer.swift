@@ -30,6 +30,8 @@ final class MIDIFMRenderer: Renderer {
 
     private let file: MIDIFile
     private let prelude: [[UInt8]]
+    /// When the first note of each song's music is struck (see `MIDISequencer.firstNotes`).
+    private var firstNotes: [Double?] = []
     /// True for a tune heard in mono: the OPL3's two sides together.
     private let mono: Bool
     private let card = OPLCard()
@@ -90,7 +92,8 @@ final class MIDIFMRenderer: Renderer {
         songs = file.songs.map { SongInfo(title: $0.title) }
         synth = ADLMIDISynth(bank: .fatMan, card: card)
         sequencer = MIDISequencer(file.songs[0], of: file, prelude: prelude)
-        for index in songs.indices { songs[index].length = Self.measure(file.songs[index], of: file, prelude: prelude).length }
+        firstNotes = MIDISequencer.firstNotes(of: data, prelude: prelude, granularity: Self.minDelay)
+        for index in songs.indices { songs[index].length = measure(index).length }
         select(subsong: 0)
     }
 
@@ -108,26 +111,12 @@ final class MIDIFMRenderer: Renderer {
         return written + "; played on an OPL3 with The Fat Man's instruments, as Windows 9x played it"
     }
 
-    /// How long a song is: to a second after its last message, or, for one that loops for ever, to
-    /// where it first goes back, with the length of the loop.
-    static func measure(_ song: MIDISong, of file: MIDIFile, prelude: [[UInt8]]) -> (length: Double?, loop: Double?) {
-        let sequencer = MIDISequencer(song, of: file, prelude: prelude)
-        let listener = Unheard()
-        var time = 0.0, delay = 0.0
-        while time < 3600 {
-            delay = sequencer.tick(delay, granularity: minDelay, to: listener)
-            if let loop = sequencer.foreverLoop { return (loop.end, loop.end - loop.start) }
-            if sequencer.atEnd { return (sequencer.time + delay, nil) }
-            time = sequencer.time
-            if delay <= 0 { delay = minDelay }
-        }
-        return (nil, nil)
-    }
-
-    /// Takes the events of a song played through unheard.
-    private final class Unheard: MIDIReceiver {
-        func receive(_: MIDIEvent) {}
-        func songBegins() {}
+    /// How long a song is as it is heard, from a little before its first note (see
+    /// `MIDISequencer.unheardStart`), with the length of its loop and how much of its start is unheard.
+    private func measure(_ index: Int) -> (length: Double?, loop: Double?, unheard: Double) {
+        let measured = MIDISequencer.measure(file.songs[index], of: file, prelude: prelude, granularity: Self.minDelay)
+        let unheard = MIDISequencer.unheardStart(firstNote: index < firstNotes.count ? firstNotes[index] : measured.firstNote)
+        return (measured.length.map { $0 - unheard }, measured.loop, unheard)
     }
 
     var subsongCount: Int { songs.count }
@@ -138,7 +127,7 @@ final class MIDIFMRenderer: Renderer {
         card.setMuted(mutedChannels)
         synth = ADLMIDISynth(bank: .fatMan, card: card)
         sequencer = MIDISequencer(file.songs[currentSubsong], of: file, prelude: prelude)
-        let measured = Self.measure(file.songs[currentSubsong], of: file, prelude: prelude)
+        let measured = measure(currentSubsong)
         knownLength = measured.length
         loopLength = measured.loop
         delay = 0
@@ -149,6 +138,20 @@ final class MIDIFMRenderer: Renderer {
         behind = false
         hasEnded = false
         lastLoopCount = 0
+        playUnheard(seconds: measured.unheard)
+    }
+
+    /// Plays the start of the song that is not heard: the synthesiser's setup, before the first note.
+    private func playUnheard(seconds: Double) {
+        var frames = Int(seconds * Double(outputSampleRate))
+        guard frames > 0 else { return }
+        let scratch = UnsafeMutablePointer<Float>.allocate(capacity: 4096 * 2)
+        defer { scratch.deallocate() }
+        while frames > 0 {
+            let count = min(frames, 4096)
+            render(into: scratch, frames: count)
+            frames -= count
+        }
     }
 
     var endsByLooping: Bool { file.songs[currentSubsong].loopsForEver }
