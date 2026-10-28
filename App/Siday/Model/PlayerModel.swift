@@ -273,16 +273,24 @@ final class PlayerModel {
             if let keptStore { _ = try? keptStore.keep([UInt8](data), in: &kept) }
         }
         // The files the app keeps, known by what is in them.
+        var tookKept = false
         if let keptStore, !found.keepable.isEmpty {
+            let had = synthesisers
             var changed = false
             for url in found.keepable {
                 guard let data = try? Coordinated.data(url) else { continue }
-                if (try? keptStore.keep([UInt8](data), in: &kept)) != nil { changed = true }
+                let bytes = [UInt8](data)
+                if KeptFile.recognise(bytes) != nil { tookKept = true }
+                if (try? keptStore.keep(bytes, in: &kept)) != nil { changed = true }
             }
-            if changed { useKept() }
+            if changed {
+                useKept()
+                replayIfMoved(had: had)
+            }
         }
         listNotice = Self.notice(missing: found.missing, of: found.named, in: found.list)
-        if let empty = found.emptyFolders.first {
+        // (A folder that was given for the files the app keeps, and had them, is not one of nothing to play.)
+        if !tookKept, let empty = found.emptyFolders.first {
             emptyFolderPlace = found.emptyFolderPlaces.first?.url
             emptyFolderFiles = found.emptyFolderPlaces.first?.files ?? 0
             emptyFolder = empty
@@ -310,6 +318,18 @@ final class PlayerModel {
         if let lengths = kept.files.last(where: { $0.kind == .songLengths }), let data = kept.data(of: lengths) {
             engine.send(.songLengths(data))
         }
+    }
+
+    /// The synthesisers whose ROMs are kept whole.
+    private var synthesisers: Set<KeptROMs> {
+        Set([kept.mt32ROMs == nil ? nil : KeptROMs.mt32, kept.sc55ROMs == nil ? nil : .sc55].compactMap { $0 })
+    }
+
+    /// The tune that is loaded is loaded again, from the start of its song, if a synthesiser whose ROMs have
+    /// just been kept is now the one it is played on: so it is heard there at once.
+    private func replayIfMoved(had: Set<KeptROMs>) {
+        guard let tune, let current, tune.playedOtherwiseWith.contains(where: { !had.contains($0) && synthesisers.contains($0) }) else { return }
+        play(current, song: tune.song, paused: paused)
     }
 
     /// Forgets every file kept: MIDI files written for the MT-32 are played on FM again.

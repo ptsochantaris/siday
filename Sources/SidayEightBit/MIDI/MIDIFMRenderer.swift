@@ -81,7 +81,9 @@ final class MIDIFMRenderer: Renderer {
         info.chips = [.opl3]
         info.detail = Self.detail(origin)
         info.shortfalls = file.shortfalls
+        info.playedOtherwiseWith = [.sc55]
         if origin.standard == .mt32, origin.mt32Messages > 0 {
+            info.playedOtherwiseWith = [.mt32, .sc55]
             info.shortfalls.append("It was written for the Roland MT-32, and the sounds it sets the MT-32 up with"
                 + (origin.byCompanion ? " (in the file of them beside it)" : "")
                 + " are not heard on FM: its parts are played with General MIDI's instruments of the same numbers."
@@ -108,7 +110,7 @@ final class MIDIFMRenderer: Renderer {
 
     /// What is said of the tune: what it was written for, and what it is played on.
     static func detail(_ origin: MIDIOrigin) -> String {
-        let written = origin.declared ? "Written for " + origin.standard.name : "General MIDI (the file does not say otherwise)"
+        let written = origin.declared ? "Written for " + origin.standard.name : "General MIDI"
         return written + "; played on an OPL3 with The Fat Man's instruments, as Windows 9x played it"
     }
 

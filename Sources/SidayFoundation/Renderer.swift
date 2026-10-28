@@ -20,10 +20,21 @@ public struct TuneInfo: Sendable {
     /// The chips it is heard as made by, the one that makes the most of it first: set by a player
     /// that knows better than its kind of file does (`TuneFormat.likelyChip`), and otherwise left empty.
     public var chips: [SoundChip] = []
+    /// The ROMs that, once siday keeps them, would have it played on another synthesiser than it is
+    /// now: a MIDI file's. None for any other tune.
+    public var playedOtherwiseWith: [KeptROMs] = []
 
     public init(format: String) {
         self.format = format
     }
+}
+
+/// The ROMs of a synthesiser that siday keeps once it is given them, and plays some tunes on.
+public enum KeptROMs: Sendable, Hashable {
+    /// A CM-32L's or LAPC-I's: the MT-32's synthesiser.
+    case mt32
+    /// An SC-55's: the Sound Canvas.
+    case sc55
 }
 
 /// What can be said of one song of a tune without playing it.

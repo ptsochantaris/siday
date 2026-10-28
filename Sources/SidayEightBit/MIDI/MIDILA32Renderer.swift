@@ -74,7 +74,7 @@ final class MIDILA32Renderer: Renderer {
         info.title = file.title
         info.comment = file.copyright
         info.chips = [.la32]
-        info.detail = (origin.declared ? "Written for " + origin.standard.name : "General MIDI (the file does not say otherwise)")
+        info.detail = (origin.declared ? "Written for " + origin.standard.name : "General MIDI")
             + "; played on the LA32 synthesiser of the LAPC-I (" + roms.control.name + ")"
         info.shortfalls = file.shortfalls
         self.info = info

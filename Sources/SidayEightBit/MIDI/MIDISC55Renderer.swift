@@ -94,13 +94,14 @@ final class MIDISC55Renderer: Renderer {
         info.title = file.title
         info.comment = file.copyright
         info.chips = [.sc55]
-        info.detail = (origin.declared ? "Written for " + origin.standard.name : "General MIDI (the file does not say otherwise)")
+        info.detail = (origin.declared ? "Written for " + origin.standard.name : "General MIDI")
             + "; played on the " + roms.name + (mt32Mode ? ", set to its MT-32 sounds" : "")
         info.shortfalls = file.shortfalls
         if origin.standard == .xg {
             info.shortfalls.append("It was written for Yamaha's XG, whose sounds and effects the Sound Canvas does not have: it is played as General MIDI, as a GS synthesiser played it.")
         }
         if mt32Mode {
+            info.playedOtherwiseWith = [.mt32]
             info.shortfalls.append("It was written for the Roland MT-32, and the sounds it sets the MT-32 up with"
                 + (origin.byCompanion ? " (in the file of them beside it)" : "")
                 + " are not heard on the Sound Canvas: its parts are played with the Sound Canvas's own MT-32 sounds, as SCMODE set them up."

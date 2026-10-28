@@ -146,10 +146,12 @@ private let mt32Patch: [UInt8] = [0x41, 0x10, 0x16, 0x12, 0x03, 0x00, 0x00, 0x00
     let mt32 = try TuneLoader.load(smf(format: 0, [track(sysex(mt32Patch) + oneNote)]), format: .mid)
     #expect(mt32.info.detail.hasPrefix("Written for the Roland MT-32"))
     #expect(mt32.info.shortfalls.count == 1)
+    #expect(mt32.info.playedOtherwiseWith == [.mt32, .sc55])
     let plain = try TuneLoader.load(smf(format: 0, [track(oneNote)]), format: .mid)
-    #expect(plain.info.detail.hasPrefix("General MIDI (the file does not say otherwise)"))
+    #expect(plain.info.detail.hasPrefix("General MIDI;"))
     #expect(plain.info.shortfalls.isEmpty)
     #expect(plain.info.chips == [.opl3])
+    #expect(plain.info.playedOtherwiseWith == [.sc55])
 }
 
 @Test func midiCompanionMessagesAreSentBeforeTheSong() throws {
