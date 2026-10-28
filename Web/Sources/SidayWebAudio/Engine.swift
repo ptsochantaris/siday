@@ -187,7 +187,8 @@ nonisolated(unsafe) private var kept = KeptFiles()
 
 /// A file the page keeps, or has just been given and may keep: taken if it is one siday keeps, and its
 /// ROMs or song lengths used from now on. Returns the length of a text at `siday_packed`: the name it is
-/// kept under (empty for a file that is not one), and then what is kept, a line for each
+/// kept under (empty for a file that is not one), then the synthesisers whose ROMs are kept whole, after
+/// an at sign with commas between (see `KeptROMs`), and then what is kept, a line for each
 /// (`KeptFiles.summary`).
 @_expose(wasm, "siday_keep")
 @_cdecl("siday_keep")
@@ -198,7 +199,8 @@ public func sidayKeep(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
     keeper.setMT32ROMs(kept.mt32ROMs)
     keeper.setSC55ROMs(kept.sc55ROMs)
     if let lengths = kept.songLengths { keeper.setSongLengths(lengths) }
-    packed = Array(([known?.keptName ?? ""] + kept.summary).joined(separator: "\n").utf8)
+    let whole = [kept.mt32ROMs == nil ? nil : KeptROMs.mt32.rawValue, kept.sc55ROMs == nil ? nil : KeptROMs.sc55.rawValue].compactMap { $0 }
+    packed = Array(([known?.keptName ?? "", "@" + whole.joined(separator: ",")] + kept.summary).joined(separator: "\n").utf8)
     return Int32(packed.count)
 }
 

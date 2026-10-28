@@ -197,14 +197,34 @@ final class Player {
     private(set) var keptSummary: [String] = []
 
     /// Forgets the files siday keeps: MIDI files are played on FM again.
+    /// The synthesisers whose ROMs are kept whole, as siday last said.
+    private var synthesisers: Set<KeptROMs> = []
+
+    /// What siday keeps, as it says it: the first line (an at sign and the synthesisers whose ROMs are
+    /// kept whole) for the page, the rest for the listener. A tune that is playing is played again, from
+    /// the start of its song, if a synthesiser whose ROMs have just been kept is now the one it is played
+    /// on: so it is heard there at once.
+    private func keptTold(_ text: String) {
+        let lines = text.split(separator: "\n").map { String($0) }
+        let had = synthesisers
+        if let first = lines.first, first.utf8.first == 0x40 {
+            synthesisers = Set(first.dropFirst().split(separator: ",").compactMap { KeptROMs(rawValue: String($0)) })
+        }
+        keptSummary = lines.filter { $0.utf8.first != 0x40 }
+        guard let tune, let current, !paused, !finished,
+              tune.playedOtherwiseWith.contains(where: { !had.contains($0) && synthesisers.contains($0) }) else { return }
+        play(current, song: tune.song)
+    }
+
     func forgetKept() {
         try? sidayForgetKept()
         keptSummary = []
+        synthesisers = []
     }
 
     /// Connects the page to the JavaScript side. Called once.
     func start() {
-        try? sidayListenKept { [self] text in keptSummary = text.split(separator: "\n").map { String($0) } }
+        try? sidayListenKept { [self] text in keptTold(text) }
         try? sidayListen(
             { name in
                 switch TuneGathering.kind(ofFileNamed: name) {

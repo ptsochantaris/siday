@@ -30,7 +30,7 @@ public struct TuneInfo: Sendable {
 }
 
 /// The ROMs of a synthesiser that siday keeps once it is given them, and plays some tunes on.
-public enum KeptROMs: Sendable, Hashable {
+public enum KeptROMs: String, Sendable, Hashable {
     /// A CM-32L's or LAPC-I's: the MT-32's synthesiser.
     case mt32
     /// An SC-55's: the Sound Canvas.

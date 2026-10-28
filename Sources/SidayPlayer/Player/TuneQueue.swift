@@ -79,7 +79,10 @@ public struct Tune: Equatable, Sendable {
         let shortfalls = lines.dropFirst(4 + songs.count).filter { $0.utf8.first == 0x21 }.map { String($0.dropFirst()) }
         // (And the chips it is heard as made by, each marked with a hash.)
         let chips = lines.dropFirst(4 + songs.count).filter { $0.utf8.first == 0x23 }.compactMap { SoundChip(rawValue: String($0.dropFirst())) }
-        self.init(format: line(0), title: line(1), author: line(2), detail: line(3), songs: songs, song: song, length: length, shortfalls: shortfalls, chips: chips)
+        // (And the ROMs that would have it played on another synthesiser, each marked with an at sign.)
+        let otherwise = lines.dropFirst(4 + songs.count).filter { $0.utf8.first == 0x40 }.compactMap { KeptROMs(rawValue: String($0.dropFirst())) }
+        self.init(format: line(0), title: line(1), author: line(2), detail: line(3), songs: songs, song: song, length: length, shortfalls: shortfalls, chips: chips,
+                  playedOtherwiseWith: otherwise)
     }
 
     /// The songs of a tune of `count` songs, from its details in words (see `TunePlayer.details`).

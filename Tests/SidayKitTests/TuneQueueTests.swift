@@ -121,6 +121,8 @@ private func tune(_ lengths: [Double?], pending: Set<Int> = [], song: Int = 0) -
     info.title = "A\tB"
     info.author = "Someone"
     info.shortfalls = ["An instrument is not heard."]
+    info.chips = [.opl3]
+    info.playedOtherwiseWith = [.mt32, .sc55]
     let songs = [SongInfo(title: "Title", length: 92.5), SongInfo(empty: true), SongInfo(pending: true)]
     let details = TunePlayer.details(of: info, songs: songs)
     let tune = Tune(details: details, songs: songs.count, song: 1, length: 30)

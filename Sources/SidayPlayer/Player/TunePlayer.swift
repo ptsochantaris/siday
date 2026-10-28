@@ -277,7 +277,9 @@ public final class TunePlayer {
     /// to be nothing in it and a 0 if not, a tab, and its name, if it has one. Then a line for each
     /// thing the file asks for that is not played as it asks (`TuneInfo.shortfalls`): an exclamation
     /// mark, which no song's line begins with, and the sentence. Then a line for each chip it is heard
-    /// as made by (`TuneInfo.chips`): a hash and the chip's name. The page takes them apart again.
+    /// as made by (`TuneInfo.chips`): a hash and the chip's name. Then a line for the ROMs of each
+    /// synthesiser that would play it otherwise (`TuneInfo.playedOtherwiseWith`): an at sign and their
+    /// name. The page takes them apart again.
     public static func details(of info: TuneInfo, songs: [SongInfo]) -> String {
         func tidy(_ field: String) -> String { String(field.map { $0.isNewline || $0 == "\t" ? " " : $0 }) }
         var lines = [info.format, info.title, info.author, info.detail].map(tidy)
@@ -288,6 +290,7 @@ public final class TunePlayer {
         }
         for shortfall in info.shortfalls { lines.append("!" + tidy(shortfall)) }
         for chip in info.chips { lines.append("#" + chip.rawValue) }
+        for roms in info.playedOtherwiseWith { lines.append("@" + roms.rawValue) }
         return lines.joined(separator: "\n")
     }
 
