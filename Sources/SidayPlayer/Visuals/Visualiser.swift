@@ -112,12 +112,11 @@ protocol VisualScene: AnyObject {
 public final class Visualiser {
     /// The kinds of picture there are.
     public enum Mode: String, CaseIterable, Sendable {
-        case lava, ball, aurora, pond, flame, fountain, rain, petri
+        case lava, aurora, pond, flame, fountain, rain, petri
 
         public var title: String {
             switch self {
             case .lava: "Lava lamp"
-            case .ball: "Mirror ball"
             case .aurora: "Aurora"
             case .pond: "Pond"
             case .flame: "Flame"
@@ -161,7 +160,6 @@ public final class Visualiser {
     private static func scene(for mode: Mode) -> any VisualScene {
         switch mode {
         case .lava: LavaLamp()
-        case .ball: MirrorBall()
         case .aurora: Aurora()
         case .pond: Pond()
         case .flame: Flame()
