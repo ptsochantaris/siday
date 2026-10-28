@@ -7,7 +7,7 @@ import SidayFoundation
 /// one, and each phrase a voice plays is a figure of them somewhere in the sky: each note a short step
 /// on from the last, across, and up or down as far as the melody goes up or down, joined to it by a
 /// faint line, and now and then doubling back. A pause, or seven stars, ends a figure, and the next
-/// begins somewhere else. The lines fade in a while and the stars more slowly, so the sky is a map of the
+/// begins where the sky is emptiest. The lines fade in a while and the stars more slowly, so the sky is a map of the
 /// last minute or so of the tune; and it turns, very slowly, about a pole below the picture, as the
 /// night sky does. A voice with no pitch, a drum or a hiss, makes no stars, but sets those of the sky
 /// twinkling a little.
@@ -45,8 +45,11 @@ final class Constellations: VisualScene {
     /// How long a voice may be silent and still carry on its figure, in seconds.
     private static let pause: Float = 1.5
     /// The sky's turning, in turns a second.
-    private static let turning: Float = 1.0 / 900
+    private static let turning: Float = 1.0 / 7200
     private static let most = 900
+    /// How many stars are seen at most: in a busy tune, the oldest beyond these fade out within a few
+    /// seconds, so that the sky shows its latest figures and is not a field of stars.
+    private static let seenMost = 180
 
     func paint(_ frame: VisualFrame) {
         let width = frame.width, height = frame.height
@@ -109,10 +112,13 @@ final class Constellations: VisualScene {
                 let dx = star.x - poleX, dy = star.y - poleY
                 return (poleX + dx * cosAngle - dy * sinAngle, poleY + dx * sinAngle + dy * cosAngle)
             }
+            // When the stars older than the newest that are seen began to be too many, and so to fade.
+            let crowded = stars.count > Self.seenMost ? stars[stars.count - Self.seenMost].born : -Float.greatestFiniteMagnitude
+            func crowding(_ star: Star) -> Float { star.born >= crowded ? 1 : expf(-(crowded - star.born) / 3) }
             for star in stars {
                 let age = now - star.born
                 guard let before = star.after else { continue }
-                let fade = expf(-age / Self.lineLasts) * 0.22
+                let fade = expf(-age / Self.lineLasts) * 0.22 * crowding(star)
                 guard fade > 0.004 else { continue }
                 let (x0, y0) = seen(stars[before]), (x1, y1) = seen(star)
                 line(light, x0, y0, x1, y1, star.colour, fade)
@@ -123,7 +129,7 @@ final class Constellations: VisualScene {
                 // with the drums, each star in its own time.
                 let flare = 1 + 1.5 * expf(-age / 0.4)
                 let shimmer = 1 + 0.35 * twinkle * sinf(now * 9 + Float(index) * 2.3)
-                let bright = star.bright * flare * shimmer * expf(-age / Self.starLasts)
+                let bright = star.bright * flare * shimmer * expf(-age / Self.starLasts) * crowding(star)
                 guard bright > 0.01 else { continue }
                 let (x, y) = seen(star)
                 glow(light, x, y, star.colour, bright)
@@ -179,8 +185,21 @@ final class Constellations: VisualScene {
             joined = true
             figure[index] += 1
         } else {
-            // A new figure, somewhere in the sky, its first star as high as the note is.
-            (x, y) = seen(w * (0.1 + 0.8 * next()), h * (0.88 - 0.76 * frame.place(of: voice.pitch)))
+            // A new figure, where the sky is emptiest: the best of a few places tried, the one furthest
+            // from the stars still to be seen.
+            (x, y) = (0, 0)
+            var room: Float = -1
+            for _ in 0 ..< 10 {
+                let (tryX, tryY) = seen(w * (0.08 + 0.84 * next()), h * (0.1 + 0.8 * next()))
+                var nearest = Float.greatestFiniteMagnitude
+                for star in stars.suffix(Self.seenMost) where now - star.born < Self.starLasts {
+                    nearest = min(nearest, (star.x - tryX) * (star.x - tryX) + (star.y - tryY) * (star.y - tryY))
+                }
+                if nearest > room {
+                    room = nearest
+                    (x, y) = (tryX, tryY)
+                }
+            }
             heading[index] = next() < 0.5 ? -1 : 1
             figure[index] = 1
         }

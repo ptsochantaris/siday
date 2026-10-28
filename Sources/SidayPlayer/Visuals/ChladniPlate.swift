@@ -8,11 +8,12 @@ import SidayFoundation
 /// thrown about where it shakes and comes to rest on the lines that do not, drawing the pattern, as
 /// Ernst Chladni showed in 1787 by drawing a bow along a plate's edge. Here each voice that has a pitch
 /// rings the plate in a pattern of its own, a simple one of a few lines for a low note and a busier one
-/// for a higher; only the two loudest ring it, the louder the more, so that a tune of many voices
-/// still draws a figure clear enough to see. When the notes change, the plate passes from one way of
-/// ringing to the next over a second or so, and the sand on the old lines is shaken loose and drifts
-/// to the new ones; a note struck shakes it a little harder. When the music stops, the sand stays
-/// where it lies.
+/// for a higher; only the two loudest ring it, the loudest the more, so that a tune of many voices
+/// still draws a figure clear enough to see. The plate holds a figure while the music does: it takes up
+/// a new one only once the notes have asked for it for a moment, and then at once, so that the sand on
+/// the old lines is shaken loose and gathers quickly on the new ones, and is not kept wavering between
+/// the two. How loud the music is only shakes the sand harder; a note struck shakes it harder still.
+/// When the music stops, the sand stays where it lies.
 ///
 /// The patterns are those of a square plate held at its middle, as Chladni's were, stretched to the
 /// picture's shape: `cos(mπx)cos(nπy) ± cos(nπx)cos(mπy)` for two numbers `m` and `n`. How the plate
@@ -41,8 +42,14 @@ final class ChladniPlate: VisualScene {
     /// How many grains of sand there are.
     private static let grains = 9000
 
-    /// How the plate shakes, as the notes now heard would have it, and as it does, passing to that.
+    /// How the plate shakes, as the figure it holds would have it, and as it does, passing to that.
     private var wanted = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
+    /// The figure the plate holds, and the one the notes now ask for and since when: each as the
+    /// patterns of the loudest voice and the next (-1 for none).
+    private var held = (-1, -1), asked = (-1, -1)
+    private var askedSince: Float = 0
+    /// How long the notes must ask for a new figure before the plate takes it up, in seconds.
+    private static let holding: Float = 0.7
     private var shaking = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
     private var grainX: [Float] = [], grainY: [Float] = []
     private var light: [Float] = []
@@ -94,13 +101,10 @@ final class ChladniPlate: VisualScene {
         paintPlate(frame)
     }
 
-    /// How the plate shakes at each place of the grid: the two loudest voices' patterns, each as strong
-    /// as the voice is loud, added together and brought to a size from -1 to 1; passed to over a second
-    /// or so from how it shook before.
+    /// How the plate shakes at each place of the grid: the pattern of the loudest voice and half as much
+    /// of the next's, added together and brought to a size from -1 to 1, for the figure the plate holds;
+    /// passed to quickly when it takes up a new one.
     private func ringPlate(_ frame: VisualFrame) {
-        let side = Self.grid
-        for index in wanted.indices { wanted[index] = 0 }
-        var total: Float = 0
         var loudest = (-1, -1)
         for index in 0 ..< frame.voices.count where frame.voices[index].pitched && calm[index] > 0.02 {
             if loudest.0 < 0 || calm[index] > calm[loudest.0] {
@@ -109,12 +113,33 @@ final class ChladniPlate: VisualScene {
                 loudest.1 = index
             }
         }
-        for index in [loudest.0, loudest.1] where index >= 0 {
+        func pattern(of index: Int) -> Int {
+            guard index >= 0 else { return -1 }
             let place = frame.place(of: frame.voices[index].pitch)
-            let pattern = Self.patterns[min(Self.patterns.count - 1, Int(place * Float(Self.patterns.count - 1) + 0.5))]
-            let strength = calm[index]
-            total += strength
-            var acrossM = [Float](repeating: 0, count: side), acrossN = acrossM
+            return min(Self.patterns.count - 1, Int(place * Float(Self.patterns.count - 1) + 0.5))
+        }
+        // (Nothing heard asks for nothing: the plate keeps the figure it has.)
+        var now = (pattern(of: loudest.0), pattern(of: loudest.1))
+        if now.1 == now.0 { now.1 = -1 }
+        if now.0 >= 0, now != asked {
+            asked = now
+            askedSince = frame.time
+        }
+        if asked.0 >= 0, asked != held, frame.time - askedSince >= Self.holding || held.0 < 0 {
+            held = asked
+            shape(held)
+        }
+        let passing = 1 - expf(-frame.elapsed / 0.15)
+        for index in shaking.indices { shaking[index] += (wanted[index] - shaking[index]) * passing }
+    }
+
+    /// Works out how the plate shakes for a figure.
+    private func shape(_ figure: (Int, Int)) {
+        let side = Self.grid
+        for index in wanted.indices { wanted[index] = 0 }
+        var acrossM = [Float](repeating: 0, count: side), acrossN = acrossM
+        for (which, strength) in [(figure.0, Float(1)), (figure.1, Float(0.5))] where which >= 0 {
+            let pattern = Self.patterns[which]
             for column in 0 ..< side {
                 let x = Float(column) / Float(side - 1)
                 acrossM[column] = cosf(pattern.m * .pi * x)
@@ -127,9 +152,8 @@ final class ChladniPlate: VisualScene {
                 }
             }
         }
-        let scale: Float = total > 0 ? 1 / (2 * total) : 0
-        let passing = 1 - expf(-frame.elapsed / 0.8)
-        for index in shaking.indices { shaking[index] += (wanted[index] * scale - shaking[index]) * passing }
+        let scale: Float = 1 / (2 * (figure.1 >= 0 ? 1.5 : 1))
+        for index in wanted.indices { wanted[index] *= scale }
     }
 
     /// How the plate shakes at a place, and which way it shakes less, from the grid: x and y from 0 to 1.
@@ -148,7 +172,7 @@ final class ChladniPlate: VisualScene {
     /// towards where it shakes less: so it comes to rest on a still line.
     private func moveSand(_ step: Float) {
         guard vigour > 0.01 else { return }
-        let throwing = 0.3 * vigour * step.squareRoot(), sliding = 0.02 * vigour * step * 60
+        let throwing = 0.3 * vigour * step.squareRoot(), sliding = 0.03 * vigour * step * 60
         for index in 0 ..< Self.grains {
             let x = grainX[index], y = grainY[index]
             let here = shake(x, y)
