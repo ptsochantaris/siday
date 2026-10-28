@@ -1008,3 +1008,34 @@ private func harmonograph(_ upper: Float, _ lower: Float) -> [Double] {
     #expect(difference(fifth, higherFifth) < 2)
     #expect(difference(fifth, fourth) > 10)
 }
+
+/// Which dots of a Chladni plate's picture have sand on them: those paler than the plate.
+private func sand(_ visualiser: Visualiser) -> [Bool] {
+    guard let pixels = visualiser.pixels else { return [] }
+    return (0 ..< visualiser.width * visualiser.height).map { Int(pixels[$0 * 4]) + Int(pixels[$0 * 4 + 1]) > 120 }
+}
+
+private func sanded(_ visualiser: Visualiser) -> Int {
+    sand(visualiser).count { $0 }
+}
+
+@Test func chladniSandGathersOnTheStillLinesAndStaysThere() {
+    let visualiser = Visualiser(mode: .chladni)
+    visualiser.resize(width: 160, height: 100)
+    // Strewn evenly before anything plays, the sand covers much of the plate.
+    watch(visualiser, seconds: 0.5, levels: [0, 0], pitches: [0, 0])
+    let strewn = sanded(visualiser)
+    // A note rings the plate, and the sand gathers on its still lines, on much less of it.
+    watch(visualiser, from: 0.5, seconds: 6, levels: [1, 0], pitches: [60, 0])
+    let gathered = sanded(visualiser)
+    #expect(strewn > 160 * 100 / 3)
+    #expect(gathered < strewn / 3)
+    // When the music stops, the plate's ringing dies away within a few seconds, and then the sand
+    // stays where it lies.
+    watch(visualiser, from: 6.5, seconds: 4, levels: [0, 0], pitches: [0, 0])
+    // (Where the sand is: its colour drifts slowly round the wheel, as the pictures' colours do.)
+    let still = sand(visualiser)
+    watch(visualiser, from: 10.5, seconds: 2, levels: [0, 0], pitches: [0, 0])
+    #expect(sand(visualiser) == still)
+}
+
