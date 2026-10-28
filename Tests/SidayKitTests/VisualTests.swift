@@ -1039,3 +1039,29 @@ private func sanded(_ visualiser: Visualiser) -> Int {
     #expect(sand(visualiser) == still)
 }
 
+
+/// How bright a picture is over all, as the mean of its dots' red, green and blue.
+private func brightness(_ visualiser: Visualiser) -> Double {
+    guard let pixels = visualiser.pixels else { return 0 }
+    let count = visualiser.width * visualiser.height
+    return (0 ..< count).reduce(0.0) { $0 + Double(pixels[$1 * 4]) + Double(pixels[$1 * 4 + 1]) + Double(pixels[$1 * 4 + 2]) } / Double(count)
+}
+
+@Test func constellationsAreMadeOfNotesAndFade() {
+    let visualiser = Visualiser(mode: .constellations), never = Visualiser(mode: .constellations)
+    for sky in [visualiser, never] { sky.resize(width: 160, height: 100) }
+    // A voice that sounds but strikes no note, and a drum, make no stars: the sky stays dark.
+    watch(visualiser, seconds: 3, levels: [1, 1], pitches: [60, 0])
+    watch(never, seconds: 3, levels: [0, 0], pitches: [0, 0])
+    #expect(abs(brightness(visualiser) - brightness(never)) < 0.5)
+    // Notes struck make stars, joined in figures.
+    for beat in 0 ..< 12 {
+        watch(visualiser, from: 3 + Double(beat) / 2, seconds: 0.5, levels: [1, 0], pitches: [Float(60 + beat % 5 * 2), 0], strike: true)
+    }
+    watch(never, from: 3, seconds: 6, levels: [0, 0], pitches: [0, 0])
+    #expect(brightness(visualiser) > brightness(never) + 2)
+    // And in silence they fade away, over a few minutes, to a sky like one that never heard a note.
+    watch(visualiser, from: 9, seconds: 300, levels: [0, 0], pitches: [0, 0])
+    watch(never, from: 9, seconds: 300, levels: [0, 0], pitches: [0, 0])
+    #expect(abs(brightness(visualiser) - brightness(never)) < 0.5)
+}

@@ -154,8 +154,9 @@ Alongside the player and its list are:
   2 drew one for each channel. A chip's note is held still as two of its cycles; a sample shows its
   last fiftieth of a second. Each voice is shown as it leaves its chip or mixer, before anything the
   voices share, such as a SID's filter or an Amiga's;
-- **a picture to listen by:** a lava lamp, an aurora, a pond, a fire, a fountain, rain
-  or a petri dish, each drawn from what the tune's voices are doing;
+- **a picture to listen by:** a lava lamp, an aurora, a pond, a fire, a fountain, rain, a petri
+  dish, a harmonograph, a Chladni plate or constellations, each drawn from what the tune's voices
+  are doing;
 - **the settings**, which are the command-line player's options.
 
 A song is rendered to its end as soon as it starts, far faster than it plays, so you can jump to any
