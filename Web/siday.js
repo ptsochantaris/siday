@@ -285,10 +285,15 @@ function keptStore(mode, use) {
     }
   });
 }
+/// Every file kept, each with its name. (Names and contents are read in the one transaction, so that they
+/// match: one read after another could each see the store as another answer had changed it between.)
 async function keptFiles() {
-  const names = (await keptStore("readonly", (store) => store.getAllKeys())) ?? [];
-  const files = (await keptStore("readonly", (store) => store.getAll())) ?? [];
-  return names.map((name, which) => ({ name, bytes: files[which] }));
+  let names;
+  const files = (await keptStore("readonly", (store) => {
+    names = store.getAllKeys();
+    return store.getAll();
+  })) ?? [];
+  return (names?.result ?? []).map((name, which) => ({ name, bytes: files[which] }));
 }
 /// Hands a file to the engines, which say what it is: it is then kept under the engine's name for it,
 /// or not at all. If no tune has been played yet, the engines are started for it, and are given every
@@ -301,11 +306,24 @@ function offerKept(stored) {
     measuring?.postMessage({ type: "keep", bytes: stored.bytes });
   });
 }
-async function keptAnswer({ token, name, summary }) {
+/// The engine's answers, taken one after another in the order they came: each says what is kept once the
+/// file it answers is, and the last is what is kept now.
+let keptAnswers = Promise.resolve();
+function keptAnswer(answer) {
+  keptAnswers = keptAnswers.then(() => takeKeptAnswer(answer));
+}
+async function takeKeptAnswer({ token, name, summary }) {
+  // The file just given is moved to the engine's name for it, or let go; in one transaction, so that no
+  // other change to the store comes between.
   if (name !== token) {
-    const bytes = (await keptFiles()).find((stored) => stored.name === token)?.bytes;
-    await keptStore("readwrite", (store) => store.delete(token));
-    if (name && bytes) await keptStore("readwrite", (store) => store.put(bytes, name));
+    await keptStore("readwrite", (store) => {
+      const given = store.get(token);
+      given.onsuccess = () => {
+        if (name && given.result) store.put(given.result, name);
+        store.delete(token);
+      };
+      return given;
+    });
   }
   keptSummary = summary;
   keep("siday.kept", summary.join("\n"));
