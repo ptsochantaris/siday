@@ -149,8 +149,8 @@ final class Constellations: VisualScene {
     }
 
     /// A note struck on a voice: a star, a short step on from the voice's last, up or down as far as the
-    /// note is from the last, and joined to it; or, after a pause or seven stars, the first of a new
-    /// figure somewhere else in the sky. A note struck again at once, the same as the last, only
+    /// note is from the last, and joined to it; or, after a pause, seven stars or a leap of more than an
+    /// octave, the first of a new figure somewhere else in the sky. A note struck again at once, the same as the last, only
     /// brightens that star.
     private func strike(_ index: Int, _ voice: VisualVoice, _ frame: VisualFrame, seen: (Float, Float) -> (Float, Float)) {
         let now = frame.time
@@ -162,7 +162,7 @@ final class Constellations: VisualScene {
             return
         }
         var x: Float, y: Float, joined = false
-        if let last = lastStar[index], now - lastTime[index] < Self.pause, figure[index] < 7 {
+        if let last = lastStar[index], now - lastTime[index] < Self.pause, figure[index] < 7, abs(voice.pitch - lastPitch[index]) <= 12 {
             // A step on, of about a thirtieth of the sky's width, a little uneven, and sometimes back the
             // way it came; and up or down by the interval, a semitone about a sixtieth of its height.
             let (lastX, lastY) = (stars[last].x, stars[last].y)
