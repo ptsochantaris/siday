@@ -263,6 +263,8 @@ function keep(name, value) {
 const keptSizes = [32768, 65536, 131072, 262144, 524288, 1048576];
 let keptSummary = (kept("siday.kept") ?? "").split("\n").filter((line) => line);
 let toldKept;
+/// Told what each MIDI file looked at before it is played was written for (see `sidayLookAt`).
+let toldLooked;
 let keptGiven = 0;
 /// The other worker, which plays songs through, and needs the ROMs too.
 let measuring;
@@ -416,6 +418,7 @@ function heard(message) {
   // A song's level is kept whichever song is playing now.
   if (message.type === "level") return keepLevel(message.key, message.text);
   if (message.type === "kept") return void keptAnswer(message);
+  if (message.type === "lookedat") return void toldLooked?.(`${message.name}\t${message.mt32 ? 1 : 0}`);
   // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
   if ("tune" in message ? message.tune !== asked : message.serial !== serial) return;
   switch (message.type) {
@@ -671,7 +674,7 @@ function counted(count) {
 /// companions are known by the whole of their name and not by an ending (as `Companions.names` has
 /// them), and a name with no full stop has no ending: those are asked about each time.
 const kinds = new Map();
-const companionsByName = new Set(["songplay", "wantedteam.bin"]);
+const companionsByName = new Set(["songplay", "wantedteam.bin", "sysex.mid", "sysexmain.mid", "sysintroend.mid"]);
 function kindOf(name) {
   if (!listeners) return 0;
   const leaf = name.slice(name.lastIndexOf("/") + 1);
@@ -1430,6 +1433,17 @@ Object.assign(globalThis, {
   },
   sidayRememberedSettings() {
     return kept("siday.settings") ?? "";
+  },
+  sidayLookAt(index, companion) {
+    const tune = tunes[index];
+    if (!tune) return;
+    // (The engines are started for it if no tune has been played yet, as they are for a file kept.)
+    void Promise.all([read(tune.file), companion >= 0 && known[companion] ? read(known[companion].file) : null, audio()]).then(([bytes, beside, { engine }]) =>
+      engine.postMessage({ type: "lookat", name: tune.name, bytes, companion: beside ?? undefined }, [bytes, ...(beside ? [beside] : [])]),
+    );
+  },
+  sidayListenLooked(told) {
+    toldLooked = told;
   },
   sidayListenKept(told) {
     toldKept = told;

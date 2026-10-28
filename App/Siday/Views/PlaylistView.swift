@@ -36,7 +36,7 @@ struct PlaylistView: View {
                         }
                     }
                     ForEach(model.listed) { tune in
-                        Row(tune: tune, playing: model.current.map { model.files.indices.contains($0) && model.files[$0].id == tune.id } ?? false)
+                        Row(tune: tune, chip: model.shownChip(tune), playing: model.current.map { model.files.indices.contains($0) && model.files[$0].id == tune.id } ?? false)
                             .tag(tune.id)
                     }
                     .onDelete { places in
@@ -103,11 +103,12 @@ struct PlaylistView: View {
 
     struct Row: View {
         let tune: ListedTune
+        let chip: SoundChip?
         let playing: Bool
 
         var body: some View {
             HStack {
-                if let chip = tune.shownChip {
+                if let chip {
                     ChipCard(chip: chip, size: 36)
                         .accessibilityHidden(true)
                 }

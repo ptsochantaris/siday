@@ -255,6 +255,13 @@ self.onmessage = async (event) => {
       withBytes(key.buffer, (keyAt, keyLength) => withBytes(level.buffer, (levelAt, levelLength) => core.siday_set_kept_level(keyAt, keyLength, levelAt, levelLength, now())));
       break;
     }
+    case "lookat": {
+      // A MIDI file in the list, looked at before it is played: whether it was written for the MT-32.
+      if (!core) return void setTimeout(() => self.onmessage(event), 50);
+      const mt32 = withBytes(message.bytes, (at, length) => withBytes(message.companion ?? new ArrayBuffer(0), (companionAt, companionLength) => core.siday_midi_for_mt32(at, length, companionAt, companionLength)));
+      postMessage({ type: "lookedat", name: message.name, mt32: mt32 === 1 });
+      break;
+    }
     case "songlengths":
       withBytes(message.bytes, (data, length) => core.siday_set_songlengths(data, length));
       break;

@@ -221,6 +221,14 @@ public func sidaySetKeptLevel(_ key: UnsafePointer<UInt8>, _ keyLength: Int32, _
     keeper.setKeptLevel(key: text(key, keyLength), text: levelLength > 0 ? text(level, levelLength) : nil, now: now)
 }
 
+/// 1 for a MIDI file written for the MT-32, by its own messages or those of the file beside it that sets
+/// the MT-32 up (a length of 0 for none), and 0 for any other (see `MIDISynthesisers`).
+@_expose(wasm, "siday_midi_for_mt32")
+@_cdecl("siday_midi_for_mt32")
+public func sidayMIDIForMT32(_ data: UnsafePointer<UInt8>, _ length: Int32, _ companion: UnsafePointer<UInt8>, _ companionLength: Int32) -> Int32 {
+    MIDISynthesisers.isWrittenForMT32(bytes(data, length), companion: companionLength > 0 ? bytes(companion, companionLength) : nil) ? 1 : 0
+}
+
 /// The tune has been taken out of the list, and nothing follows it: the song is let go.
 @_expose(wasm, "siday_stop")
 @_cdecl("siday_stop")

@@ -106,6 +106,22 @@ package enum EightBitPlayers {
     }
 }
 
+package extension EightBitPlayers {
+    /// True for a MIDI file written for the MT-32 (see `MIDIFMRenderer.isWrittenForMT32`).
+    static func midiIsWrittenForMT32(_ data: [UInt8], companion: [UInt8]?) -> Bool {
+        MIDIFMRenderer.isWrittenForMT32(data, companion: companion)
+    }
+
+    /// The chip a MIDI file is played on, by whether it was written for the MT-32 and whose ROMs siday has.
+    static func midiChip(writtenForMT32: Bool, mt32ROMs: Bool, sc55ROMs: Bool) -> SoundChip {
+        switch MIDISynthesiser.choose(writtenForMT32: writtenForMT32, mt32ROMs: mt32ROMs, sc55ROMs: sc55ROMs) {
+        case .la32: .la32
+        case .sc55: .sc55
+        case .fm: .opl3
+        }
+    }
+}
+
 /// The synthesisers a MIDI file may be played on.
 enum MIDISynthesiser: Equatable {
     case fm, la32, sc55

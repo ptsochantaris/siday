@@ -73,3 +73,18 @@ public enum TuneLoader {
         throw TuneError.unsupported("no player for \(format.rawValue.uppercased())")
     }
 }
+
+/// Which synthesiser a MIDI file is played on, found before it is played: for a list to show it by.
+public enum MIDISynthesisers {
+    /// True for a MIDI file written for the MT-32, by its own messages or by those of the file beside it
+    /// that sets the MT-32 up (one of `Companions.wanted(for: .mid, fileName:)`), if it was found.
+    @export(interface)
+    public static func isWrittenForMT32(_ data: [UInt8], companion: [UInt8]?) -> Bool {
+        EightBitPlayers.midiIsWrittenForMT32(data, companion: companion)
+    }
+
+    /// The chip a MIDI file is played on, by whether it was written for the MT-32 and whose ROMs are kept.
+    public static func chip(writtenForMT32: Bool, mt32ROMs: Bool, sc55ROMs: Bool) -> SoundChip {
+        EightBitPlayers.midiChip(writtenForMT32: writtenForMT32, mt32ROMs: mt32ROMs, sc55ROMs: sc55ROMs)
+    }
+}

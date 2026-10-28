@@ -22,6 +22,9 @@ struct ListedTune: Identifiable, Equatable {
     /// The chip it is heard as made by, once it has been played; until then the one its kind of file
     /// most likely is (see `shownChip`).
     var chip: SoundChip?
+    /// For a MIDI file, whether it was written for the MT-32, once it has been looked at (see
+    /// `PlayerModel.lookAtMIDI`); nil until then, and for any other file.
+    var forMT32: Bool?
     var name: String { url.lastPathComponent }
     var shownChip: SoundChip? { chip ?? TuneFormat(url: url)?.likelyChip }
     var folder: String { url.deletingLastPathComponent().lastPathComponent }
@@ -307,6 +310,43 @@ final class PlayerModel {
         if let waiting = wanting, waiting >= place { wanting = waiting + found.tunes.count }
         perform(queue.add(found.tunes.count, at: place))
         saveList()
+        lookAtMIDI()
+    }
+
+    /// The chip a row's picture is of: for a MIDI file, the synthesiser it is played on with what is kept now
+    /// (as it was found to be written, once it has been looked at); for any other, the one it was heard as
+    /// made by, once it has been played, or the one its kind of file most likely is.
+    func shownChip(_ tune: ListedTune) -> SoundChip? {
+        guard TuneFormat(url: tune.url) == .mid else { return tune.shownChip }
+        if tune.forMT32 == nil, let chip = tune.chip { return chip }
+        return MIDISynthesisers.chip(writtenForMT32: tune.forMT32 ?? false, mt32ROMs: kept.mt32ROMs != nil, sc55ROMs: kept.sc55ROMs != nil)
+    }
+
+    /// Looks at the MIDI files in the list not yet looked at, away from the screen, with the files beside
+    /// them that set an MT-32 up, to find which were written for it: so that each row shows the synthesiser
+    /// its file is played on before it is played.
+    private func lookAtMIDI() {
+        let waiting = files.filter { $0.forMT32 == nil && TuneFormat(url: $0.url) == .mid }.map { (id: $0.id, url: $0.url) }
+        guard !waiting.isEmpty else { return }
+        Task.detached { [waiting] in
+            var found: [Int: Bool] = [:]
+            for (at, tune) in waiting.enumerated() {
+                let read = try? TuneFiles.read(tune.url)
+                found[tune.id] = read.map { MIDISynthesisers.isWrittenForMT32($0.bytes, companion: $0.companions.first ?? nil) } ?? false
+                // (Told in batches: a folder of them is many rows to draw again.)
+                if found.count == 100 || at == waiting.count - 1 {
+                    let batch = found
+                    found = [:]
+                    await MainActor.run { self.lookedAt(batch) }
+                }
+            }
+        }
+    }
+
+    private func lookedAt(_ found: [Int: Bool]) {
+        for index in files.indices {
+            if let forMT32 = found[files[index].id] { files[index].forMT32 = forMT32 }
+        }
     }
 
     // MARK: Kept files
@@ -753,6 +793,7 @@ final class PlayerModel {
             files.append(ListedTune(id: nextID, url: url, note: tune["note"] as? String ?? ""))
             nextID += 1
         }
+        lookAtMIDI()
         // A visit begins with the first tune ready, and paused: nothing is heard until it is asked for.
         if case let .play(index, _) = queue.add(files.count) { play(index, paused: true) }
     }

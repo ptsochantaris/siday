@@ -104,6 +104,9 @@ final class Player {
     /// The chips that the tunes of the list that have been played are heard as made by, by their
     /// files' names. (A row shows the chip its kind of file most likely is until then.)
     private(set) var playedChips: [String: SoundChip] = [:]
+    /// For each MIDI file looked at before it is played (see `sidayLookAt`), by its name: whether it was
+    /// written for the MT-32.
+    private(set) var midiForMT32: [String: Bool] = [:]
     /// True while what is not played as the playing tune's file asks is written out under its
     /// details, and not only marked. It stays as it is from one tune to the next.
     private(set) var shortfallsShown = false
@@ -225,6 +228,11 @@ final class Player {
     /// Connects the page to the JavaScript side. Called once.
     func start() {
         try? sidayListenKept { [self] text in keptTold(text) }
+        try? sidayListenLooked { [self] text in
+            let parts = text.split(separator: "\t")
+            guard parts.count == 2 else { return }
+            midiForMT32[String(parts[0])] = parts[1] == "1"
+        }
         try? sidayListen(
             { name in
                 switch TuneGathering.kind(ofFileNamed: name) {
@@ -461,6 +469,14 @@ final class Player {
         if let waiting = wanting, waiting >= at { wanting = waiting + names.count }
         find()
         perform(queue.add(names.count, at: at))
+        // Its MIDI files are looked at, with the file beside each that may set an MT-32 up, so that each
+        // row shows the synthesiser it is played on before it is played.
+        for index in at ..< at + names.count where midiForMT32[files[index]] == nil {
+            let letters = Array(files[index].utf8)
+            guard let stop = letters.lastIndex(of: UInt8(ascii: ".")),
+                  TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)) == .mid else { continue }
+            try? sidayLookAt(index, companions(of: index).places.first?.first ?? -1)
+        }
     }
 
     // MARK: Moving
@@ -521,12 +537,18 @@ final class Player {
 
     /// The chip a row's picture is of: the one its tune is heard as made by, once it has been played,
     /// and otherwise the one its kind of file most likely is; nil for a file of no kind that is known.
+    /// For a MIDI file, it is the synthesiser it is played on with what is kept now, as it was found to be
+    /// written once it has been looked at.
     func chip(ofFile index: Int) -> SoundChip? {
         let name = file(at: index)
-        if let chip = playedChips[name] { return chip }
         let letters = Array(name.utf8)
-        guard let stop = letters.lastIndex(of: UInt8(ascii: ".")) else { return nil }
-        return TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self))?.likelyChip
+        guard let stop = letters.lastIndex(of: UInt8(ascii: ".")) else { return playedChips[name] }
+        let format = TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self))
+        if format == .mid, midiForMT32[name] != nil || playedChips[name] == nil {
+            return MIDISynthesisers.chip(writtenForMT32: midiForMT32[name] ?? false,
+                                         mt32ROMs: synthesisers.contains(.mt32), sc55ROMs: synthesisers.contains(.sc55))
+        }
+        return playedChips[name] ?? format?.likelyChip
     }
 
     /// The file at a place in the list, or nothing if the list is not that long. (A row can be drawn

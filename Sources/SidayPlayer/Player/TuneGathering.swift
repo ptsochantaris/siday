@@ -34,6 +34,8 @@ public enum TuneGathering {
     public static func kind(ofFileNamed name: String) -> Kind {
         let leaf = Companions.fileName(name)
         if leaf.lowercased() == "songlengths.md5" { return .songLengths }
+        // (A companion known by the whole of its name may end as a tune does: Ultima VII's `sysex.mid`.)
+        if Companions.names.contains(leaf.lowercased()) { return .companion }
         let letters = Array(leaf.utf8)
         if let stop = letters.lastIndex(of: 0x2E) {
             let ending = String(decoding: letters[(stop + 1)...], as: UTF8.self)

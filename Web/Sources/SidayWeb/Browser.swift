@@ -225,6 +225,17 @@ func sidayRememberedSettings() throws(JSException) -> String
 @JSFunction(from: .global)
 func sidayListenKept(_ told: @escaping (String) -> Void) throws(JSException)
 
+/// Looks at a MIDI file in the list, by its place in it, with the file beside it that may set an MT-32 up,
+/// by its place among the files given (-1 for none): the callback given with `sidayListenLooked` is told
+/// whether it was written for the MT-32.
+@JSFunction(from: .global)
+func sidayLookAt(_ index: Int, _ companion: Int) throws(JSException)
+
+/// Hands over the callback that is told, for each MIDI file looked at, its name, a tab, and 1 if it was
+/// written for the MT-32 or 0 if not.
+@JSFunction(from: .global)
+func sidayListenLooked(_ told: @escaping (String) -> Void) throws(JSException)
+
 /// Forgets every file siday keeps.
 @JSFunction(from: .global)
 func sidayForgetKept() throws(JSException)
