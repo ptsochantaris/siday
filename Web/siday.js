@@ -289,9 +289,12 @@ async function keptFiles() {
   return names.map((name, which) => ({ name, bytes: files[which] }));
 }
 /// Hands a file to the engines, which say what it is: it is then kept under the engine's name for it,
-/// or not at all.
+/// or not at all. If no tune has been played yet, the engines are started for it, and are given every
+/// file kept as they start, this one among them. (The sound itself starts only when a tune is played:
+/// a browser lets it start only from something the listener did.)
 function offerKept(stored) {
-  void sound?.then(({ engine }) => {
+  if (!sound) return void audio();
+  void sound.then(({ engine }) => {
     engine.postMessage({ type: "keep", bytes: stored.bytes, answer: true, token: stored.name });
     measuring?.postMessage({ type: "keep", bytes: stored.bytes });
   });
@@ -308,12 +311,20 @@ async function keptAnswer({ token, name, summary }) {
 }
 /// Takes, of what was chosen, the files that may be ones siday keeps: by their size, or how they begin.
 async function takeKept(chosen) {
-  for (const item of chosen) {
-    if (kindOf(item.name) !== 0) continue;
-    const start = new Uint8Array(await item.file.slice(0, 16).arrayBuffer());
+  // (A file that came in a drop is only an entry in a folder, and is opened here to be looked at: all
+  // of them at once, since there may be many that are neither tunes nor anything kept.)
+  const others = chosen.filter((item) => kindOf(item.name) === 0);
+  const opened = await Promise.all(
+    others.map((item) =>
+      item.file instanceof Blob ? item.file : new Promise((resolve) => item.file.file(resolve, () => resolve(null))),
+    ),
+  );
+  for (const file of opened) {
+    if (!file) continue;
+    const start = new Uint8Array(await file.slice(0, 16).arrayBuffer());
     const text = new TextDecoder().decode(start).replace(/^\uFEFF/, "");
-    if (!keptSizes.includes(item.file.size) && !text.startsWith("[Database]") && !text.startsWith(";")) continue;
-    const stored = { name: `given-${Date.now()}-${keptGiven++}`, bytes: await item.file.arrayBuffer() };
+    if (!keptSizes.includes(file.size) && !text.startsWith("[Database]") && !text.startsWith(";")) continue;
+    const stored = { name: `given-${Date.now()}-${keptGiven++}`, bytes: await file.arrayBuffer() };
     await keptStore("readwrite", (store) => store.put(stored.bytes, stored.name));
     offerKept(stored);
   }
@@ -470,6 +481,8 @@ async function play(index, subsong, companions) {
     released = false;
     renew(false);
   }
+  // One made before any tune was played, for the files kept (see `offerKept`), is let start now.
+  if (context?.state === "suspended") void context.resume();
   try {
     // With the tune, the files it needs beside its own that were found among those known, by their
     // places there (-1 for one that was not found, which is sent as nothing; and for a folder, the
