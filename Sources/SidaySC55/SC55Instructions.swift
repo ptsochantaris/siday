@@ -17,9 +17,15 @@ extension SC55MCU {
     /// N and Z from a result of the operand's size, and V cleared.
     @inline(__always) func setFlagsCommon(_ value: UInt32, word: Bool) {
         let v = word ? value & 0xFFFF : value & 0xFF
-        setFlag(v & (word ? 0x8000 : 0x80) != 0, Self.statusN)
-        setFlag(v == 0, Self.statusZ)
-        setFlag(false, Self.statusV)
+        let n: UInt16 = v & (word ? 0x8000 : 0x80) != 0 ? Self.statusN : 0
+        let z: UInt16 = v == 0 ? Self.statusZ : 0
+        sr = sr & ~(Self.statusN | Self.statusZ | Self.statusV) | n | z
+    }
+
+    /// N, Z, V and C at once.
+    @inline(__always) func setFlags(n: Bool, z: Bool, v: Bool, c: Bool) {
+        let flags = (n ? Self.statusN : 0) | (z ? Self.statusZ : 0) | (v ? Self.statusV : 0) | (c ? Self.statusC : 0)
+        sr = sr & ~(Self.statusN | Self.statusZ | Self.statusV | Self.statusC) | flags
     }
 
     @inline(__always) func subtract(_ a: Int32, _ b: Int32, carry: Int32, word: Bool) -> Int32 {
@@ -41,10 +47,7 @@ extension SC55MCU {
             v = s1 < Int32(Int8.min) || s1 > Int32(Int8.max)
         }
         z = t1 == 0
-        setFlag(n, Self.statusN)
-        setFlag(z, Self.statusZ)
-        setFlag(c, Self.statusC)
-        setFlag(v, Self.statusV)
+        setFlags(n: n, z: z, v: v, c: c)
         return t1
     }
 
@@ -67,10 +70,7 @@ extension SC55MCU {
             v = s1 < Int32(Int8.min) || s1 > Int32(Int8.max)
         }
         z = t1 == 0
-        setFlag(n, Self.statusN)
-        setFlag(z, Self.statusZ)
-        setFlag(c, Self.statusC)
-        setFlag(v, Self.statusV)
+        setFlags(n: n, z: z, v: v, c: c)
         return t1
     }
 

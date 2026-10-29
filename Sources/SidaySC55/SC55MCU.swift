@@ -233,10 +233,11 @@ final class SC55MCU {
         switch page {
         case 0:
             if a & 0x8000 == 0 { return rom1[Int(a & 0x7FFF)] }
+            // (The static RAM first, as most reads are of it: the places below are each in their own range.)
+            if a < 0xE000 { return sram[Int(a & 0x7FFF)] }
             if a >= 0xE000, a < 0xE040 { return pcm.read(a & 0x3F) }
             if a >= 0xFF80 { return deviceRead(Int(a & 0x7F)) }
             if a >= 0xFB80, a < 0xFF80, devices[Self.ramCR] & 0x80 != 0 { return ram[Int((a - 0xFB80) & 0x3FF)] }
-            if a >= 0x8000, a < 0xE000 { return sram[Int(a & 0x7FFF)] }
             if a >= 0xF000, a < 0xF100 {
                 // The buttons, read a row at a time; none is pressed.
                 ioSelect = UInt8(a & 0xFF)
@@ -271,14 +272,14 @@ final class SC55MCU {
         let a = address & 0xFFFF
         if page == 0 {
             guard a & 0x8000 != 0 else { return }
-            if a >= 0xE000, a < 0xE040 {
+            if a < 0xE000 {
+                sram[Int(a & 0x7FFF)] = value
+            } else if a < 0xE040 {
                 pcm.write(a & 0x3F, value)
             } else if a >= 0xFF80 {
                 deviceWrite(Int(a & 0x7F), value)
             } else if a >= 0xFB80, a < 0xFF80, devices[Self.ramCR] & 0x80 != 0 {
                 ram[Int((a - 0xFB80) & 0x3FF)] = value
-            } else if a >= 0x8000, a < 0xE000 {
-                sram[Int(a & 0x7FFF)] = value
             } else if a >= 0xF000, a < 0xF100 {
                 ioSelect = UInt8(a & 0xFF)
             } else if a == 0xF105 || a == 0xF104 {
