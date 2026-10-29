@@ -71,7 +71,9 @@ final class SC55MCU {
     @exclusivity(unchecked) var gateLines: UInt8 = 0
     @exclusivity(unchecked) var gateEnable: UInt8 = 0
     @exclusivity(unchecked) var gateTrigger: UInt8 = 0
-    @exclusivity(unchecked) var lcdCounter = 0
+    /// When the display's controller tells the gate array it is done (0 for not): 500 steps after it is
+    /// written to.
+    @exclusivity(unchecked) var lcdDeadline: UInt64 = 0
     @exclusivity(unchecked) var analogReadFlag = false
     @exclusivity(unchecked) var analogEndTime: UInt64 = 0
     @exclusivity(unchecked) var serialStatusRead: UInt8 = 0
@@ -120,9 +122,13 @@ final class SC55MCU {
 
     let frts: UnsafeMutablePointer<FreeRunningTimer>
     @exclusivity(unchecked) var tmr = EightBitTimer()
-    @exclusivity(unchecked) var timerCycles: UInt64 = 0
+    /// The timers count half the processor's cycles, as they were at the end of the last step.
+    var timerCycles: UInt64 { cycles / 2 }
     /// The deadline of the next tick that does more than count, of any timer.
     @exclusivity(unchecked) var timerEvent: UInt64 = 0
+    /// The first count of cycles at which anything on the board is due to happen (`nextEventDue`); 0 to
+    /// have it worked out again at the end of the next step.
+    @exclusivity(unchecked) var nextEvent: UInt64 = 0
     @exclusivity(unchecked) var timerTemp: UInt8 = 0
     /// The SC-55's step tables, indexed by the clock-select bits.
     static let frtSteps: [UInt64] = [4, 8, 32, 4]
@@ -205,6 +211,7 @@ final class SC55MCU {
         frts.update(repeating: FreeRunningTimer(), count: 3)
         tmr = EightBitTimer()
         timerEvent = 0
+        nextEvent = 0
         d[Self.rdr] = 0; d[Self.tdr] = 0xFF; d[Self.smr] = 0x04; d[Self.scr] = 0x0C; d[Self.ssr] = 0x87; d[Self.brr] = 0xFF
         for i in 0 ..< 9 { d[Self.addrAH + i] = 0 }
         d[Self.ipra] = 0; d[Self.iprb] = 0; d[Self.iprc] = 0; d[Self.iprd] = 0
@@ -235,9 +242,11 @@ final class SC55MCU {
             if a & 0x8000 == 0 { return rom1[Int(a & 0x7FFF)] }
             // (The static RAM first, as most reads are of it: the places below are each in their own range.)
             if a < 0xE000 { return sram[Int(a & 0x7FFF)] }
+            if a >= 0xFB80, a < 0xFF80, devices[Self.ramCR] & 0x80 != 0 { return ram[Int((a - 0xFB80) & 0x3FF)] }
+            // (A device read may change when the board next has something to do.)
+            nextEvent = 0
             if a >= 0xE000, a < 0xE040 { return pcm.read(a & 0x3F) }
             if a >= 0xFF80 { return deviceRead(Int(a & 0x7F)) }
-            if a >= 0xFB80, a < 0xFF80, devices[Self.ramCR] & 0x80 != 0 { return ram[Int((a - 0xFB80) & 0x3FF)] }
             if a >= 0xF000, a < 0xF100 {
                 // The buttons, read a row at a time; none is pressed.
                 ioSelect = UInt8(a & 0xFF)
@@ -274,17 +283,23 @@ final class SC55MCU {
             guard a & 0x8000 != 0 else { return }
             if a < 0xE000 {
                 sram[Int(a & 0x7FFF)] = value
-            } else if a < 0xE040 {
+                return
+            }
+            if a >= 0xFB80, a < 0xFF80, devices[Self.ramCR] & 0x80 != 0 {
+                ram[Int((a - 0xFB80) & 0x3FF)] = value
+                return
+            }
+            // (A device written to may change when the board next has something to do.)
+            nextEvent = 0
+            if a < 0xE040 {
                 pcm.write(a & 0x3F, value)
             } else if a >= 0xFF80 {
                 deviceWrite(Int(a & 0x7F), value)
-            } else if a >= 0xFB80, a < 0xFF80, devices[Self.ramCR] & 0x80 != 0 {
-                ram[Int((a - 0xFB80) & 0x3FF)] = value
             } else if a >= 0xF000, a < 0xF100 {
                 ioSelect = UInt8(a & 0xFF)
             } else if a == 0xF105 || a == 0xF104 {
                 // The display; its controller tells the gate array when it is done.
-                lcdCounter = 500
+                lcdDeadline = cycles &+ 500 * 12
             } else if a == 0xF107 {
                 ioSelect = value
             }
@@ -300,7 +315,18 @@ final class SC55MCU {
     }
 
     @inline(__always) func readCodeAdvance() -> UInt8 {
-        let value = cp == 0 && pc < 0x8000 ? rom1[Int(pc)] : read(UInt32(cp) << 16 | UInt32(pc))
+        let value: UInt8
+        let page = cp & 0xF
+        if page == 0, pc < 0x8000 {
+            value = rom1[Int(pc)]
+        } else if (0xC31E as UInt16) >> UInt16(page) & 1 != 0 {
+            // (Pages 1 to 4, 8, 9, 14 and 15, the board's ROM, as `read` finds it there.)
+            var address = (UInt32(cp) << 16 | UInt32(pc)) & 0x3FFFF
+            if cp & 8 != 0 { address |= 0x40000 }
+            value = rom2[Int(address & rom2Mask)]
+        } else {
+            value = read(UInt32(cp) << 16 | UInt32(pc))
+        }
         pc &+= 1
         return value
     }
@@ -419,6 +445,7 @@ final class SC55MCU {
     func post(_ byte: UInt8) {
         uartBuffer[uartWrite] = byte
         uartWrite = (uartWrite + 1) % Self.uartBufferSize
+        nextEvent = 0
     }
 
     @inline(__always) private func updateSerial() {
@@ -547,19 +574,16 @@ final class SC55MCU {
     // MARK: Running
 
     /// One step: an interrupt taken if one is due, one instruction (unless asleep), and the rest of the
-    /// board brought up to the processor's time. Asleep, the steps before the next in which anything can
-    /// happen are made first, all at once, up to `most` in all (see `quietSteps`).
+    /// board brought up to the processor's time, if anything on it is due to happen (`nextEvent`). Asleep,
+    /// the steps before the next in which anything can happen are made first, all at once, up to `most` in
+    /// all: nothing else changes while it sleeps.
     /// - Returns: how many steps were made.
     @inline(__always) @discardableResult func step(most: Int = .max) -> Int {
         var made = 1
-        if sleeping, !exceptionIgnored, most > 1 {
-            let quiet = min(quietSteps(), UInt64(most - 1))
-            if quiet > 0 {
-                cycles &+= 12 * quiet
-                timerCycles = cycles / 2
-                if lcdCounter != 0 { lcdCounter -= Int(quiet) }
-                made += Int(quiet)
-            }
+        if sleeping, !exceptionIgnored, most > 1, nextEvent > cycles &+ 12, !interruptDue() {
+            let quiet = min((nextEvent - cycles - 1) / 12, UInt64(most - 1))
+            cycles &+= 12 * quiet
+            made += Int(quiet)
         }
         if exceptionIgnored {
             exceptionIgnored = false
@@ -571,44 +595,41 @@ final class SC55MCU {
             if sr & Self.statusT != 0 { raise(Self.exceptionTrace) }
         }
         cycles &+= 12
+        if cycles >= nextEvent { keepUp() }
+        return made
+    }
+
+    /// The board brought up to the processor's time: the PCM chip, the timers, the serial port, the
+    /// analogue converter and the display; and when it next has anything to do worked out. (Done at a step
+    /// at which nothing is due, it does nothing.)
+    private func keepUp() {
         if pcm.cycles < cycles { pcm.update(to: cycles) }
         clockTimers()
         updateSerial()
         updateAnalog()
-        if lcdCounter != 0 {
-            lcdCounter -= 1
-            if lcdCounter == 0 {
-                setGateLine(1, false)
-                setGateLine(1, true)
-            }
+        if lcdDeadline != 0, cycles >= lcdDeadline {
+            lcdDeadline = 0
+            setGateLine(1, false)
+            setGateLine(1, true)
         }
-        return made
+        nextEvent = nextEventDue()
     }
 
-    /// While the processor sleeps and no interrupt is due, how many steps from now do nothing but count
-    /// its cycles: those before the PCM chip's next round, the timers' next tick that does more than count
-    /// (`timerEvent`), the serial port's taking or sending a byte, the analogue converter's finishing, and
-    /// the display's telling the gate array it is done. Nothing else changes while it sleeps.
-    @inline(__always) private func quietSteps() -> UInt64 {
-        guard !interruptDue() else { return 0 }
-        // (The cycles are a multiple of twelve, and the timers count half of them.)
-        guard pcm.cycles >= cycles, timerEvent >= cycles / 2 else { return 0 }
-        var quiet = min((pcm.cycles - cycles) / 12, (timerEvent - cycles / 2) / 6)
+    /// The first count of the processor's cycles at which the board has anything to do: the PCM chip's next
+    /// round, the timers' next tick that does more than count (`timerEvent`), the serial port's taking or
+    /// sending a byte, the analogue converter's finishing, and the display's telling the gate array it is
+    /// done. What the processor does can change it: reading or writing anything but its ROMs and RAMs, or a
+    /// byte posted, has it worked out again at the end of the step.
+    private func nextEventDue() -> UInt64 {
+        var next = pcm.cycles &+ 1
+        // (The timers count half the cycles: a tick is made once half of them is past its deadline.)
+        if timerEvent < UInt64.max / 4 { next = min(next, 2 * timerEvent + 2) }
         let control = devices[Self.scr]
-        if control & 16 != 0, uartWrite != uartRead, devices[Self.ssr] & 0x40 == 0 {
-            guard uartRxDelay > cycles else { return 0 }
-            quiet = min(quiet, (uartRxDelay - cycles - 1) / 12)
-        }
-        if control & 32 != 0, devices[Self.ssr] & 0x80 == 0 {
-            guard uartTxDelay > cycles else { return 0 }
-            quiet = min(quiet, (uartTxDelay - cycles - 1) / 12)
-        }
-        if devices[Self.adcsr] & 0x20 != 0 {
-            guard analogEndTime != 0, analogEndTime >= cycles else { return 0 }
-            quiet = min(quiet, (analogEndTime - cycles) / 12)
-        }
-        if lcdCounter != 0 { quiet = min(quiet, UInt64(lcdCounter - 1)) }
-        return quiet
+        if control & 16 != 0, uartWrite != uartRead, devices[Self.ssr] & 0x40 == 0 { next = min(next, uartRxDelay) }
+        if control & 32 != 0, devices[Self.ssr] & 0x80 == 0 { next = min(next, uartTxDelay) }
+        if devices[Self.adcsr] & 0x20 != 0 { next = min(next, analogEndTime == 0 ? cycles : analogEndTime &+ 1) }
+        if lcdDeadline != 0 { next = min(next, lcdDeadline) }
+        return next
     }
 
     // MARK: Timers
@@ -762,7 +783,6 @@ final class SC55MCU {
 
     @inline(__always) private func clockTimers() {
         let target = cycles / 2
-        timerCycles = target
         if timerEvent < target { catchUpTimers(target) }
     }
 

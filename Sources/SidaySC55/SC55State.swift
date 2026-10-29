@@ -48,8 +48,10 @@ struct SC55State {
 }
 
 extension SC55MCU {
-    /// Everything about the controller that changes as it runs (its ROMs do not).
+    /// Everything about the controller that changes as it runs (its ROMs do not). When the board next has
+    /// something to do is worked out again.
     func keep(_ state: inout SC55State) {
+        nextEvent = 0
         state.keep(r, count: 8)
         state.keep(&pc)
         state.keep(&sr)
@@ -71,7 +73,7 @@ extension SC55MCU {
         state.keep(&gateLines)
         state.keep(&gateEnable)
         state.keep(&gateTrigger)
-        state.keep(&lcdCounter)
+        state.keep(&lcdDeadline)
         state.keep(&analogReadFlag)
         state.keep(&analogEndTime)
         state.keep(&serialStatusRead)
@@ -107,7 +109,6 @@ extension SC55MCU {
         state.keep(&tmr.tcorb)
         state.keep(&tmr.tcnt)
         state.keep(&tmr.statusRead)
-        state.keep(&timerCycles)
         state.keep(&timerEvent)
         state.keep(&timerTemp)
     }
