@@ -3,6 +3,7 @@
 
 import AVFoundation
 import Foundation
+import SidayFiles
 import SidayPlayer
 import Synchronization
 
@@ -35,6 +36,8 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         case voices(Int)
         /// Another app has taken the sound (a call, or other music played): the player is to pause.
         case interrupted
+        /// The files the app keeps, as they were read back at launch, and are now in use.
+        case kept(KeptFiles)
     }
 
     private let ring = SoundRing()
@@ -46,9 +49,12 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     private let now = Mutex(Heard())
     /// Where news is sent: on the main thread.
     private let tell: @Sendable @MainActor (News) -> Void
+    /// Where the files the app keeps are, to be read back as the engine starts.
+    private let keptStore: KeptFileStore?
 
-    init(tell: @escaping @Sendable @MainActor (News) -> Void) {
+    init(kept keptStore: KeptFileStore?, tell: @escaping @Sendable @MainActor (News) -> Void) {
         self.tell = tell
+        self.keptStore = keptStore
         let thread = Thread { [unowned self] in run() }
         thread.name = "siday engine"
         thread.qualityOfService = .userInitiated
@@ -173,6 +179,16 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
 
     private func run() {
         let keeper = SongKeeper()
+        // The files the app keeps are read back here first, before anything the screen asks for, so that
+        // the tunes it loads are played with them; and here rather than on the main thread, as putting an
+        // SC-55's ROMs together starts its synthesiser, which takes a moment (seconds, in a debug build).
+        if let keptStore {
+            let kept = keptStore.load()
+            obey(.mt32ROMs(kept.mt32ROMs), keeper, 0)
+            obey(.sc55ROMs(kept.sc55ROMs), keeper, 0)
+            keeper.setSongLengths(kept.songLengths)
+            Task { @MainActor [tell] in tell(.kept(kept)) }
+        }
         let start = Date()
         func clock() -> Double { Date().timeIntervalSince(start) }
         var lastLatency = 0

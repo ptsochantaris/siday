@@ -29,11 +29,12 @@ public struct KeptFileStore: Sendable {
     public func load() -> KeptFiles {
         var kept = KeptFiles()
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        for name in names.sorted() where !name.hasPrefix(".") {
+        kept.add(eachOf: names.sorted().compactMap { name in
+            guard !name.hasPrefix(".") else { return nil }
             let url = folder.appendingPathComponent(name)
-            guard KeptFileStore.keepable(in: [url]).count == 1, let data = try? Data(contentsOf: url) else { continue }
-            kept.add([UInt8](data))
-        }
+            guard KeptFileStore.keepable(in: [url]).count == 1, let data = try? Data(contentsOf: url) else { return nil }
+            return [UInt8](data)
+        })
         return kept
     }
 

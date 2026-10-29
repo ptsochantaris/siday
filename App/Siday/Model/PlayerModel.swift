@@ -207,11 +207,9 @@ final class PlayerModel {
         hidden = Set(Part.allCases.filter { $0.startsHidden ? !words.contains("+" + $0.rawValue) : words.contains($0.rawValue) })
         settings = Self.rememberedSettings
         levels = defaults.dictionary(forKey: "levels") as? [String: String] ?? [:]
-        engine = PlaybackEngine { [weak self] news in self?.hear(news) }
+        engine = PlaybackEngine(kept: keptStore) { [weak self] news in self?.hear(news) }
         engine.send(.output(output))
         engine.send(.settings(settings))
-        kept = keptStore?.load() ?? KeptFiles()
-        useKept()
         engine.setVolume(volume)
         let silent = ProcessInfo.processInfo.arguments.contains("-SidaySilent") || UserDefaults.standard.bool(forKey: "SidaySilent")
         engine.startOutput(silent: silent)
@@ -358,6 +356,16 @@ final class PlayerModel {
         if let lengths = kept.files.last(where: { $0.kind == .songLengths }), let data = kept.data(of: lengths) {
             engine.send(.songLengths(data))
         }
+    }
+
+    /// What is kept, as the engine read it back at launch (and is using): with anything kept since, while
+    /// it was being read.
+    private func tookKept(_ loaded: KeptFiles) {
+        let since = kept.files.compactMap { kept.data(of: $0) }
+        kept = loaded
+        guard !since.isEmpty else { return }
+        kept.add(eachOf: since)
+        useKept()
     }
 
     /// The synthesisers whose ROMs are kept whole.
@@ -516,6 +524,8 @@ final class PlayerModel {
             if tune == asked, serial == runs { songEnded() }
         case let .voices(count):
             if count != voiceCount { voiceCount = count }
+        case let .kept(loaded):
+            tookKept(loaded)
         case .interrupted:
             if !paused, !finished, tune != nil {
                 paused = true

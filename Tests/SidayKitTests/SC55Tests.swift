@@ -43,6 +43,14 @@ private struct MadeUpCanvas {
     #expect(set?.program == roms.program)
     #expect(set?.extraProgram == roms.extra)
     #expect(set?.waves == roms.waves)
+    // The same files again, with the set they made before, give that set back as it is (its synthesiser
+    // not started again: a set marked as started otherwise keeps its mark); other files make another.
+    let marked = set.map { SC55ROMSet(version: $0.version, program: $0.program, extraProgram: $0.extraProgram, waves: $0.waves, started: [1, 2, 3]) }
+    #expect(SC55ROMSet.assemble([roms.program, roms.extra] + roms.waves, table: table, reusing: marked)?.started == [1, 2, 3])
+    var otherWave = roms.waves[1]
+    otherWave[7] ^= 1
+    let otherTable = table.map { $0.role == .wave(1) ? SC55ROMFile(role: $0.role, part: $0.part, size: $0.size, sha256: SHA256.hex(otherWave)) : $0 }
+    #expect(SC55ROMSet.assemble([roms.program, roms.extra, roms.waves[0], otherWave, roms.waves[2]], table: otherTable, reusing: marked)?.started.count == set?.started.count)
     // Not without a wave ROM, nor without either program ROM.
     #expect(SC55ROMSet.assemble([roms.extra, roms.program, roms.waves[0], roms.waves[1]], table: table) == nil)
     #expect(SC55ROMSet.assemble([roms.program] + roms.waves, table: table) == nil)

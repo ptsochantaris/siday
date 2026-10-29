@@ -83,6 +83,15 @@ public struct KeptFiles: Sendable {
         return take(file, data)
     }
 
+    /// Takes each of these files that is one siday keeps, as `add(_:)` does, and puts together what they
+    /// make once, after taking them all.
+    public mutating func add(eachOf datas: [[UInt8]]) {
+        for data in datas {
+            if let file = KeptFile.recognise(data) { _ = take(file, data, updating: false) }
+        }
+        update()
+    }
+
     /// Takes a file read back from where it was kept, under its kept name.
     @discardableResult
     public mutating func add(keptName: String, data: [UInt8]) -> KeptFile? {
@@ -90,13 +99,13 @@ public struct KeptFiles: Sendable {
         return take(file, data)?.file
     }
 
-    private mutating func take(_ file: KeptFile, _ data: [UInt8]) -> (file: KeptFile, replaced: [KeptFile])? {
+    private mutating func take(_ file: KeptFile, _ data: [UInt8], updating: Bool = true) -> (file: KeptFile, replaced: [KeptFile])? {
         guard !files.contains(file) else { return nil }
         let replaced = file.kind == .songLengths ? files.filter { $0.kind == .songLengths } : []
         for old in replaced { remove(old) }
         files.append(file)
         contents[file.keptName] = data
-        update()
+        if updating { update() }
         return (file, replaced)
     }
 
@@ -123,7 +132,7 @@ public struct KeptFiles: Sendable {
         let roms = files.filter { $0.kind == .mt32ROM }.compactMap { contents[$0.keptName] }
         mt32ROMs = roms.isEmpty ? nil : MT32ROMSet.assemble(roms)
         let canvas = files.filter { $0.kind == .sc55ROM }.compactMap { contents[$0.keptName] }
-        sc55ROMs = canvas.isEmpty ? nil : SC55ROMSet.assemble(canvas)
+        sc55ROMs = canvas.isEmpty ? nil : SC55ROMSet.assemble(canvas, reusing: sc55ROMs)
         songLengths = files.last { $0.kind == .songLengths }.flatMap { contents[$0.keptName] }.map { SongLengthDatabase($0) }
     }
 

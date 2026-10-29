@@ -66,10 +66,14 @@ extension SC55ROMSet {
 
     /// Finds, among files, a whole SC-55: a program ROM and a board ROM of one firmware version (in the order
     /// of `versions`) and the three wave ROMs. Files that are none of these are passed over.
+    /// - Parameter previous: a set put together before, which is given back as it is if these files make the
+    ///   same one, so that its synthesiser is not started again.
     /// - Returns: nil if they do not make one.
-    public static func assemble(_ files: [[UInt8]]) -> SC55ROMSet? { assemble(files, table: SC55ROMFile.known) }
+    public static func assemble(_ files: [[UInt8]], reusing previous: SC55ROMSet? = nil) -> SC55ROMSet? {
+        assemble(files, table: SC55ROMFile.known, reusing: previous)
+    }
 
-    static func assemble(_ files: [[UInt8]], table: [SC55ROMFile]) -> SC55ROMSet? {
+    static func assemble(_ files: [[UInt8]], table: [SC55ROMFile], reusing previous: SC55ROMSet? = nil) -> SC55ROMSet? {
         var programs: [(versions: [String], data: [UInt8])] = []
         var extras: [String: [UInt8]] = [:]
         var waves: [[UInt8]?] = [nil, nil, nil]
@@ -84,6 +88,8 @@ extension SC55ROMSet {
         guard let a = waves[0], let b = waves[1], let c = waves[2] else { return nil }
         for version in versions {
             guard let extra = extras[version], let program = programs.first(where: { $0.versions.contains(version) }) else { continue }
+            if let previous, previous.version == version, previous.program == program.data, previous.extraProgram == extra,
+               previous.waves == [a, b, c] { return previous }
             let set = SC55ROMSet(version: version, program: program.data, extraProgram: extra, waves: [a, b, c])
             // Started once here, so that each tune starts from where this one is.
             let synth = SC55Synth(roms: set)
