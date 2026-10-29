@@ -484,6 +484,19 @@ final class SC55MCU {
         }
     }
 
+    /// True if an interrupt would be taken at the start of the next step (see `handleInterrupts`).
+    @inline(__always) private func interruptDue() -> Bool {
+        if trapsPending != 0 || exceptionPending >= 0 || interruptsPending & 1 != 0 { return true }
+        let mask = Int(sr >> 8) & 7
+        var pending = interruptsPending
+        while pending != 0 {
+            let source = pending.trailingZeroBitCount
+            pending &= pending - 1
+            if let (_, level) = vectorAndLevel(source), mask < level { return true }
+        }
+        return false
+    }
+
     private func handleInterrupts() {
         if trapsPending != 0 {
             let n = trapsPending.trailingZeroBitCount
@@ -534,8 +547,20 @@ final class SC55MCU {
     // MARK: Running
 
     /// One step: an interrupt taken if one is due, one instruction (unless asleep), and the rest of the
-    /// board brought up to the processor's time.
-    @inline(__always) func step() {
+    /// board brought up to the processor's time. Asleep, the steps before the next in which anything can
+    /// happen are made first, all at once, up to `most` in all (see `quietSteps`).
+    /// - Returns: how many steps were made.
+    @inline(__always) @discardableResult func step(most: Int = .max) -> Int {
+        var made = 1
+        if sleeping, !exceptionIgnored, most > 1 {
+            let quiet = min(quietSteps(), UInt64(most - 1))
+            if quiet > 0 {
+                cycles &+= 12 * quiet
+                timerCycles = cycles / 2
+                if lcdCounter != 0 { lcdCounter -= Int(quiet) }
+                made += Int(quiet)
+            }
+        }
         if exceptionIgnored {
             exceptionIgnored = false
         } else if trapsPending != 0 || exceptionPending >= 0 || interruptsPending != 0 {
@@ -557,6 +582,33 @@ final class SC55MCU {
                 setGateLine(1, true)
             }
         }
+        return made
+    }
+
+    /// While the processor sleeps and no interrupt is due, how many steps from now do nothing but count
+    /// its cycles: those before the PCM chip's next round, the timers' next tick that does more than count
+    /// (`timerEvent`), the serial port's taking or sending a byte, the analogue converter's finishing, and
+    /// the display's telling the gate array it is done. Nothing else changes while it sleeps.
+    @inline(__always) private func quietSteps() -> UInt64 {
+        guard !interruptDue() else { return 0 }
+        // (The cycles are a multiple of twelve, and the timers count half of them.)
+        guard pcm.cycles >= cycles, timerEvent >= cycles / 2 else { return 0 }
+        var quiet = min((pcm.cycles - cycles) / 12, (timerEvent - cycles / 2) / 6)
+        let control = devices[Self.scr]
+        if control & 16 != 0, uartWrite != uartRead, devices[Self.ssr] & 0x40 == 0 {
+            guard uartRxDelay > cycles else { return 0 }
+            quiet = min(quiet, (uartRxDelay - cycles - 1) / 12)
+        }
+        if control & 32 != 0, devices[Self.ssr] & 0x80 == 0 {
+            guard uartTxDelay > cycles else { return 0 }
+            quiet = min(quiet, (uartTxDelay - cycles - 1) / 12)
+        }
+        if devices[Self.adcsr] & 0x20 != 0 {
+            guard analogEndTime != 0, analogEndTime >= cycles else { return 0 }
+            quiet = min(quiet, (analogEndTime - cycles) / 12)
+        }
+        if lcdCounter != 0 { quiet = min(quiet, UInt64(lcdCounter - 1)) }
+        return quiet
     }
 
     // MARK: Timers

@@ -168,3 +168,35 @@ private func run(_ program: [UInt8: [UInt8]], vectors: [Int: UInt32] = [:], step
     #expect(destination[0] == 0)
     #expect(destination[4] == 0)
 }
+
+@Test func aSynthesiserStartedOnceIsTheSameEachTimeItIsPutBack() {
+    // ROMs of made-up bytes: run as a program, they touch much of what the controller and the chip keep.
+    var random: UInt32 = 0x1234_5678
+    func bytes(_ count: Int) -> [UInt8] {
+        (0 ..< count).map { _ in
+            random ^= random << 13
+            random ^= random >> 17
+            random ^= random << 5
+            return UInt8(truncatingIfNeeded: random)
+        }
+    }
+    let plain = SC55ROMSet(version: "1.21", program: bytes(32768), extraProgram: bytes(262_144), waves: [bytes(1 << 20), bytes(1 << 20), bytes(1 << 20)])
+    let first = SC55Synth(roms: plain)
+    first.start()
+    let started = SC55ROMSet(version: "1.21", program: plain.program, extraProgram: plain.extraProgram, waves: plain.waves,
+                             unscrambledWaves: first.unscrambledWaves, started: first.state)
+    let again = SC55Synth(roms: started)
+    again.start()
+    #expect(again.state == first.state)
+    // And the two go on the same, given the same bytes.
+    let a = UnsafeMutablePointer<Int32>.allocate(capacity: 6400 * 2), b = UnsafeMutablePointer<Int32>.allocate(capacity: 6400 * 2)
+    defer {
+        a.deallocate()
+        b.deallocate()
+    }
+    for synth in [first, again] { synth.schedule([0x90, 60, 100], at: 10) }
+    first.render(into: a, frames: 6400)
+    again.render(into: b, frames: 6400)
+    #expect((0 ..< 6400 * 2).allSatisfy { a[$0] == b[$0] })
+    #expect(again.state == first.state)
+}

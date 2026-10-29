@@ -84,7 +84,12 @@ extension SC55ROMSet {
         guard let a = waves[0], let b = waves[1], let c = waves[2] else { return nil }
         for version in versions {
             guard let extra = extras[version], let program = programs.first(where: { $0.versions.contains(version) }) else { continue }
-            return SC55ROMSet(version: version, program: program.data, extraProgram: extra, waves: [a, b, c])
+            let set = SC55ROMSet(version: version, program: program.data, extraProgram: extra, waves: [a, b, c])
+            // Started once here, so that each tune starts from where this one is.
+            let synth = SC55Synth(roms: set)
+            synth.start()
+            return SC55ROMSet(version: version, program: program.data, extraProgram: extra, waves: [a, b, c],
+                              unscrambledWaves: synth.unscrambledWaves, started: synth.state)
         }
         return nil
     }

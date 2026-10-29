@@ -75,7 +75,9 @@ final class SC55PCM {
     let envelopeAddLow: UnsafeMutablePointer<Int32>
     let envelopeMoves: UnsafeMutablePointer<Bool>
 
-    init(waves waveData: [[UInt8]]) {
+    /// - Parameter unscrambled: the wave ROMs already put back in order (`SC55ROMSet.unscrambledWaves`), if
+    ///   they have been: then `waveData` is not used.
+    init(waves waveData: [[UInt8]], unscrambled: [UInt8] = []) {
         ram1 = .allocate(capacity: 32 * 8)
         ram1.initialize(repeating: 0, count: 32 * 8)
         ram2 = .allocate(capacity: 32 * 16)
@@ -83,10 +85,15 @@ final class SC55PCM {
         eram = .allocate(capacity: 0x4000)
         eram.initialize(repeating: 0, count: 0x4000)
         waveBanks = 3
-        waves = .allocate(capacity: 3 << 20)
+        let waves = UnsafeMutablePointer<UInt8>.allocate(capacity: 3 << 20)
+        self.waves = waves
         waves.initialize(repeating: 0, count: 3 << 20)
-        for (bank, data) in waveData.prefix(3).enumerated() {
-            Self.unscramble(data, into: waves + (bank << 20), count: min(data.count, 1 << 20))
+        if unscrambled.count == 3 << 20 {
+            unscrambled.withUnsafeBufferPointer { waves.update(from: $0.baseAddress!, count: 3 << 20) }
+        } else {
+            for (bank, data) in waveData.prefix(3).enumerated() {
+                Self.unscramble(data, into: waves + (bank << 20), count: min(data.count, 1 << 20))
+            }
         }
         output = .allocate(capacity: Self.outputCapacity * 2)
         output.initialize(repeating: 0, count: Self.outputCapacity * 2)

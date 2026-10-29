@@ -23,10 +23,14 @@ public final class SC55Synth {
     /// A frame made beyond what was asked for (the chip makes two at a time), handed out first next time.
     private var carry: (Int32, Int32)?
 
+    /// The state it starts in, if the ROM set has it (`SC55ROMSet.started`).
+    private let started: [UInt8]
+
     public init(roms: SC55ROMSet) {
-        pcm = SC55PCM(waves: roms.waves)
+        pcm = SC55PCM(waves: roms.waves, unscrambled: roms.unscrambledWaves)
         mcu = SC55MCU(rom1: roms.program, rom2: roms.extraProgram, pcm: pcm)
         mcu.reset()
+        started = roms.started
     }
 
     /// How long the firmware is given to start before it is sent anything: a second of the controller's time
@@ -34,13 +38,34 @@ public final class SC55Synth {
     /// sounds within a decibel of one sent fourteen seconds later, as Nuked SC-55's renderer sends it.
     public static let startSteps = 1_666_667
 
-    /// Starts the firmware (see `startSteps`).
-    public func start() { run(steps: Self.startSteps) }
+    /// Starts the firmware (see `startSteps`); or, if the ROM set has the state it is in once it has, puts
+    /// that back, which is the same.
+    public func start() {
+        if started.isEmpty {
+            run(steps: Self.startSteps)
+        } else {
+            var state = SC55State(started)
+            mcu.keep(&state)
+            pcm.keep(&state)
+        }
+    }
+
+    /// Its state as it is, for `SC55ROMSet.started`.
+    var state: [UInt8] {
+        var state = SC55State()
+        mcu.keep(&state)
+        pcm.keep(&state)
+        return state.bytes
+    }
+
+    /// The wave ROMs as the chip reads them, for `SC55ROMSet.unscrambledWaves`.
+    var unscrambledWaves: [UInt8] { [UInt8](UnsafeBufferPointer(start: pcm.waves, count: 3 << 20)) }
 
     /// Runs the controller `steps` instructions, throwing away what is made.
     public func run(steps: Int) {
-        for _ in 0 ..< steps {
-            mcu.step()
+        var left = steps
+        while left > 0 {
+            left -= mcu.step(most: left)
             pcm.outputCount = 0
         }
     }
