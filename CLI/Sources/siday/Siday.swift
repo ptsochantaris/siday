@@ -15,6 +15,7 @@ extension AmigaModel: @retroactive ExpressibleByArgument {}
 extension ST3Card: @retroactive ExpressibleByArgument {}
 extension AGIReplay: @retroactive ExpressibleByArgument {}
 extension Levelling: @retroactive ExpressibleByArgument {}
+extension SC55Model: @retroactive ExpressibleByArgument {}
 
 @main
 struct Siday: ParsableCommand {
@@ -92,13 +93,16 @@ struct Siday: ParsableCommand {
     @Option(help: "How the music of Sierra's adventure games (an AGI file) is played: amiga, as the Amiga versions played it with Sierra's first routine; amiga-later, with its later one, whose tones are rounder and die away; or pc, on the PCjr's and Tandy 1000's chip, which it was written for.")
     var agi: AGIReplay = .amiga
 
+    @Option(help: "The Sound Canvas a MIDI file is played on when the ROMs of both have been given (see --roms): sc55, the first (1991), or sc55mk2, the SC-55mkII (1993). Given one's alone, that one plays, whatever this says. Default: sc55.")
+    var soundCanvas: SC55Model = .sc55
+
     @Option(help: "Bring every tune to the same loudness: off, full, or partial (halfway there, so that a quiet tune is still quieter than a loud one, but not by as much). Each song is measured as it plays, by playing it through unheard, and the next while it plays; what is found is kept for later runs. A song is turned up by no more than 6 dB. With --list, says how far each tune would be turned up or down. Default: off, each tune as loud as its file has it.")
     var level: Levelling = .off
 
     @Option(help: "Path to HVSC's Songlengths.md5, remembered for later runs. Also read from $SIDAY_SONGLENGTHS, and found automatically beside an HVSC tree. A tune it does not have, or any tune when there is no such file, gets the length that comes with the player.")
     var songlengths: String?
 
-    @Option(parsing: .upToNextOption, help: "Files or folders of an MT-32's or a Sound Canvas's ROMs, which siday keeps from then on: a CM-32L's or LAPC-I's control ROM and PCM ROM, whole or in halves, or an SC-55's (firmware 1.21) two program ROMs and three wave ROMs, of any names (they are known by what is in them). MIDI files written for the MT-32 are then played on the MT-32's synthesiser, and the others on the SC-55. A Songlengths.md5 among them is kept too. Also read, for one run and never kept, from a folder named by $SIDAY_KEPT, which then stands for what is kept.")
+    @Option(parsing: .upToNextOption, help: "Files or folders of an MT-32's or a Sound Canvas's ROMs, which siday keeps from then on: a CM-32L's or LAPC-I's control ROM and PCM ROM, whole or in halves, or an SC-55's (firmware 1.21) two program ROMs and three wave ROMs, or an SC-55mkII's (firmware 1.01) two program ROMs, second processor's ROM and two wave ROMs, of any names (they are known by what is in them). MIDI files written for the MT-32 are then played on the MT-32's synthesiser, and the others on the Sound Canvas (see --sound-canvas). A Songlengths.md5 among them is kept too. Also read, for one run and never kept, from a folder named by $SIDAY_KEPT, which then stands for what is kept.")
     var roms: [String] = []
 
     @Flag(help: "Say which files siday keeps (see --roms), and where.")
@@ -201,7 +205,8 @@ struct Siday: ParsableCommand {
         options.sidFilterCurve = sidFilterCurve
         let kept = KeptFilesInUse.current
         options.mt32ROMs = kept.mt32ROMs
-        options.sc55ROMs = kept.sc55ROMs
+        options.soundCanvases = kept.soundCanvases
+        options.soundCanvasModel = soundCanvas
         return TuneFiles(options: options, songLengthsPath: songLengthsPath, keptSongLengths: kept.songLengths)
     }
 
@@ -278,7 +283,7 @@ struct Siday: ParsableCommand {
         }
 
         if !roms.isEmpty || kept || forgetKept {
-            try KeptFilesInUse.handle(keep: roms, list: kept, forget: forgetKept)
+            try KeptFilesInUse.handle(keep: roms, list: kept, forget: forgetKept, playingOn: soundCanvas)
             if paths.isEmpty { return }
         }
         rememberSongLengths()

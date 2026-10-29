@@ -29,7 +29,7 @@ enum KeptFilesInUse {
     }
 
     /// Keeps the files below `keep` that siday keeps; says what is kept, if asked; forgets it all, if asked.
-    static func handle(keep paths: [String], list: Bool, forget: Bool) throws {
+    static func handle(keep paths: [String], list: Bool, forget: Bool, playingOn model: SC55Model = .sc55) throws {
         guard let store else { throw TuneError.unreadable("there is no Application Support folder to keep files in") }
         var kept = current
         func say(_ line: String) { FileHandle.standardError.write(Data("siday: \(line)\n".utf8)) }
@@ -45,11 +45,11 @@ enum KeptFilesInUse {
                 taken += 1
                 say("kept \(added.file.name) (from \(url.lastPathComponent))" + (store.readOnly ? ", for this run only" : ""))
             }
-            if taken == 0 { say("no new MT-32 or SC-55 ROM or song lengths found in \(paths.joined(separator: ", "))") }
+            if taken == 0 { say("no new MT-32 or Sound Canvas ROM or song lengths found in \(paths.joined(separator: ", "))") }
         }
         cache.withLock { $0 = kept }
         if list || !paths.isEmpty {
-            let lines = kept.summary
+            let lines = kept.summary(playingOn: model)
             if lines.isEmpty { say("nothing is kept") }
             for line in lines { say(line) }
             if list { say("kept in \(store.folder.path)" + (store.readOnly ? " (read only, from $SIDAY_KEPT)" : "")) }

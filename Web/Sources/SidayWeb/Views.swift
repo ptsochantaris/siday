@@ -248,14 +248,14 @@ struct SettingsPanel {
             div(.class("group kept")) {
                 h2 { "Kept files" }
                 if player.keptSummary.isEmpty {
-                    p { "The ROMs of a CM-32L or LAPC-I (its control ROM and its PCM ROM, whole or in halves, of any names), dropped on the page or added like tunes, are kept in this browser, and MIDI files written for the MT-32 are then played on that synthesiser; and so are an SC-55's (firmware 1.21: its two program ROMs and three wave ROMs), on which the other MIDI files are then played. A Songlengths.md5 added is kept too." }
+                    p { "The ROMs of a CM-32L or LAPC-I (its control ROM and its PCM ROM, whole or in halves, of any names), dropped on the page or added like tunes, are kept in this browser, and MIDI files written for the MT-32 are then played on that synthesiser; and so are an SC-55's (firmware 1.21: its two program ROMs and three wave ROMs) and an SC-55mkII's (firmware 1.01: its two program ROMs, its second processor's ROM and its two wave ROMs), on which the other MIDI files are then played. A Songlengths.md5 added is kept too." }
                 }
                 // (Read with care: as the list empties, a row can be drawn once more with its old place.)
                 ForEach(Array(player.keptSummary.indices), key: { String($0) }) { index in
                     p { index < player.keptSummary.count ? player.keptSummary[index] : "" }
                 }
                 if !player.keptSummary.isEmpty {
-                    button(.title("Forget the MT-32 and SC-55 ROMs and song lengths this browser keeps")) { "Forget kept files" }
+                    button(.title("Forget the MT-32 and Sound Canvas ROMs and song lengths this browser keeps")) { "Forget kept files" }
                         .onClick { player.forgetKept() }
                 }
             }
@@ -608,6 +608,7 @@ private func chipName(_ chip: SoundChip) -> String {
     case .dac: "A recording, played through a digital-to-analogue converter"
     case .la32: "Roland's LA32 synthesiser chip, the LAPC-I's"
     case .sc55: "Roland's PCM chip, the Sound Canvas SC-55's"
+    case .sc55mk2: "Roland's PCM chip, the Sound Canvas SC-55mkII's"
     }
 }
 

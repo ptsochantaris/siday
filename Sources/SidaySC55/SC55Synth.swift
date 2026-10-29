@@ -3,13 +3,21 @@
 
 import SidayFoundation
 
-/// The SC-55, as Nuked SC-55 emulates it: its controller running its firmware, which takes MIDI at its serial
-/// port and programs the PCM chip, which makes the sound, 64,000 frames a second.
+/// The SC-55 or the SC-55mkII, as Nuked SC-55 emulates them: the controller running its firmware, which takes
+/// MIDI at its serial port (the SC-55mkII's through its second processor) and programs the PCM chip, which
+/// makes the sound: 64,000 frames a second on the SC-55, 66,207 on the SC-55mkII.
 ///
 /// MIDI bytes are handed to it with the frame of its output they are to reach it before (`schedule`): the
 /// synthesiser takes each at the step after it has made that many frames.
 public final class SC55Synth {
-    public static let sampleRate = 64000
+    /// The frames a second it makes. The PCM chip makes two each time round its voices, which takes 25 of the
+    /// controller's cycles a voice and one more: the SC-55's firmware has it go round 24 voices, 625 cycles at
+    /// 20 MHz; the SC-55mkII's 28, 725 cycles, so that its 66,207 frames a second (as Nuked SC-55 has them)
+    /// are of a controller at 24 MHz.
+    public static func sampleRate(of model: SC55Model) -> Int { model == .sc55 ? 64000 : 66207 }
+
+    public let model: SC55Model
+    public var sampleRate: Int { Self.sampleRate(of: model) }
 
     let pcm: SC55PCM
     let mcu: SC55MCU
@@ -27,34 +35,42 @@ public final class SC55Synth {
     private let started: [UInt8]
 
     public init(roms: SC55ROMSet) {
-        pcm = SC55PCM(waves: roms.waves, unscrambled: roms.unscrambledWaves)
-        mcu = SC55MCU(rom1: roms.program, rom2: roms.extraProgram, pcm: pcm)
+        model = roms.model
+        let mk2 = roms.model == .sc55mk2
+        pcm = SC55PCM(waves: roms.waves, unscrambled: roms.unscrambledWaves, mk2: mk2)
+        mcu = SC55MCU(rom1: roms.program, rom2: roms.extraProgram, subROM: mk2 ? roms.subProgram : nil, pcm: pcm)
         mcu.reset()
         started = roms.started
+        partTableAddress = (mk2 ? 0xA368 : 0xA318) - 0x8000
     }
 
     /// How long the firmware is given to start before it is sent anything: a second of the controller's time
-    /// (twelve of its 20 MHz cycles a step). It takes MIDI from about a third of a second; a note sent then
-    /// sounds within a decibel of one sent fourteen seconds later, as Nuked SC-55's renderer sends it.
-    public static let startSteps = 1_666_667
+    /// (twelve of its cycles a step, at 20 MHz on the SC-55, at 24 on the SC-55mkII). The SC-55 takes MIDI
+    /// from about a third of a second; a note sent then sounds within a decibel of one sent fourteen seconds
+    /// later, as Nuked SC-55's renderer sends it.
+    public static func startSteps(of model: SC55Model) -> Int { model == .sc55 ? 1_666_667 : 2_000_000 }
 
     /// Starts the firmware (see `startSteps`); or, if the ROM set has the state it is in once it has, puts
     /// that back, which is the same.
     public func start() {
         if started.isEmpty {
-            run(steps: Self.startSteps)
+            run(steps: Self.startSteps(of: model))
         } else {
             var state = SC55State(started)
             mcu.keep(&state)
             pcm.keep(&state)
+            mcu.sub?.keep(&state)
         }
     }
 
-    /// Its state as it is, for `SC55ROMSet.started`.
+    /// Its state as it is, for `SC55ROMSet.started`. (The second processor is brought up to the controller's
+    /// time first, as it would be at the end of the controller's step.)
     var state: [UInt8] {
         var state = SC55State()
+        mcu.sub?.catchUp(to: mcu.cycles)
         mcu.keep(&state)
         pcm.keep(&state)
+        mcu.sub?.keep(&state)
         return state.bytes
     }
 
@@ -112,9 +128,9 @@ public final class SC55Synth {
 
     // MARK: Parts
 
-    /// Where firmware 1.21 keeps the part each of the PCM chip's slots plays, in its static RAM (0xA318), found
-    /// by playing notes on each part and looking.
-    static let partTableAddress = 0xA318 - 0x8000
+    /// Where the firmware keeps the part each of the PCM chip's slots plays, in its static RAM: 0xA318 for the
+    /// SC-55's 1.21, 0xA368 for the SC-55mkII's 1.01, found by playing notes on each part and looking.
+    let partTableAddress: Int
 
     /// A part's number, 0 to 15 for parts 1 to 16, as the firmware numbers it (as GS numbers its blocks: the
     /// rhythm part, part 10, first).
@@ -135,7 +151,7 @@ public final class SC55Synth {
 
     private func updatePartWatching() {
         let needed = watchesParts || pcm.mutedParts != 0
-        pcm.partTable = needed ? mcu.sram + Self.partTableAddress : nil
+        pcm.partTable = needed ? mcu.sram + partTableAddress : nil
         if watchesParts, pcm.partRounds == nil {
             pcm.partRounds = .allocate(capacity: SC55PCM.partRoundCapacity * 16)
             pcm.partRoundCount = 0

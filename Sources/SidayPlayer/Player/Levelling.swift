@@ -132,7 +132,7 @@ public extension SongLevel {
     static func playedOn(_ renderer: any Renderer, options: LoadOptions) -> String? {
         switch renderer.info.chips.first {
         case .la32: options.mt32ROMs?.control.rawValue
-        case .sc55: options.sc55ROMs.map { "sc55_" + $0.version }
+        case .sc55, .sc55mk2: options.sc55ROMs.map { ($0.model == .sc55 ? "sc55_" : "sc55mk2_") + $0.version }
         default: nil
         }
     }

@@ -317,7 +317,7 @@ final class PlayerModel {
     func shownChip(_ tune: ListedTune) -> SoundChip? {
         guard TuneFormat(url: tune.url) == .mid else { return tune.shownChip }
         if tune.forMT32 == nil, let chip = tune.chip { return chip }
-        return MIDISynthesisers.chip(writtenForMT32: tune.forMT32 ?? false, mt32ROMs: kept.mt32ROMs != nil, sc55ROMs: kept.sc55ROMs != nil)
+        return MIDISynthesisers.chip(writtenForMT32: tune.forMT32 ?? false, mt32ROMs: kept.mt32ROMs != nil, sc55ROMs: !kept.soundCanvases.isEmpty)
     }
 
     /// Looks at the MIDI files in the list not yet looked at, away from the screen, with the files beside
@@ -352,7 +352,7 @@ final class PlayerModel {
     /// Gives the engine what is kept.
     private func useKept() {
         engine.send(.mt32ROMs(kept.mt32ROMs))
-        engine.send(.sc55ROMs(kept.sc55ROMs))
+        engine.send(.soundCanvases(kept.soundCanvases))
         if let lengths = kept.files.last(where: { $0.kind == .songLengths }), let data = kept.data(of: lengths) {
             engine.send(.songLengths(data))
         }
@@ -370,7 +370,7 @@ final class PlayerModel {
 
     /// The synthesisers whose ROMs are kept whole.
     private var synthesisers: Set<KeptROMs> {
-        Set([kept.mt32ROMs == nil ? nil : KeptROMs.mt32, kept.sc55ROMs == nil ? nil : .sc55].compactMap { $0 })
+        Set([kept.mt32ROMs == nil ? nil : KeptROMs.mt32, kept.soundCanvases.isEmpty ? nil : .sc55].compactMap { $0 })
     }
 
     /// The tune that is loaded is loaded again, from the start of its song, if a synthesiser whose ROMs have
@@ -384,7 +384,7 @@ final class PlayerModel {
     func forgetKept() {
         keptStore?.forgetAll(in: &kept)
         engine.send(.mt32ROMs(nil))
-        engine.send(.sc55ROMs(nil))
+        engine.send(.soundCanvases([]))
     }
 
     // MARK: Moving

@@ -274,9 +274,9 @@ public final class SongKeeper {
         player.setMT32ROMs(roms)
     }
 
-    /// The ROMs of an SC-55, for the MIDI files loaded after them (see `TunePlayer.setSC55ROMs`).
-    public func setSC55ROMs(_ roms: SC55ROMSet?) {
-        player.setSC55ROMs(roms)
+    /// The whole Sound Canvases kept, for the MIDI files loaded after them (see `TunePlayer.setSoundCanvases`).
+    public func setSoundCanvases(_ sets: [SC55ROMSet]) {
+        player.setSoundCanvases(sets)
     }
 
     /// The level the front end kept for the song, from when it was measured before (as `Event.level`

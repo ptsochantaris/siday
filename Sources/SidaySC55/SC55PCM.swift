@@ -6,6 +6,20 @@
 // it), worked out from John McMaster's photographs of the decapped chip, free software under the GNU General
 // Public License, version 2 or any later version (see THIRD-PARTY.md).
 
+/// Which model's chip a round of it is made for (`SC55PCM.round`): so that each model's is made by the compiler
+/// for that model alone, with nothing asked of the other's ways as it goes.
+protocol SC55PCMModel {
+    static var mk2: Bool { get }
+}
+
+enum SC55PCMModelSC55: SC55PCMModel {
+    static var mk2: Bool { false }
+}
+
+enum SC55PCMModelMk2: SC55PCMModel {
+    static var mk2: Bool { true }
+}
+
 /// Roland's PCM chip of the SC-55: up to 24 voices read from the wave ROMs (compressed: 8-bit differences with a
 /// 4-bit shift to each 16 of them), interpolated, filtered and given their two envelopes, panned and sent to
 /// the reverb and chorus, which it runs too, in its own RAM, as its controller's firmware programs them.
@@ -19,9 +33,12 @@ final class SC55PCM {
     let ram2: UnsafeMutablePointer<UInt16>
     /// The effects' RAM, 16K words of 14 bits and a 2-bit shift.
     let eram: UnsafeMutablePointer<UInt16>
-    /// The wave ROMs, unscrambled, one after another, a megabyte to each bank.
+    /// The wave ROMs, unscrambled, one after another: on the SC-55 a megabyte to each bank; on the
+    /// SC-55mkII two megabytes of the first and one of the second.
     let waves: UnsafeMutablePointer<UInt8>
     let waveBanks: Int
+    /// True for the SC-55mkII's: its wave ROMs as above, and its voices' filter worked in 32 bits.
+    let mk2: Bool
 
     @exclusivity(unchecked) var cycles: UInt64 = 0
     @exclusivity(unchecked) var voiceMask: UInt32 = 0
@@ -77,7 +94,8 @@ final class SC55PCM {
 
     /// - Parameter unscrambled: the wave ROMs already put back in order (`SC55ROMSet.unscrambledWaves`), if
     ///   they have been: then `waveData` is not used.
-    init(waves waveData: [[UInt8]], unscrambled: [UInt8] = []) {
+    init(waves waveData: [[UInt8]], unscrambled: [UInt8] = [], mk2: Bool = false) {
+        self.mk2 = mk2
         ram1 = .allocate(capacity: 32 * 8)
         ram1.initialize(repeating: 0, count: 32 * 8)
         ram2 = .allocate(capacity: 32 * 16)
@@ -90,6 +108,9 @@ final class SC55PCM {
         waves.initialize(repeating: 0, count: 3 << 20)
         if unscrambled.count == 3 << 20 {
             unscrambled.withUnsafeBufferPointer { waves.update(from: $0.baseAddress!, count: 3 << 20) }
+        } else if mk2 {
+            if let first = waveData.first { Self.unscramble(first, into: waves, count: min(first.count, 2 << 20)) }
+            if waveData.count > 1 { Self.unscramble(waveData[1], into: waves + (2 << 20), count: min(waveData[1].count, 1 << 20)) }
         } else {
             for (bank, data) in waveData.prefix(3).enumerated() {
                 Self.unscramble(data, into: waves + (bank << 20), count: min(data.count, 1 << 20))
@@ -146,7 +167,17 @@ final class SC55PCM {
     }
 
     @inline(__always) func readROM(_ address: UInt32) -> UInt8 {
+        mk2 ? readROM(address, SC55PCMModelMk2.self) : readROM(address, SC55PCMModelSC55.self)
+    }
+
+    /// The same, for the chip of one model: what the chip's round reads, made for each model alone.
+    @inline(__always) func readROM<Model: SC55PCMModel>(_ address: UInt32, _: Model.Type) -> UInt8 {
         let bank = Int(config3D & 0x20 != 0 ? (address >> 21) & 7 : (address >> 19) & 7)
+        if Model.mk2 {
+            // (Its first wave ROM is the first bank, all 2 MB of it; it has no third.)
+            if bank == 0 { return waves[Int(address & 0x1FFFFF)] }
+            return bank == 1 ? waves[2 << 20 | Int(address & 0xFFFFF)] : 0
+        }
         guard bank < waveBanks else { return 0 }
         return waves[bank << 20 | Int(address & 0xFFFFF)]
     }

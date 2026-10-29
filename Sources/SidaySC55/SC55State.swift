@@ -150,3 +150,27 @@ extension SC55PCM {
         for i in 0 ..< 5 { state.keep(&envelopeMoves[i]) }
     }
 }
+
+extension SC55SubMCU {
+    /// Everything about the SC-55mkII's second processor that changes as it runs. Whether it is going round
+    /// a loop that changes nothing is looked for again.
+    func keep(_ state: inout SC55State) {
+        period = 0
+        disturbed = true
+        state.keep(&pc)
+        state.keep(&a)
+        state.keep(&x)
+        state.keep(&y)
+        state.keep(&s)
+        state.keep(&sr)
+        state.keep(&sleeping)
+        state.keep(&cycles)
+        state.keep(memory, count: Self.memorySize)
+        state.keep(&p0Direction)
+        state.keep(&p1Direction)
+        state.keep(&holdsByte)
+        state.keep(&timerCycles)
+        state.keep(&prescalerCount)
+        state.keep(&timerCount)
+    }
+}

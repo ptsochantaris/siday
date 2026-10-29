@@ -5,13 +5,14 @@
 // A Swift port of Nuked SC-55's emulation of the Sound Canvas's controller, a Hitachi H8/532 (mcu.cpp,
 // mcu_interrupt.cpp and mcu_timer.cpp, as jcmoyer's fork of Nuked SC-55 keeps them with its original
 // interpreter), free software under the GNU General Public License, version 2 or any later version (see
-// THIRD-PARTY.md). Only what the SC-55 plays with is ported: not its display or buttons, nor the other models'
-// sub-processor and boards.
+// THIRD-PARTY.md). Only what the SC-55 and the SC-55mkII play with is ported: not their displays or buttons,
+// nor the other models' boards.
 
-/// The H8/532 of the SC-55: its registers, its memory and what is mapped into it, its timers, its serial
-/// port (the MIDI in), its converter from analogue and its interrupts. It runs the firmware of the ROMs a
-/// step at a time, an instruction to a step, and each step is counted as twelve of its cycles, as Nuked
-/// SC-55 counts it; after each, the PCM chip and the timers are brought up to its time.
+/// The H8/532 of the SC-55 or the SC-55mkII: its registers, its memory and what is mapped into it, its timers,
+/// its serial port (the SC-55's MIDI in), its converter from analogue and its interrupts; on the SC-55mkII, the
+/// second processor that takes the MIDI in instead (`SC55SubMCU`). It runs the firmware of the ROMs a step at a
+/// time, an instruction to a step, and each step is counted as twelve of its cycles, as Nuked SC-55 counts it;
+/// after each, the PCM chip and the timers are brought up to its time.
 final class SC55MCU {
     // MARK: Registers
 
@@ -65,7 +66,11 @@ final class SC55MCU {
 
     // MARK: Board
 
+    /// True for the SC-55mkII's board, false for the SC-55's.
+    let mk2: Bool
     let pcm: SC55PCM
+    /// The SC-55mkII's second processor; nil on the SC-55.
+    let sub: SC55SubMCU?
     @exclusivity(unchecked) var ioSelect: UInt8 = 0
     /// The gate array's interrupt lines, and which it raises.
     @exclusivity(unchecked) var gateLines: UInt8 = 0
@@ -130,9 +135,10 @@ final class SC55MCU {
     /// have it worked out again at the end of the next step.
     @exclusivity(unchecked) var nextEvent: UInt64 = 0
     @exclusivity(unchecked) var timerTemp: UInt8 = 0
-    /// The SC-55's step tables, indexed by the clock-select bits.
-    static let frtSteps: [UInt64] = [4, 8, 32, 4]
-    static let tmrSteps: [UInt64] = [0, 8, 64, 1024, 0, 4, 4, 4]
+    /// The timers' steps, indexed by their clock-select bits: the external clock (the last of the free-running
+    /// timers', the last three of the 8-bit timer's) is every 4 on the SC-55, every 2 on the SC-55mkII.
+    let frtSteps: [UInt64]
+    let tmrSteps: [UInt64]
 
     // MARK: Interrupt sources, in the order they are looked at
 
@@ -147,7 +153,13 @@ final class SC55MCU {
 
     static let exceptionAddressError = 0, exceptionInvalidInstruction = 1, exceptionTrace = 2
 
-    init(rom1 rom1Data: [UInt8], rom2 rom2Data: [UInt8], pcm: SC55PCM) {
+    /// - Parameter subROM: the SC-55mkII's second processor's program: nil for the SC-55's board.
+    init(rom1 rom1Data: [UInt8], rom2 rom2Data: [UInt8], subROM: [UInt8]? = nil, pcm: SC55PCM) {
+        let mk2 = subROM != nil
+        self.mk2 = mk2
+        frtSteps = mk2 ? [4, 8, 32, 2] : [4, 8, 32, 4]
+        tmrSteps = mk2 ? [0, 8, 64, 1024, 0, 2, 2, 2] : [0, 8, 64, 1024, 0, 4, 4, 4]
+        sub = subROM.map { SC55SubMCU(rom: $0) }
         r = .allocate(capacity: 8)
         r.initialize(repeating: 0, count: 8)
         let program = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.rom1Size)
@@ -170,6 +182,7 @@ final class SC55MCU {
         frts.initialize(repeating: FreeRunningTimer(), count: 3)
         self.pcm = pcm
         pcm.mcu = self
+        sub?.mcu = self
     }
 
     deinit {
@@ -194,7 +207,9 @@ final class SC55MCU {
         pc = UInt16(truncatingIfNeeded: address)
         exceptionPending = -1
         resetDevices()
-        gateEnable = 255
+        // (The SC-55mkII's gate array raises nothing until its firmware says which lines may.)
+        if !mk2 { gateEnable = 255 }
+        sub?.reset()
     }
 
     private func resetDevices() {
@@ -245,6 +260,7 @@ final class SC55MCU {
             if a >= 0xFB80, a < 0xFF80, devices[Self.ramCR] & 0x80 != 0 { return ram[Int((a - 0xFB80) & 0x3FF)] }
             // (A device read may change when the board next has something to do.)
             nextEvent = 0
+            if mk2 { return readBoardMk2(a) }
             if a >= 0xE000, a < 0xE040 { return pcm.read(a & 0x3F) }
             if a >= 0xFF80 { return deviceRead(Int(a & 0x7F)) }
             if a >= 0xF000, a < 0xF100 {
@@ -260,9 +276,50 @@ final class SC55MCU {
             }
             return 0xFF
         case 1, 2, 3, 4, 8, 9, 14, 15: return rom2[Int(addressROM & rom2Mask)]
-        case 5: return sram[Int(a & 0x7FFF)]
-        case 10, 11, 12, 13: return 0xFF
+        // (The static RAM is on page 5 of the SC-55's board, on pages 10 and 11 of the SC-55mkII's.)
+        case 5: return mk2 ? 0xFF : sram[Int(a & 0x7FFF)]
+        case 10, 11: return mk2 ? sram[Int(a & 0x7FFF)] : 0xFF
+        case 12, 13: return 0xFF
         default: return 0
+        }
+    }
+
+    /// The SC-55mkII's board, from 0xE000 (but its static RAM, the on-chip RAM and the devices): the PCM chip
+    /// to 0xE3FF, the gate array's interrupt lines at 0xE402, and the RAM shared with the second processor from
+    /// 0xEC00.
+    @inline(never) private func readBoardMk2(_ a: UInt32) -> UInt8 {
+        if a >= 0xE000, a < 0xE400 { return pcm.read(a & 0x3F) }
+        if a >= 0xEC00, a < 0xF000 {
+            let sub = sub!, n = Int(a & 0xFF)
+            if !sub.readsQuietly(n) { sub.catchUp(to: cycles) }
+            return sub.controllerRead(n)
+        }
+        if a >= 0xFF80 { return deviceRead(Int(a & 0x7F)) }
+        if a == 0xE402 {
+            let value = gateTrigger
+            gateTrigger = 0
+            setInterrupt(Interrupt.irq1, false)
+            return value
+        }
+        return 0xFF
+    }
+
+    @inline(never) private func writeBoardMk2(_ a: UInt32, _ value: UInt8) {
+        if a >= 0xE400, a < 0xE800 {
+            // (0xE401 selects what the analogue converter's pin 7 reads; 0xE404 and 0xE405 are the display.)
+            if a == 0xE401 {
+                ioSelect = value
+            } else if a == 0xE402 {
+                gateEnable = value << 1
+            }
+        } else if a >= 0xE000, a < 0xE400 {
+            pcm.write(a & 0x3F, value)
+        } else if a >= 0xEC00, a < 0xF000 {
+            let sub = sub!
+            sub.catchUp(to: cycles)
+            sub.controllerWrite(Int(a & 0xFF), value)
+        } else if a >= 0xFF80 {
+            deviceWrite(Int(a & 0x7F), value)
         }
     }
 
@@ -291,7 +348,9 @@ final class SC55MCU {
             }
             // (A device written to may change when the board next has something to do.)
             nextEvent = 0
-            if a < 0xE040 {
+            if mk2 {
+                writeBoardMk2(a, value)
+            } else if a < 0xE040 {
                 pcm.write(a & 0x3F, value)
             } else if a >= 0xFF80 {
                 deviceWrite(Int(a & 0x7F), value)
@@ -303,7 +362,7 @@ final class SC55MCU {
             } else if a == 0xF107 {
                 ioSelect = value
             }
-        } else if page == 5 {
+        } else if page == (mk2 ? 10 : 5) {
             sram[Int(a & 0x7FFF)] = value
         }
     }
@@ -357,6 +416,9 @@ final class SC55MCU {
             if data & 0x40 == 0 { setInterrupt(Interrupt.analog, false) }
             return
         case Self.ssr:
+            // (On the SC-55mkII the second processor takes the MIDI in by the serial port's delay, as Nuked
+            // SC-55's fork has it: it is brought up to the time before the delay is set.)
+            sub?.catchUp(to: cycles)
             if data & 0x80 == 0, serialStatusRead & 0x80 != 0 {
                 devices[address] &= ~0x80
                 uartTxDelay = cycles &+ 3000
@@ -390,20 +452,33 @@ final class SC55MCU {
         case Self.ssr:
             serialStatusRead = devices[address]
             return devices[address]
-        case Self.rdr: return uartByte
+        case Self.rdr:
+            // (On the SC-55mkII, the byte the second processor took last.)
+            sub?.catchUp(to: cycles)
+            return uartByte
         case 0x00: return 0xFF
         case Self.p7DR: return 0xFF
         case Self.p9DR:
-            // The SC-55's configuration pins read 0 where they are inputs.
+            // The configuration pins, where they are inputs: all 0 on the SC-55; on the SC-55mkII, 1 on pin 1
+            // (an SC-55mkII, not an SC-155mkII).
             let direction = devices[Self.p9DDR]
-            return devices[Self.p9DR] & direction
+            return (mk2 ? 2 : 0) & ~direction | devices[Self.p9DR] & direction
         default: return devices[address]
         }
     }
 
-    /// The analogue inputs: the battery on pin 7, nothing on the others (the remote control unit's pins).
+    /// The analogue inputs: the battery on pin 7, nothing on the others (the remote control unit's pins). On
+    /// the SC-55mkII pin 7 reads what the gate array's 0xE401 selects: the battery, nothing, a switch (Nuked
+    /// SC-55's in its last place, full scale) or the remote control unit (nothing).
     private func analogSample(_ channel: Int) {
-        let value: UInt16 = channel == 7 ? 0x2A0 : 0
+        var value: UInt16 = channel == 7 ? 0x2A0 : 0
+        if mk2, channel == 7 {
+            switch (ioSelect >> 2) & 3 {
+            case 0: value = 0x2A0
+            case 2: value = 0x3FF
+            default: value = 0
+            }
+        }
         let dest = (channel << 1) & 6
         devices[Self.addrAH + dest] = UInt8(truncatingIfNeeded: value >> 2)
         devices[Self.addrAH + 1 + dest] = UInt8(truncatingIfNeeded: (value << 6) & 0xC0)
@@ -443,6 +518,9 @@ final class SC55MCU {
 
     /// Hands a byte to the MIDI in.
     func post(_ byte: UInt8) {
+        // (On the SC-55mkII the second processor takes it: it is brought up to the time first, so that it
+        // sees the byte no sooner than it would have.)
+        sub?.catchUp(to: cycles)
         uartBuffer[uartWrite] = byte
         uartWrite = (uartWrite + 1) % Self.uartBufferSize
         nextEvent = 0
@@ -605,7 +683,8 @@ final class SC55MCU {
     private func keepUp() {
         if pcm.cycles < cycles { pcm.update(to: cycles) }
         clockTimers()
-        updateSerial()
+        // (The second processor only once it may do something the controller sees: see `SC55SubMCU.due`.)
+        if let sub { keepUp(sub) } else { updateSerial() }
         updateAnalog()
         if lcdDeadline != 0, cycles >= lcdDeadline {
             lcdDeadline = 0
@@ -613,6 +692,11 @@ final class SC55MCU {
             setGateLine(1, true)
         }
         nextEvent = nextEventDue()
+    }
+
+    /// (Apart, so that the SC-55's `keepUp` is as small as it was.)
+    @inline(never) private func keepUp(_ sub: SC55SubMCU) {
+        if sub.due <= cycles { sub.catchUp(to: cycles) }
     }
 
     /// The first count of the processor's cycles at which the board has anything to do: the PCM chip's next
@@ -624,9 +708,13 @@ final class SC55MCU {
         var next = pcm.cycles &+ 1
         // (The timers count half the cycles: a tick is made once half of them is past its deadline.)
         if timerEvent < UInt64.max / 4 { next = min(next, 2 * timerEvent + 2) }
-        let control = devices[Self.scr]
-        if control & 16 != 0, uartWrite != uartRead, devices[Self.ssr] & 0x40 == 0 { next = min(next, uartRxDelay) }
-        if control & 32 != 0, devices[Self.ssr] & 0x80 == 0 { next = min(next, uartTxDelay) }
+        if let sub {
+            next = min(next, sub.due)
+        } else {
+            let control = devices[Self.scr]
+            if control & 16 != 0, uartWrite != uartRead, devices[Self.ssr] & 0x40 == 0 { next = min(next, uartRxDelay) }
+            if control & 32 != 0, devices[Self.ssr] & 0x80 == 0 { next = min(next, uartTxDelay) }
+        }
         if devices[Self.adcsr] & 0x20 != 0 { next = min(next, analogEndTime == 0 ? cycles : analogEndTime &+ 1) }
         if lcdDeadline != 0 { next = min(next, lcdDeadline) }
         return next
@@ -645,7 +733,7 @@ final class SC55MCU {
         switch address & 0x0F {
         case 0x00:
             frt.pointee.tcr = data
-            let stride = Self.frtSteps[Int(data & 3)]
+            let stride = frtSteps[Int(data & 3)]
             frt.pointee.deadline = Self.alignForward(timerCycles, stride)
             frt.pointee.stride = stride
         case 0x01:
@@ -705,7 +793,7 @@ final class SC55MCU {
         switch address {
         case 0x50:
             tmr.tcr = data
-            let stride = Self.tmrSteps[Int(data & 7)]
+            let stride = tmrSteps[Int(data & 7)]
             tmr.deadline = stride == 0 ? .max : Self.alignForward(timerCycles, stride)
             tmr.stride = stride
         case 0x51:

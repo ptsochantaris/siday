@@ -170,7 +170,9 @@ public func sidaySetOutput(_ style: Int32) {
 @_expose(wasm, "siday_set_settings")
 @_cdecl("siday_set_settings")
 public func sidaySetSettings(_ values: UnsafePointer<Double>, _ count: Int32) {
-    keeper.setSettings(Array(UnsafeBufferPointer(start: values, count: Int(count))))
+    let settings = Array(UnsafeBufferPointer(start: values, count: Int(count)))
+    keeper.setSettings(settings)
+    soundCanvas = Setting.soundCanvas(settings)
 }
 
 /// HVSC's Songlengths.md5, for the SID tunes loaded after it. A length of zero forgets it.
@@ -184,6 +186,8 @@ public func sidaySetSongLengths(_ data: UnsafePointer<UInt8>, _ length: Int32) -
 
 /// The files the listener gave once, which the page keeps and gives again at each visit (see `KeptFiles`).
 nonisolated(unsafe) private var kept = KeptFiles()
+/// The Sound Canvas MIDI files are played on when both are kept, as the settings last said (for what is kept, as it is said).
+nonisolated(unsafe) private var soundCanvas = SC55Model.sc55
 
 /// A file the page keeps, or has just been given and may keep: taken if it is one siday keeps, and its
 /// ROMs or song lengths used from now on. Returns the length of a text at `siday_packed`: the name it is
@@ -197,10 +201,10 @@ public func sidayKeep(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
     let known = KeptFile.recognise(file)
     if known != nil { kept.add(file) }
     keeper.setMT32ROMs(kept.mt32ROMs)
-    keeper.setSC55ROMs(kept.sc55ROMs)
+    keeper.setSoundCanvases(kept.soundCanvases)
     if let lengths = kept.songLengths { keeper.setSongLengths(lengths) }
-    let whole = [kept.mt32ROMs == nil ? nil : KeptROMs.mt32.rawValue, kept.sc55ROMs == nil ? nil : KeptROMs.sc55.rawValue].compactMap { $0 }
-    packed = Array(([known?.keptName ?? "", "@" + whole.joined(separator: ",")] + kept.summary).joined(separator: "\n").utf8)
+    let whole = [kept.mt32ROMs == nil ? nil : KeptROMs.mt32.rawValue, kept.soundCanvases.isEmpty ? nil : KeptROMs.sc55.rawValue].compactMap { $0 }
+    packed = Array(([known?.keptName ?? "", "@" + whole.joined(separator: ",")] + kept.summary(playingOn: soundCanvas)).joined(separator: "\n").utf8)
     return Int32(packed.count)
 }
 
@@ -210,7 +214,7 @@ public func sidayKeep(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
 public func sidayForgetKept() {
     kept.forgetAll()
     keeper.setMT32ROMs(nil)
-    keeper.setSC55ROMs(nil)
+    keeper.setSoundCanvases([])
 }
 
 /// The level the page kept under `key` (see `SongLevel.key`), as the news of a song's level gave it,

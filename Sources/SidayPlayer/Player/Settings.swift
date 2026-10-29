@@ -16,6 +16,7 @@ public enum Setting: Int, CaseIterable, Sendable {
     case sidModel, sidEngine, sidFilter
     case amiga, amigaSeparation, s3mCard
     case agiReplay
+    case soundCanvas
 
     /// One of the things a setting can be chosen to be.
     public struct Choice: Sendable {
@@ -42,7 +43,7 @@ public enum Setting: Int, CaseIterable, Sendable {
 
     /// The settings are shown in groups, by what they have to do with.
     public enum Group: Int, CaseIterable, Sendable {
-        case playing, ay, sid, modules
+        case playing, ay, sid, modules, midi
 
         public var title: String {
             switch self {
@@ -50,6 +51,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             case .ay: "AY and YM chips"
             case .sid: "SID chip"
             case .modules: "Modules"
+            case .midi: "MIDI"
             }
         }
 
@@ -62,6 +64,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .chip, .clock, .frameRate, .stereoOrder, .sbProSeparation: .ay
         case .sidModel, .sidEngine, .sidFilter: .sid
         case .amiga, .amigaSeparation, .s3mCard, .agiReplay: .modules
+        case .soundCanvas: .midi
         }
     }
 
@@ -86,6 +89,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .s3mCard: "s3m-card"
         case .sbProSeparation: "sb-pro-separation"
         case .agiReplay: "agi"
+        case .soundCanvas: "sound-canvas"
         case .levelling: "level"
         }
     }
@@ -111,6 +115,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .sbProSeparation: "Sound Blaster Pro, CMS and stereo POKEY left and right"
         case .levelling: "Loudness"
         case .agiReplay: "Sierra's adventure games"
+        case .soundCanvas: "Sound Canvas"
         }
     }
 
@@ -153,6 +158,8 @@ public enum Setting: Int, CaseIterable, Sendable {
             "How far apart the left and right of a recording from the first Sound Blaster Pro or the Creative Music System are kept (a VGM file of their chips), and of an 8-bit Atari tune for two POKEYs. The Sound Blaster Pro had one FM chip on each side and nothing of either on the other, the Atari's stereo upgrade one POKEY on each side, and the Creative Music System's music puts most of its voices on one side or the other: that is harsh in headphones. It makes no difference in mono or through a television."
         case .agiReplay:
             "The music of Sierra's adventure games of the 1980s, King's Quest to Manhunter (an AGI file), was written for the three-voice chip of IBM's PCjr and the Tandy 1000, and the Amiga versions of the games played it with routines of their own. The first plays every tone as a square wave, held at the note's volume; the later one plays it as a rounder wave that dies away over each note's first second. Which games had which is not known: Wanted Team's player of these files, by which they are heard on the Amiga today, plays the first unless told otherwise."
+        case .soundCanvas:
+            "Roland's Sound Canvas, on which most General MIDI music of the 1990s was written and heard, came first as the SC-55 and in 1993 as the SC-55mkII: the same kind of synthesiser, with 28 voices to the first's 24 and wave ROMs and a firmware of its own, which play the same files a little otherwise. This is which one a MIDI file is played on when the ROMs of both have been given; given one's alone, that one plays, whatever this says."
         case .levelling:
             "A tune is heard as loud as its file has it, so one written quiet is heard quiet. Levelled, each song is turned up or down to be as loud as the rest; halfway, it is moved half as far, and a quiet tune is still quieter than a loud one, but not by as much. No song is turned up by more than 6 dB. A song is measured the first time it is played: it waits up to a second to be, starts at about its level by what has been measured of it if that is not enough, glides to about its level again with each second more of it measured, and to its level once the whole of it has been. Its level is kept in this browser for the next time."
         }
@@ -203,6 +210,8 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .agiReplay:
             .choice([Choice("amiga", "Amiga, Sierra's first routine"), Choice("amiga-later", "Amiga, Sierra's later routine"),
                      Choice("pc", "PCjr and Tandy 1000")])
+        case .soundCanvas:
+            .choice([Choice("sc55", "SC-55 (1991)"), Choice("sc55mk2", "SC-55mkII (1993)")])
         case .levelling:
             .choice([Choice("off", "as each file has it"), Choice("full", "levelled, every song alike"), Choice("partial", "levelled halfway")])
         }
@@ -217,7 +226,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .defaultTime: 2
         case .sidFilter: 50
         case .amigaSeparation, .sbProSeparation: 20
-        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling, .agiReplay: 0
+        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling, .agiReplay, .soundCanvas: 0
         }
     }
 
@@ -286,6 +295,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .s3mCard: format == .s3m
         case .sbProSeparation: format == .vgm || format == .sap
         case .agiReplay: format == .agi
+        case .soundCanvas: format == .mid
         }
     }
 
@@ -296,6 +306,12 @@ public enum Setting: Int, CaseIterable, Sendable {
     public static func stereo(for style: OutputStyle, _ values: [Double]) -> StereoLayout {
         guard style == .abc, values.indices.contains(stereoOrder.rawValue) else { return style.stereo }
         return stereoOrder.settled(values[stereoOrder.rawValue]) == 1 ? .acb : .abc
+    }
+
+    /// The Sound Canvas MIDI files are played on when both are kept, with the settings as they are.
+    public static func soundCanvas(_ values: [Double]) -> SC55Model {
+        let place = values.indices.contains(soundCanvas.rawValue) ? Int(soundCanvas.settled(values[soundCanvas.rawValue])) : 0
+        return place == 1 ? .sc55mk2 : .sc55
     }
 
     /// How far songs are brought to the same loudness, with the settings as they are.
@@ -333,5 +349,6 @@ public enum Setting: Int, CaseIterable, Sendable {
         options.s3mCard = ([nil, .gus, .sb] as [ST3Card?])[place(.s3mCard)]
         options.sbProSeparation = value(.sbProSeparation) / 100
         options.agiReplay = ([.amiga, .amigaLater, .pc] as [AGIReplay])[place(.agiReplay)]
+        options.soundCanvasModel = ([.sc55, .sc55mk2] as [SC55Model])[place(.soundCanvas)]
     }
 }

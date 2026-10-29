@@ -67,8 +67,9 @@ public struct KeptFiles: Sendable {
     private var contents: [String: [UInt8]] = [:]
     /// The ROMs kept, made into a set for the LAPC-I's synthesiser; nil while they do not make one.
     public private(set) var mt32ROMs: MT32ROMSet?
-    /// The ROMs kept, made into a whole SC-55; nil while they do not make one.
-    public private(set) var sc55ROMs: SC55ROMSet?
+    /// The ROMs kept, made into whole Sound Canvases: an SC-55, an SC-55mkII, both or neither (see
+    /// `LoadOptions.soundCanvases`).
+    public private(set) var soundCanvases: [SC55ROMSet] = []
     /// The list of song lengths kept, if one is.
     public private(set) var songLengths: SongLengthDatabase?
 
@@ -132,12 +133,15 @@ public struct KeptFiles: Sendable {
         let roms = files.filter { $0.kind == .mt32ROM }.compactMap { contents[$0.keptName] }
         mt32ROMs = roms.isEmpty ? nil : MT32ROMSet.assemble(roms)
         let canvas = files.filter { $0.kind == .sc55ROM }.compactMap { contents[$0.keptName] }
-        sc55ROMs = canvas.isEmpty ? nil : SC55ROMSet.assemble(canvas, reusing: sc55ROMs)
+        soundCanvases = canvas.isEmpty ? [] : SC55ROMSet.assembleAll(canvas, reusing: soundCanvases)
         songLengths = files.last { $0.kind == .songLengths }.flatMap { contents[$0.keptName] }.map { SongLengthDatabase($0) }
     }
 
     /// What is kept, and what it does, a line for each, for a listener: nothing if nothing is kept.
-    public var summary: [String] {
+    public var summary: [String] { summary(playingOn: .sc55) }
+
+    /// The same, with the Sound Canvas MIDI files are played on when both are kept (`LoadOptions.soundCanvasModel`).
+    public func summary(playingOn model: SC55Model) -> [String] {
         var lines: [String] = []
         let roms = files.filter { $0.kind == .mt32ROM }
         if let set = mt32ROMs {
@@ -155,16 +159,25 @@ public struct KeptFiles: Sendable {
         let others = roms.count - used.count
         if others > 0 { lines.append("Kept: \(others) other MT-32 ROM" + (others == 1 ? "" : "s") + ", not used") }
         let canvas = files.filter { $0.kind == .sc55ROM }
-        if let set = sc55ROMs {
+        if let set = soundCanvases.soundCanvas(model) {
             lines.append("MIDI files written for General MIDI, GS and XG are played on the " + set.name
                 + (mt32ROMs == nil ? ", and those written for the MT-32 there too, on its MT-32 sounds." : "."))
-        } else if !canvas.isEmpty {
-            lines.append("The SC-55 ROMs kept are not yet a whole SC-55 (firmware " + SC55ROMSet.versions.joined(separator: ", ")
-                + "): it wants its two program ROMs and its three wave ROMs; MIDI files are played on FM until then.")
+            for other in soundCanvases where other.model != set.model {
+                lines.append("The Roland " + other.model.name + " (firmware " + other.version + ") is kept too, and played on when the Sound Canvas setting asks for it.")
+            }
+        }
+        for kind in SC55Model.allCases where !soundCanvases.contains(where: { $0.model == kind }) && canvas.contains(where: { Self.model(of: $0) == kind }) {
+            lines.append("The " + kind.name + " ROMs kept are not yet a whole " + kind.name + " (firmware " + SC55ROMSet.versions(of: kind).joined(separator: ", ")
+                + "): it wants " + SC55ROMSet.wholeSet(of: kind) + (soundCanvases.isEmpty ? "; MIDI files are played on FM until then." : "."))
         }
         for file in canvas { lines.append("Kept: " + file.name) }
         for file in files where file.kind == .songLengths { lines.append("Kept: " + file.name) }
         return lines
+    }
+
+    /// Which Sound Canvas a kept ROM of one is, by its name (see `SC55ROMFile.name`).
+    private static func model(of file: KeptFile) -> SC55Model {
+        file.name.hasPrefix(SC55Model.sc55mk2.name) ? .sc55mk2 : .sc55
     }
 
     /// True for a ROM file that is part of the set of a control ROM: the control ROM itself, or the PCM ROM

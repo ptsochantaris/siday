@@ -6,19 +6,21 @@ import SidayFoundation
 import SidayMIDI
 import SidaySC55
 
-/// Plays a MIDI file on a Roland SC-55, the first Sound Canvas (`SC55Synth`, a port of Nuked SC-55), given its
-/// ROMs: a file written for General MIDI or for GS as composed for it; one written for Yamaha XG as a GS
-/// synthesiser played it, as General MIDI; and one written for the MT-32, when siday has no MT-32's ROMs, as
-/// an SC-55's owner played it, the SC-55 set to its MT-32 sounds as Mark Fontana's SCMODE set it.
+/// Plays a MIDI file on a Roland SC-55, the first Sound Canvas, or on the SC-55mkII (`SC55Synth`, a port of Nuked
+/// SC-55), given its ROMs: a file written for General MIDI or for GS as composed for it; one written for Yamaha
+/// XG as a GS synthesiser played it, as General MIDI; and one written for the MT-32, when siday has no MT-32's
+/// ROMs, as a Sound Canvas's owner played it, set to its MT-32 sounds as Mark Fontana's SCMODE set it.
 ///
-/// The SC-55 is a controller running its firmware, which takes MIDI at its serial port, and the PCM chip it
-/// programs. Time is kept in the chip's frames, 64,000 a second: the sequencer's seconds are counted into
+/// The Sound Canvas is a controller running its firmware, which takes MIDI at its serial port (the SC-55mkII's
+/// through a second processor), and the PCM chip it programs. Time is kept in the chip's frames, 64,000 a
+/// second on the SC-55 and 66,207 on the SC-55mkII: the sequencer's seconds are counted into
 /// them, and the bytes of each message reach the serial port one after another as down a MIDI cable, ten bits
 /// a byte at 31,250 a second, each at the frame it arrives by. The firmware is started first (a second of its
 /// time) and the song is sent from then on. The chip's output is brought to 48,000 frames a second through
 /// siday's windowed-sinc resampler, the one recordings are played through.
 ///
-/// A voice here is one of the SC-55's sixteen parts. Which part each of the chip's 24 voices plays is read
+/// A voice here is one of the Sound Canvas's sixteen parts. Which part each of the chip's voices (24 on the
+/// SC-55, 28 on the SC-55mkII) plays is read
 /// from where the firmware keeps it (see `SC55Synth`), and a part's sound is its voices' added together
 /// after their envelopes, before their pan and effects: its lamp, its scope, and what is taken out when it
 /// is muted. Its pitch, its notes struck and its pan are those its MIDI channel is sent (part n is played by
@@ -43,19 +45,23 @@ final class MIDISC55Renderer: Renderer {
     private var sequencer: MIDISequencer
     private var receiver: Receiver
 
-    static let rate = SC55Synth.sampleRate
-    private static let granularity = 1.0 / Double(rate)
+    /// The chip's frames a second (see `SC55Synth.sampleRate`).
+    let rate: Int
+    private let granularity: Double
     /// No more than this long between the sequencer's looks at what is due.
-    private static let maxDelay = 512.0 / Double(rate)
+    private let maxDelay: Double
     private var delay = 0.0, carry = 0.0, eaten = 0.0
     /// The sequencer's time in the chip's frames, counted from when the firmware was started: the frame the
     /// messages it hands on now are sent at.
     private var now = 0
     /// The frame the song starts at: 0, or after the MT-32 setup.
     private var songStart = 0
-    /// When the MIDI cable is next free, in 25ths of a frame (a byte takes 512 of them: 320 microseconds).
-    private var cable = 0
-    private static let byteTime = 512
+    /// When the MIDI cable is next free, in 3,125ths of a frame: a byte takes `rate` of them (320
+    /// microseconds, 20.48 of the SC-55's frames). (In 64 bits: in 32, as the web player's Int is, it would run
+    /// out in eleven seconds.)
+    /// (`now` itself, in frames, lasts nine hours in 32 bits.)
+    private var cable: Int64 = 0
+    private var byteTime: Int { rate }
 
     /// The chip's output, as floating point, kept for the resampler: `inputStart` is the frame of the first
     /// kept, and `inputCount` are kept.
@@ -65,22 +71,34 @@ final class MIDISC55Renderer: Renderer {
     private static let inputCapacity = 8192
     private let block: UnsafeMutablePointer<Int32>
     static let blockFrames = 1024
-    private let resampler = Resampler(from: rate, to: outputSampleRate)
+    private let resampler: Resampler
     /// Output frames made, and the frame the song ends at once it is known.
     private var framesMade = 0
     private var endFrame: Int?
+    /// Where the next output frame lies among the chip's: `framesMade` times the resampler's step, in its
+    /// places, as the chip's frame before it and the place after that, counted on frame by frame (the product
+    /// would not fit 32 bits, the web player's Int, for the SC-55mkII's step of 22,069 past two seconds).
+    private var placeBase = 0, placeRow = 0
+    /// The output frames' worth of the chip's frames made for the scopes, times the chip's rate, not yet
+    /// counted in whole frames.
+    private var aheadPart = 0
     /// Sound is faded over the last fifth of a second after the song's last message.
     private static let fadeLength = outputSampleRate / 5
 
     /// Set by measure, so that a MIDI file is about as loud on the SC-55 as on FM (see `MIDIFMRenderer.gain`):
     /// of sixty of the collection's, the first minute of the middle one is 4.5 dB quieter on the SC-55 at the
     /// level of its DAC (full scale at 1: the chip's 20-bit samples taken 16 bits at a time), and is raised
-    /// by that much.
+    /// by that much. The SC-55mkII is as loud as the SC-55 at the same gain: of the same sixty, the middle of
+    /// their differences, file by file, is 0.0 dB.
     static let gain: Float = 1.68
 
     init(_ data: [UInt8], companion: [UInt8]?, roms: SC55ROMSet, options: LoadOptions = LoadOptions()) throws {
         mono = options.stereo == .mono
         self.roms = roms
+        rate = SC55Synth.sampleRate(of: roms.model)
+        granularity = 1.0 / Double(rate)
+        maxDelay = 512.0 / Double(rate)
+        resampler = Resampler(from: rate, to: outputSampleRate)
         file = try MIDIFile(data)
         guard file.tracks.contains(where: { track in track.events.contains { $0.kind == .noteOn } }) else {
             throw TuneError.malformed("a MIDI file with no notes")
@@ -93,7 +111,7 @@ final class MIDISC55Renderer: Renderer {
         var info = TuneInfo(format: "MID")
         info.title = file.title
         info.comment = file.copyright
-        info.chips = [.sc55]
+        info.chips = [roms.model == .sc55 ? .sc55 : .sc55mk2]
         info.detail = (origin.declared ? "Written for " + origin.standard.name : "General MIDI")
             + "; played on the " + roms.name + (mt32Mode ? ", set to its MT-32 sounds" : "")
         info.shortfalls = file.shortfalls
@@ -116,7 +134,7 @@ final class MIDISC55Renderer: Renderer {
         synth = SC55Synth(roms: roms)
         sequencer = MIDISequencer(file.songs[0], of: file, prelude: prelude)
         receiver = Receiver()
-        firstNotes = MIDISequencer.firstNotes(of: data, prelude: prelude, granularity: Self.granularity)
+        firstNotes = MIDISequencer.firstNotes(of: data, prelude: prelude, granularity: granularity)
         for index in songs.indices { songs[index].length = measure(index).length }
         select(subsong: 0)
     }
@@ -129,7 +147,7 @@ final class MIDISC55Renderer: Renderer {
 
     /// How long a song is as it is heard, as `MIDIFMRenderer` measures it, at the chip's granularity.
     private func measure(_ index: Int) -> (length: Double?, loop: Double?, unheard: Double) {
-        let measured = MIDISequencer.measure(file.songs[index], of: file, prelude: prelude, granularity: Self.granularity)
+        let measured = MIDISequencer.measure(file.songs[index], of: file, prelude: prelude, granularity: granularity)
         let unheard = MIDISequencer.unheardStart(firstNote: index < firstNotes.count ? firstNotes[index] : measured.firstNote)
         return (measured.length.map { $0 - unheard }, measured.loop, unheard)
     }
@@ -174,11 +192,11 @@ final class MIDISC55Renderer: Renderer {
 
     /// Sends a message down the cable, its bytes reaching the serial port one after another from `now`.
     func send(_ bytes: [UInt8]) {
-        var time = max(now * 25, cable)
+        var time = max(Int64(now) * 3125, cable)
         for byte in bytes {
-            synth.schedule([byte], at: time / 25)
-            eventLog?(time / 25, byte)
-            time += Self.byteTime
+            synth.schedule([byte], at: Int(time / 3125))
+            eventLog?(Int(time / 3125), byte)
+            time += Int64(byteTime)
         }
         cable = time
     }
@@ -205,17 +223,20 @@ final class MIDISC55Renderer: Renderer {
         inputStart = 0
         inputCount = 0
         framesMade = 0
+        placeBase = 0
+        placeRow = 0
         endFrame = nil
         hasEnded = false
         waves?.ahead = 0
+        aheadPart = 0
         songStart = 0
         if mt32Mode {
             for message in Self.mt32Setup { send(message) }
             // The song starts half a second after the setup has crossed the cable.
-            songStart = cable / 25 + Self.rate / 2
+            songStart = Int(cable / 3125) + rate / 2
             now = songStart
         }
-        unheardFrames = Int((Double(songStart) / Double(Self.rate) + measured.unheard) * Double(outputSampleRate))
+        unheardFrames = Int((Double(songStart) / Double(rate) + measured.unheard) * Double(outputSampleRate))
         playUnheard(frames: unheardFrames)
     }
 
@@ -259,15 +280,15 @@ final class MIDISC55Renderer: Renderer {
     /// Plays the sequencer on until every message due before the chip's frame `frame` has been sent.
     private func sequence(until frame: Int) {
         while endFrame == nil, now < frame {
-            delay = sequencer.tick(eaten, granularity: Self.granularity, to: receiver)
+            delay = sequencer.tick(eaten, granularity: granularity, to: receiver)
             if sequencer.atEnd {
                 // A second after the last message, as the sequencer says, in output frames.
-                let end = Double(now) + delay * Double(Self.rate)
-                endFrame = Int(end * Double(outputSampleRate) / Double(Self.rate))
+                let end = Double(now) + delay * Double(rate)
+                endFrame = Int(end * Double(outputSampleRate) / Double(rate))
                 return
             }
-            let eat = min(delay, Self.maxDelay)
-            carry += Double(Self.rate) * eat
+            let eat = min(delay, maxDelay)
+            carry += Double(rate) * eat
             let frames = Int(carry)
             carry -= Double(frames)
             eaten = eat
@@ -304,8 +325,27 @@ final class MIDISC55Renderer: Renderer {
                 made = rounds
             }
             waves.advance(by: made)
-            waves.ahead += Self.blockFrames * outputSampleRate / Self.rate
+            // (In whole output frames, what is left over carried to the next block.)
+            aheadPart += Self.blockFrames * outputSampleRate
+            waves.ahead += aheadPart / rate
+            aheadPart %= rate
         }
+    }
+
+    /// The chip's frames from `from` (counted from the first kept) weighted by a row of the resampler's, left
+    /// and right (before the first frame, silence).
+    @inline(__always) private func weighted(from: Int, _ rowWeights: UnsafePointer<Float>, _ width: Int) -> (Float, Float) {
+        if from >= 0 {
+            return (Resampler.sum(inputLeft + from, rowWeights, width), Resampler.sum(inputRight + from, rowWeights, width))
+        }
+        var left: Float = 0, right: Float = 0
+        var k = -from
+        while k < width {
+            left += inputLeft[from + k] * rowWeights[k]
+            right += inputRight[from + k] * rowWeights[k]
+            k += 1
+        }
+        return (left, right)
     }
 
     func render(into buffer: UnsafeMutablePointer<Float>, frames: Int) {
@@ -315,10 +355,12 @@ final class MIDISC55Renderer: Renderer {
     }
 
     /// Each output frame is made from the chip's frames around its place, weighted by the resampler's row
-    /// for that place (one of three: 64,000 to 48,000 is 4 to 3).
+    /// for that place (one of three: 64,000 to 48,000 is 4 to 3; the SC-55mkII's 66,207 to 48,000 has too
+    /// many places for a row each, and a place's weights are had from the two rows it lies between).
     private func render(into buffer: UnsafeMutablePointer<Float>, frames: Int, weights: UnsafePointer<Float>) {
         let taps = resampler.taps, width = 2 * taps
         let places = resampler.places, step = resampler.step
+        let exact = resampler.exact, rows = Double(resampler.rows)
         for n in 0 ..< frames {
             if let endFrame, framesMade >= endFrame {
                 hasEnded = true
@@ -326,24 +368,24 @@ final class MIDISC55Renderer: Renderer {
                 keepSilence(frames: frames - n)
                 return
             }
-            let position = framesMade * step
-            let base = position / places, row = position % places
+            let base = placeBase, row = placeRow
             // The chip's frames from `taps - 1` before the output frame's place to `taps` after it (before the
             // first, silence).
             while inputStart + inputCount <= base + taps { renderBlock() }
-            let rowWeights = weights + row * width
             let from = base - taps + 1 - inputStart
-            var left: Float = 0, right: Float = 0
-            if from >= 0 {
-                left = Resampler.sum(inputLeft + from, rowWeights, width)
-                right = Resampler.sum(inputRight + from, rowWeights, width)
+            var (left, right) = (Float(0), Float(0))
+            if exact {
+                (left, right) = weighted(from: from, weights + row * width, width)
             } else {
-                var k = -from
-                while k < width {
-                    left += inputLeft[from + k] * rowWeights[k]
-                    right += inputRight[from + k] * rowWeights[k]
-                    k += 1
-                }
+                // (The SC-55mkII's 66,207 to 48,000 has too many places for a row each: between the two rows
+                // the place lies between, as a recording is.)
+                let place = Double(row) * rows / Double(places)
+                let lower = Int(place)
+                let a = weighted(from: from, weights + lower * width, width)
+                let b = weighted(from: from, weights + (lower + 1) * width, width)
+                let fraction = Float(place - Double(lower))
+                left = a.0 + (b.0 - a.0) * fraction
+                right = a.1 + (b.1 - a.1) * fraction
             }
             if let endFrame {
                 let remaining = endFrame - framesMade
@@ -361,6 +403,9 @@ final class MIDISC55Renderer: Renderer {
                 buffer[n * 2 + 1] = right
             }
             framesMade += 1
+            placeRow += step
+            placeBase += placeRow / places
+            placeRow %= places
             waves?.ahead -= 1
         }
     }
@@ -389,7 +434,7 @@ final class MIDISC55Renderer: Renderer {
 
     func keepChannelWaves() -> ChannelWaves? {
         if waves == nil {
-            waves = ChannelWaves(voices: 16, rate: Double(Self.rate / 2), fullSwing: 131_072)
+            waves = ChannelWaves(voices: 16, rate: (Double(rate) / 2), fullSwing: 131_072)
             synth.watchesParts = true
         }
         return waves
@@ -399,7 +444,7 @@ final class MIDISC55Renderer: Renderer {
 
     private func keepSilence(frames: Int) {
         guard let waves else { return }
-        silencePart += Double(frames) * Double(Self.rate / 2) / Double(outputSampleRate)
+        silencePart += Double(frames) * (Double(rate) / 2) / Double(outputSampleRate)
         let count = Int(silencePart)
         silencePart -= Double(count)
         for part in 0 ..< 16 { waves.silence(part, count: count) }

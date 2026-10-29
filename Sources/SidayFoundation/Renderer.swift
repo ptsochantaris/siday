@@ -285,10 +285,18 @@ public struct LoadOptions: Sendable {
     /// The ROMs of an MT-32 of the LAPC-I's generation, kept by the front end once they were given it:
     /// a MIDI file written for the MT-32 is played on it when they are here, and on FM when they are not.
     public var mt32ROMs: MT32ROMSet?
-    /// The ROMs of an SC-55, kept by the front end once they were given it: MIDI files written for General
-    /// MIDI, GS or XG are played on it when they are here, and those written for the MT-32 too when no MT-32's
-    /// ROMs are; on FM when they are not.
-    public var sc55ROMs: SC55ROMSet?
+    /// The Sound Canvases whose ROMs the front end keeps, whole, once they were given it: an SC-55's, an
+    /// SC-55mkII's, or both. MIDI files written for General MIDI, GS or XG are played on one when they are here,
+    /// and those written for the MT-32 too when no MT-32's ROMs are; on FM when none is.
+    public var soundCanvases: [SC55ROMSet] = []
+    /// Which Sound Canvas is played on when both are here.
+    public var soundCanvasModel: SC55Model = .sc55
+    /// The Sound Canvas MIDI files are played on: the one asked for if it is here, and otherwise whichever is
+    /// (see `soundCanvases`). Set, it is the only one.
+    public var sc55ROMs: SC55ROMSet? {
+        get { soundCanvases.soundCanvas(soundCanvasModel) }
+        set { soundCanvases = newValue.map { [$0] } ?? [] }
+    }
 
     public init() {}
 }

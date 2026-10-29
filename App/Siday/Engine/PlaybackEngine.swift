@@ -21,7 +21,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         case settings([Double])
         case songLengths([UInt8]?)
         case mt32ROMs(MT32ROMSet?)
-        case sc55ROMs(SC55ROMSet?)
+        case soundCanvases([SC55ROMSet])
         case keptLevel(key: String, text: String?)
         case stop
         /// What was found of a tune's songs by playing them through, away from this thread.
@@ -185,7 +185,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         if let keptStore {
             let kept = keptStore.load()
             obey(.mt32ROMs(kept.mt32ROMs), keeper, 0)
-            obey(.sc55ROMs(kept.sc55ROMs), keeper, 0)
+            obey(.soundCanvases(kept.soundCanvases), keeper, 0)
             keeper.setSongLengths(kept.songLengths)
             Task { @MainActor [tell] in tell(.kept(kept)) }
         }
@@ -244,9 +244,9 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         case let .mt32ROMs(roms):
             keeper.setMT32ROMs(roms)
             measuring.async { [measuredPlayer] in measuredPlayer.setMT32ROMs(roms) }
-        case let .sc55ROMs(roms):
-            keeper.setSC55ROMs(roms)
-            measuring.async { [measuredPlayer] in measuredPlayer.setSC55ROMs(roms) }
+        case let .soundCanvases(sets):
+            keeper.setSoundCanvases(sets)
+            measuring.async { [measuredPlayer] in measuredPlayer.setSoundCanvases(sets) }
         case let .keptLevel(key, text):
             keeper.setKeptLevel(key: key, text: text, now: time)
         case let .measured(tune, key, measures):

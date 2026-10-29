@@ -208,3 +208,199 @@ private func run(_ program: [UInt8: [UInt8]], vectors: [Int: UInt32] = [:], step
     #expect((0 ..< 6400 * 2).allSatisfy { a[$0] == b[$0] })
     #expect(again.state == first.state)
 }
+
+// MARK: The SC-55mkII
+
+/// Made-up ROMs of an SC-55mkII, and a table of them as Nuked SC-55's has the real ones.
+private struct MadeUpCanvasMk2 {
+    let program = (0 ..< 32768).map { UInt8(truncatingIfNeeded: $0 &* 3 &+ 2) }
+    let extra = (0 ..< 524_288).map { UInt8(truncatingIfNeeded: $0 &* 13 &+ 5) }
+    let sub = (0 ..< 4096).map { UInt8(truncatingIfNeeded: $0 &* 7 &+ 3) }
+    let waves = [(0 ..< 2_097_152).map { UInt8(truncatingIfNeeded: ($0 &* 2_654_435_761) >> 11) },
+                 (0 ..< 1_048_576).map { UInt8(truncatingIfNeeded: ($0 &* 2_246_822_519 &+ 1) >> 10) }]
+
+    var table: [SC55ROMFile] {
+        [SC55ROMFile(model: .sc55mk2, role: .program(versions: ["1.01"]), part: "P", size: 32768, sha256: SHA256.hex(program)),
+         SC55ROMFile(model: .sc55mk2, role: .extraProgram(version: "1.01"), part: "E", size: 524_288, sha256: SHA256.hex(extra)),
+         SC55ROMFile(model: .sc55mk2, role: .subProgram, part: "S", size: 4096, sha256: SHA256.hex(sub)),
+         SC55ROMFile(model: .sc55mk2, role: .wave(0), part: "W0", size: 2_097_152, sha256: SHA256.hex(waves[0])),
+         SC55ROMFile(model: .sc55mk2, role: .wave(1), part: "W1", size: 1_048_576, sha256: SHA256.hex(waves[1]))]
+    }
+}
+
+@Test func sc55mk2ROMsAreKnownByContentAndMakeASetOnlyWhenWhole() {
+    let roms = MadeUpCanvasMk2(), canvas = MadeUpCanvas()
+    let table = roms.table + canvas.table
+    let set = SC55ROMSet.assemble([roms.waves[1], roms.sub, roms.extra, roms.waves[0], roms.program], model: .sc55mk2, table: table)
+    #expect(set?.model == .sc55mk2)
+    #expect(set?.version == "1.01")
+    #expect(set?.subProgram == roms.sub)
+    #expect(set?.waves == roms.waves)
+    #expect(set?.name == "Roland SC-55mkII, firmware 1.01")
+    #expect(set?.started.isEmpty == false)
+    // Not without its second processor's ROM, nor as the other model.
+    #expect(SC55ROMSet.assemble([roms.waves[1], roms.extra, roms.waves[0], roms.program], model: .sc55mk2, table: table) == nil)
+    #expect(SC55ROMSet.assemble([roms.waves[1], roms.sub, roms.extra, roms.waves[0], roms.program], model: .sc55, table: table) == nil)
+    // Among the SC-55's, each model's own are found.
+    let both = [canvas.program, roms.program, canvas.extra, roms.extra, roms.sub] + canvas.waves + roms.waves
+    #expect(SC55ROMSet.assemble(both, model: .sc55, table: table)?.model == .sc55)
+    #expect(SC55ROMSet.assemble(both, model: .sc55mk2, table: table)?.model == .sc55mk2)
+    // The real table knows the mkII's sizes, its second processor's 4 KB among them, for a look through files.
+    #expect(SC55ROMFile.known.filter { $0.model == .sc55mk2 }.count == 5)
+    #expect(KeptFile.mayBe(size: 4096, start: []))
+    #expect(KeptFile.mayBe(size: 2_097_152, start: []))
+    #expect(KeptFile.mayBe(size: 524_288, start: []))
+    #expect(SC55ROMFile.identify(roms.sub) == nil)
+}
+
+@Test func theSoundCanvasPlayedOnIsTheOneAskedForIfItIsKept() {
+    let sc55 = SC55ROMSet(version: "1.21", program: [], extraProgram: [], waves: [])
+    let mk2 = SC55ROMSet(model: .sc55mk2, version: "1.01", program: [], extraProgram: [], waves: [])
+    for asked in SC55Model.allCases {
+        #expect([SC55ROMSet]().soundCanvas(asked) == nil)
+        // One model's alone plays, whatever is asked for.
+        #expect([sc55].soundCanvas(asked)?.model == .sc55)
+        #expect([mk2].soundCanvas(asked)?.model == .sc55mk2)
+        // Both: the one asked for.
+        #expect([sc55, mk2].soundCanvas(asked)?.model == asked)
+        #expect([mk2, sc55].soundCanvas(asked)?.model == asked)
+    }
+    // The setting, by its place in the list; the SC-55 unless it is changed.
+    var options = LoadOptions()
+    var policy = PlaybackPolicy()
+    options.soundCanvases = [sc55, mk2]
+    #expect(options.sc55ROMs?.model == .sc55)
+    var values = Setting.standards
+    #expect(Setting.soundCanvas(values) == .sc55)
+    values[Setting.soundCanvas.rawValue] = 1
+    Setting.apply(values, to: &options, &policy)
+    #expect(options.soundCanvasModel == .sc55mk2)
+    #expect(options.sc55ROMs?.model == .sc55mk2)
+    #expect(Setting.soundCanvas(values) == .sc55mk2)
+    #expect(Setting.soundCanvas.changes(.mid) && !Setting.soundCanvas.changes(.mod))
+    // A list of settings kept before the setting was one leaves it at the SC-55.
+    Setting.apply(Array(values.prefix(Setting.soundCanvas.rawValue)), to: &options, &policy)
+    #expect(options.soundCanvasModel == .sc55)
+}
+
+@Test func withAnSC55mkIIsROMsMIDIFilesPlayOnItAndItsLevelSaysSo() throws {
+    var options = LoadOptions()
+    options.sc55ROMs = SC55ROMSet(model: .sc55mk2, version: "1.01", program: [UInt8](repeating: 0, count: 32768), extraProgram: [UInt8](repeating: 0, count: 524_288),
+                                  subProgram: [UInt8](repeating: 0, count: 4096), waves: [[UInt8](repeating: 0, count: 2_097_152), [UInt8](repeating: 0, count: 1_048_576)])
+    let gs = try TuneLoader.load(midi(gsReset), format: .mid, options: options)
+    #expect(gs.info.chips == [.sc55mk2])
+    #expect(gs.info.detail.contains("SC-55mkII"))
+    var buffer = [Float](repeating: 0, count: 4096)
+    buffer.withUnsafeMutableBufferPointer { gs.render(into: $0.baseAddress!, frames: 2048) }
+    #expect(SongLevel.playedOn(gs, options: options) == "sc55mk2_1.01")
+}
+
+/// A second processor of the SC-55mkII with a program of its own, on a controller with no program.
+private func subProcessor(_ code: [UInt8], vectors: [Int: UInt16]) -> SC55MCU {
+    var rom = [UInt8](repeating: 0xEA, count: 4096)
+    for (i, byte) in code.enumerated() { rom[i] = byte }
+    for (vector, address) in vectors.merging([9: 0x1000], uniquingKeysWith: { a, _ in a }) {
+        rom[0xFEC + vector * 2] = UInt8(truncatingIfNeeded: address)
+        rom[0xFEC + vector * 2 + 1] = UInt8(truncatingIfNeeded: address >> 8)
+    }
+    let mcu = SC55MCU(rom1: [UInt8](repeating: 0, count: 32768), rom2: [UInt8](repeating: 0, count: 524_288), subROM: rom,
+                      pcm: SC55PCM(waves: [], mk2: true))
+    mcu.reset()
+    return mcu
+}
+
+/// Its program for the tests: a stack, its 1 ms timer set going (counted out every 125 x 50 ticks), the MIDI in
+/// taken, then round a loop that changes nothing for ever. The timer's handler counts at 0x10; a byte from the
+/// MIDI in is put at the start of the shared RAM and the controller's line 5 raised.
+private let subProgram: [UInt8] = [
+    0xA2, 0x7F, 0x9A, // LDX #7F; TXS
+    0x3C, 0x7C, 0xFD, 0x3C, 0x31, 0xFE, // LDM #7C, prescaler; LDM #31, timer (as the SC-55mkII's own)
+    0x3C, 0xC0, 0xFF, 0x3C, 0x48, 0xFB, // LDM #C0, timer control; LDM #48, interrupt enable (timer, UART2)
+    0x3C, 0x04, 0xE6, 0x3C, 0x08, 0xEA, // LDM #4, UART1 control (receiving); LDM #8, UART2 control
+    0x3C, 0x20, 0xEE, 0x3C, 0x80, 0xED, // LDM #20, UART3 control; LDM #80, UART3 status (line 5 low)
+    0x58, // CLI
+    0xA5, 0x00, 0xC9, 0x01, 0xD0, 0xFA, // loop: LDA 00; CMP #1; BNE loop
+    0x80, 0xF8, // BRA loop
+]
+private let timerHandler: [UInt8] = [0xE6, 0x10, 0x40] // INC 10; RTI
+private let byteHandler: [UInt8] = [0xA5, 0xE8, 0x8D, 0x00, 0x02, 0x3C, 0x00, 0xEE, 0x40] // LDA UART2 data; STA 0200; LDM #0, UART3 control; RTI
+
+private func subProcessorForTests() -> SC55MCU {
+    subProcessor(subProgram + [UInt8](repeating: 0xEA, count: 0x100 - subProgram.count) + timerHandler + [UInt8](repeating: 0xEA, count: 0x100 - timerHandler.count) + byteHandler,
+                 vectors: [4: 0x1100, 7: 0x1200])
+}
+
+@Test func theSecondProcessorsLoopsMadeAtOnceAreAsMadeOneByOne() {
+    // One stepped through every instruction, the other brought up to the time at once, which goes round its
+    // loop as many times as it can without stepping: the same, cycle for cycle, its timer's handler run as often.
+    let stepped = subProcessorForTests(), skipped = subProcessorForTests()
+    let a = stepped.sub!, b = skipped.sub!
+    for target: UInt64 in [1000, 50000, 50001, 123_457, 410_000] {
+        while a.cycles < target * 5 { a.step() }
+        b.catchUp(to: target)
+        #expect(a.cycles == b.cycles)
+        #expect(a.pc == b.pc)
+        #expect(a.timerCycles == b.timerCycles && a.prescalerCount == b.prescalerCount && a.timerCount == b.timerCount)
+        #expect((0 ..< SC55SubMCU.memorySize).allSatisfy { a.memory[$0] == b.memory[$0] })
+    }
+    // Its timer's handler ran, every 100,000 of its cycles, and between it went round its loop.
+    #expect(b.memory[0x10] >= 20)
+    #expect(b.period != 0)
+}
+
+@Test func theSecondProcessorHandsTheMIDIInToTheController() {
+    let mcu = subProcessorForTests()
+    let sub = mcu.sub!
+    mcu.gateEnable = 0x20
+    sub.catchUp(to: 10000)
+    mcu.post(0x93)
+    // Taken, read, put where the controller reads it, and line 5 raised.
+    sub.catchUp(to: 10020)
+    #expect(mcu.uartRead == mcu.uartWrite)
+    sub.catchUp(to: 10100)
+    #expect(sub.controllerRead(0x00) == 0x93)
+    #expect(mcu.gateTrigger == 5)
+    #expect(mcu.interruptsPending & (1 << UInt32(SC55MCU.Interrupt.irq1)) != 0)
+    // The next waits 12,000 of its cycles after the first.
+    mcu.post(0x41)
+    sub.catchUp(to: 10200)
+    #expect(mcu.uartRead != mcu.uartWrite)
+    sub.catchUp(to: 10000 + 2400 + 100)
+    #expect(mcu.uartRead == mcu.uartWrite)
+}
+
+@Test func anSC55mkIIStartedOnceIsTheSameEachTimeItIsPutBack() {
+    var random: UInt32 = 0x8765_4321
+    func bytes(_ count: Int) -> [UInt8] {
+        (0 ..< count).map { _ in
+            random ^= random << 13
+            random ^= random >> 17
+            random ^= random << 5
+            return UInt8(truncatingIfNeeded: random)
+        }
+    }
+    // (The second processor's is the test program: made-up bytes would not get it going round its loop.)
+    var sub = subProgram + [UInt8](repeating: 0xEA, count: 4096 - subProgram.count)
+    sub[0xFFE] = 0x00
+    sub[0xFFF] = 0x10
+    let plain = SC55ROMSet(model: .sc55mk2, version: "1.01", program: bytes(32768), extraProgram: bytes(524_288), subProgram: sub,
+                           waves: [bytes(2 << 20), bytes(1 << 20)])
+    let first = SC55Synth(roms: plain)
+    first.start()
+    let started = SC55ROMSet(model: .sc55mk2, version: "1.01", program: plain.program, extraProgram: plain.extraProgram, subProgram: sub, waves: plain.waves,
+                             unscrambledWaves: first.unscrambledWaves, started: first.state)
+    let again = SC55Synth(roms: started)
+    again.start()
+    #expect(again.state == first.state)
+    #expect(again.sampleRate == 66207)
+    let a = UnsafeMutablePointer<Int32>.allocate(capacity: 6400 * 2), b = UnsafeMutablePointer<Int32>.allocate(capacity: 6400 * 2)
+    defer {
+        a.deallocate()
+        b.deallocate()
+    }
+    for synth in [first, again] { synth.schedule([0x90, 60, 100], at: 10) }
+    first.render(into: a, frames: 6400)
+    again.render(into: b, frames: 6400)
+    #expect((0 ..< 6400 * 2).allSatisfy { a[$0] == b[$0] })
+    #expect(again.state == first.state)
+}

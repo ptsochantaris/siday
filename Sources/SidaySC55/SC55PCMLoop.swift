@@ -11,7 +11,7 @@ extension SC55PCM {
     /// cycles a slot and one more slot's worth, giving two frames of output a round (one without oversampling).
     func update(to target: UInt64) {
         while cycles < target {
-            round()
+            if mk2 { round(SC55PCMModelMk2.self) } else { round(SC55PCMModelSC55.self) }
             cycles &+= UInt64(slots + 1) * 25
         }
     }
@@ -38,7 +38,7 @@ extension SC55PCM {
         eramPack(r2(slot, i) &+ Int(tvCounter), UInt32(bitPattern: value))
     }
 
-    private func round() {
+    private func round<Model: SC55PCMModel>(_: Model.Type) {
         let voiceActive = voiceMask & voiceMaskPending
         typealias S = SC55PCM
         // Final mixing.
@@ -414,7 +414,7 @@ extension SC55PCM {
             waveAddress = b7 ? waveAddress &- nibbleStep : waveAddress &+ nibbleStep
             waveAddress &= 0xFFFFF
 
-            var newNibble = Int32(readROM(UInt32(bitPattern: hiaddr << 20 | waveAddress)))
+            var newNibble = Int32(readROM(UInt32(bitPattern: hiaddr << 20 | waveAddress), Model.self))
             let newNibbleSelect = addressB4 != ((b6 || !nibbleCmp1) && okey)
             newNibble = newNibbleSelect ? (newNibble >> 4) & 15 : newNibble & 15
 
@@ -436,10 +436,10 @@ extension SC55PCM {
             if !b6, !b7, !b15, !kon, address <= 0xFFFFB, endOffset > 3 {
                 // Forwards, its end not among the four: each step is a sample on, and no comparison holds.
                 let at = UInt32(bitPattern: hiaddr << 20 | address)
-                samp0 = Int32(Int8(bitPattern: readROM(at)))
-                samp1 = Int32(Int8(bitPattern: readROM(at &+ 1)))
-                samp2 = Int32(Int8(bitPattern: readROM(at &+ 2)))
-                samp3 = Int32(Int8(bitPattern: readROM(at &+ 3)))
+                samp0 = Int32(Int8(bitPattern: readROM(at, Model.self)))
+                samp1 = Int32(Int8(bitPattern: readROM(at &+ 1, Model.self)))
+                samp2 = Int32(Int8(bitPattern: readROM(at &+ 2, Model.self)))
+                samp3 = Int32(Int8(bitPattern: readROM(at &+ 3, Model.self)))
                 let sixteen = address & 0xFFFF0
                 nibbleCmp3 = sixteen == (address &+ 1) & 0xFFFF0
                 nibbleCmp4 = sixteen == (address &+ 2) & 0xFFFF0
@@ -450,7 +450,7 @@ extension SC55PCM {
                 nextB15 = false
             } else {
                 var addressCount = address
-                samp0 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                samp0 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount), Model.self)))
                 cmp1 = b15 ? addressLoop : addressEnd
                 var addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
                 nextAddress = addressCount
@@ -460,7 +460,7 @@ extension SC55PCM {
 
                 addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 11
                 b15 = b6 && (b15 != addressCmp)
-                samp1 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                samp1 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount), Model.self)))
                 nibbleCmp3 = address & 0xFFFF0 == addressCount & 0xFFFF0
                 cmp1 = b15 ? addressLoop : addressEnd
                 addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
@@ -472,7 +472,7 @@ extension SC55PCM {
 
                 addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 15
                 b15 = b6 && (b15 != addressCmp)
-                samp2 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                samp2 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount), Model.self)))
                 nibbleCmp4 = address & 0xFFFF0 == addressCount & 0xFFFF0
                 cmp1 = b15 ? addressLoop : addressEnd
                 addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
@@ -484,7 +484,7 @@ extension SC55PCM {
 
                 addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 19
                 b15 = b6 && (b15 != addressCmp)
-                samp3 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                samp3 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount), Model.self)))
                 nibbleCmp5 = address & 0xFFFF0 == addressCount & 0xFFFF0
                 cmp1 = b15 ? addressLoop : addressEnd
                 addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
@@ -540,10 +540,25 @@ extension SC55PCM {
 
             test = S.addclip20(test, step >> 1, step & 1)
 
-            // The filter (the SC-55's, in the chip's 20-bit arithmetic).
+            // The filter (the SC-55's, in the chip's 20-bit arithmetic; the SC-55mkII's in 32 bits, as Nuked
+            // SC-55 has it, "to avoid overflow": its registers as they are, the sample brought to 32 bits from 20).
             let filter = Int(ram2[base2 + 11])
             let v3: Int32
-            do {
+            if Model.mk2 {
+                let mult1 = reg1 &* Int32(S.high(filter)) // 8
+                let mult2 = reg1 &* Int32((filter >> 1) & 127) // 9
+                let mult3 = reg1 &* Int32(reg26) // 10
+                let v2 = reg3 &+ (mult1 >> 6) &+ ((mult1 >> 5) & 1) // 9
+                let v1 = v2 &+ (mult2 >> 13) &+ ((mult2 >> 12) & 1) // 10
+                let subvar = v1 &+ (mult3 >> 6) &+ ((mult3 >> 5) & 1) // 11
+                ram1[base1 + 3] = UInt32(bitPattern: v1)
+                v3 = ((test &<< 12) >> 12) &- subvar // 12
+                let mult4 = v3 &* Int32(S.high(filter))
+                let mult5 = v3 &* Int32((filter >> 1) & 127)
+                let v4 = reg1 &+ (mult4 >> 6) &+ ((mult4 >> 5) & 1) // 14
+                let v5 = v4 &+ (mult5 >> 13) &+ ((mult5 >> 12) & 1) // 15
+                ram1[base1 + 1] = UInt32(bitPattern: v5)
+            } else {
                 let mult1 = S.multi(reg1, S.high(filter)) // 8
                 let mult2 = S.multi(reg1, Int8(truncatingIfNeeded: (filter >> 1) & 127)) // 9
                 let mult3 = S.multi(reg1, reg26) // 10

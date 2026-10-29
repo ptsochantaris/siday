@@ -32,6 +32,8 @@ public enum SoundChip: String, CaseIterable, Sendable {
     case la32
     /// Roland's PCM chip of the first Sound Canvas, the SC-55, with the controller that plays it.
     case sc55
+    /// The same chip on the SC-55mkII, with its larger wave ROMs and its own firmware.
+    case sc55mk2
     /// No chip of its own: a recording, played through a digital-to-analogue converter.
     case dac
 }

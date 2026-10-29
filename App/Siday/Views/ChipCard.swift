@@ -74,6 +74,7 @@ extension SoundChip {
         case .dac: return Face(name: "DAC", short: "DAC", part: "PCM", machine: "recording", board: Color(white: 0.34), pinsASide: 8, square: false)
         case .la32: return Face(name: "LA32", short: "LA32", part: "Roland LA32", machine: "LAPC-I · CM-32L · MT-32", board: Color(red: 0.06, green: 0.28, blue: 0.24), pinsASide: 20, square: true)
         case .sc55: return Face(name: "SC-55", short: "SC-55", part: "Roland PCM", machine: "Sound Canvas SC-55", board: Color(red: 0.17, green: 0.18, blue: 0.21), pinsASide: 20, square: true)
+        case .sc55mk2: return Face(name: "SC-55mkII", short: "SC-55", part: "Roland PCM", machine: "Sound Canvas SC-55mkII", board: Color(red: 0.17, green: 0.18, blue: 0.21), pinsASide: 20, square: true)
         }
     }
 }
@@ -211,7 +212,7 @@ private struct ChipDrawing: View {
                 let size = s * (name.count > 4 ? 0.15 : name.count > 3 ? 0.18 : 0.22)
                 printing.draw(lettered(name, size: size, weight: .black, tracking: size * 0.06), at: CGPoint(x: body.midX, y: body.midY))
             } else {
-                let size = s * (face.name.count > 4 ? 0.13 : face.name.count > 3 ? 0.16 : 0.2)
+                let size = s * (face.name.count > 6 ? 0.087 : face.name.count > 4 ? 0.13 : face.name.count > 3 ? 0.16 : 0.2)
                 printing.draw(lettered(face.name, size: size, weight: .black, tracking: size * 0.08), at: CGPoint(x: body.midX, y: body.minY + bodyH * (face.square ? 0.38 : 0.4)))
                 printing.draw(lettered(face.part.uppercased(), size: s * 0.05, weight: .semibold, mono: true, opacity: 0.9), at: CGPoint(x: body.midX, y: body.minY + bodyH * (face.square ? 0.62 : 0.7)))
                 printing.draw(lettered(face.machine.uppercased(), size: s * 0.03, weight: .medium, mono: true, tracking: s * 0.002, opacity: 0.7), at: CGPoint(x: body.midX, y: body.minY + bodyH * (face.square ? 0.74 : 0.85)))
