@@ -11,9 +11,9 @@ import SidayFoundation
 /// for a higher; only the two loudest ring it, the loudest the more, so that a tune of many voices
 /// still draws a figure clear enough to see. The plate holds a figure for a few seconds at least, long
 /// enough for the sand to settle on it, and then for as long as the notes keep to it; once they have
-/// asked for another for a moment, it takes up the one they then ask for, at once, so that the sand on
-/// the old lines is shaken loose and gathers quickly on the new ones, and is not kept wavering between
-/// the two. How loud the music is only shakes the sand harder; a note struck shakes it harder still.
+/// asked for another for a moment, it takes up the one they then ask for, passing to it over a second
+/// or two, so that the sand on the old lines is shaken loose, spreads, and gathers on the new ones as
+/// they form, and is not kept wavering between the two. How loud the music is only shakes the sand harder; a note struck shakes it harder still.
 /// When the music stops, the sand stays where it lies.
 ///
 /// The patterns are those of a square plate held at its middle, as Chladni's were, stretched to the
@@ -105,7 +105,7 @@ final class ChladniPlate: VisualScene {
 
     /// How the plate shakes at each place of the grid: the pattern of the loudest voice and half as much
     /// of the next's, added together and brought to a size from -1 to 1, for the figure the plate holds;
-    /// passed to quickly when it takes up a new one.
+    /// passed to over a second or two when it takes up a new one.
     private func ringPlate(_ frame: VisualFrame) {
         var loudest = (-1, -1)
         for index in 0 ..< frame.voices.count where frame.voices[index].pitched && calm[index] > 0.02 {
@@ -138,9 +138,10 @@ final class ChladniPlate: VisualScene {
         passToFigure(frame)
     }
 
-    /// How the plate shakes passes quickly to how the figure it holds would have it.
+    /// How the plate shakes passes to how the figure it holds would have it, most of the way in a second
+    /// and a half.
     private func passToFigure(_ frame: VisualFrame) {
-        let passing = 1 - expf(-frame.elapsed / 0.15)
+        let passing = 1 - expf(-frame.elapsed / 0.6)
         for index in shaking.indices { shaking[index] += (wanted[index] - shaking[index]) * passing }
     }
 
