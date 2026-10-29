@@ -100,7 +100,9 @@ final class SC55MCU {
     // MARK: Timers
 
     /// The three 16-bit free-running timers and the 8-bit timer, each stepped when the count of half the
-    /// processor's cycles passes its deadline, as jcmoyer's fork steps them.
+    /// processor's cycles passes its deadline, as jcmoyer's fork steps them. A tick that only counts is not
+    /// made when it is due: the ticks are made, all at once, when one would match, overflow or raise an
+    /// interrupt (`timerEvent`), or when the firmware reads or writes a timer.
     struct FreeRunningTimer {
         var deadline: UInt64 = 0
         var tcr: UInt8 = 0, tcsr: UInt8 = 0
@@ -119,6 +121,8 @@ final class SC55MCU {
     let frts: UnsafeMutablePointer<FreeRunningTimer>
     @exclusivity(unchecked) var tmr = EightBitTimer()
     @exclusivity(unchecked) var timerCycles: UInt64 = 0
+    /// The deadline of the next tick that does more than count, of any timer.
+    @exclusivity(unchecked) var timerEvent: UInt64 = 0
     @exclusivity(unchecked) var timerTemp: UInt8 = 0
     /// The SC-55's step tables, indexed by the clock-select bits.
     static let frtSteps: [UInt64] = [4, 8, 32, 4]
@@ -200,6 +204,7 @@ final class SC55MCU {
         d[Self.p9DDR] = 0; d[Self.p9DR] = 0
         frts.update(repeating: FreeRunningTimer(), count: 3)
         tmr = EightBitTimer()
+        timerEvent = 0
         d[Self.rdr] = 0; d[Self.tdr] = 0xFF; d[Self.smr] = 0x04; d[Self.scr] = 0x0C; d[Self.ssr] = 0x87; d[Self.brr] = 0xFF
         for i in 0 ..< 9 { d[Self.addrAH + i] = 0 }
         d[Self.ipra] = 0; d[Self.iprb] = 0; d[Self.iprc] = 0; d[Self.iprd] = 0
@@ -303,11 +308,15 @@ final class SC55MCU {
 
     private func deviceWrite(_ address: Int, _ data: UInt8) {
         if address >= 0x10, address < 0x40 {
+            catchUpTimers(timerCycles)
             writeFRT(address, data)
+            timerEvent = nextTimerEvent()
             return
         }
         if address >= 0x50, address < 0x55 {
+            catchUpTimers(timerCycles)
             writeTMR(address, data)
+            timerEvent = nextTimerEvent()
             return
         }
         switch address {
@@ -339,8 +348,14 @@ final class SC55MCU {
     }
 
     private func deviceRead(_ address: Int) -> UInt8 {
-        if address >= 0x10, address < 0x40 { return readFRT(address) }
-        if address >= 0x50, address < 0x55 { return readTMR(address) }
+        if address >= 0x10, address < 0x40 {
+            catchUpTimers(timerCycles)
+            return readFRT(address)
+        }
+        if address >= 0x50, address < 0x55 {
+            catchUpTimers(timerCycles)
+            return readTMR(address)
+        }
         switch address {
         case Self.adcsr:
             analogReadFlag = devices[address] & 0x80 != 0
@@ -695,15 +710,92 @@ final class SC55MCU {
     @inline(__always) private func clockTimers() {
         let target = cycles / 2
         timerCycles = target
+        if timerEvent < target { catchUpTimers(target) }
+    }
+
+    /// Makes every tick due before `target`: those that only count all at once, the others one by one.
+    private func catchUpTimers(_ target: UInt64) {
         for n in 0 ..< 3 {
-            while frts[n].deadline < target {
+            let frt = frts + n
+            while frt.pointee.deadline < target {
+                let stride = frt.pointee.stride
+                let due = (target - frt.pointee.deadline + stride - 1) / stride
+                let quiet = UInt64(quietTicks(frt: n))
+                if quiet >= due {
+                    frt.pointee.frc &+= UInt16(truncatingIfNeeded: due)
+                    frt.pointee.deadline &+= due * stride
+                    break
+                }
+                frt.pointee.frc &+= UInt16(truncatingIfNeeded: quiet)
+                frt.pointee.deadline &+= quiet * stride
                 clockFRT(n)
-                frts[n].deadline &+= frts[n].stride
+                frt.pointee.deadline &+= stride
             }
         }
         while tmr.deadline < target {
+            let stride = tmr.stride
+            let due = (target - tmr.deadline + stride - 1) / stride
+            if let period = quietCycleTMR() {
+                tmr.tcnt = UInt8(truncatingIfNeeded: (UInt64(tmr.tcnt) + due) % period)
+                tmr.deadline &+= due * stride
+                break
+            }
+            let quiet = UInt64(quietTicksTMR())
+            if quiet >= due {
+                tmr.tcnt &+= UInt8(truncatingIfNeeded: due)
+                tmr.deadline &+= due * stride
+                break
+            }
+            tmr.tcnt &+= UInt8(truncatingIfNeeded: quiet)
+            tmr.deadline &+= quiet * stride
             clockTMR()
-            tmr.deadline &+= tmr.stride
+            tmr.deadline &+= stride
         }
+        timerEvent = nextTimerEvent()
+    }
+
+    /// How many of a free-running timer's next ticks only count: before the one at which it matches either
+    /// compare register or overflows, or none if a flag it has set is to raise an interrupt not yet raised.
+    @inline(__always) private func quietTicks(frt n: Int) -> UInt16 {
+        let frt = frts[n]
+        let raising = frt.tcr & frt.tcsr
+        if raising & 0x10 != 0, interruptsPending & (1 << UInt32(Interrupt.frt0FOVI + n * 4)) == 0 { return 0 }
+        if raising & 0x20 != 0, interruptsPending & (1 << UInt32(Interrupt.frt0OCIA + n * 4)) == 0 { return 0 }
+        if raising & 0x40 != 0, interruptsPending & (1 << UInt32(Interrupt.frt0OCIB + n * 4)) == 0 { return 0 }
+        return min(frt.ocra &- frt.frc, frt.ocrb &- frt.frc, 0xFFFF &- frt.frc)
+    }
+
+    /// The same for the 8-bit timer.
+    @inline(__always) private func quietTicksTMR() -> UInt8 {
+        let raising = tmr.tcr & tmr.tcsr
+        if raising & 0x20 != 0, interruptsPending & (1 << UInt32(Interrupt.timerOVI)) == 0 { return 0 }
+        if raising & 0x40 != 0, interruptsPending & (1 << UInt32(Interrupt.timerCMIA)) == 0 { return 0 }
+        if raising & 0x80 != 0, interruptsPending & (1 << UInt32(Interrupt.timerCMIB)) == 0 { return 0 }
+        return min(tmr.tcora &- tmr.tcnt, tmr.tcorb &- tmr.tcnt, 0xFF &- tmr.tcnt)
+    }
+
+    /// The length of the 8-bit timer's cycle, if it is counting round from 0 to its first compare register
+    /// and back to 0 and each time round only sets flags that are already set and raises no interrupt that
+    /// is not raised already: then its count is all that changes. (The firmware sets it so, to clear on a
+    /// match every few ticks, its flag long since set.)
+    @inline(__always) private func quietCycleTMR() -> UInt64? {
+        guard tmr.tcr & 0x18 == 0x08, tmr.tcnt <= tmr.tcora, tmr.tcsr & 0x40 != 0,
+              tmr.tcorb > tmr.tcora || tmr.tcsr & 0x80 != 0 else { return nil }
+        let raising = tmr.tcr & tmr.tcsr
+        if raising & 0x20 != 0, interruptsPending & (1 << UInt32(Interrupt.timerOVI)) == 0 { return nil }
+        if raising & 0x40 != 0, interruptsPending & (1 << UInt32(Interrupt.timerCMIA)) == 0 { return nil }
+        if raising & 0x80 != 0, interruptsPending & (1 << UInt32(Interrupt.timerCMIB)) == 0 { return nil }
+        return UInt64(tmr.tcora) + 1
+    }
+
+    /// The deadline of the next tick, of any timer, that does more than count.
+    private func nextTimerEvent() -> UInt64 {
+        var next = UInt64.max
+        for n in 0 ..< 3 {
+            let frt = frts[n]
+            next = min(next, frt.deadline &+ UInt64(quietTicks(frt: n)) * frt.stride)
+        }
+        if tmr.stride != 0, quietCycleTMR() == nil { next = min(next, tmr.deadline &+ UInt64(quietTicksTMR()) * tmr.stride) }
+        return next
     }
 }

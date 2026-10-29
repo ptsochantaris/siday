@@ -70,6 +70,11 @@ final class SC55PCM {
     /// The loudest each part's sound has been since they were last taken.
     let partPeaks: UnsafeMutablePointer<Int32>
 
+    /// For each of the envelopes' five ways of counting, the low bits it adds this round and whether it
+    /// moves this round (1 or 0), from the envelopes' counter (`prepareEnvelopes`).
+    let envelopeAddLow: UnsafeMutablePointer<Int32>
+    let envelopeMoves: UnsafeMutablePointer<Bool>
+
     init(waves waveData: [[UInt8]]) {
         ram1 = .allocate(capacity: 32 * 8)
         ram1.initialize(repeating: 0, count: 32 * 8)
@@ -87,6 +92,10 @@ final class SC55PCM {
         output.initialize(repeating: 0, count: Self.outputCapacity * 2)
         partPeaks = .allocate(capacity: 16)
         partPeaks.initialize(repeating: 0, count: 16)
+        envelopeAddLow = .allocate(capacity: 5)
+        envelopeAddLow.initialize(repeating: 0, count: 5)
+        envelopeMoves = .allocate(capacity: 5)
+        envelopeMoves.initialize(repeating: false, count: 5)
     }
 
     deinit {
@@ -97,6 +106,9 @@ final class SC55PCM {
         output.deallocate()
         partPeaks.deallocate()
         partRounds?.deallocate()
+        envelopeAddLow.deallocate()
+        envelopeMoves.deallocate()
+        envelopeSpeeds.deallocate()
     }
 
     /// The wave ROMs' address and data lines are wired out of order; this puts their bytes back as the chip
@@ -335,60 +347,68 @@ final class SC55PCM {
 
     // MARK: Envelopes
 
-    /// One of a slot's three envelopes (Nuked SC-55's `calc_tv`): `e` 0 and 1 the volume envelopes, which
-    /// give their level; 2 the filter's.
-    @inline(__always) func envelope(_ e: Int, _ adjust: Int, _ levelCurrent: inout UInt16, _ active: Bool) -> Int32 {
-        levelCurrent &= 0x7FFF
-        let speed = adjust & 0xFF
-        let target = Int32((adjust >> 8) & 0xFF)
-        let w1 = speed & 0xF0 == 0
-        let w2 = w1 || speed & 0x10 != 0
-        let w3 = nfs && (speed & 0x80 == 0 || (speed & 0x40 == 0 && (!w2 || speed & 0x20 == 0)))
-        var type = (w2 ? 1 : 0) | (w3 ? 8 : 0)
-        if speed & 0x20 != 0 { type |= 2 }
-        if speed & 0x80 == 0 || speed & 0x40 == 0 { type |= 4 }
+    /// An envelope's speed byte worked out (as `calc_tv` works it out each time): which of the five ways it
+    /// counts, whether it is of the second kind, and its shift and, for the second kind, its step.
+    struct EnvelopeSpeed {
+        var way: Int
+        var second: Bool
+        var shift: Int32
+        var preshift: Int32
+    }
 
-        var write = !active
-        var addLow: Int32 = 0
-        let tv = Int32(tvCounter)
-        if type & 4 != 0 {
-            if tv & 8 != 0 { addLow |= 1 }
-            if tv & 4 != 0 { addLow |= 2 }
-            if tv & 2 != 0 { addLow |= 4 }
-            if tv & 1 != 0 { addLow |= 8 }
-            write = true
-        } else {
-            switch type & 3 {
-            case 0:
-                if tv & 0x20 != 0 { addLow |= 1 }
-                if tv & 0x10 != 0 { addLow |= 2 }
-                if tv & 8 != 0 { addLow |= 4 }
-                if tv & 4 != 0 { addLow |= 8 }
-                write = write || tv & 3 == 0
-            case 1:
-                if tv & 0x80 != 0 { addLow |= 1 }
-                if tv & 0x40 != 0 { addLow |= 2 }
-                if tv & 0x20 != 0 { addLow |= 4 }
-                if tv & 0x10 != 0 { addLow |= 8 }
-                write = write || tv & 15 == 0
-            case 2:
-                if tv & 0x200 != 0 { addLow |= 1 }
-                if tv & 0x100 != 0 { addLow |= 2 }
-                if tv & 0x80 != 0 { addLow |= 4 }
-                if tv & 0x40 != 0 { addLow |= 8 }
-                write = write || tv & 63 == 0
-            default:
-                if tv & 0x800 != 0 { addLow |= 1 }
-                if tv & 0x400 != 0 { addLow |= 2 }
-                if tv & 0x200 != 0 { addLow |= 4 }
-                if tv & 0x100 != 0 { addLow |= 8 }
-                write = write || tv & 127 == 0
+    /// Every speed byte's, without `nfs` and then with it.
+    let envelopeSpeeds = SC55PCM.makeEnvelopeSpeeds()
+
+    private static func makeEnvelopeSpeeds() -> UnsafeMutablePointer<EnvelopeSpeed> {
+        let table = UnsafeMutablePointer<EnvelopeSpeed>.allocate(capacity: 512)
+        for nfs in [false, true] {
+            for speed in 0 ..< 256 {
+                let w1 = speed & 0xF0 == 0
+                let w2 = w1 || speed & 0x10 != 0
+                let w3 = nfs && (speed & 0x80 == 0 || (speed & 0x40 == 0 && (!w2 || speed & 0x20 == 0)))
+                var type = (w2 ? 1 : 0) | (w3 ? 8 : 0)
+                if speed & 0x20 != 0 { type |= 2 }
+                if speed & 0x80 == 0 || speed & 0x40 == 0 { type |= 4 }
+                let second = type & 8 != 0
+                let shift = second ? (10 - (Int32((speed >> 4) & 14) | (w2 ? 1 : 0))) & 15 : Int32((10 - (speed & 15)) & 15)
+                let preshift = Int32(speed & 15) << 9 | (w1 ? 0 : 0x2000)
+                (table + (nfs ? 256 : 0) + speed).initialize(to: EnvelopeSpeed(way: type & 4 != 0 ? 4 : type & 3, second: second, shift: shift, preshift: preshift))
             }
         }
+        return table
+    }
+
+    /// Works out, for the envelopes' counter this round, what each way of counting adds and whether it moves.
+    @inline(__always) func prepareEnvelopes() {
+        let tv = Int32(tvCounter)
+        @inline(__always) func reversed(_ bits: Int32) -> Int32 {
+            (bits & 8) >> 3 | (bits & 4) >> 1 | (bits & 2) << 1 | (bits & 1) << 3
+        }
+        envelopeAddLow[0] = reversed((tv >> 2) & 15)
+        envelopeAddLow[1] = reversed((tv >> 4) & 15)
+        envelopeAddLow[2] = reversed((tv >> 6) & 15)
+        envelopeAddLow[3] = reversed((tv >> 8) & 15)
+        envelopeAddLow[4] = reversed(tv & 15)
+        envelopeMoves[0] = tv & 3 == 0
+        envelopeMoves[1] = tv & 15 == 0
+        envelopeMoves[2] = tv & 63 == 0
+        envelopeMoves[3] = tv & 127 == 0
+        envelopeMoves[4] = true
+    }
+
+    /// One of a slot's three envelopes (Nuked SC-55's `calc_tv`): `e` 0 and 1 the volume envelopes, which
+    /// give their level; 2 the filter's. (Its speed is worked out from `envelopeSpeeds`, and the counter's
+    /// part from what `prepareEnvelopes` has worked out for this round.)
+    @inline(__always) func envelope(_ e: Int, _ adjust: Int, _ levelCurrent: inout UInt16, _ active: Bool) -> Int32 {
+        levelCurrent &= 0x7FFF
+        let speed = envelopeSpeeds[(nfs ? 256 : 0) + (adjust & 0xFF)]
+        let target = Int32((adjust >> 8) & 0xFF)
+        let write = !active || envelopeMoves[speed.way]
+        let addLow = envelopeAddLow[speed.way]
 
         let level = Int32(levelCurrent)
-        if type & 8 == 0 {
-            let shift = Int32((10 - (speed & 15)) & 15)
+        if !speed.second {
+            let shift = speed.shift
             var sum1 = target &<< 11
             if e != 2 || active { sum1 &-= level &<< 4 }
             var shifted = sum1 >> shift
@@ -397,14 +417,11 @@ final class SC55PCM {
             if write, nfs { levelCurrent = UInt16((sum2 >> 4) & 0x7FFF) }
             return (sum2 >> 4) & 0x7FFE
         } else {
-            var shift = Int32((speed >> 4) & 14)
-            shift |= w2 ? 1 : 0
-            shift = (10 - shift) & 15
+            let shift = speed.shift
             var sum1 = target &<< 11
             if e != 2 || active { sum1 &-= level &<< 4 }
             let negative = sum1 & 0x80000 != 0
-            var preshift = Int32(speed & 15) &<< 9
-            if !w1 { preshift |= 0x2000 }
+            var preshift = speed.preshift
             if negative { preshift ^= ~0x3F }
             var sum2 = preshift >> shift
             if e != 2 || active { sum2 &+= (level &<< 4) | addLow }

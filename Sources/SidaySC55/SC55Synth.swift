@@ -66,13 +66,12 @@ public final class SC55Synth {
         let pcm = pcm, mcu = mcu
         while done < frames {
             pcm.outputCount = 0
-            while pcm.outputCount == 0 {
-                while scheduledNext < scheduled.count, scheduled[scheduledNext].frame <= framesMade + pcm.outputCount {
-                    mcu.post(scheduled[scheduledNext].byte)
-                    scheduledNext += 1
-                }
-                mcu.step()
+            // (The bytes due are the same until the chip next gives frames, so are posted before the steps.)
+            while scheduledNext < scheduled.count, scheduled[scheduledNext].frame <= framesMade {
+                mcu.post(scheduled[scheduledNext].byte)
+                scheduledNext += 1
             }
+            while pcm.outputCount == 0 { mcu.step() }
             for i in 0 ..< pcm.outputCount {
                 if done < frames {
                     buffer[done * 2] = pcm.output[i * 2]

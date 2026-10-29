@@ -77,6 +77,7 @@ extension SC55PCM {
         // The global counter for the envelopes.
         if !nfs { tvCounter = ram2[31 * 16 + 8] }
         tvCounter = (tvCounter &- 1) & 0x3FFF
+        prepareEnvelopes()
 
         // Chorus and reverb.
         do {
@@ -305,6 +306,9 @@ extension SC55PCM {
         ram1[31 * 8 + 3] = 0
         rcsum0 = 0
         rcsum1 = 0
+        // (As constants, so that `mix` reads them without the checks a captured variable is given.)
+        let returns = (rcadd0, rcadd1, rcadd2, rcadd3, rcadd4, rcadd5)
+        let returnsB = (rcaddB0, rcaddB1, rcaddB2, rcaddB3, rcaddB4, rcaddB5)
 
         let lastSlot = slots - 1
         let partTable = partTable
@@ -314,12 +318,68 @@ extension SC55PCM {
             partRound!.update(repeating: 0, count: 16)
             partRoundCount += 1
         }
+
+        /// A slot's sound and sends into the mix, and the effects' returns at the slots that follow theirs.
+        @inline(__always) func mix(_ slot: Int, _ sampleL: Int32, _ sampleR: Int32, _ rc0: Int32, _ rc1: Int32) {
+            let slot2 = slot == lastSlot ? 31 : slot + 1
+            switch slot2 {
+            case 17: setR1(31, 1, S.addclip20(r1(31, 1), returns.0 >> 1, returns.0 & 1))
+            case 18: setR1(31, 3, S.addclip20(r1(31, 3), returns.1 >> 1, returns.1 & 1))
+            case 21: setR1(31, 1, S.addclip20(r1(31, 1), returns.2 >> 1, returns.2 & 1))
+            case 22: setR1(31, 3, S.addclip20(r1(31, 3), returns.3 >> 1, returns.3 & 1))
+            case 23: setR1(31, 1, S.addclip20(r1(31, 1), returns.4 >> 1, returns.4 & 1))
+            case 31: setR1(31, 3, S.addclip20(r1(31, 3), returns.5 >> 1, returns.5 & 1))
+            default: break
+            }
+
+            let sumL = S.addclip20(r1(31, 1), sampleL >> 6, (sampleL >> 5) & 1)
+            let sumR = S.addclip20(r1(31, 3), sampleR >> 6, (sampleR >> 5) & 1)
+
+            switch slot2 {
+            case 17: rcsum1 = S.addclip20(rcsum1, returnsB.0 >> 1, returnsB.0 & 1)
+            case 18: rcsum1 = S.addclip20(rcsum1, returnsB.1 >> 1, returnsB.1 & 1)
+            case 21: rcsum0 = S.addclip20(rcsum0, returnsB.2 >> 1, returnsB.2 & 1)
+            case 22: rcsum1 = S.addclip20(rcsum1, returnsB.3 >> 1, returnsB.3 & 1)
+            case 23: rcsum0 = S.addclip20(rcsum0, returnsB.4 >> 1, returnsB.4 & 1)
+            case 31: rcsum1 = S.addclip20(rcsum1, returnsB.5 >> 1, returnsB.5 & 1)
+            default: break
+            }
+
+            rcsum0 = S.addclip20(rcsum0, rc0 >> 1, rc0 & 1)
+            rcsum1 = S.addclip20(rcsum1, rc1 >> 1, rc1 & 1)
+
+            if slot != lastSlot {
+                setR1(31, 1, sumL)
+                setR1(31, 3, sumR)
+            } else {
+                accumL = sumL
+                accumR = sumR
+            }
+        }
+
         for slot in 0 ..< slots {
             let base1 = slot &* 8, base2 = slot &* 16
             let okey = ram2[base2 + 7] & 0x20 != 0
             let key = (voiceActive >> UInt32(slot)) & 1 != 0
             let active = okey && key
             let kon = key && !okey
+
+            if !key, nfs, slot < 28 {
+                // A slot not keyed on is not active, and its pan and sends are taken as nothing: it adds
+                // nothing to the mix, and all it works out but its filter's envelope is cleared at the end
+                // of its turn, as below. So that is all that is done.
+                var level11 = ram2[base2 + 11]
+                _ = envelope(2, Int(ram2[base2 + 5]), &level11, false)
+                ram2[base2 + 11] = level11
+                mix(slot, 0, 0, 0, 0)
+                ram1[base1 + 1] = 0
+                ram1[base1 + 3] = 0
+                ram1[base1 + 5] = 0
+                ram2[base2 + 8] = 0
+                ram2[base2 + 9] = 0
+                ram2[base2 + 10] = 0
+                continue
+            }
 
             // The address generator.
             var b15 = ram2[base2 + 8] & 0x8000 != 0
@@ -377,17 +437,7 @@ extension SC55PCM {
             var useNew = false
             var nextB15 = b15
 
-            @inline(__always) func advance() {
-                let c1 = !b6 && addressCmp ? addressLoop : addressCount
-                var count2 = kon || (!b6 && addressCmp) ? c1 : addressCount
-                let add = (!addressCmp && b6 && !b15) || (!addressCmp && !b6)
-                let sub = !addressCmp && b6 && b15
-                let delta = Int32(add ? 1 : 0) &- Int32(sub ? 1 : 0)
-                count2 = b7 ? count2 &- delta : count2 &+ delta
-                addressCount = count2 & 0xFFFFF
-            }
-
-            advance() // 11
+            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 11
             b15 = b6 && (b15 != addressCmp)
             let samp1 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
             let nibbleCmp3 = address & 0xFFFF0 == addressCount & 0xFFFF0
@@ -399,7 +449,7 @@ extension SC55PCM {
                 nextB15 = b15
             }
 
-            advance() // 15
+            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 15
             b15 = b6 && (b15 != addressCmp)
             let samp2 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
             let nibbleCmp4 = address & 0xFFFF0 == addressCount & 0xFFFF0
@@ -411,7 +461,7 @@ extension SC55PCM {
                 nextB15 = b15
             }
 
-            advance() // 19
+            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 19
             b15 = b6 && (b15 != addressCmp)
             let samp3 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
             let nibbleCmp5 = address & 0xFFFF0 == addressCount & 0xFFFF0
@@ -423,7 +473,7 @@ extension SC55PCM {
                 nextB15 = b15
             }
 
-            advance() // 23
+            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 23
             let nibbleCmp6 = address & 0xFFFF0 == addressCount & 0xFFFF0
             if subPhaseOverflow >= 4 {
                 nextAddress = addressCount
@@ -531,41 +581,7 @@ extension SC55PCM {
             let rc0 = S.multi(sample3, S.high(rc)) >> 5 // reverb
             let rc1 = S.multi(sample3, S.low(rc)) >> 5 // chorus
 
-            // The effects' returns, mixed in at the slots that follow theirs.
-            let slot2 = slot == lastSlot ? 31 : slot + 1
-            switch slot2 {
-            case 17: setR1(31, 1, S.addclip20(r1(31, 1), rcadd0 >> 1, rcadd0 & 1))
-            case 18: setR1(31, 3, S.addclip20(r1(31, 3), rcadd1 >> 1, rcadd1 & 1))
-            case 21: setR1(31, 1, S.addclip20(r1(31, 1), rcadd2 >> 1, rcadd2 & 1))
-            case 22: setR1(31, 3, S.addclip20(r1(31, 3), rcadd3 >> 1, rcadd3 & 1))
-            case 23: setR1(31, 1, S.addclip20(r1(31, 1), rcadd4 >> 1, rcadd4 & 1))
-            case 31: setR1(31, 3, S.addclip20(r1(31, 3), rcadd5 >> 1, rcadd5 & 1))
-            default: break
-            }
-
-            let sumL = S.addclip20(r1(31, 1), sampleL >> 6, (sampleL >> 5) & 1)
-            let sumR = S.addclip20(r1(31, 3), sampleR >> 6, (sampleR >> 5) & 1)
-
-            switch slot2 {
-            case 17: rcsum1 = S.addclip20(rcsum1, rcaddB0 >> 1, rcaddB0 & 1)
-            case 18: rcsum1 = S.addclip20(rcsum1, rcaddB1 >> 1, rcaddB1 & 1)
-            case 21: rcsum0 = S.addclip20(rcsum0, rcaddB2 >> 1, rcaddB2 & 1)
-            case 22: rcsum1 = S.addclip20(rcsum1, rcaddB3 >> 1, rcaddB3 & 1)
-            case 23: rcsum0 = S.addclip20(rcsum0, rcaddB4 >> 1, rcaddB4 & 1)
-            case 31: rcsum1 = S.addclip20(rcsum1, rcaddB5 >> 1, rcaddB5 & 1)
-            default: break
-            }
-
-            rcsum0 = S.addclip20(rcsum0, rc0 >> 1, rc0 & 1)
-            rcsum1 = S.addclip20(rcsum1, rc1 >> 1, rc1 & 1)
-
-            if slot != lastSlot {
-                setR1(31, 1, sumL)
-                setR1(31, 3, sumR)
-            } else {
-                accumL = sumL
-                accumR = sumR
-            }
+            mix(slot, sampleL, sampleR, rc0, rc1)
 
             if key, nfs {
                 ram2[base2 + 7] &= ~0xF020
@@ -587,6 +603,17 @@ extension SC55PCM {
 
         if nfs { ram2[31 * 16 + 7] |= 0x20 }
         nfs = true
+    }
+
+    /// A slot's address, a sample on (or back), or to its loop from its end (Nuked SC-55's address generator).
+    @inline(__always) private static func advance(_ address: Int32, compared: Bool, b6: Bool, b7: Bool, b15: Bool, kon: Bool, loop: Int32) -> Int32 {
+        let c1 = !b6 && compared ? loop : address
+        var count2 = kon || (!b6 && compared) ? c1 : address
+        let add = (!compared && b6 && !b15) || (!compared && !b6)
+        let sub = !compared && b6 && b15
+        let delta = Int32(add ? 1 : 0) &- Int32(sub ? 1 : 0)
+        count2 = b7 ? count2 &- delta : count2 &+ delta
+        return count2 & 0xFFFFF
     }
 
     /// The address generator of slot 31, which runs the effects' delay lines.
