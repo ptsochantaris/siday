@@ -9,8 +9,9 @@ import SidayFoundation
 /// Ernst Chladni showed in 1787 by drawing a bow along a plate's edge. Here each voice that has a pitch
 /// rings the plate in a pattern of its own, a simple one of a few lines for a low note and a busier one
 /// for a higher; only the two loudest ring it, the loudest the more, so that a tune of many voices
-/// still draws a figure clear enough to see. The plate holds a figure while the music does: it takes up
-/// a new one only once the notes have asked for it for a moment, and then at once, so that the sand on
+/// still draws a figure clear enough to see. The plate holds a figure for a few seconds at least, long
+/// enough for the sand to settle on it, and then for as long as the notes keep to it; once they have
+/// asked for another for a moment, it takes up the one they then ask for, at once, so that the sand on
 /// the old lines is shaken loose and gathers quickly on the new ones, and is not kept wavering between
 /// the two. How loud the music is only shakes the sand harder; a note struck shakes it harder still.
 /// When the music stops, the sand stays where it lies.
@@ -44,12 +45,13 @@ final class ChladniPlate: VisualScene {
 
     /// How the plate shakes, as the figure it holds would have it, and as it does, passing to that.
     private var wanted = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
-    /// The figure the plate holds, and the one the notes now ask for and since when: each as the
-    /// patterns of the loudest voice and the next (-1 for none).
-    private var held = (-1, -1), asked = (-1, -1)
-    private var askedSince: Float = 0
-    /// How long the notes must ask for a new figure before the plate takes it up, in seconds.
-    private static let holding: Float = 0.7
+    /// The figure the plate holds, as the patterns of the loudest voice and the next (-1 for none),
+    /// since when it has held it, and since when the notes have asked for another, if they have.
+    private var held = (-1, -1)
+    private var heldSince: Float = 0, otherSince: Float?
+    /// How long the plate holds a figure at least, and how long the notes must ask for another after
+    /// that before it takes one up, in seconds.
+    private static let lasting: Float = 2, asking: Float = 0.5
     private var shaking = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
     private var grainX: [Float] = [], grainY: [Float] = []
     private var light: [Float] = []
@@ -121,14 +123,23 @@ final class ChladniPlate: VisualScene {
         // (Nothing heard asks for nothing: the plate keeps the figure it has.)
         var now = (pattern(of: loudest.0), pattern(of: loudest.1))
         if now.1 == now.0 { now.1 = -1 }
-        if now.0 >= 0, now != asked {
-            asked = now
-            askedSince = frame.time
+        guard now.0 >= 0 else { return passToFigure(frame) }
+        if now == held {
+            otherSince = nil
+        } else if otherSince == nil {
+            otherSince = frame.time
         }
-        if asked.0 >= 0, asked != held, frame.time - askedSince >= Self.holding || held.0 < 0 {
-            held = asked
+        if let since = otherSince, held.0 < 0 || (frame.time - heldSince >= Self.lasting && frame.time - since >= Self.asking) {
+            held = now
+            heldSince = frame.time
+            otherSince = nil
             shape(held)
         }
+        passToFigure(frame)
+    }
+
+    /// How the plate shakes passes quickly to how the figure it holds would have it.
+    private func passToFigure(_ frame: VisualFrame) {
         let passing = 1 - expf(-frame.elapsed / 0.15)
         for index in shaking.indices { shaking[index] += (wanted[index] - shaking[index]) * passing }
     }
