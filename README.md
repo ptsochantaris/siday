@@ -276,8 +276,9 @@ SID tune stays mono with these; a module has a stereo image of its own, which th
 is still quieter than a loud one, but not by as much. Each song is measured by playing it through,
 silently, alongside the song you are hearing, and the next song is measured while that one plays. A
 song not yet measured waits up to a second to be measured before it starts. If that isn't enough,
-it starts at about its level, judged from what has been measured so far, and glides to its level over
-a second once the whole song has been measured. No song is turned up by more than 6 dB. Levels are
+it starts at about its level, judged from what has been measured so far. It then glides to a new
+judgement with each second more that is measured, and to its level once the whole song has been
+measured. No song is turned up by more than 6 dB. Levels are
 kept in `~/Library/Caches/siday/levels.txt`. With `--list`, it says how far each tune would be turned
 up or down.
 

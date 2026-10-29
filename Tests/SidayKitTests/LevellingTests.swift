@@ -156,3 +156,37 @@ private final class Tone: Renderer {
     #expect(measurement.provisional == measurement.level)
     #expect(try #require(measurement.level?.loudness) < early - 1)
 }
+
+@Test func aSongHeardBeforeItIsMeasuredWholeComesToItsLevelBySteps() throws {
+    // Quiet (volume 8) for the first half of its pattern, then loud (64).
+    var file = squareModule()
+    file[1084 + 2] = 0x1C
+    file[1084 + 3] = 0x08
+    file[1084 + 32 * 16 + 2] = 0x0C
+    file[1084 + 32 * 16 + 3] = 0x40
+    let player = TunePlayer()
+    var values = Setting.standards
+    values[Setting.levelling.rawValue] = 1
+    _ = player.setSettings(values)
+    #expect(player.load(file, name: "steps.mod"))
+    // (Room for the most pulled or presented at once: three seconds.)
+    let buffer = UnsafeMutablePointer<Float>.allocate(capacity: outputSampleRate * 3 * 2)
+    defer { buffer.deallocate() }
+    func pull(_ seconds: Double) { _ = player.pull(into: buffer, frames: Int(seconds * Double(outputSampleRate))) }
+    // What a sample of one comes out as, a while on: the gain then.
+    func gain(after seconds: Double) -> Float {
+        let count = Int(seconds * Double(outputSampleRate))
+        buffer.update(repeating: 1, count: count * 2)
+        player.present(buffer, frames: count)
+        return buffer[count * 2 - 1]
+    }
+    // It starts at about the level of its quiet half, turned up.
+    pull(3)
+    player.startAtProvisionalLevel()
+    let started = gain(after: 0.05)
+    #expect(started > 1.5)
+    // Once its loud half has been measured too, though not yet the whole of it, it is turned down.
+    pull(3)
+    #expect(player.waitsForLevel)
+    #expect(gain(after: 1.5) < started * 0.7)
+}

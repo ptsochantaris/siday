@@ -214,6 +214,8 @@ final class Engine: @unchecked Sendable {
                 // then glides there.
                 var gain = LevelGain()
                 var levelled = levels == nil
+                /// The level of the song by as much of it as had been measured, that it was last brought to.
+                var estimate: SongLevel?
                 if let levels {
                     var wanted = [Levels.Song(url: url, number: subsong)]
                     if policy.allSubsongs, subsong + 1 < renderer.subsongCount {
@@ -224,7 +226,8 @@ final class Engine: @unchecked Sendable {
                     levels.want(wanted)
                     // A song not measured before is given up to a second to be measured now; if
                     // that is not enough, it starts at about its level, by as much of it as has
-                    // been measured, and glides to its level once the whole of it has been.
+                    // been measured, glides to about its level again with each second more of it
+                    // measured, and to its level once the whole of it has been.
                     let until = Date().addingTimeInterval(1)
                     while levels.level(of: url, song: subsong) == nil, Date() < until { usleep(10000) }
                     if let level = levels.level(of: url, song: subsong) {
@@ -233,6 +236,7 @@ final class Engine: @unchecked Sendable {
                         nowPlaying.withLock { $0.levelChange = level.change(levelling) }
                     } else if let partly = levels.provisionalLevel(of: url, song: subsong) {
                         gain = LevelGain(partly.gain(levelling))
+                        estimate = partly
                     }
                 }
 
@@ -290,6 +294,9 @@ final class Engine: @unchecked Sendable {
                         gain.glide(to: level.gain(levelling))
                         levelled = true
                         nowPlaying.withLock { $0.levelChange = level.change(levelling) }
+                    } else if !levelled, let partly = levels?.provisionalLevel(of: url, song: subsong), partly != estimate {
+                        gain.glide(to: partly.gain(levelling))
+                        estimate = partly
                     }
                     gain.apply(buffer, frames: produced)
                     television?.process(buffer, frames: produced)

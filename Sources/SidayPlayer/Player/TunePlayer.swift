@@ -103,6 +103,9 @@ public final class TunePlayer {
     /// The gain on what is heard, and how much of the song has been heard since it started.
     private var gain = LevelGain()
     private var presented = 0
+    /// While a song is heard at about its level, by what had been measured of it, before the whole of it
+    /// has been: how much of it had been measured when that was last worked out (see `pull`). Nil otherwise.
+    private var estimatedAt: Int?
 
     /// The files the next tune to be loaded needs beside its own, as `TuneLoader.load` takes them: one
     /// for each it names, nil for one that was not found. Given before each load (`siday_companion`).
@@ -248,8 +251,10 @@ public final class TunePlayer {
             levelFound = false
             gain = LevelGain()
             presented = 0
+            estimatedAt = nil
         }
         meter = following || level != nil ? nil : LoudnessMeter()
+        if estimatedAt != nil { estimatedAt = 0 }
         lights = [UInt8](repeating: 0, count: renderer.channelCount)
         pitches = lights
         struck = lights
@@ -388,6 +393,12 @@ public final class TunePlayer {
                     if session.finished, let meter {
                         setLevel(SongLevel(loudness: meter.loudness, truePeak: meter.truePeak))
                         levelFound = true
+                    } else if let at = estimatedAt, let meter, meter.frames >= max(at + outputSampleRate, 2 * outputSampleRate) {
+                        // A song heard before it has been measured whole is brought to about its level again
+                        // with each second more of it measured, by all that has been, so that it comes to its
+                        // level by steps, and not all at once when the last of it has been measured.
+                        gain.glide(to: SongLevel(loudness: meter.loudness, truePeak: meter.truePeak).gain(levelling))
+                        estimatedAt = meter.frames
                     }
                 }
                 for voice in 0 ..< min(lights.count, session.channelLevels.count) {
@@ -421,6 +432,7 @@ public final class TunePlayer {
     public func setLevel(_ level: SongLevel) {
         self.level = level
         meter = nil
+        estimatedAt = nil
         if presented < outputSampleRate / 10 {
             gain = LevelGain(level.gain(levelling))
         } else {
@@ -433,11 +445,15 @@ public final class TunePlayer {
     public var waitsForLevel: Bool { levelling != .off && level == nil }
 
     /// Starts the song at about its level, by what has been measured of it so far, when it cannot
-    /// wait any longer to be measured whole: at once, if hardly any of it has been heard. Once it
-    /// has been measured whole it glides from there to its level.
+    /// wait any longer to be measured whole: at once, if hardly any of it has been heard. It then
+    /// glides to about its level again with each second more of it measured (see `pull`), and to its
+    /// level once it has been measured whole.
     public func startAtProvisionalLevel() {
-        guard waitsForLevel, presented < outputSampleRate / 10, let meter, meter.frames >= 2 * outputSampleRate else { return }
+        guard waitsForLevel, let meter else { return }
+        estimatedAt = 0
+        guard presented < outputSampleRate / 10, meter.frames >= 2 * outputSampleRate else { return }
         gain = LevelGain(SongLevel(loudness: meter.loudness, truePeak: meter.truePeak).gain(levelling))
+        estimatedAt = meter.frames
     }
 
     public var levelChange: Double {
