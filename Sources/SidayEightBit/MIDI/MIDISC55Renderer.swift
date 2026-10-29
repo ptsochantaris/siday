@@ -333,11 +333,17 @@ final class MIDISC55Renderer: Renderer {
             while inputStart + inputCount <= base + taps { renderBlock() }
             let rowWeights = weights + row * width
             let from = base - taps + 1 - inputStart
-            let first = max(0, -from)
             var left: Float = 0, right: Float = 0
-            for k in first ..< width {
-                left += inputLeft[from + k] * rowWeights[k]
-                right += inputRight[from + k] * rowWeights[k]
+            if from >= 0 {
+                left = Resampler.sum(inputLeft + from, rowWeights, width)
+                right = Resampler.sum(inputRight + from, rowWeights, width)
+            } else {
+                var k = -from
+                while k < width {
+                    left += inputLeft[from + k] * rowWeights[k]
+                    right += inputRight[from + k] * rowWeights[k]
+                    k += 1
+                }
             }
             if let endFrame {
                 let remaining = endFrame - framesMade

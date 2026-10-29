@@ -223,13 +223,13 @@ public final class RecordingRenderer<Source: RecordingSource>: Renderer {
             for i in 0 ..< count {
                 let samples = first + position
                 if exact {
-                    output[i] = Self.sum(samples, weights + phase * width, width)
+                    output[i] = Resampler.sum(samples, weights + phase * width, width)
                 } else {
                     // Between the two rows it lies between.
                     let place = Double(phase) * rows / Double(places)
                     let row = Int(place)
-                    let a = Self.sum(samples, weights + row * width, width)
-                    let b = Self.sum(samples, weights + (row + 1) * width, width)
+                    let a = Resampler.sum(samples, weights + row * width, width)
+                    let b = Resampler.sum(samples, weights + (row + 1) * width, width)
                     output[i] = a + (b - a) * Float(place - Double(row))
                 }
                 phase += step
@@ -237,18 +237,6 @@ public final class RecordingRenderer<Source: RecordingSource>: Renderer {
                 phase %= places
             }
         }
-    }
-
-    /// The weighted sum of `count` samples, eight at a time.
-    @inline(__always) private static func sum(_ samples: UnsafePointer<Float>, _ weights: UnsafePointer<Float>, _ count: Int) -> Float {
-        var total = SIMD8<Float>()
-        var k = 0
-        while k < count {
-            total += UnsafeRawPointer(samples + k).loadUnaligned(as: SIMD8<Float>.self)
-                * UnsafeRawPointer(weights + k).loadUnaligned(as: SIMD8<Float>.self)
-            k += 8
-        }
-        return total.sum()
     }
 
     // MARK: Voices

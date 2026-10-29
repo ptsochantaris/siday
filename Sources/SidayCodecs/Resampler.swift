@@ -81,6 +81,18 @@ package struct Resampler {
         self.weights = weights
     }
 
+    /// The weighted sum of `count` samples (a multiple of eight), eight at a time.
+    @inlinable @inline(__always) package static func sum(_ samples: UnsafePointer<Float>, _ weights: UnsafePointer<Float>, _ count: Int) -> Float {
+        var total = SIMD8<Float>()
+        var k = 0
+        while k < count {
+            total += UnsafeRawPointer(samples + k).loadUnaligned(as: SIMD8<Float>.self)
+                * UnsafeRawPointer(weights + k).loadUnaligned(as: SIMD8<Float>.self)
+            k += 8
+        }
+        return total.sum()
+    }
+
     /// The modified Bessel function of the first kind and order nought, which the Kaiser window is made of.
     private static func besselI0(_ x: Double) -> Double {
         var sum = 1.0, term = 1.0
