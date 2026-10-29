@@ -14,15 +14,18 @@ import SidayFoundation
 /// heard draws a unison.
 ///
 /// The pendulums swing the wider the louder the voices, and a note struck gives them a push; as the
-/// music thins, they die away and the pen spirals in. The ink is the colour of the two voices, and
-/// fades as it dries, so what is seen is the last few seconds of the drawing.
+/// music thins, they die away and the pen spirals in. The ink is the colour of the two voices; it
+/// comes up gently where the pen has just been and fades as it dries, so what is seen is the last few
+/// seconds of the drawing, with no bright point at its moving end to catch the eye.
 final class Harmonograph: VisualScene {
     /// Colours from most of the wheel, one for each voice.
     let look = VisualLook(hue: 0.08, spread: 0.6)
     /// Going round the wheel once in five minutes, as the lava lamp's do.
     let drift: Float = 1.0 / 300
 
-    private var ink: [Float] = []
+    /// The ink, and as much again that is wet: what is seen is the one less the other, so that ink
+    /// just put down is not seen at once but comes up as the wet part fades, and then dries away.
+    private var ink: [Float] = [], wet: [Float] = []
     private var width = 0, height = 0
     /// How loud each voice is, followed more slowly than the other pictures follow it, and the kick
     /// each last had, to tell when a new note is struck.
@@ -43,8 +46,8 @@ final class Harmonograph: VisualScene {
     /// The across pendulum's swings a second, and how far the up-and-down one drifts out of step with
     /// it, in turns a second.
     private static let pace: Float = 2, outOfStep: Float = 1.0 / 40
-    /// Seconds for the ink to fade to about a third.
-    private static let dries: Float = 4
+    /// Seconds for the ink to fade to about a third, and for the wet part of it.
+    private static let dries: Float = 4, wets: Float = 0.5
 
     func paint(_ frame: VisualFrame) {
         let width = frame.width, height = frame.height
@@ -52,6 +55,7 @@ final class Harmonograph: VisualScene {
             self.width = width
             self.height = height
             ink = [Float](repeating: 0, count: width * height * 3)
+            wet = ink
         }
         let count = frame.voices.count
         if calm.count != count {
@@ -97,10 +101,15 @@ final class Harmonograph: VisualScene {
         colour.1 += (wantedColour.1 - colour.1) * eased(1)
         colour.2 += (wantedColour.2 - colour.2) * eased(1)
 
-        let fade = expf(-frame.elapsed / Self.dries)
+        let fade = expf(-frame.elapsed / Self.dries), drying = expf(-frame.elapsed / Self.wets)
         ink.withUnsafeMutableBufferPointer { ink in
-            for index in ink.indices { ink[index] *= fade }
-            draw(into: ink, frame)
+            wet.withUnsafeMutableBufferPointer { wet in
+                for index in ink.indices {
+                    ink[index] *= fade
+                    wet[index] *= drying
+                }
+                draw(into: ink, wet, frame)
+            }
         }
 
         // The paper: nearly black, and the ink on it, which adds up where the pen goes over a line
@@ -108,9 +117,10 @@ final class Harmonograph: VisualScene {
         var pixel = frame.pixels
         var at = 0
         for _ in 0 ..< width * height {
-            pixel[0] = UInt8(max(0, min(255, (0.03 + 0.97 * (1 - expf(-ink[at] * 1.4))) * 255)))
-            pixel[1] = UInt8(max(0, min(255, (0.03 + 0.97 * (1 - expf(-ink[at + 1] * 1.4))) * 255)))
-            pixel[2] = UInt8(max(0, min(255, (0.035 + 0.965 * (1 - expf(-ink[at + 2] * 1.4))) * 255)))
+            let red = ink[at] - wet[at], green = ink[at + 1] - wet[at + 1], blue = ink[at + 2] - wet[at + 2]
+            pixel[0] = UInt8(max(0, min(255, (0.03 + 0.97 * (1 - expf(-red * 1.4))) * 255)))
+            pixel[1] = UInt8(max(0, min(255, (0.03 + 0.97 * (1 - expf(-green * 1.4))) * 255)))
+            pixel[2] = UInt8(max(0, min(255, (0.035 + 0.965 * (1 - expf(-blue * 1.4))) * 255)))
             pixel[3] = 255
             pixel += 4
             at += 3
@@ -137,8 +147,8 @@ final class Harmonograph: VisualScene {
 
     /// Moves the pen on, by this frame's time, drawing as it goes: in steps short enough that the line
     /// is unbroken, each leaving as much ink as the next.
-    private func draw(into ink: UnsafeMutableBufferPointer<Float>, _ frame: VisualFrame) {
-        guard swing > 0.005, let ink = ink.baseAddress else {
+    private func draw(into ink: UnsafeMutableBufferPointer<Float>, _ wet: UnsafeMutableBufferPointer<Float>, _ frame: VisualFrame) {
+        guard swing > 0.005, let ink = ink.baseAddress, let wet = wet.baseAddress else {
             acrossPhase += frame.elapsed * Self.pace
             upDownPhase += frame.elapsed * (Self.pace * ratio + Self.outOfStep)
             return
@@ -151,27 +161,34 @@ final class Harmonograph: VisualScene {
         let speed = 2 * Float.pi * Self.pace * max(1, ratio) * max(reachAcross, reachUpDown)
         let steps = max(1, min(4000, Int(speed * frame.elapsed * 2)))
         let step = frame.elapsed / Float(steps)
-        let strength = 0.3 * (0.4 + 0.6 * swing)
+        // (A little more than if it were all seen at once, for the part of it that is not.)
+        let strength = 0.34 * (0.4 + 0.6 * swing)
         for _ in 0 ..< steps {
             acrossPhase += step * Self.pace
             upDownPhase += step * (Self.pace * ratio + Self.outOfStep)
             let x = reachAcross * sinf(acrossPhase * 2 * .pi), y = reachUpDown * sinf(upDownPhase * 2 * .pi)
-            dab(ink, x: centreX + x * cosTurn - y * sinTurn, y: centreY + x * sinTurn + y * cosTurn, strength)
+            dab(ink, wet, x: centreX + x * cosTurn - y * sinTurn, y: centreY + x * sinTurn + y * cosTurn, strength)
         }
         acrossPhase -= acrossPhase.rounded(.down)
         upDownPhase -= upDownPhase.rounded(.down)
     }
 
     /// Ink on the paper at a place between dots, shared among the four dots round it.
-    private func dab(_ ink: UnsafeMutablePointer<Float>, x: Float, y: Float, _ strength: Float) {
+    private func dab(_ ink: UnsafeMutablePointer<Float>, _ wet: UnsafeMutablePointer<Float>, x: Float, y: Float, _ strength: Float) {
         let left = Int(x.rounded(.down)), top = Int(y.rounded(.down))
         guard left >= 0, top >= 0, left + 1 < width, top + 1 < height else { return }
         let right = x - Float(left), down = y - Float(top)
-        let at = ink + (top * width + left) * 3, below = at + width * 3
-        put(at, (1 - right) * (1 - down) * strength)
-        put(at + 3, right * (1 - down) * strength)
-        put(below, (1 - right) * down * strength)
-        put(below + 3, right * down * strength)
+        let at = (top * width + left) * 3, below = at + width * 3
+        let topLeft = (1 - right) * (1 - down) * strength, topRight = right * (1 - down) * strength
+        let bottomLeft = (1 - right) * down * strength, bottomRight = right * down * strength
+        put(ink + at, topLeft)
+        put(wet + at, topLeft)
+        put(ink + at + 3, topRight)
+        put(wet + at + 3, topRight)
+        put(ink + below, bottomLeft)
+        put(wet + below, bottomLeft)
+        put(ink + below + 3, bottomRight)
+        put(wet + below + 3, bottomRight)
     }
 
     private func put(_ at: UnsafeMutablePointer<Float>, _ share: Float) {
