@@ -42,9 +42,9 @@ final class Harmonograph: VisualScene {
 
     /// The across pendulum's swings a second, and how far the up-and-down one drifts out of step with
     /// it, in turns a second.
-    private static let pace: Float = 1.1, outOfStep: Float = 1.0 / 40
+    private static let pace: Float = 2, outOfStep: Float = 1.0 / 40
     /// Seconds for the ink to fade to about a third.
-    private static let dries: Float = 5
+    private static let dries: Float = 4
 
     func paint(_ frame: VisualFrame) {
         let width = frame.width, height = frame.height
