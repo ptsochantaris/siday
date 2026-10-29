@@ -427,57 +427,79 @@ extension SC55PCM {
                 ram2[base2 + 8] |= UInt16(subPhase & 0x3FFF)
             }
 
-            // Address 0.
-            var addressCount = address
-            let samp0 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
-            cmp1 = b15 ? addressLoop : addressEnd
-            var addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
-            var nextAddress = addressCount
-            // (Whether the first sample's address is in another 16 than the slot's: it is the same address.)
-            var useNew = false
-            var nextB15 = b15
-
-            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 11
-            b15 = b6 && (b15 != addressCmp)
-            let samp1 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
-            let nibbleCmp3 = address & 0xFFFF0 == addressCount & 0xFFFF0
-            cmp1 = b15 ? addressLoop : addressEnd
-            addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
-            if subPhaseOverflow >= 1 {
+            // The four samples from the slot's address on, and where it goes next: the address generator
+            // stepped four times (Nuked SC-55's steps 11 to 23).
+            let samp0, samp1, samp2, samp3: Int32
+            let nibbleCmp3, nibbleCmp4, nibbleCmp5: Bool
+            var nextAddress: Int32, useNew: Bool, nextB15: Bool
+            let endOffset = (addressEnd &- address) & 0xFFFFF
+            if !b6, !b7, !b15, !kon, address <= 0xFFFFB, endOffset > 3 {
+                // Forwards, its end not among the four: each step is a sample on, and no comparison holds.
+                let at = UInt32(bitPattern: hiaddr << 20 | address)
+                samp0 = Int32(Int8(bitPattern: readROM(at)))
+                samp1 = Int32(Int8(bitPattern: readROM(at &+ 1)))
+                samp2 = Int32(Int8(bitPattern: readROM(at &+ 2)))
+                samp3 = Int32(Int8(bitPattern: readROM(at &+ 3)))
+                let sixteen = address & 0xFFFF0
+                nibbleCmp3 = sixteen == (address &+ 1) & 0xFFFF0
+                nibbleCmp4 = sixteen == (address &+ 2) & 0xFFFF0
+                nibbleCmp5 = sixteen == (address &+ 3) & 0xFFFF0
+                let steps = min(subPhaseOverflow, 4)
+                nextAddress = address &+ Int32(steps)
+                useNew = steps > 0 && sixteen != nextAddress & 0xFFFF0
+                nextB15 = false
+            } else {
+                var addressCount = address
+                samp0 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                cmp1 = b15 ? addressLoop : addressEnd
+                var addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
                 nextAddress = addressCount
-                useNew = !nibbleCmp3
+                // (Whether the first sample's address is in another 16 than the slot's: it is the same address.)
+                useNew = false
                 nextB15 = b15
-            }
 
-            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 15
-            b15 = b6 && (b15 != addressCmp)
-            let samp2 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
-            let nibbleCmp4 = address & 0xFFFF0 == addressCount & 0xFFFF0
-            cmp1 = b15 ? addressLoop : addressEnd
-            addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
-            if subPhaseOverflow >= 2 {
-                nextAddress = addressCount
-                useNew = !nibbleCmp4
-                nextB15 = b15
-            }
+                addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 11
+                b15 = b6 && (b15 != addressCmp)
+                samp1 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                nibbleCmp3 = address & 0xFFFF0 == addressCount & 0xFFFF0
+                cmp1 = b15 ? addressLoop : addressEnd
+                addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
+                if subPhaseOverflow >= 1 {
+                    nextAddress = addressCount
+                    useNew = !nibbleCmp3
+                    nextB15 = b15
+                }
 
-            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 19
-            b15 = b6 && (b15 != addressCmp)
-            let samp3 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
-            let nibbleCmp5 = address & 0xFFFF0 == addressCount & 0xFFFF0
-            cmp1 = b15 ? addressLoop : addressEnd
-            addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
-            if subPhaseOverflow >= 3 {
-                nextAddress = addressCount
-                useNew = !nibbleCmp5
-                nextB15 = b15
-            }
+                addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 15
+                b15 = b6 && (b15 != addressCmp)
+                samp2 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                nibbleCmp4 = address & 0xFFFF0 == addressCount & 0xFFFF0
+                cmp1 = b15 ? addressLoop : addressEnd
+                addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
+                if subPhaseOverflow >= 2 {
+                    nextAddress = addressCount
+                    useNew = !nibbleCmp4
+                    nextB15 = b15
+                }
 
-            addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 23
-            let nibbleCmp6 = address & 0xFFFF0 == addressCount & 0xFFFF0
-            if subPhaseOverflow >= 4 {
-                nextAddress = addressCount
-                useNew = !nibbleCmp6
+                addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 19
+                b15 = b6 && (b15 != addressCmp)
+                samp3 = Int32(Int8(bitPattern: readROM(UInt32(bitPattern: hiaddr << 20 | addressCount))))
+                nibbleCmp5 = address & 0xFFFF0 == addressCount & 0xFFFF0
+                cmp1 = b15 ? addressLoop : addressEnd
+                addressCmp = cmp1 & 0xFFFFF == addressCount & 0xFFFFF
+                if subPhaseOverflow >= 3 {
+                    nextAddress = addressCount
+                    useNew = !nibbleCmp5
+                    nextB15 = b15
+                }
+
+                addressCount = Self.advance(addressCount, compared: addressCmp, b6: b6, b7: b7, b15: b15, kon: kon, loop: addressLoop) // 23
+                let nibbleCmp6 = address & 0xFFFF0 == addressCount & 0xFFFF0
+                if subPhaseOverflow >= 4 {
+                    nextAddress = addressCount
+                    useNew = !nibbleCmp6
+                }
             }
 
             if active, nfs { ram1[base1 + 4] = UInt32(bitPattern: nextAddress) }
