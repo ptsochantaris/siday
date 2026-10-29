@@ -7,8 +7,9 @@ import SidayFoundation
 /// one, and each phrase a voice plays is a figure of them somewhere in the sky: each note a short step
 /// on from the last, across, and up or down as far as the melody goes up or down, joined to it by a
 /// faint line, and now and then doubling back. A pause, or seven stars, ends a figure, and the next
-/// begins where the sky is emptiest. The lines fade in a while and the stars more slowly, so the sky is a map of the
-/// last minute or so of the tune; and it turns, very slowly, about a pole below the picture, as the
+/// begins where the sky is emptiest. The lines fade in a while and the stars more slowly, dimming from
+/// the moment they are struck until they are gone, so the sky is a map of the last minute or so of the
+/// tune; and it turns, very slowly, about a pole below the picture, as the
 /// night sky does. A voice with no pitch, a drum or a hiss, makes no stars, but sets those of the sky
 /// twinkling a little.
 final class Constellations: VisualScene {
@@ -40,14 +41,15 @@ final class Constellations: VisualScene {
     private var twinkle: Float = 0
     private var random: UInt32 = 0x1234_5679
 
-    /// How long a star and a line last, to fade out, in seconds.
-    private static let starLasts: Float = 70, lineLasts: Float = 22
+    /// How long a star lasts, fading all the while, in seconds; and how long a line takes to fade to
+    /// about a third.
+    private static let starLasts: Float = 90, lineLasts: Float = 22
     /// How long a voice may be silent and still carry on its figure, in seconds.
     private static let pause: Float = 1.5
     /// The sky's turning, in turns a second.
     private static let turning: Float = 1.0 / 7200
     private static let most = 900
-    /// How many stars are seen at most: in a busy tune, the oldest beyond these fade out within a few
+    /// How many stars are seen at most: in a busy tune, the oldest beyond these fade out, over some
     /// seconds, so that the sky shows its latest figures and is not a field of stars.
     private static let seenMost = 180
 
@@ -93,8 +95,8 @@ final class Constellations: VisualScene {
 
         // Stars that have faded out are let go, and the lines that end at them.
         let now = frame.time
-        if stars.count > Self.most || stars.first.map({ now - $0.born > Self.starLasts * 2 }) == true {
-            let keep = stars.indices.filter { now - stars[$0].born <= Self.starLasts * 2 }.suffix(Self.most)
+        if stars.count > Self.most || stars.first.map({ now - $0.born > Self.starLasts }) == true {
+            let keep = stars.indices.filter { now - stars[$0].born <= Self.starLasts }.suffix(Self.most)
             var moved = [Int?](repeating: nil, count: stars.count)
             for (new, old) in keep.enumerated() { moved[old] = new }
             stars = keep.map { old in
@@ -114,7 +116,11 @@ final class Constellations: VisualScene {
             }
             // When the stars older than the newest that are seen began to be too many, and so to fade.
             let crowded = stars.count > Self.seenMost ? stars[stars.count - Self.seenMost].born : -Float.greatestFiniteMagnitude
-            func crowding(_ star: Star) -> Float { star.born >= crowded ? 1 : expf(-(crowded - star.born) / 3) }
+            func crowding(_ star: Star) -> Float {
+                guard star.born < crowded else { return 1 }
+                let gone = max(0, 1 - (crowded - star.born) / 12)
+                return gone * gone
+            }
             for star in stars {
                 let age = now - star.born
                 guard let before = star.after else { continue }
@@ -125,11 +131,14 @@ final class Constellations: VisualScene {
             }
             for (index, star) in stars.enumerated() {
                 let age = now - star.born
-                // A star flares as it is struck, settles, and fades away slowly; and twinkles a little
-                // with the drums, each star in its own time.
+                // A star flares as it is struck, settles, and fades away slowly to nothing, dimming
+                // the more at first, since the middle of a star is brighter than a screen can show and
+                // would else seem not to dim at all; and twinkles a little with the drums, each star in
+                // its own time.
                 let flare = 1 + 1.5 * expf(-age / 0.4)
                 let shimmer = 1 + 0.35 * twinkle * sinf(now * 9 + Float(index) * 2.3)
-                let bright = star.bright * flare * shimmer * expf(-age / Self.starLasts) * crowding(star)
+                let left = max(0, 1 - age / Self.starLasts)
+                let bright = star.bright * flare * shimmer * left * left * crowding(star)
                 guard bright > 0.01 else { continue }
                 let (x, y) = seen(star)
                 glow(light, x, y, star.colour, bright)
