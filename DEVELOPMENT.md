@@ -2259,6 +2259,16 @@ and writes the back end's frames at 64 kHz (`MIDISC55Renderer.rawLog` is siday's
   594,398), whose handler is an RTE. siday follows upstream's interpreter, so compare with decoder2 off.
 - Nuked SC-55 gives the same output for the same input whatever the block size, so siday's renderer
   needs no fixed blocks.
+- Since 29 October 2026 three things are done otherwise than upstream's code does them, to the same
+  effect. The timers' ticks that only count are made together, when one would match, overflow or raise
+  an interrupt, or when the firmware reads or writes a timer (firmware 1.21 sets the 8-bit timer to
+  clear on a compare match every five ticks, its flag long set, half a million times a second: that
+  cycle is counted round at once). A slot whose key is not down is given only its filter's envelope and
+  the clearing its turn ends with, as nothing else it works out is kept or heard. And the envelopes'
+  speed bytes are read from a table, and their counter's bits are worked out once a round. The chip's
+  output is the same as before, sample for sample (the first minute of the 50 files above, and a
+  minute of a dense test), at about 19 times real time natively and 16 in WebAssembly, where it was
+  11.5 and 10.
 
 Level:
 
