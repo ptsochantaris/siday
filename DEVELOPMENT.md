@@ -2304,6 +2304,18 @@ started for 2,000,000 steps (a second of its controller's time):
   it is seen to come back to the same place with its memory and registers the same, as many times
   round its loop as fit before its timer runs out or a byte is due are made at once, the timer counted
   on as they would have counted it. Its state is in the start snapshot too.
+- Its firmware 1.01 leaves some of its settings as its static RAM holds them when it starts (Nuked
+  SC-55's README tells of it, and asks for a reset from the front panel). With that RAM all zeros,
+  as the emulator has it, a held A was played at 414 to 416 Hz on three instruments, a semitone
+  flat, and at 439.4 once a GS master tune of 0 was sent; a GS reset sent then was not taken for well
+  over a second. So, from 30 October 2026, `SC55Synth.start` sends it a GS reset after its start, as
+  the fork's renderer does (`R_RunReset`, on the SC-55mkII when no reset is asked for), and runs it
+  8,000,000 steps more (four seconds), which the start snapshot keeps. A note sent a second after the
+  reset is lost and one sent two seconds after it is out of tune; one sent after four seconds sounds
+  within 0.1 dB of one sent after eleven (the fork's 24,000,000 steps from switching on), at the same
+  pitch. The A then plays at 439.7 to 441.2 Hz on four instruments, as near as the SC-55 plays it
+  (438.6 to 440.0), and a note sent 0.75 s after a file's own GS reset is played. The
+  start takes about 0.08 s longer, once a session. The 50 files above were checked before it.
 - 66,207 frames a second is the rate Nuked SC-55 gives the SC-55mkII. Its firmware sets 28 slots, 725
   cycles a round, so its controller runs at 24 MHz. 66,207 to 48,000 has too many places for a row of
   the resampler's weights each: a place's weights are had from the two rows it lies between.
@@ -2322,7 +2334,8 @@ Level:
 - SC-55: 1.68 (+4.5 dB), the median gap to FM over the first minute of 60 files (−24.9 LUFS against
   −21.4). One of them, Ultima VII's "Arrival", touches full scale for a few hundred samples.
 - SC-55mkII: the same 1.68. Over the first minute of the same 60 files, the median of its difference
-  from the SC-55, file by file, is 0.0 dB (from −2.6 to +0.4).
+  from the SC-55, file by file, is 0.0 dB (from −0.2 to +1.7; from −2.6 to +0.4 before its start-up
+  GS reset).
 
 ### VGM — what was written to the chip, and when
 

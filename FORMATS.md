@@ -4556,7 +4556,11 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   with 28 voices to the SC-55's 24, wave ROMs of its own (one of 16 megabits and one of 8), a firmware
   of its own (1.01), and a second processor, a Mitsubishi M37450, that takes the MIDI in and hands it
   to the controller through RAM they share. siday plays it as Nuked SC-55 does, both processors
-  instruction by instruction: the same output, sample for sample. Its controller runs at 24 MHz where
+  instruction by instruction: the same output, sample for sample. Its firmware leaves some of its
+  settings as its memory holds them when it is switched on, where it should set them, a fault Nuked
+  SC-55 tells of; with a memory never written it plays a semitone flat. So, as the renderer of J.C.
+  Moyer's Nuked SC-55 does, siday gives it a GS reset once it has started, and four seconds to take
+  it, before it plays anything. Its controller runs at 24 MHz where
   the SC-55's runs at 20, and its chip makes 66,207 frames a second, which siday brings to 48,000. Its
   ROMs are kept as the SC-55's are: its two program ROMs (R15199858 and R00233567), its second
   processor's (R15199880) and its two wave ROMs (R15209359 and R15279813). Given both models' ROMs,

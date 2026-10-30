@@ -50,11 +50,25 @@ public final class SC55Synth {
     /// later, as Nuked SC-55's renderer sends it.
     public static func startSteps(of model: SC55Model) -> Int { model == .sc55 ? 1_666_667 : 2_000_000 }
 
-    /// Starts the firmware (see `startSteps`); or, if the ROM set has the state it is in once it has, puts
-    /// that back, which is the same.
+    /// The SC-55mkII's firmware leaves some of its settings as its memory has them when it starts, where it
+    /// should set them (Nuked SC-55's README tells of it), and a memory that has never been written has them
+    /// wrong: a tune is played a semitone flat, as if the master tune were at its lowest. So once it has
+    /// started it is sent a GS reset, as jcmoyer's Nuked SC-55 renderer sends one, and given four seconds of
+    /// its time to take it: it loses a note sent in the first second after it and plays one sent in the next
+    /// out of tune, and one sent after four sounds within a tenth of a decibel of one sent after eleven, as
+    /// that renderer sends it, and at the same pitch.
+    static let mk2Reset: [UInt8] = [0xF0, 0x41, 0x10, 0x42, 0x12, 0x40, 0x00, 0x7F, 0x00, 0x41, 0xF7]
+    static let mk2ResetSteps = 8_000_000
+
+    /// Starts the firmware (see `startSteps`, and on the SC-55mkII `mk2Reset`); or, if the ROM set has the
+    /// state it is in once it has, puts that back, which is the same.
     public func start() {
         if started.isEmpty {
             run(steps: Self.startSteps(of: model))
+            if model == .sc55mk2 {
+                for byte in Self.mk2Reset { mcu.post(byte) }
+                run(steps: Self.mk2ResetSteps)
+            }
         } else {
             var state = SC55State(started)
             mcu.keep(&state)
