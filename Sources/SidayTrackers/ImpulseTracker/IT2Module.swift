@@ -1092,7 +1092,7 @@ final class IT2Module {
 
     /// True if the four bytes are "XTPM" or "MPTX", which say an instrument is followed by the upper
     /// bytes of its samples' numbers (see `readInstrument`).
-    static func isExtendedMark(_ data: [UInt8], at at: Int) -> Bool {
+    static func isExtendedMark(_ data: [UInt8], at: Int) -> Bool {
         at + 4 <= data.count && (Array(data[at ..< at + 4]) == Array("XTPM".utf8) || Array(data[at ..< at + 4]) == Array("MPTX".utf8))
     }
 

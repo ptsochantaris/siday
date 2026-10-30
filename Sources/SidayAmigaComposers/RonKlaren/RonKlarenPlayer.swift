@@ -811,13 +811,11 @@ struct RonKlarenPlayer: ~Copyable {
     /// A word, or a long: at an odd address, the 68000 takes an address error, which would take the
     /// player down, and the song is stopped (`failure`).
     private mutating func peek16(_ address: UInt32) -> UInt16 {
-        let at = Int(address & 0xFF_FFFF)
         if address & 1 != 0 { failure = "the player read a word at an odd address" }
         return Self.peek16(memory, memoryCapacity, address)
     }
 
     private mutating func peek32(_ address: UInt32) -> UInt32 {
-        let at = Int(address & 0xFF_FFFF)
         if address & 1 != 0 { failure = "the player read a long at an odd address" }
         return Self.peek32(memory, memoryCapacity, address)
     }
