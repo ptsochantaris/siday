@@ -277,8 +277,11 @@ public struct MIDIFile: Sendable {
                     case 0x2F:
                         event = MIDIEvent(kind: .endOfTrack)
                     case 0x51 where length <= 5:
+                        // A tempo is three bytes. A sequencer took the first three of a longer one, as the
+                        // 76 files of EVE burst error's music in the collection have it (CVS 5.06 gave each
+                        // a fourth), where libADLMIDI takes them all, a tempo 256 times as slow.
                         event = MIDIEvent(kind: .tempo)
-                        event.tempo = bytes.reduce(0) { $0 << 8 | UInt32($1) }
+                        event.tempo = bytes.prefix(3).reduce(0) { $0 << 8 | UInt32($1) }
                     default:
                         event = MIDIEvent(kind: .meta)
                         event.meta = type

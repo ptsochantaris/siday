@@ -206,3 +206,13 @@ private let mt32Patch: [UInt8] = [0x41, 0x10, 0x16, 0x12, 0x03, 0x00, 0x00, 0x00
     #expect(throws: TuneError.self) { try TuneLoader.load(smf(format: 0, [track(sysex(mt32Patch))]), format: .mid) }
     #expect(throws: TuneError.self) { try TuneLoader.load(Array("MThd".utf8) + [0, 0], format: .mid) }
 }
+
+@Test func midiTempoIsItsFirstThreeBytes() throws {
+    // EVE burst error's files give their tempo a fourth byte; a sequencer took the first three.
+    let three = try TuneLoader.load(smf(format: 0, [track(oneNote)]), format: .mid)
+    let fourBytes: [UInt8] = [0x00, 0xFF, 0x51, 0x04, 0x0F, 0x42, 0x40, 0x03] + oneNote.dropFirst(7)
+    let four = try TuneLoader.load(smf(format: 0, [track(fourBytes)]), format: .mid)
+    let length = try #require(three.knownLength)
+    #expect(length > 1 && length < 4)
+    #expect(four.knownLength == length)
+}
