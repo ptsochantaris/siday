@@ -610,3 +610,20 @@ private func heard(_ file: [UInt8], original: Bool, ticks: Int, loops: (Int, ino
     #expect(original.format == .sevenVoices && library.format == .sevenVoices)
     #expect(original.volumes[1][3] == 0 && original.volumes[2][3] == 32 && library.volumes[1][3] == 32)
 }
+
+@Test func tfmxWithoutItsSamplesIsToldAsWantingThem() throws {
+    // So that a player that could not look beside it can ask for the folder they are in.
+    let keeper = SongKeeper()
+    keeper.load(tune: 1, serial: 1, name: "test.mdat", bytes: module(), companions: [nil], subsong: -1, now: 0)
+    guard case .loaded(_, let plays, _, let wantsCompanion, _, _, _, _, _, _) = try #require(keeper.events.first) else { return }
+    #expect(!plays && wantsCompanion)
+    let given = SongKeeper()
+    given.load(tune: 1, serial: 1, name: "test.mdat", bytes: module(), companions: [samples], subsong: -1, now: 0)
+    guard case .loaded(_, let plays2, _, let wantsCompanion2, _, _, _, _, _, _) = try #require(given.events.first) else { return }
+    #expect(plays2 && !wantsCompanion2)
+    // A file of nothing it can play is not.
+    let refused = SongKeeper()
+    refused.load(tune: 1, serial: 1, name: "test.mdat", bytes: [0, 1, 2], companions: [nil], subsong: -1, now: 0)
+    guard case .loaded(_, let plays3, _, let wantsCompanion3, _, _, _, _, _, _) = try #require(refused.events.first) else { return }
+    #expect(!plays3 && !wantsCompanion3)
+}

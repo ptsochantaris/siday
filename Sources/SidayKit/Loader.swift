@@ -83,6 +83,13 @@ public enum MIDISynthesisers {
         EightBitPlayers.midiIsWrittenForMT32(data, companion: companion)
     }
 
+    /// True for a MIDI file that sends no system exclusive message of its own: one that a file beside it
+    /// (one of `Companions.wanted(for: .mid, fileName:)`) may set an MT-32 up for, so that it is worth
+    /// looking for one.
+    public static func takesSetupBeside(_ data: [UInt8]) -> Bool {
+        EightBitPlayers.midiTakesSetupBeside(data)
+    }
+
     /// The chip a MIDI file is played on, by whether it was written for the MT-32 and whose ROMs are kept.
     public static func chip(writtenForMT32: Bool, mt32ROMs: Bool, sc55ROMs: Bool) -> SoundChip {
         EightBitPlayers.midiChip(writtenForMT32: writtenForMT32, mt32ROMs: mt32ROMs, sc55ROMs: sc55ROMs)

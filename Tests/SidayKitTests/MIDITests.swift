@@ -142,6 +142,10 @@ private let mt32Patch: [UInt8] = [0x41, 0x10, 0x16, 0x12, 0x03, 0x00, 0x00, 0x00
     #expect(try origin([], companion: bank).standard == .mt32)
     #expect(try origin([], companion: bank).byCompanion)
     #expect(try origin(sysex(gmOn), companion: bank).standard == .generalMIDI)
+    // So a file beside it is worth looking for only for a file of no messages of its own.
+    #expect(MIDISynthesisers.takesSetupBeside(smf(format: 0, [track(oneNote)])))
+    #expect(!MIDISynthesisers.takesSetupBeside(smf(format: 0, [track(sysex(gmOn) + oneNote)])))
+    #expect(!MIDISynthesisers.takesSetupBeside([0, 1, 2]))
 
     let mt32 = try TuneLoader.load(smf(format: 0, [track(sysex(mt32Patch) + oneNote)]), format: .mid)
     #expect(mt32.info.detail.hasPrefix("Written for the Roland MT-32"))

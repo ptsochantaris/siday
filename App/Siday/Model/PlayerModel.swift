@@ -80,6 +80,9 @@ final class PlayerModel {
     }
     /// The tune that could not be played for want of a companion, while it is still wanted.
     private var wanting: Int?
+    /// The tune being loaded and a companion it may want that could not be looked for: if it is not
+    /// played for want of one, its folder is asked for.
+    @ObservationIgnored private var mayWant: (tune: Int, id: Int, companion: Companion)?
     /// The playlist whose tunes were not all found, to be read again when their folder is given.
     @ObservationIgnored private var unfoundList: URL?
 
@@ -430,6 +433,12 @@ final class PlayerModel {
         String(localized: "\(name) keeps \(companion.what) \(Companions.whereKept(companion)). Choose the folder it is in, and the app may read it.")
     }
 
+    private static func notice(_ name: String, mayBeSetUpBy companion: Companion) -> String {
+        let names = companion.names.count > 1 ? companion.names.dropLast().joined(separator: ", ") + String(localized: " or ") + (companion.names.last ?? "")
+            : companion.names.joined()
+        return String(localized: "\(name) may have the setup of the MT-32 it was written for kept beside it, in a file such as \(names). Choose the folder it is in, and the app may read it.")
+    }
+
     // MARK: Taking out
 
     func remove(_ ids: Set<Int>) {
@@ -509,12 +518,17 @@ final class PlayerModel {
         if let missing = read.missing {
             companionNotice = Self.notice(url.lastPathComponent, wants: missing)
             wanting = index
+        } else if let setup = read.unlooked, TuneFormat(url: url) == .mid, MIDISynthesisers.takesSetupBeside(read.bytes) {
+            // (It is played meanwhile, as General MIDI, and played again once the folder is given.)
+            companionNotice = Self.notice(url.lastPathComponent, mayBeSetUpBy: setup)
+            wanting = index
         } else if wanting == index {
             companionNotice = nil
             wanting = nil
         }
         asked += 1
         runs += 1
+        mayWant = read.unlooked.map { (asked, files[index].id, $0) }
         engine.send(.load(tune: asked, serial: runs, name: url.lastPathComponent, bytes: read.bytes, companions: read.companions, subsong: song))
     }
 
@@ -535,8 +549,12 @@ final class PlayerModel {
             }
         case let .keeper(event):
             switch event {
-            case let .loaded(tune, plays, problem, info, songs, song, length, _, levelKey):
+            case let .loaded(tune, plays, problem, wantsCompanion, info, songs, song, length, _, levelKey):
                 guard tune == asked else { return }
+                if wantsCompanion, let mayWant, mayWant.tune == tune, let index = files.firstIndex(where: { $0.id == mayWant.id }) {
+                    companionNotice = Self.notice(files[index].url.lastPathComponent, wants: mayWant.companion)
+                    wanting = index
+                }
                 loaded(plays: plays, problem: problem, info: info, songs: songs, song: song, length: length)
                 if plays { engine.send(.keptLevel(key: levelKey, text: levels[levelKey])) }
             case let .rendered(tune, seconds, length):

@@ -85,9 +85,10 @@ public final class SongKeeper {
 
     /// What the screen is to be told.
     public enum Event: Sendable {
-        /// A tune was loaded, or loaded again: whether it plays; why not, if not; its details, its
-        /// songs and which is playing; how long the song is to be played; and what its level is kept under.
-        case loaded(tune: Int, plays: Bool, problem: String?, info: TuneInfo?, songs: [SongInfo], song: Int, length: Double, lengthIsKnown: Bool, levelKey: String)
+        /// A tune was loaded, or loaded again: whether it plays; why not, if not, and whether that is for
+        /// want of a file it keeps part of itself in; its details, its songs and which is playing; how long
+        /// the song is to be played; and what its level is kept under.
+        case loaded(tune: Int, plays: Bool, problem: String?, wantsCompanion: Bool, info: TuneInfo?, songs: [SongInfo], song: Int, length: Double, lengthIsKnown: Bool, levelKey: String)
         /// The song's level, as it was found by measuring it, to be kept under its key.
         case level(tune: Int, key: String, text: String)
         /// How much of the song there is to move about in, in seconds; and its length, if that has
@@ -378,7 +379,7 @@ public final class SongKeeper {
     private func tell(plays: Bool) {
         let renderer = player.renderer
         events.append(.loaded(
-            tune: tune, plays: plays, problem: player.problem, info: plays ? player.info : nil,
+            tune: tune, plays: plays, problem: player.problem, wantsCompanion: !plays && player.wantsCompanion, info: plays ? player.info : nil,
             songs: plays && player.subsongCount > 1 ? renderer?.songs ?? [] : [], song: player.subsong,
             length: player.length, lengthIsKnown: player.lengthIsKnown, levelKey: plays ? player.levelKey : ""
         ))

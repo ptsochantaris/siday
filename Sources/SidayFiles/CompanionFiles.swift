@@ -29,6 +29,12 @@ public enum CompanionFiles {
         return (companions, missing)
     }
 
+    /// True if what is in a tune's folder can be seen, so that a companion not found there is not there;
+    /// false where the player has not been let read the folder (a file opened alone by a sandboxed app).
+    public static func canLook(beside tune: URL) -> Bool {
+        !finder(for: tune.standardizedFileURL.deletingLastPathComponent()).paths.isEmpty
+    }
+
     /// Forgets what was seen of a folder: what is in it may have changed, or the player may since
     /// have been let read it.
     public static func forget(_ folder: URL) {

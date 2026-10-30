@@ -179,7 +179,8 @@ siday is also an app for macOS and iOS 26 or later, written in SwiftUI. It has w
 - the list of what siday plays, with each format's story.
 
 It opens every kind of file siday plays: from the Finder or the Files app, by drag and drop, or with
-Add Files and Add Folder. It keeps its list from one day to the next. In the Finder and the Files app,
+Add Files and Add Folder. A tune opened on its own, whose samples or MT-32 setup may be kept beside it,
+brings a notice asking for its folder. It keeps its list from one day to the next. In the Finder and the Files app,
 Quick Look shows a tune's details, and plays it with its voices' lights and scopes, as it plays a recording: at once in the Finder, and
 when you press play in the Files app. Each tune has a picture of the chip it was made for, the SID,
 the AY, Paula, an OPL or a Gravis Ultrasound's GF1 among them, on the colour of its machine's board:

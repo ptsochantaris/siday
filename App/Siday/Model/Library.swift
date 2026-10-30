@@ -108,19 +108,26 @@ nonisolated final class Library: @unchecked Sendable {
 /// looked through once, as long as the app is open.
 nonisolated enum TuneFiles {
     /// What is read for a tune: its bytes, and one for each of the files its kind needs beside it, in
-    /// the order `Companions` gives them, nil for one that is not there; and of those it cannot be
-    /// played without, the first that was not found.
+    /// the order `Companions` gives them, nil for one that is not there; of those it cannot be played
+    /// without, the first that was not found; and of those it may want, the first that could not be
+    /// looked for, because the app has not been let read the tune's folder (a file opened alone).
     struct Read: Sendable {
         var bytes: [UInt8]
         var companions: [[UInt8]?]
         var missing: Companion?
+        var unlooked: Companion?
     }
 
     static func read(_ url: URL) throws -> Read {
         let bytes = [UInt8](try Coordinated.data(url))
         guard let format = TuneFormat(url: url) else { return Read(bytes: bytes, companions: [], missing: nil) }
         let (companions, missing) = CompanionFiles.read(for: url, format: format)
-        return Read(bytes: bytes, companions: companions, missing: missing)
+        var unlooked: Companion?
+        if missing == nil, companions.contains(where: { $0 == nil }), !CompanionFiles.canLook(beside: url) {
+            let wanted = Companions.wanted(for: format, fileName: url.lastPathComponent)
+            unlooked = wanted.indices.first { companions[$0] == nil }.map { wanted[$0] }
+        }
+        return Read(bytes: bytes, companions: companions, missing: missing, unlooked: unlooked)
     }
 
     /// Forgets what was seen of a folder: it may since have been given to the app.

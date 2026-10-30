@@ -47,7 +47,12 @@ These companion files are all found the same way: by the names they are known to
 file that needs them, and ignoring the difference between capital and small letters, as Windows
 does.
 
-On the command line and in the app, that means the folder on disk. A web page can only read the
+On the command line, that means the folder on disk. The app can look in a folder once it has been
+let: when you add the folder, or choose it when asked. A tune opened on its own, in the Finder or
+the Files app, comes with no right to look beside it. So when such a tune can't be played without a
+file that may be there, the app asks for the folder it is in. It asks, too, for the folder of a MIDI
+file that sets nothing up itself, since an MT-32 game's setup may be kept beside it; the file is played
+as General MIDI meanwhile, and again from the start once the folder is chosen. A web page can only read the
 files it has been given. So in a browser, a tune or companion file you have given the page is known
 for as long as the page is open. When one that is needed hasn't been given, the page says so and
 asks for the folder it is in. It looks in that folder for what it needs, and adds nothing else from

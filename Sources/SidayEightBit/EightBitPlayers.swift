@@ -112,6 +112,11 @@ package extension EightBitPlayers {
         MIDIFMRenderer.isWrittenForMT32(data, companion: companion)
     }
 
+    /// True for a MIDI file that a file beside it may set up (see `MIDIFMRenderer.takesSetupBeside`).
+    static func midiTakesSetupBeside(_ data: [UInt8]) -> Bool {
+        MIDIFMRenderer.takesSetupBeside(data)
+    }
+
     /// The chip a MIDI file is played on, by whether it was written for the MT-32 and whose ROMs siday has.
     static func midiChip(writtenForMT32: Bool, mt32ROMs: Bool, sc55ROMs: Bool) -> SoundChip {
         switch MIDISynthesiser.choose(writtenForMT32: writtenForMT32, mt32ROMs: mt32ROMs, sc55ROMs: sc55ROMs) {

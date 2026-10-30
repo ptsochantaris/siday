@@ -118,6 +118,13 @@ final class MIDIFMRenderer: Renderer {
         return origin.standard == .mt32 && origin.mt32Messages > 0
     }
 
+    /// True for a file that sends no system exclusive message of its own: the only kind that the messages
+    /// of a file beside it set the synthesiser up for (see `MIDIOrigin`).
+    static func takesSetupBeside(_ data: [UInt8]) -> Bool {
+        guard let file = try? MIDIFile(data) else { return false }
+        return !file.sendsSystemExclusive
+    }
+
     /// What is said of the tune: what it was written for, and what it is played on.
     static func detail(_ origin: MIDIOrigin) -> String {
         let written = origin.declared ? "Written for " + origin.standard.name : "General MIDI"

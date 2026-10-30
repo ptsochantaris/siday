@@ -56,6 +56,8 @@ public final class TunePlayer {
     public private(set) var text: [UInt8] = []
     /// Why the last file would not load, if it would not.
     public private(set) var problem: String?
+    /// True if the last file would not load for want of a file it keeps part of itself in (`TuneError.missingCompanion`).
+    public private(set) var wantsCompanion = false
     private var spectrum = SpectrumAnalyzer()
     /// The analyser's bars and then their caps, each as a byte from 0 to 255.
     public private(set) var bars: [UInt8] = []
@@ -157,6 +159,7 @@ public final class TunePlayer {
     /// Loads a tune and starts its first song. Returns false, with the reason in `text`, if it cannot be played.
     public func load(_ data: [UInt8], name: String) -> Bool {
         problem = nil
+        wantsCompanion = false
         renderer = nil
         session = nil
         layout = nil
@@ -222,6 +225,7 @@ public final class TunePlayer {
         } catch let error as TuneError {
             problem = error.description
             text = Array(error.description.utf8)
+            if case .missingCompanion = error { wantsCompanion = true }
         } catch {
             problem = "the file could not be played"
             text = Array("the file could not be played".utf8)

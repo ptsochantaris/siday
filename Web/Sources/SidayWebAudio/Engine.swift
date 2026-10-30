@@ -52,7 +52,7 @@ private struct Packed {
 private func pack(_ event: SongKeeper.Event) -> Packed {
     var message = Packed()
     switch event {
-    case let .loaded(tune, plays, problem, info, songs, song, length, _, levelKey):
+    case let .loaded(tune, plays, problem, _, info, songs, song, length, _, levelKey):
         // (The songs are counted as the file has them: one, for a file of one song, which is not listed.)
         message.add(1)
         message.add(Double(tune))

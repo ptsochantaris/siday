@@ -20,7 +20,7 @@ private func renderWhole(_ keeper: SongKeeper, now: Double = 10) {
 
 @Test func keeperTellsOfTheTuneItLoads() throws {
     let keeper = loaded()
-    guard case .loaded(let tune, let plays, let problem, let info, _, _, let length, _, let key) = try #require(keeper.events.first) else {
+    guard case .loaded(let tune, let plays, let problem, _, let info, _, _, let length, _, let key) = try #require(keeper.events.first) else {
         Issue.record("no loaded event"); return
     }
     #expect(tune == 1 && plays && problem == nil)
@@ -29,7 +29,7 @@ private func renderWhole(_ keeper: SongKeeper, now: Double = 10) {
     #expect(!key.isEmpty)
     let refused = SongKeeper()
     refused.load(tune: 2, serial: 2, name: "nothing.doc", bytes: [0], companions: [], subsong: -1, now: 0)
-    guard case .loaded(_, let plays2, let problem2, _, _, _, _, _, _) = try #require(refused.events.first) else { return }
+    guard case .loaded(_, let plays2, let problem2, _, _, _, _, _, _, _) = try #require(refused.events.first) else { return }
     #expect(!plays2 && problem2 == "unknown file type .doc")
 }
 
