@@ -319,12 +319,17 @@ public final class MIDISequencer {
 
     /// What playing a song through unheard tells of it, at `granularity`: how long it is (to a second
     /// after its last message, or, for one that loops for ever, to where it first goes back), the length
-    /// of that loop, and when the first note of its music is struck (see `Unheard`).
+    /// of that loop, and when the first note of its music is struck (see `Unheard`). A song that has not
+    /// ended in six hours is taken to have no end: a whole game's music, as Quest Studios put Sierra's in
+    /// one file, is under two (Quest for Glory III's, 99 minutes, found and listed in half a second), and
+    /// six hours of frames still count in the web player's 32-bit Int, at the SC-55mkII's 66,207 a second.
+    public static let longest = 6.0 * 3600
+
     public static func measure(_ song: MIDISong, of file: MIDIFile, prelude: [[UInt8]], granularity: Double) -> (length: Double?, loop: Double?, firstNote: Double?) {
         let sequencer = MIDISequencer(song, of: file, prelude: prelude)
         let listener = Unheard()
         var time = 0.0, delay = 0.0
-        while time < 3600 {
+        while time < longest {
             listener.now = sequencer.time + delay
             delay = sequencer.tick(delay, granularity: granularity, to: listener)
             listener.settle(at: sequencer.time)

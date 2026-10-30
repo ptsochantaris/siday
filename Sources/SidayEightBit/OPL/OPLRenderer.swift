@@ -49,8 +49,9 @@ final class OPLRenderer<Tune: OPLTune>: Renderer, ReferenceComparable {
     private static var tailLength: Int { 49716 }
     /// How much of that is faded: a fifth of a second.
     private static var fadeLength: Int { 9943 }
-    /// An hour, in the chip's samples: a tune that has not ended by then is taken to have no end.
-    private static var longest: Int { 3600 * 49716 }
+    /// Six hours, in the chip's samples: a tune that has not ended by then is taken to have no end, as a
+    /// MIDI file is (`MIDISequencer.longest`).
+    private static var longest: Int { 6 * 3600 * 49716 }
 
     init(info: TuneInfo, start: @escaping (OPLCard?) -> Tune) {
         self.start = start

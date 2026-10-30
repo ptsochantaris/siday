@@ -4590,7 +4590,8 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   Two kinds of note before the music don't count as its start. One is a note of velocity 1, which
   some files have to hold that time. The other is a note stopped at once by "all notes off", as
   Wing Commander II's music strikes one before it begins (perhaps a cue for the game's scenes).
-- **Ends.** A song ends a second after its last message.
+- **Ends.** A song ends a second after its last message, however long it is: Quest Studios put the
+  whole of some Sierra games' music in one file, Quest for Glory III's 99 minutes long.
 - **Voices.** On FM, the lamps, scopes and mute buttons are the sixteen MIDI channels. The chip's
   eighteen channels are handed to whichever notes need them, so each MIDI channel shows the chip
   channels playing for it. On the MT-32, they are its nine parts: eight that each play one timbre,

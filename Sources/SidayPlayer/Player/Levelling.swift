@@ -171,8 +171,9 @@ public extension SongLevel {
     /// Master's Noise's and the first Soundtrackers' modules ticked by the frame, with their trackers'
     /// own speeds, restarts and timers; 22: later trackers' XM files with their own empty patterns,
     /// missing patterns, pattern loops and sample kinds; 23: MIDI files heard from just before their
-    /// first note; 24: the SC-55mkII given a GS reset once it has started, so it plays in tune.)
-    static let soundVersion = 24
+    /// first note; 24: the SC-55mkII given a GS reset once it has started, so it plays in tune; 25: MIDI,
+    /// CMF, ROL and FMT songs of over an hour played to their end.)
+    static let soundVersion = 25
 
     /// The same, from the file's `digest`.
     static func key(digest: String, song: Int, options: LoadOptions, policy: PlaybackPolicy, playedOn: String? = nil) -> String {
