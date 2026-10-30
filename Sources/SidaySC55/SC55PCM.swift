@@ -336,14 +336,14 @@ final class SC55PCM {
         let data = Int32(eram[address & 0x3FFF])
         let value = (data & 0x3FFF) &<< 18
         let sh = (data >> 14) & 3
-        return value >> (18 - sh * 2 + type)
+        return value &>> (18 &- sh &* 2 &+ type)
     }
 
     @inline(__always) func eramPack(_ address: Int, _ value: UInt32) {
         var top = Int((value >> 13) & 0x7F)
         if top & 0x40 != 0 { top ^= 0x7F }
         let sh: UInt32 = top >= 16 ? 3 : top >= 4 ? 2 : top >= 1 ? 1 : 0
-        let data = (value >> (sh * 2)) & 0x3FFF | sh << 14
+        let data = (value &>> (sh &* 2)) & 0x3FFF | sh << 14
         eram[address & 0x3FFF] = UInt16(data)
     }
 
@@ -449,7 +449,7 @@ final class SC55PCM {
             let shift = speed.shift
             var sum1 = target &<< 11
             if e != 2 || active { sum1 &-= level &<< 4 }
-            var shifted = sum1 >> shift
+            var shifted = sum1 &>> shift
             shifted &-= sum1
             let sum2 = (target &<< 11) &+ addLow &+ shifted
             if write, nfs { levelCurrent = UInt16((sum2 >> 4) & 0x7FFF) }
@@ -461,7 +461,7 @@ final class SC55PCM {
             let negative = sum1 & 0x80000 != 0
             var preshift = speed.preshift
             if negative { preshift ^= ~0x3F }
-            var sum2 = preshift >> shift
+            var sum2 = preshift &>> shift
             if e != 2 || active { sum2 &+= (level &<< 4) | addLow }
             let sum2L = sum2 >> 4
             let sum3 = (target &<< 11) &- (sum2L &<< 4)
