@@ -9,11 +9,11 @@ import SidayFoundation
 /// Ernst Chladni showed in 1787 by drawing a bow along a plate's edge. Here each voice that has a pitch
 /// rings the plate in a pattern of its own, a simple one of a few lines for a low note and a busier one
 /// for a higher; only the two loudest ring it, the loudest the more, so that a tune of many voices
-/// still draws a figure clear enough to see. The plate holds a figure for a few seconds at least, long
-/// enough for the sand to settle on it, and then for as long as the notes keep to it; once they have
-/// asked for another for a moment, it takes up the one they then ask for, passing to it over a second
-/// or two, so that the sand on the old lines is shaken loose, spreads, and gathers on the new ones as
-/// they form, and is not kept wavering between the two. How loud the music is only shakes the sand harder; a note struck shakes it harder still.
+/// still draws a figure clear enough to see. Once a second the plate takes up the figure the notes
+/// have asked for most over that second, and passes to it smoothly over most of the next, so that
+/// while the tune moves the sand flows from figure to figure, and while it holds a note or a sound the
+/// sand settles on the figure and stays; a note passing by in a second of others does not move it, and
+/// it is not kept wavering between two. How loud the music is only shakes the sand harder; a note struck shakes it harder still.
 /// When the music stops, the sand stays where it lies.
 ///
 /// The patterns are those of a square plate held at its middle, as Chladni's were, stretched to the
@@ -45,13 +45,19 @@ final class ChladniPlate: VisualScene {
 
     /// How the plate shakes, as the figure it holds would have it, and as it does, passing to that.
     private var wanted = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
-    /// The figure the plate holds, as the patterns of the loudest voice and the next (-1 for none),
-    /// since when it has held it, and since when the notes have asked for another, if they have.
+    /// The figure the plate holds, as the patterns of the loudest voice and the next (-1 for none), and
+    /// when it last looked again at which figure the notes ask for.
     private var held = (-1, -1)
-    private var heldSince: Float = 0, otherSince: Float?
-    /// How long the plate holds a figure at least, and how long the notes must ask for another after
-    /// that before it takes one up, in seconds.
-    private static let lasting: Float = 2, asking: Float = 0.5
+    private var lookedAt: Float = 0
+    /// How long the notes have asked for each figure since then, the figure's two patterns as one number.
+    private var asked: [(figure: Int, seconds: Float)] = []
+    /// How often the plate looks again at which figure the notes ask for, and how long it takes to
+    /// pass to a new one, in seconds.
+    private static let looking: Float = 1, passing: Float = 0.9
+    /// How the plate shook when it took up the figure it holds, and how far it has passed from that to
+    /// how the figure would have it, from 0 to 1.
+    private var shook = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
+    private var passed: Float = 1
     private var shaking = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
     private var grainX: [Float] = [], grainY: [Float] = []
     private var light: [Float] = []
@@ -105,7 +111,7 @@ final class ChladniPlate: VisualScene {
 
     /// How the plate shakes at each place of the grid: the pattern of the loudest voice and half as much
     /// of the next's, added together and brought to a size from -1 to 1, for the figure the plate holds;
-    /// passed to over a second or two when it takes up a new one.
+    /// passed to over most of a second when it takes up a new one.
     private func ringPlate(_ frame: VisualFrame) {
         var loudest = (-1, -1)
         for index in 0 ..< frame.voices.count where frame.voices[index].pitched && calm[index] > 0.02 {
@@ -123,26 +129,46 @@ final class ChladniPlate: VisualScene {
         // (Nothing heard asks for nothing: the plate keeps the figure it has.)
         var now = (pattern(of: loudest.0), pattern(of: loudest.1))
         if now.1 == now.0 { now.1 = -1 }
-        guard now.0 >= 0 else { return passToFigure(frame) }
-        if now == held {
-            otherSince = nil
-        } else if otherSince == nil {
-            otherSince = frame.time
+        if now.0 >= 0 {
+            if held.0 < 0 {
+                take(now, frame)
+            } else {
+                let figure = now.0 * 32 + now.1 + 1
+                if let at = asked.firstIndex(where: { $0.figure == figure }) {
+                    asked[at].seconds += frame.elapsed
+                } else {
+                    asked.append((figure, frame.elapsed))
+                }
+            }
         }
-        if let since = otherSince, held.0 < 0 || (frame.time - heldSince >= Self.lasting && frame.time - since >= Self.asking) {
-            held = now
-            heldSince = frame.time
-            otherSince = nil
-            shape(held)
+        if frame.time - lookedAt >= Self.looking {
+            lookedAt = frame.time
+            // The figure it holds keeps its place against another asked for as long.
+            let holding = asked.first { $0.figure == held.0 * 32 + held.1 + 1 }?.seconds ?? 0
+            if let most = asked.max(by: { $0.seconds < $1.seconds }), most.seconds > holding {
+                take((most.figure / 32, most.figure % 32 - 1), frame)
+            }
+            asked.removeAll(keepingCapacity: true)
         }
         passToFigure(frame)
     }
 
-    /// How the plate shakes passes to how the figure it holds would have it, most of the way in a second
-    /// and a half.
+    /// Takes up a figure, passing to it from how the plate shakes now.
+    private func take(_ figure: (Int, Int), _ frame: VisualFrame) {
+        held = figure
+        lookedAt = frame.time
+        shook = shaking
+        passed = 0
+        shape(held)
+    }
+
+    /// How the plate shakes passes from how it shook to how the figure it holds would have it, slowly
+    /// at first, then steadily, and slowly again at the end.
     private func passToFigure(_ frame: VisualFrame) {
-        let passing = 1 - expf(-frame.elapsed / 0.6)
-        for index in shaking.indices { shaking[index] += (wanted[index] - shaking[index]) * passing }
+        guard passed < 1 else { return }
+        passed = min(1, passed + frame.elapsed / Self.passing)
+        let along = passed * passed * (3 - 2 * passed)
+        for index in shaking.indices { shaking[index] = shook[index] + (wanted[index] - shook[index]) * along }
     }
 
     /// Works out how the plate shakes for a figure.
