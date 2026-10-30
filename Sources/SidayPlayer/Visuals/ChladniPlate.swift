@@ -10,7 +10,7 @@ import SidayFoundation
 /// rings the plate in a pattern of its own, a simple one of a few lines for a low note and a busier one
 /// for a higher; only the two loudest ring it, the loudest the more, so that a tune of many voices
 /// still draws a figure clear enough to see. Once a second the plate takes up the figure the notes
-/// have asked for most over that second, and passes to it smoothly over most of the next, so that
+/// have asked for most over that second, and passes to it steadily over the whole of the next, so that
 /// while the tune moves the sand flows from figure to figure, and while it holds a note or a sound the
 /// sand settles on the figure and stays; a note passing by in a second of others does not move it, and
 /// it is not kept wavering between two. How loud the music is only shakes the sand harder; a note struck shakes it harder still.
@@ -53,7 +53,7 @@ final class ChladniPlate: VisualScene {
     private var asked: [(figure: Int, seconds: Float)] = []
     /// How often the plate looks again at which figure the notes ask for, and how long it takes to
     /// pass to a new one, in seconds.
-    private static let looking: Float = 1, passing: Float = 0.9
+    private static let looking: Float = 1, passing: Float = 1
     /// How the plate shook when it took up the figure it holds, and how far it has passed from that to
     /// how the figure would have it, from 0 to 1.
     private var shook = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
@@ -111,7 +111,7 @@ final class ChladniPlate: VisualScene {
 
     /// How the plate shakes at each place of the grid: the pattern of the loudest voice and half as much
     /// of the next's, added together and brought to a size from -1 to 1, for the figure the plate holds;
-    /// passed to over most of a second when it takes up a new one.
+    /// passed to over a second when it takes up a new one.
     private func ringPlate(_ frame: VisualFrame) {
         var loudest = (-1, -1)
         for index in 0 ..< frame.voices.count where frame.voices[index].pitched && calm[index] > 0.02 {
@@ -162,13 +162,12 @@ final class ChladniPlate: VisualScene {
         shape(held)
     }
 
-    /// How the plate shakes passes from how it shook to how the figure it holds would have it, slowly
-    /// at first, then steadily, and slowly again at the end.
+    /// How the plate shakes passes from how it shook to how the figure it holds would have it, at an
+    /// even pace throughout, so that one change flows into the next.
     private func passToFigure(_ frame: VisualFrame) {
         guard passed < 1 else { return }
         passed = min(1, passed + frame.elapsed / Self.passing)
-        let along = passed * passed * (3 - 2 * passed)
-        for index in shaking.indices { shaking[index] = shook[index] + (wanted[index] - shook[index]) * along }
+        for index in shaking.indices { shaking[index] = shook[index] + (wanted[index] - shook[index]) * passed }
     }
 
     /// Works out how the plate shakes for a figure.
