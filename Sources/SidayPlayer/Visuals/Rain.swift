@@ -4,7 +4,8 @@
 import SidayFoundation
 
 /// Rain. Every note that is struck is a drop that falls from the top of the picture, straight down,
-/// at a place along it come by chance and nothing to do with its voice. Where it meets the bottom it
+/// at a place along it as high as the note is, low notes to the left and high ones to the right, or
+/// one come by chance for a voice with no pitch, a drum. Where it meets the bottom it
 /// bounces: as high as the note is loud, to the side the note is heard from, or as chance has it if
 /// that is the middle or the tune has no sides, and as fast sideways as the note is high. It turns
 /// back at the sides of the picture. Each bounce is lower than the last, until one would be too low
@@ -140,7 +141,7 @@ final class Rain: VisualScene {
                 since[index] = 0
                 let pitched = voice.heardPitch > 0
                 let place: Float = pitched ? frame.place(of: voice.heardPitch) : 0
-                let x = near + (far - near) * (0.02 + 0.96 * chance())
+                let x = near + (far - near) * (0.02 + 0.96 * (pitched ? place : chance()))
                 let base = drops.count * Self.joints * 3
                 way[base] = x
                 way[base + 1] = -thick

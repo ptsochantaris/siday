@@ -682,6 +682,21 @@ private func turns(_ numbers: [Double]) -> (least: [Double], most: [Double]) {
     #expect(drop(visualiser, from: 2.6, seconds: 0.1, level: 1).last?.bottom == 99)
 }
 
+@Test func rainFallsWhereItsNoteIs() {
+    /// Where across the picture a drop falls, in a tune that goes from 40 to 90.
+    func place(of pitch: Float) -> Double {
+        let visualiser = Visualiser(mode: .rain)
+        visualiser.resize(width: 160, height: 100)
+        watch(visualiser, seconds: 0.1, levels: [1], pitches: [40])
+        watch(visualiser, from: 0.1, seconds: 0.1, levels: [1], pitches: [90])
+        return drop(visualiser, from: 0.2, seconds: 0.3, level: 1, pitch: pitch)[8].middle
+    }
+    // Low notes to the left, high ones to the right, and the same note in the same place each time.
+    let low = place(of: 40), middle = place(of: 65), high = place(of: 90)
+    #expect(low < 10 && abs(middle - 80) < 10 && high > 150)
+    #expect(place(of: 65) == middle)
+}
+
 @Test func rainDropIsAsBrightAtItsTailAsAtItsHead() {
     // A drop is its way of the last moment, all of one brightness: of the rows it is in as it
     // falls, all but those at its two round ends are as bright as anything in it.
