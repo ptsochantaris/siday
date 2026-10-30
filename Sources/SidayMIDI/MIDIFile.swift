@@ -40,7 +40,8 @@ public struct MIDISong: Sendable {
     /// The song's name, where the file gives it one.
     public var title = ""
     /// The tick of the last thing the song sends a synthesiser: the song is over when it has been
-    /// played, whatever comes after it (an End of Track at a later time is not waited for).
+    /// played, whatever comes after it (an End of Track at a later time is not waited for), or half a
+    /// minute after its last note (`MIDISequencer.longestHeld`), if that is sooner.
     public var lastMessageTick: UInt64 = 0
     /// The tick of the last note the song starts.
     public var lastNoteTick: UInt64 = 0

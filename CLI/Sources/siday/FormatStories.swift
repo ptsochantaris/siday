@@ -4591,7 +4591,10 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   some files have to hold that time. The other is a note stopped at once by "all notes off", as
   Wing Commander II's music strikes one before it begins (perhaps a cue for the game's scenes).
 - **Ends.** A song ends a second after its last message, however long it is: Quest Studios put the
-  whole of some Sierra games' music in one file, Quest for Glory III's 99 minutes long.
+  whole of some Sierra games' music in one file, Quest for Glory III's 99 minutes long. But it ends
+  no later than half a minute after its last note is struck, and notes still held then are let go.
+  Nearly every file sends its last message within that time; some badly made ones hold their last
+  notes for hours.
 - **Voices.** On FM, the lamps, scopes and mute buttons are the sixteen MIDI channels. The chip's
   eighteen channels are handed to whichever notes need them, so each MIDI channel shows the chip
   channels playing for it. On the MT-32, they are its nine parts: eight that each play one timbre,

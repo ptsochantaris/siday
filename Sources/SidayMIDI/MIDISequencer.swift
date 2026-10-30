@@ -113,6 +113,16 @@ public final class MIDISequencer {
     public private(set) var foreverLoop: (start: Double, end: Double)?
     /// How long the sequencer waits after the song's last message before it says it is over.
     public static let lastWait = 1.0
+    /// How long a song goes on at most after its last note is struck: notes still held then are let go
+    /// with the rest. Of the collection's 177,546 MIDI files, 175,315 send their last message within half
+    /// a minute of their last note; of the rest, 1,446 more than a minute after it and 176 more than ten,
+    /// such as a pop song that strikes its last notes at 4:40 and lets them go one by one over four and a
+    /// half hours.
+    public static let longestHeld = 30.0
+    /// When the song's last note was last struck, and when it was once no loop is left that may play it
+    /// again.
+    private var lastStruck: Double?
+    private var lastNoteTime: Double?
 
     /// System exclusive messages sent before the song, from a file beside it that sets the synthesiser
     /// up (see `MIDIFile.messages(ofCompanion:)`), and the seconds at which each is sent.
@@ -173,6 +183,8 @@ public final class MIDISequencer {
         atEnd = false
         loopCount = 0
         foreverLoop = nil
+        lastStruck = nil
+        lastNoteTime = nil
     }
 
     /// Seconds played.
@@ -243,6 +255,7 @@ public final class MIDISequencer {
                 default:
                     track.status = Int(event.kind.rawValue)
                     receiver.receive(event)
+                    if event.kind == .noteOn, event.data2 > 0, row.tick >= song.lastNoteTick { lastStruck = position.time + position.wait }
                     if event.kind == .controller, event.data1 == 116, !replaying {
                         loops.append(Loop(position: begun, tempo: tempo, left: Int(event.data2)))
                     } else if event.kind == .controller, event.data1 == 117, var loop = loops.last {
@@ -284,8 +297,9 @@ public final class MIDISequencer {
             return true
         }
 
-        // The song is over once its last message has been sent.
+        // The song is over once its last message has been sent, or `longestHeld` after its last note.
         var over = position.tick >= song.lastMessageTick
+        if lastNoteTime == nil, let lastStruck, loops.isEmpty, markerLoop == nil { lastNoteTime = lastStruck }
 
         // How long until the next row of any track.
         var shortest: UInt64?
@@ -293,6 +307,13 @@ public final class MIDISequencer {
             if shortest == nil || track.delay < shortest! { shortest = track.delay }
         }
         if shortest == nil { over = true }
+        if !over, let shortest, let struck = lastNoteTime {
+            let left = struck + Self.longestHeld - (position.time + position.wait)
+            if tempo.times(shortest).seconds > left {
+                over = true
+                position.wait += max(0, left)
+            }
+        }
         if over, let loop = markerLoop {
             // A loop by markers with no "loopEnd" goes round at the song's end.
             loopCount += 1

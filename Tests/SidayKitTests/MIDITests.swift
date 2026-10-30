@@ -216,3 +216,18 @@ private let mt32Patch: [UInt8] = [0x41, 0x10, 0x16, 0x12, 0x03, 0x00, 0x00, 0x00
     #expect(length > 1 && length < 4)
     #expect(four.knownLength == length)
 }
+
+@Test func midiSongEndsHalfAMinuteAfterItsLastNoteAtMost() throws {
+    // Middle C struck at once, at a quarter note a second, and let go after so many ticks of 96 a second.
+    func held(_ delay: [UInt8], looped: Bool = false) throws -> Double {
+        let note: [UInt8] = [0x00, 0x90, 60, 100] + delay + [0x80, 60, 0]
+        let events: [UInt8] = [0x00, 0xFF, 0x51, 0x03, 0x0F, 0x42, 0x40] + (looped ? [0x00, 0xB0, 116, 3] : []) + note + (looped ? [0x00, 0xB0, 117, 127] : [])
+        return try #require(TuneLoader.load(smf(format: 0, [track(events)]), format: .mid).knownLength)
+    }
+    // Let go after twenty seconds, it ends a second after; after a hundred, half a minute and a second
+    // after it was struck.
+    #expect(abs(try held([0x8F, 0x00]) - 21) < 0.1)
+    #expect(abs(try held([0xCB, 0x00]) - 31) < 0.1)
+    // A last note in a loop played three times is not cut while the loop has more to play.
+    #expect(abs(try held([0x8F, 0x00], looped: true) - 61) < 0.1)
+}
