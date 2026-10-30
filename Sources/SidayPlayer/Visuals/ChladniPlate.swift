@@ -65,7 +65,7 @@ final class ChladniPlate: VisualScene {
     private var grainSpeedX: [Float] = [], grainSpeedY: [Float] = []
     /// How long a grain takes to come round to sliding the way the plate would have it, most of the
     /// way, in seconds: it has a little weight, so that it starts, stops and turns smoothly.
-    private static let heft: Float = 0.5
+    private static let heft: Float = 0.8
     private var light: [Float] = []
     private var width = 0, height = 0
     /// How loud each voice is, followed more slowly, and the kick it last had.
