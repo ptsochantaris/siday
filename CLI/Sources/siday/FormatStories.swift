@@ -4560,6 +4560,16 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   its two program ROMs of firmware 1.21 (R15199778 and R15209363) and its three wave ROMs (R15209276,
   R15209277 and R15209281). Their names don't matter: they are known by their SHA-256 digests, as
   jcmoyer's Nuked SC-55 knows them.
+- **The SC-55mkII.** Roland made the Sound Canvas again in 1993 as the SC-55mkII: the same PCM chip,
+  with 28 voices to the SC-55's 24, wave ROMs of its own (one of 16 megabits and one of 8), a firmware
+  of its own (1.01), and a second processor, a Mitsubishi M37450, that takes the MIDI in and hands it
+  to the controller through RAM they share. siday plays it as Nuked SC-55 does, both processors
+  instruction by instruction: the same output, sample for sample. Its controller runs at 24 MHz where
+  the SC-55's runs at 20, and its chip makes 66,207 frames a second, which siday brings to 48,000. Its
+  ROMs are kept as the SC-55's are: its two program ROMs (R15199858 and R00233567), its second
+  processor's (R15199880) and its two wave ROMs (R15209359 and R15279813). Given both models' ROMs,
+  siday plays the SC-55 unless the Sound Canvas setting (`--sound-canvas sc55mk2`) asks for the
+  SC-55mkII; given one model's alone, it plays that one whatever the setting says.
 - **Loops.** Songs loop where the software that wrote them meant: by the FOR and NEXT of Miles' Audio
   Interface Library (controllers 116 and 117), kept in the games' music converted to MIDI files, and
   by the markers "loopStart" and "loopEnd". A loop a game held while the player stayed somewhere,
@@ -4576,7 +4586,8 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   eighteen channels are handed to whichever notes need them, so each MIDI channel shows the chip
   channels playing for it. On the MT-32, they are its nine parts: eight that each play one timbre,
   and the rhythm part, as the MT-32's front panel shows them. On the Sound Canvas, they are its
-  sixteen parts. Which part each of the chip's 24 voices plays is read where the firmware keeps it. A
+  sixteen parts. Which part each of the chip's voices (24 on the SC-55, 28 on the SC-55mkII) plays is
+  read where the firmware keeps it. A
   part's lamp, scope and mute are its voices' sound, and its pitch, notes and side are those its MIDI
   channel is sent.
 
@@ -4587,8 +4598,8 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   as General MIDI, as a GS synthesiser played them: it has not their sounds or effects, and they say
   so. A GS file that also sets up an MT-32 on the same cable is a GS file.
 - **No ROMs come with siday.** They are Roland's: siday plays MIDI files on FM until it is given them.
-- **The first Sound Canvas.** siday plays the SC-55 with firmware 1.21: not the SC-55mkII (1993) and
-  its larger set of sounds, nor the SC-88 and after.
+- **Two Sound Canvases.** siday plays the SC-55 with firmware 1.21 and the SC-55mkII with firmware
+  1.01: not their other firmware versions, nor the SC-88 and after.
 - **An MT-32 file on the Sound Canvas.** It is played on the Sound Canvas's own MT-32 sounds, set up
   as SCMODE set them: a GS reset, then bank 127 and the MT-32's first programs and pans on channels 1
   to 9, and the CM-64's rhythm set on 10. The instruments a game set up on its MT-32 are not heard.

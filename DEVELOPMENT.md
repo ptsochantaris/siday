@@ -2204,11 +2204,13 @@ Based on:
 - `SidaySC55`, a module of its own with no Foundation: the port of Nuked SC-55 (`SC55MCU`: the
   H8/532, its timers, serial port and interrupts; `SC55Instructions`: upstream's original
   interpreter, `mcu_opcodes.cpp`; `SC55PCM` and `SC55PCMLoop`: the PCM chip; `SC55ROMs`: the digests;
-  `SC55Synth`: the start, bytes by frame, rendering and parts), played by `MIDISC55Renderer` for every
-  file the MT-32 does not take when the SC-55's ROMs are kept (`SC55ROMSet`, `LoadOptions.sc55ROMs`;
-  `MIDISynthesiser.choose` decides). Its 64 kHz is brought to 48 kHz by `SidayCodecs.Resampler`.
-  Firmware 1.21 keeps the part of each PCM slot at static RAM 0xA318 + slot, in GS block order: found
-  by playing notes on known channels and reading the RAM.
+  `SC55Synth`: the start, bytes by frame, rendering and parts; `SC55SubMCU`: the SC-55mkII's second
+  processor), played by `MIDISC55Renderer` for every file the MT-32 does not take when a Sound
+  Canvas's ROMs are kept (`SC55ROMSet` and its `SC55Model`, `LoadOptions.soundCanvases` and
+  `soundCanvasModel`, the setting `Setting.soundCanvas`; `MIDISynthesiser.choose` decides). Its 64 kHz
+  (66,207 Hz on the SC-55mkII) is brought to 48 kHz by `SidayCodecs.Resampler`. Firmware 1.21 keeps
+  the part of each PCM slot at static RAM 0xA318 + slot, in GS block order, and the SC-55mkII's 1.01
+  at 0xA368: found by playing notes on known channels and reading the RAM.
 - Kept files: `KeptFile` and `KeptFiles` in SidayPlayer know a file by its contents (an MT-32 ROM by
   Munt's SHA-1 table, an SC-55 ROM by Nuked SC-55's SHA-256 table, song lengths by reading them); `KeptFileStore` in SidayFiles is the folder they
   are kept in (`Application Support/siday/Kept` for the command line, the app container's for the
@@ -2278,6 +2280,40 @@ and writes the back end's frames at 64 kHz (`MIDISC55Renderer.rawLog` is siday's
   (`SC55State`, one list of what there is to keep, for taking it and putting it back) rather than
   starting the firmware again: about 40 milliseconds less to each tune loaded.
 
+The SC-55mkII, from 30 October 2026, checked the same way against the same build with its model `mk2`,
+started for 2,000,000 steps (a second of its controller's time):
+
+- 50 whole files (the same list, capped at ten minutes) are the same, sample for sample; the SC-55's
+  50 are still the same, and the first minute of every other kind of file is as it was, with no ROMs,
+  the MT-32's, the SC-55's or all of them kept.
+- The board is chosen when it is made (`SC55MCU(subROM:)`, nil for the SC-55): the PCM chip at
+  0xE000 to 0xE3FF, the gate array at 0xE400 (its interrupt lines at 0xE402, raising none until the
+  firmware says which may), the RAM shared with the second processor at 0xEC00, the static RAM on
+  pages 10 and 11, pin 1 of port 9 high (an SC-55mkII, not an SC-155mkII), what pin 7 of the analogue
+  converter reads chosen at 0xE401, and the timers' external clock every 2 cycles (4 on the SC-55).
+  The PCM chip (`SC55PCM(mk2:)`) reads its first bank from the 2 MB wave ROM and has no third, and
+  works the voices' filter in 32 bits, as Nuked SC-55 does; its round is generic over the model
+  (`SC55PCMModel`), so the SC-55's is compiled as it was.
+- The second processor (`submcu.cpp`, as the fork keeps it, its quirks kept: a word read is one byte
+  read twice, its stores of A and X indexed in page zero are not kept to page zero, and it shares the controller's
+  byte from the MIDI in and its delay, where upstream keeps its own) is not stepped after every step
+  of the controller, as Nuked SC-55 steps it. It is brought up to the controller's time when the
+  controller reads or writes their shared side (but for a read that changes nothing while it goes
+  round a loop that leaves that side alone, `readsQuietly`), when a byte is posted, and at every step
+  from a little before it may next do something the controller sees (`due`, in `nextEventDue`). When
+  it is seen to come back to the same place with its memory and registers the same, as many times
+  round its loop as fit before its timer runs out or a byte is due are made at once, the timer counted
+  on as they would have counted it. Its state is in the start snapshot too.
+- 66,207 frames a second is the rate Nuked SC-55 gives the SC-55mkII. Its firmware sets 28 slots, 725
+  cycles a round, so its controller runs at 24 MHz. 66,207 to 48,000 has too many places for a row of
+  the resampler's weights each: a place's weights are had from the two rows it lies between.
+- The MIDI cable's time is kept in 3,125ths of a frame (a byte takes `rate` of them) in 64 bits, and the
+  resampler's place is counted on frame by frame, not worked out as a product: in the web player's
+  32-bit Int the first would run out in eleven seconds, and the second in two on the SC-55mkII.
+- The first minute of three files from the command line renders at about 15 times real time, where
+  the SC-55's renders at 21, about 2% slower than before the SC-55mkII was added; the bare synthesiser
+  in WebAssembly at about 11 times, where the SC-55 is 14.
+
 Level:
 
 - FM: measured over the first minute of 100 files, as loud as CMF files.
@@ -2285,6 +2321,8 @@ Level:
   rest of the FM MIDI files.
 - SC-55: 1.68 (+4.5 dB), the median gap to FM over the first minute of 60 files (−24.9 LUFS against
   −21.4). One of them, Ultima VII's "Arrival", touches full scale for a few hundred samples.
+- SC-55mkII: the same 1.68. Over the first minute of the same 60 files, the median of its difference
+  from the SC-55, file by file, is 0.0 dB (from −2.6 to +0.4).
 
 ### VGM — what was written to the chip, and when
 

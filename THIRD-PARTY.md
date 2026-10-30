@@ -1231,10 +1231,11 @@ The ROMs it plays are Roland's. They are not part of siday: a listener gives the
 
 ## Nuked SC-55 — the Sound Canvas
 
-`Sources/SidaySC55` is a Swift port of Nuked SC-55's emulation of the Roland SC-55: `mcu.cpp`,
-`mcu_interrupt.cpp`, `mcu_timer.cpp`, `mcu_opcodes.cpp` (the original interpreter) and `pcm.cpp`, as J.C.
-Moyer's fork keeps them. The table of ROMs by their SHA-256 digests and part numbers (firmware 1.21
-only) comes from the fork's `standard_romsets.cpp`.
+`Sources/SidaySC55` is a Swift port of Nuked SC-55's emulation of the Roland SC-55 and SC-55mkII:
+`mcu.cpp`, `mcu_interrupt.cpp`, `mcu_timer.cpp`, `mcu_opcodes.cpp` (the original interpreter), `pcm.cpp`
+and `submcu.cpp` (the SC-55mkII's second processor, `SC55SubMCU.swift`), as J.C. Moyer's fork keeps
+them. The table of ROMs by their SHA-256 digests and part numbers (the SC-55's firmware 1.21 and the
+SC-55mkII's 1.01) comes from the fork's `standard_romsets.cpp`.
 
 - Copyright (C) 2021, 2024 nukeykt; Copyright (C) 2024-2026 J.C. Moyer
 - GNU General Public License, version 2 or (at your option) any later version (both repositories'

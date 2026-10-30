@@ -49,7 +49,7 @@ siday is built, and how each part was checked, is in [DEVELOPMENT.md](DEVELOPMEN
 | Recordings, such as the CD audio of CD32 and CDTV games | Ogg Vorbis, MP3 (and MP2), WAV | ports of stb_vorbis and minimp3; brought to 48 kHz, a voice for each side |
 | AdLib and Sound Blaster FM, the Creative Music System, the PC speaker, the PCjr and Tandy 1000 | CMF, ROL, FMT; MIDI files (on the FM chip, but see the MT-32 and the Sound Canvas); VGM and VGZ recordings of the OPL, OPL2 and OPL3, of the Creative Music System's two SAA1099s, of the AY-3-8910 that PC speaker music is recorded as, of the samples a Sound Blaster played, and of the SN76489 | Creative's driver, AdLib's driver, OpenMPT's reading and libADLMIDI's General MIDI driver, on the FM chip; a recording's own writes, at their own moments, on the FM chip, the SAA1099, the AY chip, the SN76489 or a DAC |
 | The Roland MT-32 (as the LAPC-I and CM-32L) | MIDI files written for it, once siday has been given its ROMs | A port of Munt's mt32emu |
-| The Roland SC-55, the first Sound Canvas | General MIDI, GS and XG files, and MT-32 files when there are no MT-32 ROMs, once siday has been given its ROMs | A port of Nuked SC-55 |
+| The Roland SC-55, the first Sound Canvas, and the SC-55mkII | General MIDI, GS and XG files, and MT-32 files when there are no MT-32 ROMs, once siday has been given its ROMs | A port of Nuked SC-55 |
 
 A playlist, in Ay_Emul's AYL format or an M3U (such as VGM packs come with), plays the tunes it
 names, in its order, whatever kind of tune each is.
@@ -253,11 +253,12 @@ each thing.
 | `--sb-pro-separation 0…100` | The same for a VGM recording of the first Sound Blaster Pro (one FM chip on each side), or of the Creative Music System (whose voices are mostly on one side); and for a SAP file for two POKEYs, one on each side (default 20). 100 is the hardware's own |
 | `--agi amiga\|amiga-later\|pc` | How a Sierra AGI sound is played: with the first routine of the games' Amiga versions (the default; square waves), with the later one (rounder waves that die away), or on the PCjr's and Tandy 1000's chip, which the music was written for |
 | `--amiga a1200\|a500` | Which Amiga a module is heard on. The 1200 by default. The 500 has a low-pass filter at 4.4 kHz in the way: the darker sound much Amiga music was written on |
+| `--sound-canvas sc55\|sc55mk2` | Which Sound Canvas a MIDI file is played on when both have been given their ROMs: the SC-55 (the default) or the SC-55mkII. Given one's alone, that one plays |
 | `--sid-model auto\|6581\|8580` | SID model (default: what the tune asks for) |
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, from bright to dark (default 0.5). Real chips varied this much. reSIDfp only |
 | `--songlengths path` | A copy of HVSC's `Songlengths.md5`, asked before the built-in lengths; remembered for later runs. A file with no lengths in it is ignored |
-| `--roms files or folders` | A CM-32L's or LAPC-I's ROMs (whole or in halves, of any names), or an SC-55's of firmware 1.21, which siday keeps from then on, and plays MIDI files with: those written for the MT-32 on the first, the rest on the Sound Canvas. A `Songlengths.md5` among them is kept too. `--kept` says what is kept, `--forget-kept` forgets it, and `$SIDAY_KEPT` names a folder of them for one run that is never written |
+| `--roms files or folders` | A CM-32L's or LAPC-I's ROMs (whole or in halves, of any names), or an SC-55's of firmware 1.21, or an SC-55mkII's of firmware 1.01, which siday keeps from then on, and plays MIDI files with: those written for the MT-32 on the first, the rest on the Sound Canvas. A `Songlengths.md5` among them is kept too. `--kept` says what is kept, `--forget-kept` forgets it, and `$SIDAY_KEPT` names a folder of them for one run that is never written |
 | `--mute 2,4` / `--solo n` | Leave these voices out of every tune, or hear only this one: see [Muting a voice](#muting-a-voice) |
 | `--wav folder` | Render to WAV files instead of playing (existing files are not overwritten) |
 | `--list` | Show what would be played, with format, length and title. A `*` after the length marks a tune that isn't played quite as its file asks |
@@ -666,8 +667,8 @@ came from where, and under which terms.
   MT-32's synthesiser, mt32emu, ported whole for the LAPC-I. The ROMs it plays are Roland's, and don't
   come with the player.
 - [Nuked SC-55](https://github.com/nukeykt/Nuked-SC55) by nukeykt, and J.C. Moyer's fork of it: the
-  SC-55's controller and PCM chip, ported for the first Sound Canvas. The ROMs it plays are Roland's,
-  and don't come with the player.
+  SC-55's controller and PCM chip, and the SC-55mkII's second processor, ported for the SC-55 and the
+  SC-55mkII. The ROMs it plays are Roland's, and don't come with the player.
 - [libvgm](https://github.com/ValleyBell/libvgm) by Valley Bell: the player VGM files were compared
   with. From it come how a file's volume and its chips' volumes are read, when a write is made, and
   how its streams of samples are written and its blocks of them unpacked. None of its own code is in
