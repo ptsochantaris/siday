@@ -256,11 +256,12 @@ function keep(name, value) {
 }
 
 /// The files the listener gave once that siday keeps (see `KeptFiles` in SidayPlayer): the ROMs of an
-/// MT-32 of the LAPC-I's kind, those of an SC-55, and HVSC's Songlengths.md5. They are kept in the browser's IndexedDB, which
-/// holds files of a megabyte as they are, from one visit to the next, under the names the engine gives
+/// MT-32 of the LAPC-I's kind, those of an SC-55 or an SC-55mkII, and HVSC's Songlengths.md5. They are kept in the browser's
+/// IndexedDB, which holds files of megabytes as they are, from one visit to the next, under the names the engine gives
 /// them; a file just given is kept under a name of its own until the engine has said what it is. What
-/// the engine last said is kept too, as text, to be shown before it has started.
-const keptSizes = [32768, 65536, 131072, 262144, 524288, 1048576];
+/// the engine last said is kept too, as text, to be shown before it has started. (The sizes are those
+/// of `KeptFiles.mayBe`: the SC-55mkII's second processor's ROM is 4 KB, its first wave ROM 2 MB.)
+const keptSizes = [4096, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152];
 let keptSummary = (kept("siday.kept") ?? "").split("\n").filter((line) => line);
 let toldKept;
 /// Told what each MIDI file looked at before it is played was written for (see `sidayLookAt`).
@@ -328,6 +329,14 @@ async function takeKeptAnswer({ token, name, summary }) {
   keptSummary = summary;
   keep("siday.kept", summary.join("\n"));
   toldKept?.(summary.join("\n"));
+}
+/// What is kept, said again by the engine after the settings changed: after the answers before it.
+function keptSummaryAgain(summary) {
+  keptAnswers = keptAnswers.then(() => {
+    keptSummary = summary;
+    keep("siday.kept", summary.join("\n"));
+    toldKept?.(summary.join("\n"));
+  });
 }
 /// Takes, of what was chosen, the files that may be ones siday keeps: by their size, or how they begin.
 async function takeKept(chosen) {
@@ -436,6 +445,7 @@ function heard(message) {
   // A song's level is kept whichever song is playing now.
   if (message.type === "level") return keepLevel(message.key, message.text);
   if (message.type === "kept") return void keptAnswer(message);
+  if (message.type === "keptsummary") return void keptSummaryAgain(message.summary);
   if (message.type === "lookedat") return void toldLooked?.(`${message.name}\t${message.mt32 ? 1 : 0}`);
   // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
   if ("tune" in message ? message.tune !== asked : message.serial !== serial) return;
@@ -1447,7 +1457,7 @@ Object.assign(globalThis, {
     // A setting that is being dragged along its scale changes many times a second, and each change
     // may mean rendering the song again: the engine is told when it has been left alone for a moment.
     clearTimeout(settling);
-    settling = setTimeout(() => void sound?.then(({ engine }) => engine.postMessage({ type: "settings", values: settings })), 250);
+    settling = setTimeout(() => void sound?.then(({ engine }) => engine.postMessage({ type: "settings", values: settings, kept: true })), 250);
   },
   sidayRememberedSettings() {
     return kept("siday.settings") ?? "";

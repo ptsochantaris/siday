@@ -243,6 +243,12 @@ self.onmessage = async (event) => {
     case "settings": {
       const values = Float64Array.from(message.values);
       withBytes(values.buffer, (pointer) => core.siday_set_settings(pointer, values.length));
+      // What is kept is said again when asked, for it says which Sound Canvas is played on.
+      if (message.kept) {
+        const length = core.siday_kept_summary();
+        const [, ...summary] = new TextDecoder().decode(new Uint8Array(core.memory.buffer, core.siday_packed(), length)).split("\n");
+        postMessage({ type: "keptsummary", summary });
+      }
       break;
     }
     case "stop":

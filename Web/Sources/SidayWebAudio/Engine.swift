@@ -203,8 +203,20 @@ public func sidayKeep(_ data: UnsafePointer<UInt8>, _ length: Int32) -> Int32 {
     keeper.setMT32ROMs(kept.mt32ROMs)
     keeper.setSoundCanvases(kept.soundCanvases)
     if let lengths = kept.songLengths { keeper.setSongLengths(lengths) }
+    return packKept(name: known?.keptName ?? "")
+}
+
+/// What is kept, as `siday_keep` gives it, the name empty: said again when the settings change, for it says
+/// which Sound Canvas is played on.
+@_expose(wasm, "siday_kept_summary")
+@_cdecl("siday_kept_summary")
+public func sidayKeptSummary() -> Int32 {
+    packKept(name: "")
+}
+
+private func packKept(name: String) -> Int32 {
     let whole = [kept.mt32ROMs == nil ? nil : KeptROMs.mt32.rawValue, kept.soundCanvases.isEmpty ? nil : KeptROMs.sc55.rawValue].compactMap { $0 }
-    packed = Array(([known?.keptName ?? "", "@" + whole.joined(separator: ",")] + kept.summary(playingOn: soundCanvas)).joined(separator: "\n").utf8)
+    packed = Array(([name, "@" + whole.joined(separator: ",")] + kept.summary(playingOn: soundCanvas)).joined(separator: "\n").utf8)
     return Int32(packed.count)
 }
 
