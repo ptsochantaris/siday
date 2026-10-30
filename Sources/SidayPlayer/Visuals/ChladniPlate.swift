@@ -61,6 +61,11 @@ final class ChladniPlate: VisualScene {
     private var passed: Float = 1
     private var shaking = [Float](repeating: 0, count: ChladniPlate.grid * ChladniPlate.grid)
     private var grainX: [Float] = [], grainY: [Float] = []
+    /// How fast each grain is sliding, across and down, in the plate's widths and heights a second.
+    private var grainSpeedX: [Float] = [], grainSpeedY: [Float] = []
+    /// How long a grain takes to come round to sliding the way the plate would have it, most of the
+    /// way, in seconds: it has a little weight, so that it starts, stops and turns smoothly.
+    private static let heft: Float = 0.5
     private var light: [Float] = []
     private var width = 0, height = 0
     /// How loud each voice is, followed more slowly, and the kick it last had.
@@ -81,6 +86,8 @@ final class ChladniPlate: VisualScene {
             // Strewn evenly to begin with, as sand is shaken on to a plate.
             grainX = (0 ..< Self.grains).map { _ in next() }
             grainY = (0 ..< Self.grains).map { _ in next() }
+            grainSpeedX = [Float](repeating: 0, count: Self.grains)
+            grainSpeedY = grainSpeedX
         }
         let count = frame.voices.count
         if calm.count != count {
@@ -208,10 +215,12 @@ final class ChladniPlate: VisualScene {
     }
 
     /// Each grain is thrown about by as much as the plate shakes where it lies, and slides a little
-    /// towards where it shakes less: so it comes to rest on a still line.
+    /// towards where it shakes less, gathering speed, slowing and turning as a thing with a little
+    /// weight does: so it comes to rest on a still line.
     private func moveSand(_ step: Float) {
         guard vigour > 0.01 else { return }
-        let throwing = 0.3 * vigour * step.squareRoot(), sliding = 0.03 * vigour * step * 60
+        let throwing = 0.3 * vigour * step.squareRoot(), sliding = 0.036 * vigour
+        let following = 1 - expf(-step / Self.heft)
         for index in 0 ..< Self.grains {
             let x = grainX[index], y = grainY[index]
             let here = shake(x, y)
@@ -220,13 +229,18 @@ final class ChladniPlate: VisualScene {
             let shakes = abs(here.amount) + 0.03
             // Down the slope of how hard it shakes: towards the line where it is still.
             let sign: Float = here.amount > 0 ? 1 : -1
-            var newX = x - sign * here.slopeX * sliding * 0.02 + (next() - 0.5) * throwing * shakes
-            var newY = y - sign * here.slopeY * sliding * 0.02 + (next() - 0.5) * throwing * shakes
+            var speedX = grainSpeedX[index], speedY = grainSpeedY[index]
+            speedX += (-sign * here.slopeX * sliding - speedX) * following
+            speedY += (-sign * here.slopeY * sliding - speedY) * following
+            var newX = x + speedX * step + (next() - 0.5) * throwing * shakes
+            var newY = y + speedY * step + (next() - 0.5) * throwing * shakes
             // The plate's edge: sand that would fall off bounces back on.
-            if newX < 0 { newX = -newX }
-            if newX > 1 { newX = 2 - newX }
-            if newY < 0 { newY = -newY }
-            if newY > 1 { newY = 2 - newY }
+            if newX < 0 { newX = -newX; speedX = -speedX }
+            if newX > 1 { newX = 2 - newX; speedX = -speedX }
+            if newY < 0 { newY = -newY; speedY = -speedY }
+            if newY > 1 { newY = 2 - newY; speedY = -speedY }
+            grainSpeedX[index] = speedX
+            grainSpeedY[index] = speedY
             grainX[index] = max(0, min(1, newX))
             grainY[index] = max(0, min(1, newY))
         }
