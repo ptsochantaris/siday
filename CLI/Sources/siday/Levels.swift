@@ -38,9 +38,7 @@ final class Levels: @unchecked Sendable {
     init(files: TuneFiles, policy: PlaybackPolicy) {
         self.files = files
         self.policy = policy
-        let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("siday")
-        keptFile = folder?.appendingPathComponent("levels.txt")
-        if let folder { try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+        keptFile = cacheFolder()?.appendingPathComponent("levels.txt")
         var kept: [String: SongLevel] = [:]
         if let keptFile, let text = try? String(contentsOf: keptFile, encoding: .utf8) {
             for line in text.split(separator: "\n") {

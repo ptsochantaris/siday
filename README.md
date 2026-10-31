@@ -284,6 +284,11 @@ measured. No song is turned up by more than 6 dB. Levels are
 kept in `~/Library/Caches/siday/levels.txt`. With `--list`, it says how far each tune would be turned
 up or down.
 
+**Song lengths** that siday finds by playing a tune's songs through, as it does for the Amiga
+composers' own players, are kept too, in `~/Library/Caches/siday/lengths.txt`, and by the app and the
+web page in theirs: a tune's songs are played through once, and from then on every song's length is
+known as soon as it loads. `$SIDAY_CACHE` names another folder for both files, for one run.
+
 ### How long a tune plays
 
 - **Tracker modules and register recordings** play to their loop point (`--loops` times).

@@ -122,6 +122,7 @@ function audio() {
     engine.postMessage({ type: "style", style });
     if (settings) engine.postMessage({ type: "settings", values: settings });
     if (songLengths) engine.postMessage({ type: "songlengths", bytes: songLengths });
+    engine.postMessage({ type: "lengths", entries: lengthsKept() });
     return { engine, output };
   })();
   return sound;
@@ -381,6 +382,39 @@ function keepLevel(key, text) {
   keep("siday.levels", JSON.stringify(levels));
 }
 
+/// How long the songs of files played through in this browser are (see `SongKeeper.lengthsKey`), by
+/// what each is kept under, each as the bytes of `SongMeasures` in base 64: read once, when first wanted.
+/// Only so many are kept, the oldest let go first.
+let lengths;
+const lengthsKeptMost = 20000;
+function lengthsRead() {
+  if (!lengths) {
+    try {
+      lengths = JSON.parse(kept("siday.lengths") ?? "{}");
+    } catch {}
+    if (typeof lengths !== "object" || lengths === null) lengths = {};
+  }
+  return lengths;
+}
+/// All of them, as bytes, for the engine.
+function lengthsKept() {
+  const entries = {};
+  for (const [key, text] of Object.entries(lengthsRead())) {
+    try {
+      entries[key] = Uint8Array.from(atob(text), (character) => character.charCodeAt(0));
+    } catch {}
+  }
+  return entries;
+}
+function keepLengths(key, bytes) {
+  lengthsRead();
+  delete lengths[key];
+  lengths[key] = btoa(String.fromCharCode(...bytes));
+  const keys = Object.keys(lengths);
+  for (const old of keys.slice(0, Math.max(0, keys.length - lengthsKeptMost))) delete lengths[old];
+  keep("siday.lengths", JSON.stringify(lengths));
+}
+
 /// The volume from the last visit, or full.
 function remembered() {
   const level = Number.parseFloat(kept("siday.volume"));
@@ -442,8 +476,9 @@ function remaking(busy) {
 
 function heard(message) {
   if (message.type === "connected") return direct();
-  // A song's level is kept whichever song is playing now.
+  // A song's level is kept whichever song is playing now, and so are how long a file's songs are.
   if (message.type === "level") return keepLevel(message.key, message.text);
+  if (message.type === "lengths") return keepLengths(message.key, message.bytes);
   if (message.type === "kept") return void keptAnswer(message);
   if (message.type === "keptsummary") return void keptSummaryAgain(message.summary);
   if (message.type === "lookedat") return void toldLooked?.(`${message.name}\t${message.mt32 ? 1 : 0}`);

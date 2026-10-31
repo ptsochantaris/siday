@@ -173,6 +173,16 @@ Under the same headings as FORMATS.md, the detail behind each chapter.
 - **Per-tune levelling** measures each song whole, as played, and brings it to -22.95 LUFS (or
   halfway), boosting by at most 6 dB and keeping peaks 1 dB below full scale. Levels are cached, on
   disk or in the browser.
+- **Song lengths played through.** The players that find their songs' lengths by playing them through
+  (the emulated Amiga's: the composers' own drivers and DeliTracker's customs) hand what they found
+  over as `SongMeasures`, nine bytes a song. Since 31 October 2026 every front end keeps these between
+  runs, as it keeps levels: `SongKeeper` asks its `keptLengths` as a file loads, under
+  `SongKeeper.lengthsKey` (the sound version and the digest of the file and its companions), and tells
+  of lengths it finds (`Event.lengths`). The app keeps them in its settings, the web page in local
+  storage (20,000 files at most, as levels), the command line in `~/Library/Caches/siday/lengths.txt`
+  (`$SIDAY_CACHE` names another folder for it and `levels.txt`, for one run). Listing UnExoticA's
+  collection (8,342 lines) took 25.3 s the first time and 1.7 s with the lengths kept, every line the
+  same; 36 songs of eight files rendered with kept lengths are the same sample for sample.
 - **Companion files** are all found by `FileFinder`: by the names they are known to have, beside the
   file that wants them first, and case-insensitively, as Windows matches names.
 

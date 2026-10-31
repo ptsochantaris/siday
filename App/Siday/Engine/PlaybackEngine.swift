@@ -51,10 +51,14 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     private let tell: @Sendable @MainActor (News) -> Void
     /// Where the files the app keeps are, to be read back as the engine starts.
     private let keptStore: KeptFileStore?
+    /// How long files' songs are, by `SongKeeper.lengthsKey`: those the app kept from other runs, and
+    /// those found in this one (`SongKeeper.Event.lengths`), for the keeper to ask as it loads a file.
+    private let lengths: Mutex<[String: [UInt8]]>
 
-    init(kept keptStore: KeptFileStore?, tell: @escaping @Sendable @MainActor (News) -> Void) {
+    init(kept keptStore: KeptFileStore?, lengths: [String: [UInt8]], tell: @escaping @Sendable @MainActor (News) -> Void) {
         self.tell = tell
         self.keptStore = keptStore
+        self.lengths = Mutex(lengths)
         let thread = Thread { [unowned self] in run() }
         thread.name = "siday engine"
         thread.qualityOfService = .userInitiated
@@ -179,6 +183,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
 
     private func run() {
         let keeper = SongKeeper()
+        keeper.keptLengths = { [unowned self] key in lengths.withLock { $0[key] } }
         // The files the app keeps are read back here first, before anything the screen asks for, so that
         // the tunes it loads are played with them; and here rather than on the main thread, as putting an
         // SC-55's ROMs together starts its synthesiser, which takes a moment (seconds, in a debug build).
@@ -208,6 +213,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             take(keeper)
             for event in keeper.events {
                 if case let .measure(tune, name, bytes, companions) = event { measure(tune: tune, name: name, bytes: bytes, companions: companions) }
+                if case let .lengths(key, bytes) = event { lengths.withLock { $0[key] = bytes } }
                 let news = News.keeper(event)
                 Task { @MainActor [tell] in tell(news) }
             }

@@ -126,6 +126,10 @@ function pass() {
       case 7:
         self.postMessage({ type: "songs", tune, text: message.text() });
         break;
+      case 8:
+        // How long a file's songs are, found by playing them through: for the page to keep.
+        self.postMessage({ type: "lengths", key: message.text(), bytes: message.bytes() });
+        break;
     }
   }
   // Rendering is done a turn at a time, with a message to itself between turns, so that word from
@@ -233,6 +237,14 @@ self.onmessage = async (event) => {
       break;
     case "seek":
       core.siday_seek(message.position, message.serial, now());
+      break;
+    case "lengths":
+      // How long files' songs are, as the page kept them from earlier visits, by what each is kept under.
+      for (const [key, bytes] of Object.entries(message.entries)) {
+        withBytes(new TextEncoder().encode(key).buffer, (keyAt, keyLength) =>
+          withBytes(bytes.buffer, (data, length) => core.siday_keep_lengths(keyAt, keyLength, data, length)),
+        );
+      }
       break;
     case "mute":
       core.siday_mute(message.light, message.solo ? 1 : 0);

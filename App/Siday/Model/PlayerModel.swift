@@ -197,6 +197,9 @@ final class PlayerModel {
     private(set) var kept = KeptFiles()
     /// Levels found for songs, by their keys (see `SongLevel.key`).
     @ObservationIgnored private var levels: [String: String]
+    /// How long files' songs were found to be by playing them through, by their keys (see
+    /// `SongKeeper.lengthsKey`), so that they are not played through again in another run.
+    @ObservationIgnored private var lengths: [String: Data]
 
     init() {
         let defaults = UserDefaults.standard
@@ -210,7 +213,8 @@ final class PlayerModel {
         hidden = Set(Part.allCases.filter { $0.startsHidden ? !words.contains("+" + $0.rawValue) : words.contains($0.rawValue) })
         settings = Self.rememberedSettings
         levels = defaults.dictionary(forKey: "levels") as? [String: String] ?? [:]
-        engine = PlaybackEngine(kept: keptStore) { [weak self] news in self?.hear(news) }
+        lengths = defaults.dictionary(forKey: "lengths") as? [String: Data] ?? [:]
+        engine = PlaybackEngine(kept: keptStore, lengths: lengths.mapValues { [UInt8]($0) }) { [weak self] news in self?.hear(news) }
         engine.send(.output(output))
         engine.send(.settings(settings))
         engine.setVolume(volume)
@@ -564,6 +568,9 @@ final class PlayerModel {
             case let .level(_, key, text):
                 levels[key] = text
                 UserDefaults.standard.set(levels, forKey: "levels")
+            case let .lengths(key, bytes):
+                lengths[key] = Data(bytes)
+                UserDefaults.standard.set(lengths, forKey: "lengths")
             case let .remaking(tune, busy):
                 if tune == asked { remaking = busy }
             case let .songs(tune, songs):

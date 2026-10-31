@@ -106,9 +106,27 @@ public final class SongKeeper {
         case measure(tune: Int, name: String, bytes: [UInt8], companions: [[UInt8]?])
         /// It is known now how long each of the tune's songs is.
         case songs(tune: Int, songs: [SongInfo])
+        /// How long a file's songs are, found here by playing them through: for the front end to keep
+        /// under `key` (`lengthsKey`) and give to a later `load` of the same file, so that they are not
+        /// played through again, in this run or another.
+        case lengths(key: String, bytes: [UInt8])
+    }
+
+    /// What the lengths of a file's songs are kept under (`Event.lengths`): the sound version
+    /// (`SongLevel.soundVersion`), since a change to how a tune sounds may change how long it is, and
+    /// the file's digest, with the files beside it.
+    public static func lengthsKey(of bytes: [UInt8], companions: [[UInt8]?]) -> String {
+        lengthsKey(digest: SongLevel.digest(of: bytes, companions: companions))
+    }
+
+    static func lengthsKey(digest: String) -> String {
+        "\(SongLevel.soundVersion)-\(digest)"
     }
 
     public let player = TunePlayer()
+    /// What the front end kept of how long files' songs are, by `lengthsKey` (`Event.lengths`), from
+    /// when they were played through before: asked as a file is loaded, on the keeper's thread.
+    public var keptLengths: @Sendable (String) -> [UInt8]? = { _ in nil }
     /// Sound to be heard, in order: the front end takes it.
     public var outbox: [Sent] = []
     /// News for the screen, in order: the front end takes it.
@@ -189,14 +207,21 @@ public final class SongKeeper {
 
     /// Loads a tune and starts on the song asked for (or the one the file asks to be played first,
     /// for a negative `subsong`), every voice of it heard; sending starts as a new run, `serial`.
+    /// How long its songs are is asked of `keptLengths` first.
     public func load(tune: Int, serial: Int, name: String, bytes: [UInt8], companions: [[UInt8]?], subsong: Int, now: Double) {
         self.tune = tune
         self.serial = serial
         file = File(name: name, bytes: bytes, companions: companions, subsong: subsong)
         mask = nil
         whole = nil
+        let digest = SongLevel.digest(of: bytes, companions: companions)
+        let lengths = keptLengths(Self.lengthsKey(digest: digest))
+        if let lengths, let measures = SongMeasures(bytes: lengths) { player.remember(measures, key: digest) }
         let plays = load(nil)
         tell(plays: plays)
+        if plays, let found = player.renderer?.songMeasures?.bytes, found != lengths {
+            events.append(.lengths(key: Self.lengthsKey(digest: digest), bytes: found))
+        }
         if plays, player.songsPending {
             events.append(.measure(tune: tune, name: name, bytes: bytes, companions: companions))
         }
@@ -213,6 +238,7 @@ public final class SongKeeper {
     /// Takes what was found of a tune's songs by playing them through (`Event.measure`), and keeps
     /// it: the screen is told, if it is of the tune that is loaded.
     public func adopt(tune: Int, key: String, measures: SongMeasures) {
+        events.append(.lengths(key: Self.lengthsKey(digest: key), bytes: measures.bytes))
         guard player.adopt(measures, key: key), tune == self.tune else { return }
         events.append(.songs(tune: tune, songs: player.renderer?.songs ?? []))
     }

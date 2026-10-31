@@ -119,7 +119,7 @@ public final class TunePlayer {
     private var measured: [(key: String, measures: SongMeasures)] = []
     private static let measuredKept = 32
 
-    private func remember(_ measures: SongMeasures, key: String) {
+    func remember(_ measures: SongMeasures, key: String) {
         measured.removeAll { $0.key == key }
         measured.append((key, measures))
         if measured.count > Self.measuredKept { measured.removeFirst() }

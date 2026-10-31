@@ -264,3 +264,32 @@ private struct Writes: TFMXOutput {
     #expect(!player.songsPending)
     #expect(!player.adopt(found.measures, key: found.key))
 }
+
+@Test func aSongKeeperTellsOfTheLengthsItFindsAndTakesThemBackInAnotherRun() throws {
+    let file = custom(endAt: 1000)
+    func lengths(_ keeper: SongKeeper) -> [(key: String, bytes: [UInt8])] {
+        keeper.events.compactMap { if case let .lengths(key, bytes) = $0 { (key, bytes) } else { nil } }
+    }
+    // The first time, only the song it starts with is played through as it loads; the rest are, elsewhere.
+    let first = SongKeeper()
+    first.load(tune: 1, serial: 1, name: "test.cust", bytes: file, companions: [nil], subsong: -1, now: 0)
+    #expect(first.player.songsPending && lengths(first).isEmpty)
+    let found = try #require(TunePlayer().measure(file, name: "test.cust"))
+    first.adopt(tune: 1, key: found.key, measures: found.measures)
+    let told = try #require(lengths(first).first)
+    #expect(told.key == SongKeeper.lengthsKey(of: file, companions: [nil]) && told.bytes == found.measures.bytes)
+    #expect(told.key.hasPrefix("\(SongLevel.soundVersion)-"))
+    // In another run, given what was kept, every song's length is known as it loads, and nothing new is told.
+    let later = SongKeeper()
+    let kept = [told.key: told.bytes]
+    later.keptLengths = { kept[$0] }
+    later.load(tune: 1, serial: 1, name: "test.cust", bytes: file, companions: [nil], subsong: -1, now: 0)
+    #expect(!later.player.songsPending && lengths(later).isEmpty)
+    #expect(!later.events.contains { if case .measure = $0 { true } else { false } })
+    #expect(later.player.renderer?.songs == first.player.renderer?.songs)
+    // Lengths that are not such are passed over: the songs are played through again.
+    let wrong = SongKeeper()
+    wrong.keptLengths = { _ in [1, 2, 3] }
+    wrong.load(tune: 1, serial: 1, name: "test.cust", bytes: file, companions: [nil], subsong: -1, now: 0)
+    #expect(wrong.player.songsPending)
+}

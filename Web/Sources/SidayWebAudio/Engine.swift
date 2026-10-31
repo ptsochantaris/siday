@@ -17,6 +17,9 @@ nonisolated(unsafe) private let keeper = SongKeeper()
 nonisolated(unsafe) private var companions: [[UInt8]?] = []
 /// What was last handed out for the worker to read: a message, and a chunk's sound.
 nonisolated(unsafe) private var packed: [UInt8] = []
+/// How long files' songs are, by `SongKeeper.lengthsKey`: those the page kept (`siday_keep_lengths`), and
+/// those found since, for the keeper to ask as it loads a file.
+nonisolated(unsafe) private var lengthsKept: [String: [UInt8]] = [:]
 nonisolated(unsafe) private let samples = UnsafeMutablePointer<Float>.allocate(capacity: SongKeeper.chunkFrames * 2)
 
 /// A message for the worker to read, as bytes, one thing after another: a number as eight bytes, a
@@ -88,6 +91,13 @@ private func pack(_ event: SongKeeper.Event) -> Packed {
         message.add(7)
         message.add(Double(tune))
         message.add(keeper.player.info.map { TunePlayer.details(of: $0, songs: songs) } ?? "")
+    case let .lengths(key, bytes):
+        // (Of no tune in particular: of a file. Kept here at once, for the page to keep too.)
+        lengthsKept[key] = bytes
+        message.add(8)
+        message.add(0)
+        message.add(key)
+        message.add(bytes)
     }
     return message
 }
@@ -137,6 +147,7 @@ public func sidayCompanion(_ data: UnsafePointer<UInt8>?, _ length: Int32, _ fou
 @_cdecl("siday_load")
 public func sidayLoad(_ data: UnsafePointer<UInt8>, _ length: Int32, _ name: UnsafePointer<UInt8>, _ nameLength: Int32,
                       _ tune: Int32, _ serial: Int32, _ subsong: Int32, _ now: Double) {
+    keeper.keptLengths = { lengthsKept[$0] }
     keeper.load(tune: Int(tune), serial: Int(serial), name: text(name, nameLength), bytes: bytes(data, length),
                 companions: companions, subsong: Int(subsong), now: now)
 }
@@ -227,6 +238,14 @@ public func sidayForgetKept() {
     kept.forgetAll()
     keeper.setMT32ROMs(nil)
     keeper.setSoundCanvases([])
+}
+
+/// How long a file's songs are, as the page kept them under `key` (`SongKeeper.lengthsKey`, in UTF-8)
+/// from the news of them in an earlier visit: given once for each, as the worker starts.
+@_expose(wasm, "siday_keep_lengths")
+@_cdecl("siday_keep_lengths")
+public func sidayKeepLengths(_ key: UnsafePointer<UInt8>, _ keyLength: Int32, _ data: UnsafePointer<UInt8>, _ length: Int32) {
+    lengthsKept[text(key, keyLength)] = bytes(data, length)
 }
 
 /// The level the page kept under `key` (see `SongLevel.key`), as the news of a song's level gave it,
