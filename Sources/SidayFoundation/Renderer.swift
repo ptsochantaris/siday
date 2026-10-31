@@ -289,8 +289,8 @@ public struct LoadOptions: Sendable {
     /// SC-55mkII's, or both. MIDI files written for General MIDI, GS or XG are played on one when they are here,
     /// and those written for the MT-32 too when no MT-32's ROMs are; on FM when none is.
     public var soundCanvases: [SC55ROMSet] = []
-    /// Which Sound Canvas is played on when both are here.
-    public var soundCanvasModel: SC55Model = .sc55
+    /// Which Sound Canvas is played on when both are here: nil for the newest (see `[SC55ROMSet].soundCanvas`).
+    public var soundCanvasModel: SC55Model?
     /// The Sound Canvas MIDI files are played on: the one asked for if it is here, and otherwise whichever is
     /// (see `soundCanvases`). Set, it is the only one.
     public var sc55ROMs: SC55ROMSet? {

@@ -138,10 +138,10 @@ public struct KeptFiles: Sendable {
     }
 
     /// What is kept, and what it does, a line for each, for a listener: nothing if nothing is kept.
-    public var summary: [String] { summary(playingOn: .sc55) }
+    public var summary: [String] { summary(playingOn: nil) }
 
     /// The same, with the Sound Canvas MIDI files are played on when both are kept (`LoadOptions.soundCanvasModel`).
-    public func summary(playingOn model: SC55Model) -> [String] {
+    public func summary(playingOn model: SC55Model?) -> [String] {
         var lines: [String] = []
         let roms = files.filter { $0.kind == .mt32ROM }
         if let set = mt32ROMs {

@@ -198,7 +198,7 @@ public func sidaySetSongLengths(_ data: UnsafePointer<UInt8>, _ length: Int32) -
 /// The files the listener gave once, which the page keeps and gives again at each visit (see `KeptFiles`).
 nonisolated(unsafe) private var kept = KeptFiles()
 /// The Sound Canvas MIDI files are played on when both are kept, as the settings last said (for what is kept, as it is said).
-nonisolated(unsafe) private var soundCanvas = SC55Model.sc55
+nonisolated(unsafe) private var soundCanvas: SC55Model?
 
 /// A file the page keeps, or has just been given and may keep: taken if it is one siday keeps, and its
 /// ROMs or song lengths used from now on. Returns the length of a text at `siday_packed`: the name it is

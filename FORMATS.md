@@ -4569,8 +4569,8 @@ and siday's writes to the chip are libADLMIDI's, register for register.
   the SC-55's runs at 20, and its chip makes 66,207 frames a second, which siday brings to 48,000. Its
   ROMs are kept as the SC-55's are: its two program ROMs (R15199858 and R00233567), its second
   processor's (R15199880) and its two wave ROMs (R15209359 and R15279813). Given both models' ROMs,
-  siday plays the SC-55 unless the Sound Canvas setting (`--sound-canvas sc55mk2`) asks for the
-  SC-55mkII; given one model's alone, it plays that one whatever the setting says.
+  siday plays the newer, the SC-55mkII, unless the Sound Canvas setting (`--sound-canvas sc55`) asks
+  for the SC-55; given one model's alone, it plays that one whatever the setting says.
 - **Loops.** Songs loop where the software that wrote them meant: by the FOR and NEXT of Miles' Audio
   Interface Library (controllers 116 and 117), kept in the games' music converted to MIDI files, and
   by the markers "loopStart" and "loopEnd". A loop a game held while the player stayed somewhere,

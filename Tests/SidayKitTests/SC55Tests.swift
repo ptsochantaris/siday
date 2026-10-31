@@ -265,22 +265,28 @@ private struct MadeUpCanvasMk2 {
         #expect([sc55, mk2].soundCanvas(asked)?.model == asked)
         #expect([mk2, sc55].soundCanvas(asked)?.model == asked)
     }
-    // The setting, by its place in the list; the SC-55 unless it is changed.
+    // None asked for: the newest kept.
+    #expect([sc55, mk2].soundCanvas(nil)?.model == .sc55mk2)
+    #expect([sc55].soundCanvas(nil)?.model == .sc55)
+    #expect([mk2].soundCanvas(nil)?.model == .sc55mk2)
+    // The setting, by its place in the list; automatic unless it is changed.
     var options = LoadOptions()
     var policy = PlaybackPolicy()
     options.soundCanvases = [sc55, mk2]
-    #expect(options.sc55ROMs?.model == .sc55)
+    #expect(options.sc55ROMs?.model == .sc55mk2)
     var values = Setting.standards
-    #expect(Setting.soundCanvas(values) == .sc55)
+    #expect(Setting.soundCanvas(values) == nil)
+    values[Setting.soundCanvas.rawValue] = 2
+    Setting.apply(values, to: &options, &policy)
+    #expect(options.soundCanvasModel == .sc55 && options.sc55ROMs?.model == .sc55)
+    // The SC-55mkII is where it was in the list when it was the other of two: a list kept then asks for it still.
     values[Setting.soundCanvas.rawValue] = 1
     Setting.apply(values, to: &options, &policy)
-    #expect(options.soundCanvasModel == .sc55mk2)
-    #expect(options.sc55ROMs?.model == .sc55mk2)
-    #expect(Setting.soundCanvas(values) == .sc55mk2)
+    #expect(options.soundCanvasModel == .sc55mk2 && options.sc55ROMs?.model == .sc55mk2)
     #expect(Setting.soundCanvas.changes(.mid) && !Setting.soundCanvas.changes(.mod))
-    // A list of settings kept before the setting was one leaves it at the SC-55.
+    // A list of settings kept before the setting was one leaves it automatic.
     Setting.apply(Array(values.prefix(Setting.soundCanvas.rawValue)), to: &options, &policy)
-    #expect(options.soundCanvasModel == .sc55)
+    #expect(options.soundCanvasModel == nil && options.sc55ROMs?.model == .sc55mk2)
 }
 
 @Test func withAnSC55mkIIsROMsMIDIFilesPlayOnItAndItsLevelSaysSo() throws {

@@ -254,7 +254,7 @@ each thing.
 | `--sb-pro-separation 0…100` | The same for a VGM recording of the first Sound Blaster Pro (one FM chip on each side), or of the Creative Music System (whose voices are mostly on one side); and for a SAP file for two POKEYs, one on each side (default 20). 100 is the hardware's own |
 | `--agi amiga\|amiga-later\|pc` | How a Sierra AGI sound is played: with the first routine of the games' Amiga versions (the default; square waves), with the later one (rounder waves that die away), or on the PCjr's and Tandy 1000's chip, which the music was written for |
 | `--amiga a1200\|a500` | Which Amiga a module is heard on. The 1200 by default. The 500 has a low-pass filter at 4.4 kHz in the way: the darker sound much Amiga music was written on |
-| `--sound-canvas sc55\|sc55mk2` | Which Sound Canvas a MIDI file is played on when both have been given their ROMs: the SC-55 (the default) or the SC-55mkII. Given one's alone, that one plays |
+| `--sound-canvas auto\|sc55mk2\|sc55` | Which Sound Canvas a MIDI file is played on when both have been given their ROMs. `auto` (the default) plays the newest model whose ROMs are kept: the SC-55mkII if they are, and otherwise the SC-55. Given one's alone, that one plays |
 | `--sid-model auto\|6581\|8580` | SID model (default: what the tune asks for) |
 | `--sid-engine residfp\|resid` | SID emulation. reSIDfp by default; reSID 1.0 is lighter, and its 6581 filter is drier |
 | `--sid-filter-curve 0…1` | Where the 6581's filter sits, from bright to dark (default 0.5). Real chips varied this much. reSIDfp only |

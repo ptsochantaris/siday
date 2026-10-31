@@ -56,8 +56,8 @@ public struct SC55ROMSet: Sendable {
 
 extension [SC55ROMSet] {
     /// The Sound Canvas to play on, of those whose ROMs are here, whole: the model asked for if it is here,
-    /// and otherwise whichever is (the SC-55 first).
-    public func soundCanvas(_ model: SC55Model) -> SC55ROMSet? {
-        first { $0.model == model } ?? first { $0.model == .sc55 } ?? first
+    /// and otherwise, or when none is asked for, the newest that is (the SC-55mkII before the SC-55).
+    public func soundCanvas(_ model: SC55Model?) -> SC55ROMSet? {
+        model.flatMap { asked in first { $0.model == asked } } ?? first { $0.model == .sc55mk2 } ?? first { $0.model == .sc55 } ?? first
     }
 }

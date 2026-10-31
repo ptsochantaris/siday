@@ -29,7 +29,7 @@ enum KeptFilesInUse {
     }
 
     /// Keeps the files below `keep` that siday keeps; says what is kept, if asked; forgets it all, if asked.
-    static func handle(keep paths: [String], list: Bool, forget: Bool, playingOn model: SC55Model = .sc55) throws {
+    static func handle(keep paths: [String], list: Bool, forget: Bool, playingOn model: SC55Model? = nil) throws {
         guard let store else { throw TuneError.unreadable("there is no Application Support folder to keep files in") }
         var kept = current
         func say(_ line: String) { FileHandle.standardError.write(Data("siday: \(line)\n".utf8)) }

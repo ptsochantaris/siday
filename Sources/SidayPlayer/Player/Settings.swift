@@ -159,7 +159,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .agiReplay:
             "The music of Sierra's adventure games of the 1980s, King's Quest to Manhunter (an AGI file), was written for the three-voice chip of IBM's PCjr and the Tandy 1000, and the Amiga versions of the games played it with routines of their own. The first plays every tone as a square wave, held at the note's volume; the later one plays it as a rounder wave that dies away over each note's first second. Which games had which is not known: Wanted Team's player of these files, by which they are heard on the Amiga today, plays the first unless told otherwise."
         case .soundCanvas:
-            "Roland's Sound Canvas, on which most General MIDI music of the 1990s was written and heard, came first as the SC-55 and in 1993 as the SC-55mkII: the same kind of synthesiser, with 28 voices to the first's 24 and wave ROMs and a firmware of its own, which play the same files a little otherwise. This is which one a MIDI file is played on when the ROMs of both have been given; given one's alone, that one plays, whatever this says."
+            "Roland's Sound Canvas, on which most General MIDI music of the 1990s was written and heard, came first as the SC-55 and in 1993 as the SC-55mkII: the same kind of synthesiser, with 28 voices to the first's 24 and wave ROMs and a firmware of its own, which play the same files a little otherwise. Automatic plays a MIDI file on the newest model whose ROMs have been given: the SC-55mkII if its have, and otherwise the SC-55. One chosen here plays when the ROMs of both have been given; given one's alone, that one plays, whatever this says."
         case .levelling:
             "A tune is heard as loud as its file has it, so one written quiet is heard quiet. Levelled, each song is turned up or down to be as loud as the rest; halfway, it is moved half as far, and a quiet tune is still quieter than a loud one, but not by as much. No song is turned up by more than 6 dB. A song is measured the first time it is played: it waits up to a second to be, starts at about its level by what has been measured of it if that is not enough, glides to about its level again with each second more of it measured, and to its level once the whole of it has been. Its level is kept in this browser for the next time."
         }
@@ -211,7 +211,7 @@ public enum Setting: Int, CaseIterable, Sendable {
             .choice([Choice("amiga", "Amiga, Sierra's first routine"), Choice("amiga-later", "Amiga, Sierra's later routine"),
                      Choice("pc", "PCjr and Tandy 1000")])
         case .soundCanvas:
-            .choice([Choice("sc55", "SC-55 (1991)"), Choice("sc55mk2", "SC-55mkII (1993)")])
+            .choice([Choice("auto", "Automatic"), Choice("sc55mk2", "SC-55mkII (1993)"), Choice("sc55", "SC-55 (1991)")])
         case .levelling:
             .choice([Choice("off", "as each file has it"), Choice("full", "levelled, every song alike"), Choice("partial", "levelled halfway")])
         }
@@ -308,10 +308,12 @@ public enum Setting: Int, CaseIterable, Sendable {
         return stereoOrder.settled(values[stereoOrder.rawValue]) == 1 ? .acb : .abc
     }
 
-    /// The Sound Canvas MIDI files are played on when both are kept, with the settings as they are.
-    public static func soundCanvas(_ values: [Double]) -> SC55Model {
+    /// The Sound Canvas MIDI files are played on when both are kept, with the settings as they are: nil for
+    /// the newest whose ROMs are kept. (The SC-55mkII is second in the list, where it was when it was the
+    /// other of two, so that a list kept then still asks for it.)
+    public static func soundCanvas(_ values: [Double]) -> SC55Model? {
         let place = values.indices.contains(soundCanvas.rawValue) ? Int(soundCanvas.settled(values[soundCanvas.rawValue])) : 0
-        return place == 1 ? .sc55mk2 : .sc55
+        return ([nil, .sc55mk2, .sc55] as [SC55Model?])[place]
     }
 
     /// How far songs are brought to the same loudness, with the settings as they are.
@@ -349,6 +351,6 @@ public enum Setting: Int, CaseIterable, Sendable {
         options.s3mCard = ([nil, .gus, .sb] as [ST3Card?])[place(.s3mCard)]
         options.sbProSeparation = value(.sbProSeparation) / 100
         options.agiReplay = ([.amiga, .amigaLater, .pc] as [AGIReplay])[place(.agiReplay)]
-        options.soundCanvasModel = ([.sc55, .sc55mk2] as [SC55Model])[place(.soundCanvas)]
+        options.soundCanvasModel = soundCanvas(values)
     }
 }
