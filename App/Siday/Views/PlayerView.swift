@@ -28,10 +28,7 @@ struct PlayerView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        TimelineView(.animation(minimumInterval: 1 / 60, paused: !model.hasTune)) { timeline in
-                            let frame = model.frame(at: timeline.date.timeIntervalSinceReferenceDate)
-                            NowPlaying(frame: frame)
-                        }
+                        NowPlaying()
                         if model.hasTune, model.shows(.picture) {
                             PictureSection()
                         }
@@ -174,7 +171,6 @@ struct SlideOverView: View {
 
 struct NowPlaying: View {
     @Environment(PlayerModel.self) private var model
-    let frame: Frame
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -186,10 +182,16 @@ struct NowPlaying: View {
                     Details(tune: tune)
                 }
                 if model.shows(.analyser) {
-                    Analyser(bars: frame.bars, caps: frame.caps)
+                    EveryFrame { frame in
+                        Analyser(bars: frame.bars, caps: frame.caps)
+                    }
                 }
-                TimeBar(position: frame.position, rendered: model.rendered, length: tune.length)
-                    .padding(.top, 6)
+                // (As often as it can be seen to move, a dot at a time across the widest of screens, and
+                // its time a second at a time: for a song of any length, not with every frame.)
+                EveryFrame(every: max(1 / 60, min(0.25, tune.length / 2000))) { frame in
+                    TimeBar(position: frame.position, rendered: model.rendered, length: tune.length)
+                }
+                .padding(.top, 6)
                 // (Between where the song is and the controls, as the web player has them; and drawn
                 // again only when they change, not with every frame of what is heard.)
                 if tune.songs.count > 1 {
@@ -203,13 +205,31 @@ struct NowPlaying: View {
                 Text("Loading \(model.fileName)…")
                     .foregroundStyle(.secondary)
             }
-            if model.hasTune, !frame.lights.isEmpty, model.shows(.lights) || model.shows(.waves) {
-                Lights(frame: frame, lamps: model.shows(.lights), scopes: model.shows(.waves))
-                    .padding(.top, 4)
-                    .disabled(model.remaking)
+            if model.hasTune, model.voiceCount > 0, model.shows(.lights) || model.shows(.waves) {
+                EveryFrame { frame in
+                    Lights(frame: frame, lamps: model.shows(.lights), scopes: model.shows(.waves))
+                }
+                .padding(.top, 4)
+                .disabled(model.remaking)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// What changes with the frames of the screen, made again while the player is moving (see
+/// `PlayerModel.moving`) with each frame, or no more often than every so many seconds: and only that,
+/// not what is round it. (Making anything again with each frame costs far more than drawing it: on an
+/// iPhone 12, a line of text made again 60 times a second takes an eighth of a core.)
+struct EveryFrame<Content: View>: View {
+    @Environment(PlayerModel.self) private var model
+    var every = 1.0 / 60
+    @ViewBuilder let content: (Frame) -> Content
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: every, paused: !(model.hasTune && model.moving))) { timeline in
+            content(model.frame(at: timeline.date.timeIntervalSinceReferenceDate))
+        }
     }
 }
 

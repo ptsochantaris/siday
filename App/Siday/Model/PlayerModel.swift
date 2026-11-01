@@ -97,20 +97,31 @@ final class PlayerModel {
     // MARK: Playing
 
     /// Which tune plays after which, by their places in `files`, and what is known of the one playing.
-    private(set) var queue = TuneQueue()
+    private(set) var queue = TuneQueue() {
+        didSet { stir() }
+    }
     /// The place in `files` of the tune that is playing or was asked for.
     var current: Int? { queue.current }
     var tune: Tune? { queue.tune }
     /// The place in `files` of the file `tune` describes.
     private var tuneFile: Int? { queue.tuneFile }
     var problem: String? { queue.problem }
-    private(set) var paused = false
+    private(set) var paused = false {
+        didSet { stir() }
+    }
     /// True once the last tune of the list has finished.
     var finished: Bool { queue.finished }
     /// How much of the playing song is ready to be moved about in, in seconds from its start.
     private(set) var rendered = 0.0
     /// True while the song is being made again, for a voice left out or brought back.
-    private(set) var remaking = false
+    private(set) var remaking = false {
+        didSet { stir() }
+    }
+    /// True while what the player shows can change from one frame of the screen to the next: while a
+    /// song is heard, and for a moment after anything is done to it, for its lights to go out and for
+    /// what was done to be seen. Otherwise the player is not drawn again with each frame of the screen.
+    private(set) var moving = false
+    @ObservationIgnored private var settling: Task<Void, Never>?
     /// How many voices of the tune have a light.
     private(set) var voiceCount = 0
     /// What is slid over the player for a moment: a format's story, or what is not played as the
@@ -657,14 +668,19 @@ final class PlayerModel {
     @ObservationIgnored private var moved: (serial: Int, place: Double)?
 
     @ObservationIgnored private let display = Display()
+    /// The last frame worked out, and for when: each part of the player that changes with every frame
+    /// of the screen asks for it (see `EveryFrame`).
+    @ObservationIgnored private var lastFrame: (time: Double, frame: Frame)?
 
     /// What the player shows for one frame of the screen, at a time in seconds by any clock that only
     /// goes forward.
     func frame(at time: Double) -> Frame {
+        if let lastFrame, lastFrame.time == time { return lastFrame.frame }
         let heard = engine.heard
         var frame = display.frame(heard, serial: runs, at: time, visualisers: visualisers)
         // (Until a move to another place is heard, the place moved to: see `position`.)
         if heard.serial != runs, let moved, moved.serial == runs { frame.position = moved.place }
+        lastFrame = (time, frame)
         return frame
     }
 
@@ -680,6 +696,7 @@ final class PlayerModel {
         }
         runs += 1
         moved = (runs, place)
+        stir()
         engine.send(.seek(position: place, serial: runs))
         nowPlayingChanged(at: place)
     }
@@ -717,6 +734,18 @@ final class PlayerModel {
     /// A press on a voice's light: mutes it or brings it back, or with `solo`, has it heard alone.
     func press(light: Int, solo: Bool) {
         engine.send(.mute(light: light, solo: solo))
+        stir()
+    }
+
+    /// Keeps the player moving (see `moving`) for a second, and from then on while a song is heard.
+    private func stir() {
+        if !moving { moving = true }
+        settling?.cancel()
+        settling = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self, !Task.isCancelled else { return }
+            if paused || finished || !hasTune { moving = false }
+        }
     }
 
     /// The part of FORMATS.md that tells of the playing tune's format, by the word its heading begins with.

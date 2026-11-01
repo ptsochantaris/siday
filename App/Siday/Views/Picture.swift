@@ -6,7 +6,8 @@ import SwiftUI
 
 /// The picture to listen by, painted from what the voices are doing (see SidayPlayer's `Visualiser`), small
 /// and stretched soft over its place. It is calm: slower still if the listener would rather things
-/// moved less.
+/// moved less. It is painted 60 times a second at most, which is smooth enough for something so slow
+/// on a screen of any rate, and it stands still while the tune is paused or over.
 struct Picture: View {
     @Environment(PlayerModel.self) private var model
     @Environment(\.visualiser) private var visualiser
@@ -14,12 +15,22 @@ struct Picture: View {
     /// False while another picture is being painted (the one on the whole screen): a window has one
     /// painter, and a picture of another size would start it again from black on every frame.
     var painting = true
+    /// The last picture painted, of what kind and for what size of space: shown again while the picture
+    /// stands still.
+    @State private var last = Last()
+    private final class Last {
+        var image: CGImage?
+        var mode: Visualiser.Mode?
+        var space = CGSize.zero
+    }
 
     var body: some View {
+        let still = model.paused || model.finished
         GeometryReader { space in
-            TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 10 : nil, paused: !painting)) { timeline in
+            TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 10 : 1 / 60, paused: !painting || still)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                let image = painting ? paint(space.size, at: time, slowed: reduceMotion) : nil
+                let image = !painting ? nil : still && last.image != nil && last.mode == model.picture && last.space == space.size ? last.image
+                    : paint(space.size, at: time, slowed: reduceMotion)
                 if let image {
                     Image(decorative: image, scale: 1)
                         .resizable()
@@ -46,9 +57,13 @@ struct Picture: View {
         let count = visualiser.width * visualiser.height * 4
         let data = Data(bytes: pixels, count: count) as CFData
         guard let provider = CGDataProvider(data: data) else { return nil }
-        return CGImage(width: visualiser.width, height: visualiser.height, bitsPerComponent: 8, bitsPerPixel: 32,
-                       bytesPerRow: visualiser.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
-                       provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+        let image = CGImage(width: visualiser.width, height: visualiser.height, bitsPerComponent: 8, bitsPerPixel: 32,
+                            bytesPerRow: visualiser.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                            provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+        last.image = image
+        last.mode = model.picture
+        last.space = space
+        return image
     }
 }
