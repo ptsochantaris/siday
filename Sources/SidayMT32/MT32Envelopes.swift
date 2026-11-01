@@ -26,7 +26,17 @@ final class MT32TVA {
     private var target: UInt8 = 0
     private(set) var phase = MT32TVA.phaseDead
 
-    init(_ partial: MT32Partial) { self.partial = partial }
+    /// What `basicAmp` reads of the synthesiser, which stays as it is: taken here, as following the partial's
+    /// reference to the synthesiser, and that to its memory, would count both each time.
+    private let ringModulationNoMix: Bool
+    private let masterVolume: UnsafeMutablePointer<UInt8>
+
+    init(_ partial: MT32Partial) {
+        self.partial = partial
+        let synth = partial.synth
+        ringModulationNoMix = synth.features.quirkRingModulationNoMix
+        masterVolume = synth.memory.bytes + MT32Memory.system + MT32Memory.masterVol
+    }
 
     private func startRamp(_ newTarget: UInt8, _ newIncrement: UInt8, _ newPhase: Int) {
         target = newTarget
@@ -70,11 +80,10 @@ final class MT32TVA {
     /// The amplitude before the envelope: the master volume, the part's volume and expression, the rhythm
     /// key's level, the partial's level and its key and velocity's, and its resonance, taken from 155.
     private func basicAmp() -> Int {
-        let synth = partial.synth
         var amp = 155
-        let ringSlave = synth.features.quirkRingModulationNoMix ? partial.isRingModulatingNoMix : partial.isRingModulatingSlave
+        let ringSlave = ringModulationNoMix ? partial.isRingModulatingNoMix : partial.isRingModulatingSlave
         if !ringSlave {
-            amp -= Int(MT32Tables.masterVolToAmpSubtraction[Int(synth.memory.system(MT32Memory.masterVol))])
+            amp -= Int(MT32Tables.masterVolToAmpSubtraction[Int(masterVolume.pointee)])
             if amp < 0 { return 0 }
             amp -= Int(MT32Tables.levelToAmpSubtraction[Int(part.volume)])
             if amp < 0 { return 0 }

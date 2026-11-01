@@ -157,18 +157,32 @@ final class MT32Partial {
     }
 
     @inline(__always)
-    private func ampValue() -> UInt32 {
+    private func ampValue(_ tva: MT32TVA) -> UInt32 {
         let value = 67_117_056 &- ampRamp.nextValue()
         if ampRamp.checkInterrupt() { tva.handleInterrupt() }
         return value
     }
 
     @inline(__always)
-    private func cutoffValue() -> UInt32 {
+    private func cutoffValue(_ tvf: MT32TVF) -> UInt32 {
         if pcmWave != nil { return 0 }
         let value = cutoffModifierRamp.nextValue()
         if cutoffModifierRamp.checkInterrupt() { tvf.handleInterrupt() }
         return (UInt32(tvf.baseCutoff) << 18) &+ value
+    }
+
+    /// A partial's three envelopes, taken once for a run of samples: a reference followed from the partial
+    /// is counted each time it is, and they are followed for every sample.
+    private struct Envelopes {
+        let tva: MT32TVA, tvp: MT32TVP, tvf: MT32TVF
+    }
+
+    private var envelopes: Envelopes { Envelopes(tva: tva, tvp: tvp, tvf: tvf) }
+
+    /// The partial ring-modulating this one's sound as its slave, with its envelopes, if there is one.
+    private var slave: (partial: MT32Partial, envelopes: Envelopes)? {
+        guard hasRingModulatingSlave, let pair else { return nil }
+        return (pair, pair.envelopes)
     }
 
     var hasRingModulatingSlave: Bool { pair != nil && structurePosition == 0 && (mixType == 1 || mixType == 2) }
@@ -188,22 +202,26 @@ final class MT32Partial {
         return poly != nil
     }
 
+    /// - Parameters:
+    ///   - own: this partial's envelopes.
+    ///   - slave: the slave and its envelopes, as `slave` gives them: taken again here when the slave is let
+    ///     go, which lets go of this partial's pair.
     @inline(__always)
-    private func generateNextSample() -> Bool {
-        if !tva.playing || !la32Pair.master.active {
+    private func generateNextSample(_ own: Envelopes, _ slave: inout (partial: MT32Partial, envelopes: Envelopes)?) -> Bool {
+        if !own.tva.playing || !la32Pair.master.active {
             deactivate()
             return false
         }
-        la32Pair.master.generateNextSample(amp: ampValue(), pitch: tvp.nextPitch(), cutoff: cutoffValue())
-        if hasRingModulatingSlave {
-            let pair = pair!
-            la32Pair.slave.generateNextSample(amp: pair.ampValue(), pitch: pair.tvp.nextPitch(), cutoff: pair.cutoffValue())
-            if !pair.tva.playing || !la32Pair.slave.active {
+        la32Pair.master.generateNextSample(amp: ampValue(own.tva), pitch: own.tvp.nextPitch(), cutoff: cutoffValue(own.tvf))
+        if let (pair, envelopes) = slave {
+            la32Pair.slave.generateNextSample(amp: pair.ampValue(envelopes.tva), pitch: envelopes.tvp.nextPitch(), cutoff: pair.cutoffValue(envelopes.tvf))
+            if !envelopes.tva.playing || !la32Pair.slave.active {
                 pair.deactivate()
                 if mixType == 2 {
                     deactivate()
                     return false
                 }
+                slave = self.slave
             }
         }
         return true
@@ -217,8 +235,12 @@ final class MT32Partial {
                        tap: UnsafeMutablePointer<Int32>?, peak: UnsafeMutablePointer<Int32>) -> Bool {
         if !canProduceOutput { return false }
         alreadyOutputed = true
-        for i in 0 ..< length {
-            if !generateNextSample() { break }
+        let own = envelopes
+        var slave = slave
+        var i = 0
+        while i < length {
+            defer { i &+= 1 }
+            if !generateNextSample(own, &slave) { break }
             let sample = Int32(la32Pair.nextOutSample())
             if let tap { tap[i] &+= sample }
             let size = sample < 0 ? -sample : sample
