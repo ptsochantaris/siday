@@ -458,6 +458,21 @@ public extension MIDIFile {
         tracks.contains { track in track.events.contains { $0.kind == .systemExclusive } }
     }
 
+    /// True if it plays notes, and all of them on the channels an MT-32 listens to as it is switched on: 2
+    /// to 9 for its eight parts and 10 for its rhythm. (Of the files of a collection of games' music that do
+    /// not say what they were written for, 600 of the 709 for the MT-32 keep to them, and 2,035 of the 3,891
+    /// for General MIDI do not.)
+    var keepsToMT32Channels: Bool {
+        var any = false
+        for track in tracks {
+            for event in track.events where event.kind == .noteOn {
+                guard (1 ... 9).contains(event.channel) else { return false }
+                any = true
+            }
+        }
+        return any
+    }
+
     /// The system exclusive messages of a file kept beside a MIDI file to set the synthesiser up before
     /// it is played, in the order they are to be sent: a file of them back to back (`.syx`), as most
     /// were kept; or a MIDI file of them alone, as some were (see `Companions`). Each begins with its

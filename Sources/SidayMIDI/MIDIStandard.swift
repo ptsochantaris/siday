@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Paul Tsochantaris
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import SidayFoundation
+
 /// The kind of synthesiser a MIDI file was written for, as far as the file says.
 ///
 /// A file says so in its system exclusive messages, which are each for one maker's synthesisers: a GS
@@ -38,6 +40,28 @@ public struct MIDIOrigin: Sendable, Equatable {
     /// How many of the system exclusive messages are for an MT-32 (DT1, to model 16): the sounds and
     /// set-up of the MT-32 that the music was written with.
     public var mt32Messages: Int
+    /// True for a file that says nothing, and is taken to be for the MT-32 because it could be and that
+    /// is what such files are to be taken as (see `UndeclaredMIDI`).
+    public var assumed = false
+    /// What it says, as far as which synthesiser it is played on goes (see `MIDIWrittenFor`).
+    public var writtenFor: MIDIWrittenFor
+
+    /// True if it is played as written for the MT-32: it says so, or it is taken to be.
+    public var isForMT32: Bool { standard == .mt32 }
+
+    /// What is told of what it was written for, to begin what is told of the tune.
+    public var told: String {
+        declared ? "Written for " + standard.name : assumed ? "Taken to be for " + standard.name : "General MIDI"
+    }
+
+    /// What is said where a file played as written for the MT-32 is played on another synthesiser, `place`,
+    /// which has none of the sounds it may have set the MT-32 up with, and `played` says how it is played.
+    public func mt32Shortfall(on place: String, _ played: String) -> String {
+        assumed
+            ? "It does not say what it was written for, and is taken to be for the Roland MT-32: on " + place + ", " + played
+            : "It was written for the Roland MT-32, and the sounds it sets the MT-32 up with"
+                + (byCompanion ? " (in the file of them beside it)" : "") + " are not heard on " + place + ": " + played
+    }
 
     /// Counts of the messages of each kind in one run of them.
     struct Counts {
@@ -90,14 +114,16 @@ public struct MIDIOrigin: Sendable, Equatable {
         }
     }
 
-    /// Reads it from a file's own system exclusive messages, and those of a file of them beside it.
-    public init(_ file: MIDIFile, companion: [[UInt8]] = []) {
+    /// Reads it from a file's own system exclusive messages, and those of a file of them beside it; for a
+    /// file that says nothing, by the channels it plays on and what such files are to be taken as.
+    public init(_ file: MIDIFile, companion: [[UInt8]] = [], undeclared: UndeclaredMIDI = .generalMIDI) {
         let own = Counts(file.systemExclusiveMessages)
         mt32Messages = own.mt32
         byCompanion = false
         if let standard = own.standard {
             self.standard = standard
             declared = true
+            writtenFor = standard == .mt32 ? .mt32 : .otherwise
             return
         }
         // A file of system exclusive messages beside it counts only for a file that sends none of its
@@ -109,9 +135,14 @@ public struct MIDIOrigin: Sendable, Equatable {
             declared = true
             byCompanion = true
             mt32Messages = besides.mt32
+            writtenFor = .mt32
             return
         }
-        standard = .generalMIDI
+        // A file that says nothing could be for an MT-32 only if it plays on nothing but the channels an
+        // MT-32 listens to as it is switched on: one with parts on any other would have them unheard there.
         declared = false
+        writtenFor = file.keepsToMT32Channels ? .unsaid : .otherwise
+        assumed = writtenFor.isForMT32(undeclared: undeclared)
+        standard = assumed ? .mt32 : .generalMIDI
     }
 }

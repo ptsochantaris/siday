@@ -481,7 +481,7 @@ function heard(message) {
   if (message.type === "lengths") return keepLengths(message.key, message.bytes);
   if (message.type === "kept") return void keptAnswer(message);
   if (message.type === "keptsummary") return void keptSummaryAgain(message.summary);
-  if (message.type === "lookedat") return void toldLooked?.(`${message.name}\t${message.mt32 ? 1 : 0}`);
+  if (message.type === "lookedat") return void toldLooked?.(`${message.name}\t${message.writtenFor}`);
   // What the engine has to say of a tune is marked with the tune, and the rest with the run of sound.
   if ("tune" in message ? message.tune !== asked : message.serial !== serial) return;
   switch (message.type) {

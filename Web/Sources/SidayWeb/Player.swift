@@ -104,9 +104,9 @@ final class Player {
     /// The chips that the tunes of the list that have been played are heard as made by, by their
     /// files' names. (A row shows the chip its kind of file most likely is until then.)
     private(set) var playedChips: [String: SoundChip] = [:]
-    /// For each MIDI file looked at before it is played (see `sidayLookAt`), by its name: whether it was
-    /// written for the MT-32.
-    private(set) var midiForMT32: [String: Bool] = [:]
+    /// For each MIDI file looked at before it is played (see `sidayLookAt`), by its name: what it says it
+    /// was written for.
+    private(set) var midiWrittenFor: [String: MIDIWrittenFor] = [:]
     /// True while what is not played as the playing tune's file asks is written out under its
     /// details, and not only marked. It stays as it is from one tune to the next.
     private(set) var shortfallsShown = false
@@ -231,7 +231,7 @@ final class Player {
         try? sidayListenLooked { [self] text in
             let parts = text.split(separator: "\t")
             guard parts.count == 2 else { return }
-            midiForMT32[String(parts[0])] = parts[1] == "1"
+            midiWrittenFor[String(parts[0])] = Int(parts[1]).flatMap(MIDIWrittenFor.init(rawValue:)) ?? .otherwise
         }
         try? sidayListen(
             { name in
@@ -471,7 +471,7 @@ final class Player {
         perform(queue.add(names.count, at: at))
         // Its MIDI files are looked at, with the file beside each that may set an MT-32 up, so that each
         // row shows the synthesiser it is played on before it is played.
-        for index in at ..< at + names.count where midiForMT32[files[index]] == nil {
+        for index in at ..< at + names.count where midiWrittenFor[files[index]] == nil {
             let letters = Array(files[index].utf8)
             guard let stop = letters.lastIndex(of: UInt8(ascii: ".")),
                   TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self)) == .mid else { continue }
@@ -544,8 +544,9 @@ final class Player {
         let letters = Array(name.utf8)
         guard let stop = letters.lastIndex(of: UInt8(ascii: ".")) else { return playedChips[name] }
         let format = TuneFormat(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self))
-        if format == .mid, midiForMT32[name] != nil || playedChips[name] == nil {
-            return MIDISynthesisers.chip(writtenForMT32: midiForMT32[name] ?? false,
+        if format == .mid, midiWrittenFor[name] != nil || playedChips[name] == nil {
+            let forMT32 = midiWrittenFor[name]?.isForMT32(undeclared: Setting.undeclaredMIDI(settings)) ?? false
+            return MIDISynthesisers.chip(writtenForMT32: forMT32,
                                          mt32ROMs: synthesisers.contains(.mt32), sc55ROMs: synthesisers.contains(.sc55))
         }
         return playedChips[name] ?? format?.likelyChip

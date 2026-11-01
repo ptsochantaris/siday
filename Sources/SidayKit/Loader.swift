@@ -76,11 +76,13 @@ public enum TuneLoader {
 
 /// Which synthesiser a MIDI file is played on, found before it is played: for a list to show it by.
 public enum MIDISynthesisers {
-    /// True for a MIDI file written for the MT-32, by its own messages or by those of the file beside it
-    /// that sets the MT-32 up (one of `Companions.wanted(for: .mid, fileName:)`), if it was found.
+    /// What a MIDI file says it was written for: by its own messages or by those of the file beside it
+    /// that sets the MT-32 up (one of `Companions.wanted(for: .mid, fileName:)`), if it was found, and by
+    /// the channels it plays on. One that says nothing is played as `LoadOptions.undeclaredMIDI` says (see
+    /// `MIDIWrittenFor.isForMT32(undeclared:)`).
     @export(interface)
-    public static func isWrittenForMT32(_ data: [UInt8], companion: [UInt8]?) -> Bool {
-        EightBitPlayers.midiIsWrittenForMT32(data, companion: companion)
+    public static func writtenFor(_ data: [UInt8], companion: [UInt8]?) -> MIDIWrittenFor {
+        EightBitPlayers.midiWrittenFor(data, companion: companion)
     }
 
     /// True for a MIDI file that sends no system exclusive message of its own: one that a file beside it

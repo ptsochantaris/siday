@@ -46,9 +46,10 @@ package enum EightBitPlayers {
             // A MIDI file: one written for the MT-32 on the LAPC-I's synthesiser if its ROMs have been
             // given; any other on the SC-55 if its ROMs have been, and one for the MT-32 there too, set to
             // its MT-32 sounds, if the LAPC-I's have not; and otherwise on the OPL3. With the system
-            // exclusive messages kept beside it that set the synthesiser up, if any were found.
+            // exclusive messages kept beside it that set the synthesiser up, if any were found. (One that
+            // does not say what it was written for is taken to be what the options say such files are.)
             let companion = companions.first ?? nil
-            let forMT32 = MIDIFMRenderer.isWrittenForMT32(data, companion: companion)
+            let forMT32 = MIDIFMRenderer.writtenFor(data, companion: companion).isForMT32(undeclared: options.undeclaredMIDI)
             switch MIDISynthesiser.choose(writtenForMT32: forMT32, mt32ROMs: options.mt32ROMs != nil, sc55ROMs: options.sc55ROMs != nil) {
             case .la32:
                 if let roms = options.mt32ROMs { return try MIDILA32Renderer(data, companion: companion, roms: roms, options: options) }
@@ -107,9 +108,9 @@ package enum EightBitPlayers {
 }
 
 package extension EightBitPlayers {
-    /// True for a MIDI file written for the MT-32 (see `MIDIFMRenderer.isWrittenForMT32`).
-    static func midiIsWrittenForMT32(_ data: [UInt8], companion: [UInt8]?) -> Bool {
-        MIDIFMRenderer.isWrittenForMT32(data, companion: companion)
+    /// What a MIDI file says it was written for (see `MIDIFMRenderer.writtenFor`).
+    static func midiWrittenFor(_ data: [UInt8], companion: [UInt8]?) -> MIDIWrittenFor {
+        MIDIFMRenderer.writtenFor(data, companion: companion)
     }
 
     /// True for a MIDI file that a file beside it may set up (see `MIDIFMRenderer.takesSetupBeside`).

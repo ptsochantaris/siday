@@ -60,7 +60,7 @@ let: when you add the folder, or choose it when asked. A tune opened on its own,
 the Files app, comes with no right to look beside it. So when such a tune can't be played without a
 file that may be there, the app asks for the folder it is in. It asks, too, for the folder of a MIDI
 file that sets nothing up itself, since an MT-32 game's setup may be kept beside it; the file is played
-as General MIDI meanwhile, and again from the start once the folder is chosen. A web page can only read the
+as one that says nothing meanwhile, and again from the start once the folder is chosen. A web page can only read the
 files it has been given. So in a browser, a tune or companion file you have given the page is known
 for as long as the page is open. When one that is needed hasn't been given, the page says so and
 asks for the folder it is in. It looks in that folder for what it needs, and adds nothing else from
@@ -4527,7 +4527,13 @@ and siday's writes to the chip are libADLMIDI's, register for register.
 - **What it was written for.** siday reads it from the file itself: a GS reset, Yamaha's XG, General
   MIDI switched on, or the MT-32's own messages. Never from the folder it is in, since the same
   game's music is often found as an MT-32 rip in one place and its General MIDI version in another.
-  A file that says nothing is taken for General MIDI.
+  A file that says nothing, and plays on channel 1 or on 11 to 16, is General MIDI: an MT-32 does
+  not listen to those channels. One that plays only on the MT-32's, 2 to 10, could be either, and
+  the music doesn't tell them apart: judged by how the register of each part fit what its program
+  is on either, a collection of games' music had over 60 General MIDI files taken for MT-32 ones for
+  every 100 MT-32 files found, however the test was set. Most such files are General MIDI, and are
+  taken for it; but much of the music of the MT-32's day was written for it without saying so, and
+  a setting (`--undeclared-midi mt32`) takes them for MT-32 files instead.
 - **The MT-32's setup.** Most games set up instruments of their own on the MT-32 before their music
   began. Rips of their music keep that setup in the file, or beside it: a `.SYX` file of the same
   name, the one `.SYX` file of a folder, or Ultima VII's `sysex.mid`. siday sends it first, at the

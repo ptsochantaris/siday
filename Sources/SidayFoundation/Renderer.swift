@@ -291,6 +291,9 @@ public struct LoadOptions: Sendable {
     public var soundCanvases: [SC55ROMSet] = []
     /// Which Sound Canvas is played on when both are here: nil for the newest (see `[SC55ROMSet].soundCanvas`).
     public var soundCanvasModel: SC55Model?
+    /// What a MIDI file that does not say what it was written for is taken to be, where it could be either
+    /// (see `MIDIWrittenFor.unsaid`).
+    public var undeclaredMIDI: UndeclaredMIDI = .generalMIDI
     /// The Sound Canvas MIDI files are played on: the one asked for if it is here, and otherwise whichever is
     /// (see `soundCanvases`). Set, it is the only one.
     public var sc55ROMs: SC55ROMSet? {
@@ -328,6 +331,31 @@ public enum AGIReplay: String, Sendable, CaseIterable {
     case amigaLater = "amiga-later"
     /// The PCjr's and Tandy 1000's chip, as the interpreter for those wrote to it.
     case pc
+}
+
+/// What a MIDI file is taken to be written for when it does not say, and could be written for an MT-32:
+/// it sends no system exclusive message that says, nor does a file beside it, and it plays only on the
+/// channels an MT-32 listens to (see `MIDIWrittenFor`).
+public enum UndeclaredMIDI: String, Sendable, CaseIterable {
+    /// General MIDI, as most such files are.
+    case generalMIDI = "gm"
+    /// The MT-32: for the music of games of its day, which seldom said so.
+    case mt32
+}
+
+/// What a MIDI file says it was written for, as far as which synthesiser it is played on goes.
+public enum MIDIWrittenFor: Int, Sendable {
+    /// Anything but the MT-32: it says so, or it plays on channels an MT-32 does not listen to.
+    case otherwise
+    /// The MT-32: it says so, by the messages it or a file beside it sends.
+    case mt32
+    /// Nothing either way: it could be General MIDI or for the MT-32 (see `UndeclaredMIDI`).
+    case unsaid
+
+    /// True if it is played as written for the MT-32, with what such files are taken to be.
+    public func isForMT32(undeclared: UndeclaredMIDI) -> Bool {
+        self == .mt32 || (self == .unsaid && undeclared == .mt32)
+    }
 }
 
 /// Which SID emulation plays a tune.

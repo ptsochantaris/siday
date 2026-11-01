@@ -67,15 +67,14 @@ final class MIDILA32Renderer: Renderer {
             throw TuneError.malformed("a MIDI file with no notes")
         }
         let besides = companion.map { MIDIFile.messages(ofCompanion: $0) } ?? []
-        let origin = MIDIOrigin(file, companion: besides)
+        let origin = MIDIOrigin(file, companion: besides, undeclared: options.undeclaredMIDI)
         prelude = file.sendsSystemExclusive ? [] : besides
 
         var info = TuneInfo(format: "MID")
         info.title = file.title
         info.comment = file.copyright
         info.chips = [.la32]
-        info.detail = (origin.declared ? "Written for " + origin.standard.name : "General MIDI")
-            + "; played on the LA32 synthesiser of the LAPC-I (" + roms.control.name + ")"
+        info.detail = origin.told + "; played on the LA32 synthesiser of the LAPC-I (" + roms.control.name + ")"
         info.shortfalls = file.shortfalls
         self.info = info
 

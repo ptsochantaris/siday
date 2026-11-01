@@ -104,25 +104,22 @@ final class MIDISC55Renderer: Renderer {
             throw TuneError.malformed("a MIDI file with no notes")
         }
         let besides = companion.map { MIDIFile.messages(ofCompanion: $0) } ?? []
-        let origin = MIDIOrigin(file, companion: besides)
+        let origin = MIDIOrigin(file, companion: besides, undeclared: options.undeclaredMIDI)
         prelude = file.sendsSystemExclusive ? [] : besides
-        mt32Mode = origin.standard == .mt32 && origin.mt32Messages > 0
+        mt32Mode = origin.isForMT32
 
         var info = TuneInfo(format: "MID")
         info.title = file.title
         info.comment = file.copyright
         info.chips = [roms.model == .sc55 ? .sc55 : .sc55mk2]
-        info.detail = (origin.declared ? "Written for " + origin.standard.name : "General MIDI")
-            + "; played on the " + roms.name + (mt32Mode ? ", set to its MT-32 sounds" : "")
+        info.detail = origin.told + "; played on the " + roms.name + (mt32Mode ? ", set to its MT-32 sounds" : "")
         info.shortfalls = file.shortfalls
         if origin.standard == .xg {
             info.shortfalls.append("It was written for Yamaha's XG, whose sounds and effects the Sound Canvas does not have: it is played as General MIDI, as a GS synthesiser played it.")
         }
         if mt32Mode {
             info.playedOtherwiseWith = [.mt32]
-            info.shortfalls.append("It was written for the Roland MT-32, and the sounds it sets the MT-32 up with"
-                + (origin.byCompanion ? " (in the file of them beside it)" : "")
-                + " are not heard on the Sound Canvas: its parts are played with the Sound Canvas's own MT-32 sounds, as SCMODE set them up."
+            info.shortfalls.append(origin.mt32Shortfall(on: "the Sound Canvas", "its parts are played with the Sound Canvas's own MT-32 sounds, as SCMODE set them up.")
                 + " Given the ROMs of a CM-32L or LAPC-I once (dropped on the player, or with --roms), siday keeps them and plays it on that synthesiser.")
         }
         self.info = info

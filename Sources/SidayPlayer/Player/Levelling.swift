@@ -191,6 +191,9 @@ public extension SongLevel {
         // choice still stand.)
         var said: [String] = []
         if options.agiReplay != .amiga { said.append("agi=" + options.agiReplay.rawValue) }
+        // (A MIDI file taken to be for the MT-32 and played on a Sound Canvas is played with its MT-32
+        // sounds, on the same ROMs as when it is taken to be General MIDI.)
+        if options.undeclaredMIDI != .generalMIDI { said.append("midi=" + options.undeclaredMIDI.rawValue) }
         if let playedOn { said.append("on=" + playedOn) }
         return (parts + said).joined(separator: " ")
     }

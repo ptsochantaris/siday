@@ -17,6 +17,7 @@ public enum Setting: Int, CaseIterable, Sendable {
     case amiga, amigaSeparation, s3mCard
     case agiReplay
     case soundCanvas
+    case undeclaredMIDI
 
     /// One of the things a setting can be chosen to be.
     public struct Choice: Sendable {
@@ -64,7 +65,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .chip, .clock, .frameRate, .stereoOrder, .sbProSeparation: .ay
         case .sidModel, .sidEngine, .sidFilter: .sid
         case .amiga, .amigaSeparation, .s3mCard, .agiReplay: .modules
-        case .soundCanvas: .midi
+        case .soundCanvas, .undeclaredMIDI: .midi
         }
     }
 
@@ -90,6 +91,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .sbProSeparation: "sb-pro-separation"
         case .agiReplay: "agi"
         case .soundCanvas: "sound-canvas"
+        case .undeclaredMIDI: "undeclared-midi"
         case .levelling: "level"
         }
     }
@@ -116,6 +118,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .levelling: "Loudness"
         case .agiReplay: "Sierra's adventure games"
         case .soundCanvas: "Sound Canvas"
+        case .undeclaredMIDI: "A file that does not say what it is for"
         }
     }
 
@@ -160,6 +163,8 @@ public enum Setting: Int, CaseIterable, Sendable {
             "The music of Sierra's adventure games of the 1980s, King's Quest to Manhunter (an AGI file), was written for the three-voice chip of IBM's PCjr and the Tandy 1000, and the Amiga versions of the games played it with routines of their own. The first plays every tone as a square wave, held at the note's volume; the later one plays it as a rounder wave that dies away over each note's first second. Which games had which is not known: Wanted Team's player of these files, by which they are heard on the Amiga today, plays the first unless told otherwise."
         case .soundCanvas:
             "Roland's Sound Canvas, on which most General MIDI music of the 1990s was written and heard, came first as the SC-55 and in 1993 as the SC-55mkII: the same kind of synthesiser, with 28 voices to the first's 24 and wave ROMs and a firmware of its own, which play the same files a little otherwise. Automatic plays a MIDI file on the newest model whose ROMs have been given: the SC-55mkII if its have, and otherwise the SC-55. One chosen here plays when the ROMs of both have been given; given one's alone, that one plays, whatever this says."
+        case .undeclaredMIDI:
+            "A MIDI file can say what it was written for by the messages it sends to set a synthesiser up, and many say nothing. One that plays on channel 1, or on 11 to 16, which an MT-32 does not listen to, is General MIDI whatever this says. One that plays only on the MT-32's channels could be either: most such files are General MIDI, but much of the music of games of the MT-32's day was written for it without saying so, and the MT-32 numbers its instruments otherwise. On a Sound Canvas, a file taken to be for the MT-32 is played with the Sound Canvas's own MT-32 sounds."
         case .levelling:
             "A tune is heard as loud as its file has it, so one written quiet is heard quiet. Levelled, each song is turned up or down to be as loud as the rest; halfway, it is moved half as far, and a quiet tune is still quieter than a loud one, but not by as much. No song is turned up by more than 6 dB. A song is measured the first time it is played: it waits up to a second to be, starts at about its level by what has been measured of it if that is not enough, glides to about its level again with each second more of it measured, and to its level once the whole of it has been. Its level is kept in this browser for the next time."
         }
@@ -212,6 +217,8 @@ public enum Setting: Int, CaseIterable, Sendable {
                      Choice("pc", "PCjr and Tandy 1000")])
         case .soundCanvas:
             .choice([Choice("auto", "Automatic"), Choice("sc55mk2", "SC-55mkII (1993)"), Choice("sc55", "SC-55 (1991)")])
+        case .undeclaredMIDI:
+            .choice([Choice("gm", "is General MIDI"), Choice("mt32", "is for the MT-32")])
         case .levelling:
             .choice([Choice("off", "as each file has it"), Choice("full", "levelled, every song alike"), Choice("partial", "levelled halfway")])
         }
@@ -226,7 +233,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .defaultTime: 2
         case .sidFilter: 50
         case .amigaSeparation, .sbProSeparation: 20
-        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling, .agiReplay, .soundCanvas: 0
+        case .songs, .loops, .maxTime, .chip, .clock, .frameRate, .stereoOrder, .sidModel, .sidEngine, .amiga, .s3mCard, .levelling, .agiReplay, .soundCanvas, .undeclaredMIDI: 0
         }
     }
 
@@ -295,7 +302,7 @@ public enum Setting: Int, CaseIterable, Sendable {
         case .s3mCard: format == .s3m
         case .sbProSeparation: format == .vgm || format == .sap
         case .agiReplay: format == .agi
-        case .soundCanvas: format == .mid
+        case .soundCanvas, .undeclaredMIDI: format == .mid
         }
     }
 
@@ -352,5 +359,12 @@ public enum Setting: Int, CaseIterable, Sendable {
         options.sbProSeparation = value(.sbProSeparation) / 100
         options.agiReplay = ([.amiga, .amigaLater, .pc] as [AGIReplay])[place(.agiReplay)]
         options.soundCanvasModel = soundCanvas(values)
+        options.undeclaredMIDI = undeclaredMIDI(values)
+    }
+
+    /// What a MIDI file that does not say what it was written for is taken to be, with the settings as they are.
+    public static func undeclaredMIDI(_ values: [Double]) -> UndeclaredMIDI {
+        let place = values.indices.contains(undeclaredMIDI.rawValue) ? Int(undeclaredMIDI.settled(values[undeclaredMIDI.rawValue])) : 0
+        return ([.generalMIDI, .mt32] as [UndeclaredMIDI])[place]
     }
 }

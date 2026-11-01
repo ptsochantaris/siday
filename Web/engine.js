@@ -274,10 +274,11 @@ self.onmessage = async (event) => {
       break;
     }
     case "lookat": {
-      // A MIDI file in the list, looked at before it is played: whether it was written for the MT-32.
+      // A MIDI file in the list, looked at before it is played: what it says it was written for (see
+      // `MIDIWrittenFor`).
       if (!core) return void setTimeout(() => self.onmessage(event), 50);
-      const mt32 = withBytes(message.bytes, (at, length) => withBytes(message.companion ?? new ArrayBuffer(0), (companionAt, companionLength) => core.siday_midi_for_mt32(at, length, companionAt, companionLength)));
-      postMessage({ type: "lookedat", name: message.name, mt32: mt32 === 1 });
+      const writtenFor = withBytes(message.bytes, (at, length) => withBytes(message.companion ?? new ArrayBuffer(0), (companionAt, companionLength) => core.siday_midi_written_for(at, length, companionAt, companionLength)));
+      postMessage({ type: "lookedat", name: message.name, writtenFor });
       break;
     }
     case "songlengths":

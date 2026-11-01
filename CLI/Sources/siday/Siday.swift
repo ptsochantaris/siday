@@ -15,6 +15,7 @@ extension AmigaModel: @retroactive ExpressibleByArgument {}
 extension ST3Card: @retroactive ExpressibleByArgument {}
 extension AGIReplay: @retroactive ExpressibleByArgument {}
 extension Levelling: @retroactive ExpressibleByArgument {}
+extension UndeclaredMIDI: @retroactive ExpressibleByArgument {}
 /// Which Sound Canvas `--sound-canvas` asks for: the newest kept, unless one is named.
 enum SoundCanvasChoice: String, ExpressibleByArgument {
     case auto, sc55mk2, sc55
@@ -106,6 +107,9 @@ struct Siday: ParsableCommand {
 
     @Option(help: "The Sound Canvas a MIDI file is played on when the ROMs of both have been given (see --roms): auto, the newest whose ROMs are kept; sc55mk2, the SC-55mkII (1993); or sc55, the first (1991). Given one's alone, that one plays, whatever this says. Default: auto.")
     var soundCanvas: SoundCanvasChoice = .auto
+
+    @Option(help: "What a MIDI file that does not say what it was written for is taken to be, where it could be for the MT-32 (it plays only on the MT-32's channels, 2 to 10): gm, General MIDI; or mt32, the MT-32, as much of the music of games of its day was written for it without saying so. A file that plays on any other channel is General MIDI whatever this says. Default: gm.")
+    var undeclaredMIDI: UndeclaredMIDI = .generalMIDI
 
     @Option(help: "Bring every tune to the same loudness: off, full, or partial (halfway there, so that a quiet tune is still quieter than a loud one, but not by as much). Each song is measured as it plays, by playing it through unheard, and the next while it plays; what is found is kept for later runs. A song is turned up by no more than 6 dB. With --list, says how far each tune would be turned up or down. Default: off, each tune as loud as its file has it.")
     var level: Levelling = .off
@@ -218,6 +222,7 @@ struct Siday: ParsableCommand {
         options.mt32ROMs = kept.mt32ROMs
         options.soundCanvases = kept.soundCanvases
         options.soundCanvasModel = soundCanvas.model
+        options.undeclaredMIDI = undeclaredMIDI
         return TuneFiles(options: options, songLengthsPath: songLengthsPath, keptSongLengths: kept.songLengths)
     }
 

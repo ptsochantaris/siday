@@ -122,9 +122,10 @@ private let songLengths = Array("[Database]\r\n; /MUSICIANS/X/Tune.sid\r\n012345
 
 private func be32(_ value: Int) -> [UInt8] { [UInt8(value >> 24 & 0xFF), UInt8(value >> 16 & 0xFF), UInt8(value >> 8 & 0xFF), UInt8(value & 0xFF)] }
 
-/// A MIDI file of one track: these events, then a note.
-private func midi(_ events: [UInt8]) -> [UInt8] {
-    let body = events + [0x00, 0x91, 60, 100, 0x60, 0x81, 60, 0, 0x00, 0xFF, 0x2F, 0x00]
+/// A MIDI file of one track: these events, then a note, on the second channel unless another is given
+/// (counted from nought).
+private func midi(_ events: [UInt8], channel: UInt8 = 1) -> [UInt8] {
+    let body = events + [0x00, 0x90 | channel, 60, 100, 0x60, 0x80 | channel, 60, 0, 0x00, 0xFF, 0x2F, 0x00]
     return Array("MThd".utf8) + be32(6) + [0, 0, 0, 1, 0, 96] + Array("MTrk".utf8) + be32(body.count) + body
 }
 
@@ -134,16 +135,50 @@ private let mt32Message: [UInt8] = [0x00, 0xF0, 0x09, 0x41, 0x10, 0x16, 0x12, 0x
 private let gsReset: [UInt8] = [0x00, 0xF0, 0x0A, 0x41, 0x10, 0x42, 0x12, 0x40, 0x00, 0x7F, 0x00, 0x41, 0xF7]
 
 @Test func onlyFilesWrittenForTheMT32GoToItsSynthesiserAndWithoutROMsAllPlayOnFM() throws {
-    #expect(MIDIFMRenderer.isWrittenForMT32(midi(mt32Message), companion: nil))
-    #expect(!MIDIFMRenderer.isWrittenForMT32(midi([]), companion: nil))
+    #expect(MIDIFMRenderer.writtenFor(midi(mt32Message), companion: nil) == .mt32)
+    #expect(MIDIFMRenderer.writtenFor(midi([]), companion: nil) == .unsaid)
     // Roland's own GS files that set an MT-32 up beside the Sound Canvas are GS files.
-    #expect(!MIDIFMRenderer.isWrittenForMT32(midi(gsReset + mt32Message), companion: nil))
+    #expect(MIDIFMRenderer.writtenFor(midi(gsReset + mt32Message), companion: nil) == .otherwise)
     // A file of no messages of its own, with the MT-32's beside it.
-    #expect(MIDIFMRenderer.isWrittenForMT32(midi([]), companion: [0xF0, 0x41, 0x10, 0x16, 0x12, 0x10, 0x00, 0x01, 0x02, 0x6D, 0xF7]))
+    #expect(MIDIFMRenderer.writtenFor(midi([]), companion: [0xF0, 0x41, 0x10, 0x16, 0x12, 0x10, 0x00, 0x01, 0x02, 0x6D, 0xF7]) == .mt32)
     // With no ROMs, on the OPL3, saying how the ROMs are given.
     let renderer = try TuneLoader.load(midi(mt32Message), format: .mid)
     #expect(renderer.info.chips == [.opl3])
     #expect(renderer.info.shortfalls.contains { $0.contains("--roms") })
+}
+
+@Test func aFileThatSaysNothingIsForTheMT32OnlyIfAskedAndOnlyOnItsChannels() throws {
+    // A file that says nothing, on the MT-32's channels, is General MIDI unless such files are to be
+    // taken to be for the MT-32; one with a note on the first channel, or above the tenth, is General MIDI.
+    #expect(MIDIFMRenderer.writtenFor(midi([], channel: 0), companion: nil) == .otherwise)
+    #expect(MIDIFMRenderer.writtenFor(midi([], channel: 10), companion: nil) == .otherwise)
+    #expect(MIDIFMRenderer.writtenFor(midi([], channel: 9), companion: nil) == .unsaid)
+    #expect(!MIDIWrittenFor.unsaid.isForMT32(undeclared: .generalMIDI))
+    #expect(MIDIWrittenFor.unsaid.isForMT32(undeclared: .mt32))
+    #expect(!MIDIWrittenFor.otherwise.isForMT32(undeclared: .mt32))
+    // One that says it is General MIDI stays so.
+    let gmOn: [UInt8] = [0x00, 0xF0, 0x05, 0x7E, 0x7F, 0x09, 0x01, 0xF7]
+    #expect(MIDIFMRenderer.writtenFor(midi(gmOn), companion: nil) == .otherwise)
+    // Played on FM, the file says what it is taken to be.
+    var options = LoadOptions()
+    #expect(try TuneLoader.load(midi([]), format: .mid, options: options).info.detail.hasPrefix("General MIDI;"))
+    options.undeclaredMIDI = .mt32
+    let taken = try TuneLoader.load(midi([]), format: .mid, options: options)
+    #expect(taken.info.detail.hasPrefix("Taken to be for the Roland MT-32;"))
+    #expect(taken.info.shortfalls.contains { $0.hasPrefix("It does not say what it was written for, and is taken to be for the Roland MT-32: on FM,") })
+    #expect(try TuneLoader.load(midi([], channel: 0), format: .mid, options: options).info.detail.hasPrefix("General MIDI;"))
+    #expect(try TuneLoader.load(midi(mt32Message), format: .mid).info.shortfalls.contains { $0.hasPrefix("It was written for the Roland MT-32, and the sounds it sets the MT-32 up with are not heard on FM: its parts") })
+    // A level measured with such files taken to be for the MT-32 is kept apart.
+    let policy = PlaybackPolicy()
+    #expect(SongLevel.key(digest: "d", song: 0, options: options, policy: policy) == SongLevel.key(digest: "d", song: 0, options: LoadOptions(), policy: policy) + " midi=mt32")
+    // And the setting reaches the options.
+    var values = Setting.standards
+    var applied = LoadOptions(), playback = PlaybackPolicy()
+    Setting.apply(values, to: &applied, &playback)
+    #expect(applied.undeclaredMIDI == .generalMIDI)
+    values[Setting.undeclaredMIDI.rawValue] = 1
+    Setting.apply(values, to: &applied, &playback)
+    #expect(applied.undeclaredMIDI == .mt32)
 }
 
 @Test func theLevelsKeySaysTheSynthesiserOnlyWhereItIsTheMT32s() {
