@@ -11,12 +11,13 @@ import SidayFoundation
 /// is kept but a sum for every tenth of a second, so a tune of any length can be measured as it is
 /// rendered.
 public struct LoudnessMeter {
-    /// One second-order section of the weighting, in direct form I, for one channel.
+    /// One second-order section of the weighting, in direct form I, for both channels at once: each
+    /// channel in a lane of its own, worked out as it would be alone.
     private struct Section {
         let b0: Double, b1: Double, b2: Double, a1: Double, a2: Double
-        var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
+        var x1 = SIMD2<Double>(), x2 = SIMD2<Double>(), y1 = SIMD2<Double>(), y2 = SIMD2<Double>()
 
-        @inline(__always) mutating func step(_ x: Double) -> Double {
+        @inline(__always) mutating func step(_ x: SIMD2<Double>) -> SIMD2<Double> {
             let y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
             x2 = x1; x1 = x; y2 = y1; y1 = y
             return y
@@ -68,7 +69,7 @@ public struct LoudnessMeter {
         return phases
     }()
 
-    private var left: (Section, Section), right: (Section, Section)
+    private var shelf: Section, highPass: Section
     /// The weighted power of each tenth of a second so far: both channels' squares, summed.
     private var tenths = [Double]()
     private var tenth = 0.0, inTenth = 0
@@ -82,35 +83,88 @@ public struct LoudnessMeter {
     public private(set) var frames = 0
 
     public init() {
-        let (shelf, highPass) = Self.weighting()
-        left = (shelf, highPass)
-        right = (shelf, highPass)
+        (shelf, highPass) = Self.weighting()
         recent = Array(repeating: 0, count: 4 * Self.taps)
     }
 
+    /// How far above the largest of the samples it is worked out from any point between them can be: the
+    /// largest of the phases' sums of the sizes of their taps (or the sample itself, if that is larger),
+    /// and a little more for the rounding of adding them up. A stretch of sound whose samples, by that,
+    /// cannot reach the true peak found so far is not looked at more closely: nothing in it could change it.
+    private static let headroom: Double = {
+        var most = 1.0
+        for p in 0 ..< 3 { most = max(most, (0 ..< taps).reduce(0) { $0 + abs(phases[p * taps + $1]) }) }
+        return most * (1 + 1e-9)
+    }()
+
+    /// How many frames at a time are looked at for whether they could reach the true peak.
+    private static let stretch = 32
+
     /// Takes `frames` more stereo frames: 2 × `frames` floats.
     public mutating func take(_ samples: UnsafePointer<Float>, frames count: Int) {
+        // The loudness.
+        var i = 0
+        while i < count {
+            let w = highPass.step(shelf.step(SIMD2(Double(samples[2 * i]), Double(samples[2 * i + 1]))))
+            tenth += w.x * w.x + w.y * w.y
+            inTenth += 1
+            if inTenth == framesInTenth {
+                tenths.append(tenth)
+                tenth = 0
+                inTenth = 0
+            }
+            i += 1
+        }
+        frames += count
+
+        // The true peak: a stretch at a time, each looked at closely only if it could reach it.
         let taps = Self.taps
         Self.phases.withUnsafeBufferPointer { phases in
             recent.withUnsafeMutableBufferPointer { recent in
-                for i in 0 ..< count {
-                    let l = Double(samples[2 * i]), r = Double(samples[2 * i + 1])
-                    let wl = left.1.step(left.0.step(l)), wr = right.1.step(right.0.step(r))
-                    tenth += wl * wl + wr * wr
-                    inTenth += 1
-                    if inTenth == framesInTenth {
-                        tenths.append(tenth)
-                        tenth = 0
-                        inTenth = 0
+                var start = 0
+                while start < count {
+                    let end = min(count, start + Self.stretch)
+                    // (The samples before the stretch that the points in it are worked out from.)
+                    var largest = 0.0
+                    var k = 0
+                    while k < taps {
+                        largest = max(largest, abs(recent[k]), abs(recent[2 * taps + k]))
+                        k += 1
                     }
-                    recent[at] = l; recent[at + taps] = l
-                    recent[2 * taps + at] = r; recent[3 * taps + at] = r
-                    at = at == taps - 1 ? 0 : at + 1
-                    peak = max(peak, Self.highest(recent, from: at, phases))
+                    var j = start
+                    while j < end {
+                        largest = max(largest, abs(Double(samples[2 * j])), abs(Double(samples[2 * j + 1])))
+                        j += 1
+                    }
+                    if largest * Self.headroom <= peak {
+                        // Only the samples the next stretch takes from it are kept, where they would be.
+                        let kept = min(end - start, taps)
+                        at = (at + end - start - kept) % taps
+                        j = end - kept
+                        while j < end {
+                            Self.push(Double(samples[2 * j]), Double(samples[2 * j + 1]), into: recent, at: &at)
+                            j += 1
+                        }
+                    } else {
+                        j = start
+                        while j < end {
+                            Self.push(Double(samples[2 * j]), Double(samples[2 * j + 1]), into: recent, at: &at)
+                            peak = max(peak, Self.highest(recent, from: at, phases))
+                            j += 1
+                        }
+                    }
+                    start = end
                 }
             }
         }
-        frames += count
+    }
+
+    /// Keeps a frame among the last `taps`.
+    @inline(__always) private static func push(_ l: Double, _ r: Double, into recent: UnsafeMutableBufferPointer<Double>, at: inout Int) {
+        let taps = Self.taps
+        recent[at] = l; recent[at + taps] = l
+        recent[2 * taps + at] = r; recent[3 * taps + at] = r
+        at = at == taps - 1 ? 0 : at + 1
     }
 
     /// The highest of the three points between the samples at the middle of the last `taps`, and of
@@ -118,14 +172,22 @@ public struct LoudnessMeter {
     @inline(__always) private static func highest(_ recent: UnsafeMutableBufferPointer<Double>, from at: Int,
                                                   _ phases: UnsafeBufferPointer<Double>) -> Double {
         var top = 0.0
-        for channel in 0 ..< 2 {
+        var channel = 0
+        while channel < 2 {
             let base = channel * 2 * taps + at
             top = max(top, abs(recent[base + taps / 2 - 1]))
-            for p in 0 ..< 3 {
+            var p = 0
+            while p < 3 {
                 var v = 0.0
-                for t in 0 ..< taps { v += recent[base + t] * phases[p * taps + t] }
+                var t = 0
+                while t < taps {
+                    v += recent[base + t] * phases[p * taps + t]
+                    t += 1
+                }
                 top = max(top, abs(v))
+                p += 1
             }
+            channel += 1
         }
         return top
     }
