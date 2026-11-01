@@ -147,19 +147,19 @@ final class Constellations: VisualScene {
 
         // The night, a little lighter towards the horizon, and the light of the stars over it.
         let night = VisualLook.rgb(hue: frame.look.hue + 0.05, saturation: 0.7, value: 1)
-        let glow = Glow()
-        var pixel = frame.pixels
-        var at = 0
-        for row in 0 ..< height {
-            let low = Float(row) / Float(height)
-            let dusk = 0.025 + 0.06 * low * low
-            for _ in 0 ..< width {
-                pixel[0] = byte(glow((light[at] + night.0 * dusk) * 1.5) * 255)
-                pixel[1] = byte(glow((light[at + 1] + night.1 * dusk) * 1.5) * 255)
-                pixel[2] = byte(glow((light[at + 2] + night.2 * dusk) * 1.5) * 255)
-                pixel[3] = 255
-                pixel += 4
-                at += 3
+        light.withUnsafeBufferPointer { light in
+            guard let light = light.baseAddress else { return }
+            for row in 0 ..< height {
+                let low = Float(row) / Float(height)
+                let dusk = 0.025 + 0.06 * low * low
+                let dark = (night.0 * dusk, night.1 * dusk, night.2 * dusk)
+                let from = light + row * width * 3, to = frame.pixels + row * width * 4
+                for column in 0 ..< width {
+                    to[column * 4] = byte(softLimit((from[column * 3] + dark.0) * 1.5) * 255)
+                    to[column * 4 + 1] = byte(softLimit((from[column * 3 + 1] + dark.1) * 1.5) * 255)
+                    to[column * 4 + 2] = byte(softLimit((from[column * 3 + 2] + dark.2) * 1.5) * 255)
+                    to[column * 4 + 3] = 255
+                }
             }
         }
     }

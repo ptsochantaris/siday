@@ -80,22 +80,20 @@ struct VisualLook {
 }
 
 /// How near light that adds up without limit comes to the most a screen can show, from 0 to 1, so
-/// that it is come to gently: 1 - e to the minus so much light. Looked up, for every 1024th up to 12
-/// (and as at 12 beyond that, and at 0 below it), as a picture that works it out for every dot would
-/// spend most of its time on it; to the nearest, as `byte` finds a whole number. Taken once for a
-/// frame (`let glow = Glow()`) and then called.
-struct Glow {
-    private nonisolated(unsafe) static let table: UnsafeMutablePointer<Float> = {
-        let table = UnsafeMutablePointer<Float>.allocate(capacity: 12289)
-        for at in 0 ... 12288 { table[at] = 1 - expf(-Float(at) / 1024) }
-        return table
-    }()
-
-    private let table = Glow.table
-
-    @inline(__always) func callAsFunction(_ light: Float) -> Float {
-        table[Int(truncatingIfNeeded: (max(0, min(12288, light * 1024)) + 8_388_608).bitPattern & 0x7F_FFFF)]
-    }
+/// that it is come to gently: 1 - e to the minus so much light (and 0 for none or less). Worked out
+/// as 2 to the minus so much times log2(e): the whole part of that put straight into the number's
+/// exponent, and 2 to the rest of it by its series to the fifth power, which is right to a few
+/// ten-thousandths, much less than a screen's step from one brightness to the next. (So it takes
+/// none of the checks that `expf` and turning a number into a whole one make, and a loop of it can
+/// work out several at once, which a picture that works it out for every dot needs.)
+@inline(__always) func softLimit(_ light: Float) -> Float {
+    let power = -max(0, min(24, light)) * 1.442_695_04
+    let whole = power.rounded(.down), part = power - whole
+    let rest = 1 + part * (0.693_147_18 + part * (0.240_226_51 + part * (0.055_504_11 + part * (0.009_618_13 + part * 0.001_333_36))))
+    // (127 more than the whole part, which is from -35 to 0, is its exponent's bits: added to 2 to the
+    // 23rd, it is the lowest bits of that number.)
+    let exponent = (whole + 127 + 8_388_608).bitPattern & 0xFF
+    return 1 - rest * Float(bitPattern: exponent << 23)
 }
 
 /// What a picture is painted from, for one frame.

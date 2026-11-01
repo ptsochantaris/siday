@@ -252,8 +252,8 @@ final class PetriDish: VisualScene {
                             hunger.withUnsafeBufferPointer { hunger in
                                 // The charge as it is, and as it will be after the step: the two are
                                 // taken in turns.
-                                var charge = kept, next = spare
-                                for _ in 0 ..< steps {
+                                for taken in 0 ..< steps {
+                                    let charge = taken % 2 == 0 ? kept : spare, next = taken % 2 == 0 ? spare : kept
                                     @inline(__always) func move(_ at: Int, left: Int, right: Int, up: Int, below: Int) {
                                         let here = charge[at]
                                         // How the charge round it differs from its own: that is what spreads.
@@ -306,9 +306,8 @@ final class PetriDish: VisualScene {
                                             coloured[at] = 1
                                         }
                                     }
-                                    swap(&charge, &next)
                                 }
-                                if charge.baseAddress != kept.baseAddress { _ = kept.update(fromContentsOf: charge) }
+                                if steps % 2 == 1 { _ = kept.update(fromContentsOf: spare) }
                             }
                         }
                     }

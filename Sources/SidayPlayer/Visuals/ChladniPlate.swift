@@ -66,7 +66,9 @@ final class ChladniPlate: VisualScene {
     /// How long a grain takes to come round to sliding the way the plate would have it, most of the
     /// way, in seconds: it has a little weight, so that it starts, stops and turns smoothly.
     private static let heft: Float = 0.8
-    private var light: [Float] = []
+    /// How many grains lie on each dot; and for each column of dots, how far it is from the middle,
+    /// squared.
+    private var light: [UInt16] = [], aside: [Float] = []
     private var width = 0, height = 0
     /// How loud each voice is, followed more slowly, and the kick it last had.
     private var calm: [Float] = []
@@ -80,7 +82,11 @@ final class ChladniPlate: VisualScene {
         if width != self.width || height != self.height {
             self.width = width
             self.height = height
-            light = [Float](repeating: 0, count: width * height)
+            light = [UInt16](repeating: 0, count: width * height)
+            aside = (0 ..< width).map { column in
+                let x = Float(column) / Float(width - 1) - 0.5
+                return x * x
+            }
         }
         if grainX.isEmpty {
             // Strewn evenly to begin with, as sand is shaken on to a plate.
@@ -202,8 +208,8 @@ final class ChladniPlate: VisualScene {
         for index in wanted.indices { wanted[index] *= scale }
     }
 
-    /// How the plate shakes at a place, and which way it shakes less, from the grid: x and y from 0 to 1.
-    private func shake(_ x: Float, _ y: Float) -> (amount: Float, slopeX: Float, slopeY: Float) {
+    /// How the plate shakes at a place, and which way it shakes less, from the grid (`shaking`): x and y from 0 to 1.
+    @inline(__always) private static func shake(_ shaking: UnsafeBufferPointer<Float>, _ x: Float, _ y: Float) -> (amount: Float, slopeX: Float, slopeY: Float) {
         let side = Self.grid, last = Float(side - 1)
         let gx = max(0, min(last - 0.001, x * last)), gy = max(0, min(last - 0.001, y * last))
         let column = Int(gx), row = Int(gy), right = gx - Float(column), down = gy - Float(row)
@@ -221,61 +227,92 @@ final class ChladniPlate: VisualScene {
         guard vigour > 0.01 else { return }
         let throwing = 0.3 * vigour * step.squareRoot(), sliding = 0.036 * vigour
         let following = 1 - expf(-step / Self.heft)
-        for index in 0 ..< Self.grains {
-            let x = grainX[index], y = grainY[index]
-            let here = shake(x, y)
-            // (Never quite nothing: a plate that rings is never quite still anywhere, and the lines of
-            // sand have a soft edge and a few strays.)
-            let shakes = abs(here.amount) + 0.03
-            // Down the slope of how hard it shakes: towards the line where it is still.
-            let sign: Float = here.amount > 0 ? 1 : -1
-            var speedX = grainSpeedX[index], speedY = grainSpeedY[index]
-            speedX += (-sign * here.slopeX * sliding - speedX) * following
-            speedY += (-sign * here.slopeY * sliding - speedY) * following
-            var newX = x + speedX * step + (next() - 0.5) * throwing * shakes
-            var newY = y + speedY * step + (next() - 0.5) * throwing * shakes
-            // The plate's edge: sand that would fall off bounces back on.
-            if newX < 0 { newX = -newX; speedX = -speedX }
-            if newX > 1 { newX = 2 - newX; speedX = -speedX }
-            if newY < 0 { newY = -newY; speedY = -speedY }
-            if newY > 1 { newY = 2 - newY; speedY = -speedY }
-            grainSpeedX[index] = speedX
-            grainSpeedY[index] = speedY
-            grainX[index] = max(0, min(1, newX))
-            grainY[index] = max(0, min(1, newY))
+        // (The grains, and the sequence of chances, are gone through here and not on the picture
+        // itself, which for so many grains takes a good deal longer.)
+        var random = random
+        @inline(__always) func next() -> Float { Self.next(&random) }
+        shaking.withUnsafeBufferPointer { shaking in
+            grainX.withUnsafeMutableBufferPointer { grainX in
+                grainY.withUnsafeMutableBufferPointer { grainY in
+                    grainSpeedX.withUnsafeMutableBufferPointer { grainSpeedX in
+                        grainSpeedY.withUnsafeMutableBufferPointer { grainSpeedY in
+                            for index in 0 ..< Self.grains {
+                                let x = grainX[index], y = grainY[index]
+                                let here = Self.shake(shaking, x, y)
+                                // (Never quite nothing: a plate that rings is never quite still anywhere, and the lines of
+                                // sand have a soft edge and a few strays.)
+                                let shakes = abs(here.amount) + 0.03
+                                // Down the slope of how hard it shakes: towards the line where it is still.
+                                let sign: Float = here.amount > 0 ? 1 : -1
+                                var speedX = grainSpeedX[index], speedY = grainSpeedY[index]
+                                speedX += (-sign * here.slopeX * sliding - speedX) * following
+                                speedY += (-sign * here.slopeY * sliding - speedY) * following
+                                var newX = x + speedX * step + (next() - 0.5) * throwing * shakes
+                                var newY = y + speedY * step + (next() - 0.5) * throwing * shakes
+                                // The plate's edge: sand that would fall off bounces back on.
+                                if newX < 0 { newX = -newX; speedX = -speedX }
+                                if newX > 1 { newX = 2 - newX; speedX = -speedX }
+                                if newY < 0 { newY = -newY; speedY = -speedY }
+                                if newY > 1 { newY = 2 - newY; speedY = -speedY }
+                                grainSpeedX[index] = speedX
+                                grainSpeedY[index] = speedY
+                                grainX[index] = max(0, min(1, newX))
+                                grainY[index] = max(0, min(1, newY))
+                            }
+                        }
+                    }
+                }
+            }
         }
+        self.random = random
     }
+
+    /// How pale a dot is with so many grains on it: a grain or two pale, and more no paler than a
+    /// heap is. (Looked up for as many as are usually found on one dot.)
+    private static let heaped = (0 ..< 64).map { 1 - expf(-Float($0) * 0.7) }
 
     /// The plate, dark and a little lighter towards its middle, and the sand on it.
     private func paintPlate(_ frame: VisualFrame) {
-        for index in light.indices { light[index] = 0 }
         let w = Float(width - 1), h = Float(height - 1)
-        for index in 0 ..< Self.grains {
-            let column = Int(grainX[index] * w + 0.5), row = Int(grainY[index] * h + 0.5)
-            light[row * width + column] += 1
-        }
         let metal = VisualLook.rgb(hue: frame.look.hue + 0.5, saturation: 0.35, value: 1)
         let sand = VisualLook.rgb(hue: frame.look.hue, saturation: 0.3, value: 1)
-        var pixel = frame.pixels
-        for row in 0 ..< height {
-            let y = Float(row) / h - 0.5
-            for column in 0 ..< width {
-                let x = Float(column) / w - 0.5
-                let sheen = 0.07 - 0.05 * (x * x + y * y) * 2
-                // A dot with a grain or two on it is pale; more grains are no paler than a heap is.
-                let grains = light[row * width + column]
-                let heap = 1 - expf(-grains * 0.7)
-                pixel[0] = byte((metal.0 * sheen * (1 - heap) + sand.0 * heap * 0.95) * 255)
-                pixel[1] = byte((metal.1 * sheen * (1 - heap) + sand.1 * heap * 0.95) * 255)
-                pixel[2] = byte((metal.2 * sheen * (1 - heap) + sand.2 * heap * 0.95) * 255)
-                pixel[3] = 255
-                pixel += 4
+        let heaped = Self.heaped
+        let width = width, height = height
+        light.withUnsafeMutableBufferPointer { light in
+            aside.withUnsafeBufferPointer { aside in
+                for index in 0 ..< light.count { light[index] = 0 }
+                for index in 0 ..< Self.grains {
+                    let column = Int(grainX[index] * w + 0.5), row = Int(grainY[index] * h + 0.5)
+                    light[row * width + column] &+= 1
+                }
+                var pixel = frame.pixels
+                for row in 0 ..< height {
+                    let y = Float(row) / h - 0.5
+                    for column in 0 ..< width {
+                        let sheen = 0.07 - 0.05 * (aside[column] + y * y) * 2
+                        let grains = light[row * width + column]
+                        if grains == 0 {
+                            pixel[0] = byte(metal.0 * sheen * 255)
+                            pixel[1] = byte(metal.1 * sheen * 255)
+                            pixel[2] = byte(metal.2 * sheen * 255)
+                        } else {
+                            let heap = grains < 64 ? heaped[Int(grains)] : 1 - expf(-Float(grains) * 0.7)
+                            pixel[0] = byte((metal.0 * sheen * (1 - heap) + sand.0 * heap * 0.95) * 255)
+                            pixel[1] = byte((metal.1 * sheen * (1 - heap) + sand.1 * heap * 0.95) * 255)
+                            pixel[2] = byte((metal.2 * sheen * (1 - heap) + sand.2 * heap * 0.95) * 255)
+                        }
+                        pixel[3] = 255
+                        pixel += 4
+                    }
+                }
             }
         }
     }
 
     /// A number from 0 up to 1, by a sequence that is the same each time (xorshift).
-    private func next() -> Float {
+    private func next() -> Float { Self.next(&random) }
+
+    @inline(__always) private static func next(_ random: inout UInt32) -> Float {
         random ^= random << 13
         random ^= random >> 17
         random ^= random << 5

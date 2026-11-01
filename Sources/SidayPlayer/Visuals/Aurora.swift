@@ -126,24 +126,19 @@ final class Aurora: VisualScene {
 
         // The sky: night, a little lighter towards the horizon, and the light over it.
         let sky = VisualLook.rgb(hue: frame.look.hue + 0.2, saturation: 0.75, value: 1)
-        let glow = Glow()
         light.withUnsafeBufferPointer { light in
-            var pixel = frame.pixels
-            var at = 0
+            guard let light = light.baseAddress else { return }
             for row in 0 ..< height {
                 let low = Float(row) / Float(height)
                 let dusk = 0.02 + 0.07 * low * low
-                for _ in 0 ..< width {
+                let dark = (sky.0 * dusk, sky.1 * dusk, sky.2 * dusk)
+                let from = light + row * width * 3, to = frame.pixels + row * width * 4
+                for column in 0 ..< width {
                     // Light adds up, and a screen has a limit: it is come to gently.
-                    let r = glow((light[at] + sky.0 * dusk) * 1.6)
-                    let g = glow((light[at + 1] + sky.1 * dusk) * 1.6)
-                    let b = glow((light[at + 2] + sky.2 * dusk) * 1.6)
-                    pixel[0] = byte(r * 255)
-                    pixel[1] = byte(g * 255)
-                    pixel[2] = byte(b * 255)
-                    pixel[3] = 255
-                    pixel += 4
-                    at += 3
+                    to[column * 4] = byte(softLimit((from[column * 3] + dark.0) * 1.6) * 255)
+                    to[column * 4 + 1] = byte(softLimit((from[column * 3 + 1] + dark.1) * 1.6) * 255)
+                    to[column * 4 + 2] = byte(softLimit((from[column * 3 + 2] + dark.2) * 1.6) * 255)
+                    to[column * 4 + 3] = 255
                 }
             }
         }

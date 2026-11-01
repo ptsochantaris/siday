@@ -32,6 +32,9 @@ final class Pond: VisualScene {
     private var seen: [Float] = []
     /// For each column of dots, the grid's column before it (times three) and how far it is to the next.
     private var lying: [(Int, Float)] = []
+    /// (A row of the water, or of its colour, as it was, while the row is changed; and a row of dots'
+    /// places on the grid, between the grid's rows on either side of it.)
+    private var was: [Float] = []
     private var owed: Float = 0
 
     private struct Source {
@@ -92,6 +95,7 @@ final class Pond: VisualScene {
             before = water
             dye = [Float](repeating: 0, count: across * down * 3)
             seen = dye
+            was = [Float](repeating: 0, count: across * 3)
             lying = []
             owed = 0
         }
@@ -157,13 +161,17 @@ final class Pond: VisualScene {
             }
             swap(&water, &before)
             // And the finest ripples, which a grid makes more of than water does, are smoothed away.
+            // (Each row from itself as it was, so that one place need not wait for the one before it.)
             water.withUnsafeMutableBufferPointer { water in
-                guard let water = water.baseAddress else { return }
-                for row in 1 ..< down - 1 {
-                    var at = row * across + 1
-                    for _ in 1 ..< across - 1 {
-                        water[at] = water[at] * 0.8 + (water[at - 1] + water[at + 1] + water[at - across] + water[at + across]) * 0.05
-                        at += 1
+                was.withUnsafeMutableBufferPointer { was in
+                    guard let water = water.baseAddress, let was = was.baseAddress else { return }
+                    for row in 1 ..< down - 1 {
+                        let first = row * across
+                        was.update(from: water + first, count: across)
+                        for column in 1 ..< across - 1 {
+                            let at = first + column
+                            water[at] = was[column] * 0.8 + (was[column - 1] + was[column + 1] + water[at - across] + water[at + across]) * 0.05
+                        }
                     }
                 }
             }
@@ -171,13 +179,16 @@ final class Pond: VisualScene {
             // The colour spreads a little and fades.
             let fade = expf(-step / 5)
             dye.withUnsafeMutableBufferPointer { dye in
-                guard let dye = dye.baseAddress else { return }
-                let rowLength = across * 3
-                for row in 1 ..< down - 1 {
-                    var at = row * rowLength + 3
-                    for _ in 3 ..< rowLength - 3 {
-                        dye[at] = (dye[at] * 0.6 + (dye[at - 3] + dye[at + 3] + dye[at - rowLength] + dye[at + rowLength]) * 0.1) * fade
-                        at += 1
+                was.withUnsafeMutableBufferPointer { was in
+                    guard let dye = dye.baseAddress, let was = was.baseAddress else { return }
+                    let rowLength = across * 3
+                    for row in 1 ..< down - 1 {
+                        let first = row * rowLength
+                        was.update(from: dye + first, count: rowLength)
+                        for place in 3 ..< rowLength - 3 {
+                            let at = first + place
+                            dye[at] = (was[place] * 0.6 + (was[place - 3] + was[place + 3] + dye[at - rowLength] + dye[at + rowLength]) * 0.1) * fade
+                        }
                     }
                 }
             }
@@ -186,28 +197,35 @@ final class Pond: VisualScene {
         // What it looks like: dark water, the colour in it, and the light that the slopes of the
         // waves catch from one side and lose from the other; as bright as it can be shown.
         let still = VisualLook.rgb(hue: frame.look.hue + 0.08, saturation: 0.8, value: 1)
-        let glow = Glow()
-        @inline(__always) func shown(_ value: Float) -> Float { glow(value * 1.8) * 255 }
-        for row in 1 ..< down - 1 {
-            let far = 1 - Float(row) / Float(down)
-            let depth = 0.05 + 0.05 * far
-            for column in 1 ..< across - 1 {
-                let at = row * across + column
-                let slope = (water[at + 1] - water[at - 1]) * 0.6 + (water[at + across] - water[at - across]) * 0.8
-                // A slope towards the light is brighter and one away from it darker, and neither by
-                // more than so much: water has no hard edges.
-                let lit = min(1, max(0, -slope) * 9), shaded = 1 - min(0.6, max(0, slope) * 7)
-                let colour = at * 3
-                seen[colour] = shown((still.0 * depth + dye[colour]) * shaded * (1 + lit * 1.5) + lit * 0.1)
-                seen[colour + 1] = shown((still.1 * depth + dye[colour + 1]) * shaded * (1 + lit * 1.5) + lit * 0.11)
-                seen[colour + 2] = shown((still.2 * depth + dye[colour + 2]) * shaded * (1 + lit * 1.5) + lit * 0.13)
+        let across = across, down = down
+        water.withUnsafeBufferPointer { water in
+            dye.withUnsafeBufferPointer { dye in
+                seen.withUnsafeMutableBufferPointer { seen in
+                    guard let water = water.baseAddress, let dye = dye.baseAddress, let seen = seen.baseAddress else { return }
+                    for row in 1 ..< down - 1 {
+                        let far = 1 - Float(row) / Float(down)
+                        let depth = 0.05 + 0.05 * far
+                        let level = water + row * across, colour = dye + row * across * 3, to = seen + row * across * 3
+                        for column in 1 ..< across - 1 {
+                            let slope = (level[column + 1] - level[column - 1]) * 0.6 + (level[column + across] - level[column - across]) * 0.8
+                            // A slope towards the light is brighter and one away from it darker, and neither by
+                            // more than so much: water has no hard edges.
+                            let lit = min(1, max(0, -slope) * 9), shaded = 1 - min(0.6, max(0, slope) * 7)
+                            to[column * 3] = (still.0 * depth + colour[column * 3]) * shaded * (1 + lit * 1.5) + lit * 0.1
+                            to[column * 3 + 1] = (still.1 * depth + colour[column * 3 + 1]) * shaded * (1 + lit * 1.5) + lit * 0.11
+                            to[column * 3 + 2] = (still.2 * depth + colour[column * 3 + 2]) * shaded * (1 + lit * 1.5) + lit * 0.13
+                        }
+                    }
+                    // (And as bright as it can be shown: all at once, which a loop of nothing else can do
+                    // several at a time.)
+                    for at in 0 ..< across * down * 3 { seen[at] = softLimit(seen[at] * 1.8) * 255 }
+                }
             }
         }
 
         // The dots, each read off the four places of the grid around it. (The outermost places are
         // banks, and are left out: the picture is of the water within them.) Where each column of
         // dots lies between the grid's columns is the same on every row, and worked out once.
-        var pixel = frame.pixels
         let scaleX = Float(across - 3) / Float(width), scaleY = Float(down - 3) / Float(height)
         if lying.count != width {
             lying = (0 ..< width).map { column in
@@ -217,19 +235,24 @@ final class Pond: VisualScene {
         }
         seen.withUnsafeBufferPointer { seen in
             lying.withUnsafeBufferPointer { lying in
-                for row in 0 ..< height {
-                    let gy = 1 + Float(row) * scaleY
-                    let gridRow = Int(gy), v = gy - Float(gridRow)
-                    let above = gridRow * across * 3, below = above + across * 3
-                    for column in 0 ..< width {
-                        let (place, u) = lying[column]
-                        let a = above + place, b = a + 3, c = below + place, d = c + 3
-                        let wa = (1 - u) * (1 - v), wb = u * (1 - v), wc = (1 - u) * v, wd = u * v
-                        pixel[0] = byte(seen[a] * wa + seen[b] * wb + seen[c] * wc + seen[d] * wd)
-                        pixel[1] = byte(seen[a + 1] * wa + seen[b + 1] * wb + seen[c + 1] * wc + seen[d + 1] * wd)
-                        pixel[2] = byte(seen[a + 2] * wa + seen[b + 2] * wb + seen[c + 2] * wc + seen[d + 2] * wd)
-                        pixel[3] = 255
-                        pixel += 4
+                was.withUnsafeMutableBufferPointer { blended in
+                    var pixel = frame.pixels
+                    for row in 0 ..< height {
+                        let gy = 1 + Float(row) * scaleY
+                        let gridRow = Int(gy), v = gy - Float(gridRow)
+                        // (The grid's two rows on either side of the row of dots, blended once for the row.)
+                        let above = gridRow * across * 3, below = above + across * 3
+                        for at in 0 ..< across * 3 {
+                            blended[at] = seen[above + at] * (1 - v) + seen[below + at] * v
+                        }
+                        for column in 0 ..< width {
+                            let (a, u) = lying[column]
+                            pixel[0] = byte(blended[a] * (1 - u) + blended[a + 3] * u)
+                            pixel[1] = byte(blended[a + 1] * (1 - u) + blended[a + 4] * u)
+                            pixel[2] = byte(blended[a + 2] * (1 - u) + blended[a + 5] * u)
+                            pixel[3] = 255
+                            pixel += 4
+                        }
                     }
                 }
             }

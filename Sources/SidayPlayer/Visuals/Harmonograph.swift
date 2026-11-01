@@ -109,22 +109,21 @@ final class Harmonograph: VisualScene {
                     wet[index] *= drying
                 }
                 draw(into: ink, wet, frame)
-            }
-        }
 
-        // The paper: nearly black, and the ink on it, which adds up where the pen goes over a line
-        // again and is come to a screen's limit gently.
-        let glow = Glow()
-        var pixel = frame.pixels
-        var at = 0
-        for _ in 0 ..< width * height {
-            let red = ink[at] - wet[at], green = ink[at + 1] - wet[at + 1], blue = ink[at + 2] - wet[at + 2]
-            pixel[0] = byte((0.03 + 0.97 * glow(red * 1.4)) * 255)
-            pixel[1] = byte((0.03 + 0.97 * glow(green * 1.4)) * 255)
-            pixel[2] = byte((0.035 + 0.965 * glow(blue * 1.4)) * 255)
-            pixel[3] = 255
-            pixel += 4
-            at += 3
+                // The paper: nearly black, and the ink on it, which adds up where the pen goes over a
+                // line again and is come to a screen's limit gently.
+                var pixel = frame.pixels
+                var at = 0
+                for _ in 0 ..< width * height {
+                    let red = ink[at] - wet[at], green = ink[at + 1] - wet[at + 1], blue = ink[at + 2] - wet[at + 2]
+                    pixel[0] = byte((0.03 + 0.97 * softLimit(red * 1.4)) * 255)
+                    pixel[1] = byte((0.03 + 0.97 * softLimit(green * 1.4)) * 255)
+                    pixel[2] = byte((0.035 + 0.965 * softLimit(blue * 1.4)) * 255)
+                    pixel[3] = 255
+                    pixel += 4
+                    at += 3
+                }
+            }
         }
     }
 

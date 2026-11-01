@@ -46,7 +46,7 @@ final class Flame: VisualScene {
     /// What heat is multiplied by to squeeze it into what a screen can show, given the most there
     /// is of any colour at a place. All three colours are squeezed alike, and so stay the colour
     /// they were: squeezed each by itself, every colour would be paler the hotter it was.
-    @inline(__always) private static func shown(most heat: Float, _ glow: Glow) -> Float { heat > 0.0001 ? glow(heat * 2.2) / heat : 2.2 }
+    @inline(__always) private static func shown(most heat: Float) -> Float { heat > 0.0001 ? softLimit(heat * 2.2) / heat : 2.2 }
 
     private var across = 0, down = 0
     /// The heat at each place on the grid, as red, green and blue, in rows from the top. The last
@@ -188,17 +188,16 @@ final class Flame: VisualScene {
         }
         if blended.count != rowLength { blended = [Float](repeating: 0, count: rowLength) }
         // (Squeezed at the places of the grid, which is as good as at each dot, and a quarter of the work.)
-        let glow = Glow()
         if shownHeat.count != heat.count { shownHeat = heat }
         heat.withUnsafeBufferPointer { heat in
             shownHeat.withUnsafeMutableBufferPointer { shown in
-                var at = 0
-                while at < heat.count {
-                    let squeezed = Self.shown(most: max(heat[at], heat[at + 1], heat[at + 2]), glow) * 255
+                guard let heat = heat.baseAddress, let shown = shown.baseAddress else { return }
+                for place in 0 ..< across * down {
+                    let at = place * 3
+                    let squeezed = Self.shown(most: max(heat[at], heat[at + 1], heat[at + 2])) * 255
                     shown[at] = heat[at] * squeezed
                     shown[at + 1] = heat[at + 1] * squeezed
                     shown[at + 2] = heat[at + 2] * squeezed
-                    at += 3
                 }
             }
         }
