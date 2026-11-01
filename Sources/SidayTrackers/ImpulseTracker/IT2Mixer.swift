@@ -182,6 +182,8 @@ final class IT2Mixer {
     /// the waves' voices each of the 64 channels is, less than nought for one not shown.
     private var waves: ChannelWaves?
     private var waveOfChannel = [Int](repeating: -1, count: 64)
+    /// The channels that are shown, in order.
+    private var shownChannels = [Int]()
     /// While a tick is mixed for the scopes: what one voice adds to the tick, mixed here first and
     /// then added where it goes; each channel's sound in the tick, of all its voices together, one
     /// channel after another; and the FM chip's voices, as each frame of the tick has them.
@@ -367,6 +369,7 @@ final class IT2Mixer {
         self.waves = waves
         waveOfChannel = [Int](repeating: -1, count: 64)
         for (voice, channel) in channels.enumerated() where channel >= 0 && channel < 64 { waveOfChannel[channel] = voice }
+        shownChannels = (0 ..< 64).filter { waveOfChannel[$0] >= 0 }
         guard waves != nil, voiceWave == nil else { return }
         let frames = mixCapacity / 2
         voiceWave = .allocate(capacity: mixCapacity)
@@ -382,25 +385,38 @@ final class IT2Mixer {
     private func keepWave(_ sc: IT2SlavePointer, into target: UnsafeMutablePointer<Float>, surround: Bool) {
         guard let voiceWave, let channelWaves else { return }
         let frames = Int(RealBytesToMix)
-        for i in 0 ..< frames * 2 { target[i] += voiceWave[i] }
         let channel = Int(sc.pointee.HostChnNum & 63)
-        guard waveOfChannel[channel] >= 0 else { return }
+        guard waveOfChannel[channel] >= 0 else {
+            var i = 0
+            while i < frames * 2 {
+                target[i] += voiceWave[i]
+                i += 1
+            }
+            return
+        }
         let wave = channelWaves + channel * frames
         // (As loud as the voice is without the song's mixing volume, which the lights leave out too.)
         let back = MixVolume > 0 ? 128 / Float(MixVolume) : 0
-        for i in 0 ..< frames {
-            let l = voiceWave[i * 2], r = voiceWave[i * 2 + 1]
-            let both: Float
-            if !stereoOutput {
-                both = l
-            } else if surround {
-                both = l - r
-            } else if softPanning {
-                both = 2 * (abs(l) >= abs(r) ? l : r)
-            } else {
-                both = l + r
+        // (Added where it goes and to its scope in one pass, and each way of putting the sides
+        // together in a loop of its own, rather than choosing between them at every frame.)
+        @inline(__always) func keep(_ both: (Float, Float) -> Float) {
+            var i = 0
+            while i < frames {
+                let l = voiceWave[i * 2], r = voiceWave[i * 2 + 1]
+                target[i * 2] += l
+                target[i * 2 + 1] += r
+                wave[i] += both(l, r) * back
+                i += 1
             }
-            wave[i] += both * back
+        }
+        if !stereoOutput {
+            keep { l, _ in l }
+        } else if surround {
+            keep { l, r in l - r }
+        } else if softPanning {
+            keep { l, r in 2 * (abs(l) >= abs(r) ? l : r) }
+        } else {
+            keep { l, r in l + r }
         }
     }
 
@@ -408,10 +424,7 @@ final class IT2Mixer {
     private func storeWaves(_ waves: ChannelWaves) {
         guard let channelWaves else { return }
         let frames = Int(RealBytesToMix)
-        for channel in 0 ..< 64 where waveOfChannel[channel] >= 0 {
-            let voice = waveOfChannel[channel], wave = channelWaves + channel * frames
-            for i in 0 ..< frames { waves.store(voice, at: i, wave[i]) }
-        }
+        for channel in shownChannels { waves.store(waveOfChannel[channel], from: channelWaves + channel * frames, count: frames) }
         waves.advance(by: frames)
     }
 
@@ -723,7 +736,9 @@ final class IT2Mixer {
             if mutedChannels != 0 { fMutedBuffer?.update(repeating: 0, count: Int(RealBytesToMix) * 2) }
         }
         let waves = silent ? nil : waves
-        if waves != nil { channelWaves?.update(repeating: 0, count: Int(RealBytesToMix) * 64) }
+        if waves != nil, let channelWaves {
+            for channel in shownChannels { (channelWaves + channel * Int(RealBytesToMix)).update(repeating: 0, count: Int(RealBytesToMix)) }
+        }
         defer { musicTempoChanged = false }
 
         for i in 0 ..< MAX_SLAVE_CHANNELS {

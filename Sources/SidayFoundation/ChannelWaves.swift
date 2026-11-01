@@ -75,6 +75,22 @@ public final class ChannelWaves {
         ring[voice &* Self.capacity &+ ((written[voice] &+ offset) & (Self.capacity &- 1))] = value
     }
 
+    /// Keeps `count` samples of a voice at once, from the last `advance` of it on: what `store` would
+    /// keep of each, copied in at most two pieces.
+    public func store(_ voice: Int, from samples: UnsafePointer<Float>, count: Int) {
+        var samples = samples, count = count, at = written[voice]
+        // (Of more than is kept, only the last of it would be left.)
+        if count > Self.capacity {
+            samples += count - Self.capacity
+            at &+= count - Self.capacity
+            count = Self.capacity
+        }
+        let base = ring + voice * Self.capacity, start = at & (Self.capacity - 1)
+        let first = min(count, Self.capacity - start)
+        (base + start).update(from: samples, count: first)
+        if count > first { base.update(from: samples + first, count: count - first) }
+    }
+
     /// Keeps silence for a voice that is not playing, for so many samples on from the last `advance`.
     public func silence(_ voice: Int, count: Int) {
         for offset in 0 ..< count { store(voice, at: offset, 0) }
