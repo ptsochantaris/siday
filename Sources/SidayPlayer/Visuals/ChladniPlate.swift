@@ -285,25 +285,28 @@ final class ChladniPlate: VisualScene {
                     let column = Int(grainX[index] * w + 0.5), row = Int(grainY[index] * h + 0.5)
                     light[row * width + column] &+= 1
                 }
-                var pixel = frame.pixels
+                // The plate first, every dot of it, all at once; and then the dots with sand on them.
                 for row in 0 ..< height {
                     let y = Float(row) / h - 0.5
+                    let to = frame.pixels + row * width * 4
                     for column in 0 ..< width {
                         let sheen = 0.07 - 0.05 * (aside[column] + y * y) * 2
-                        let grains = light[row * width + column]
-                        if grains == 0 {
-                            pixel[0] = byte(metal.0 * sheen * 255)
-                            pixel[1] = byte(metal.1 * sheen * 255)
-                            pixel[2] = byte(metal.2 * sheen * 255)
-                        } else {
-                            let heap = grains < 64 ? heaped[Int(grains)] : 1 - expf(-Float(grains) * 0.7)
-                            pixel[0] = byte((metal.0 * sheen * (1 - heap) + sand.0 * heap * 0.95) * 255)
-                            pixel[1] = byte((metal.1 * sheen * (1 - heap) + sand.1 * heap * 0.95) * 255)
-                            pixel[2] = byte((metal.2 * sheen * (1 - heap) + sand.2 * heap * 0.95) * 255)
-                        }
-                        pixel[3] = 255
-                        pixel += 4
+                        to[column * 4] = byte(metal.0 * sheen * 255)
+                        to[column * 4 + 1] = byte(metal.1 * sheen * 255)
+                        to[column * 4 + 2] = byte(metal.2 * sheen * 255)
+                        to[column * 4 + 3] = 255
                     }
+                }
+                for index in 0 ..< Self.grains {
+                    let column = Int(grainX[index] * w + 0.5), row = Int(grainY[index] * h + 0.5)
+                    let y = Float(row) / h - 0.5
+                    let sheen = 0.07 - 0.05 * (aside[column] + y * y) * 2
+                    let grains = light[row * width + column]
+                    let heap = grains < 64 ? heaped[Int(grains)] : 1 - expf(-Float(grains) * 0.7)
+                    let to = frame.pixels + (row * width + column) * 4
+                    to[0] = byte((metal.0 * sheen * (1 - heap) + sand.0 * heap * 0.95) * 255)
+                    to[1] = byte((metal.1 * sheen * (1 - heap) + sand.1 * heap * 0.95) * 255)
+                    to[2] = byte((metal.2 * sheen * (1 - heap) + sand.2 * heap * 0.95) * 255)
                 }
             }
         }

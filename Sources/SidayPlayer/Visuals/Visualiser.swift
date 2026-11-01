@@ -79,6 +79,18 @@ struct VisualLook {
     UInt8(truncatingIfNeeded: (max(0, min(255, value) - 0.4999) + 8_388_608).bitPattern)
 }
 
+/// Paints a row of dots from their red, green and blue, from 0 to 255, three to a dot: each as its
+/// byte (see `byte`), and the fourth 255. (A loop of nothing else, which works out several at once: a
+/// picture that reads its dots off a grid works them out into a row like this, and paints it so.)
+func paintRow(_ to: UnsafeMutablePointer<UInt8>, from colours: UnsafePointer<Float>, count: Int) {
+    for dot in 0 ..< count {
+        to[dot * 4] = byte(colours[dot * 3])
+        to[dot * 4 + 1] = byte(colours[dot * 3 + 1])
+        to[dot * 4 + 2] = byte(colours[dot * 3 + 2])
+        to[dot * 4 + 3] = 255
+    }
+}
+
 /// How near light that adds up without limit comes to the most a screen can show, from 0 to 1, so
 /// that it is come to gently: 1 - e to the minus so much light (and 0 for none or less). Worked out
 /// as 2 to the minus so much times log2(e): the whole part of that put straight into the number's

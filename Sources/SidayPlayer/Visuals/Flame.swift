@@ -57,6 +57,8 @@ final class Flame: VisualScene {
     /// For each column of dots, the grid's column before it (times three) and how far it is to the
     /// next; and a row of dots' places on the grid, between the grid's rows on either side of it.
     private var lying: [(Int, Float)] = [], blended: [Float] = []
+    /// (A row of dots, as `paintRow` takes them.)
+    private var dots: [Float] = []
     /// The heat at each place as it is shown, from 0 to 255.
     private var shownHeat: [Float] = []
     private var owed: Float = 0
@@ -187,6 +189,7 @@ final class Flame: VisualScene {
             }
         }
         if blended.count != rowLength { blended = [Float](repeating: 0, count: rowLength) }
+        if dots.count != width * 3 { dots = [Float](repeating: 0, count: width * 3) }
         // (Squeezed at the places of the grid, which is as good as at each dot, and a quarter of the work.)
         if shownHeat.count != heat.count { shownHeat = heat }
         heat.withUnsafeBufferPointer { heat in
@@ -204,26 +207,24 @@ final class Flame: VisualScene {
         shownHeat.withUnsafeBufferPointer { heat in
             lying.withUnsafeBufferPointer { lying in
                 blended.withUnsafeMutableBufferPointer { blended in
-                    var pixel = frame.pixels
-                    for row in 0 ..< height {
-                        let gy = Float(row) * scaleY + owed
-                        let gridRow = min(down - 3, Int(gy)), v = min(1, gy - Float(gridRow))
-                        let above = gridRow * rowLength, below = above + rowLength
-                        for at in 0 ..< rowLength {
-                            blended[at] = heat[above + at] * (1 - v) + heat[below + at] * v
-                        }
-                        let low = Float(row) / Float(height)
-                        let dark = 0.012 + 0.02 * low * low
-                        for column in 0 ..< width {
-                            let (a, u) = lying[column]
-                            let red = blended[a] * (1 - u) + blended[a + 3] * u
-                            let green = blended[a + 1] * (1 - u) + blended[a + 4] * u
-                            let blue = blended[a + 2] * (1 - u) + blended[a + 5] * u
-                            pixel[0] = byte(red + dark * 780)
-                            pixel[1] = byte(green + dark * 450)
-                            pixel[2] = byte(blue + dark * 390)
-                            pixel[3] = 255
-                            pixel += 4
+                    dots.withUnsafeMutableBufferPointer { dots in
+                        guard let dots = dots.baseAddress else { return }
+                        for row in 0 ..< height {
+                            let gy = Float(row) * scaleY + owed
+                            let gridRow = min(down - 3, Int(gy)), v = min(1, gy - Float(gridRow))
+                            let above = gridRow * rowLength, below = above + rowLength
+                            for at in 0 ..< rowLength {
+                                blended[at] = heat[above + at] * (1 - v) + heat[below + at] * v
+                            }
+                            let low = Float(row) / Float(height)
+                            let dark = 0.012 + 0.02 * low * low
+                            for column in 0 ..< width {
+                                let (a, u) = lying[column]
+                                dots[column * 3] = blended[a] * (1 - u) + blended[a + 3] * u + dark * 780
+                                dots[column * 3 + 1] = blended[a + 1] * (1 - u) + blended[a + 4] * u + dark * 450
+                                dots[column * 3 + 2] = blended[a + 2] * (1 - u) + blended[a + 5] * u + dark * 390
+                            }
+                            paintRow(frame.pixels + row * width * 4, from: dots, count: width)
                         }
                     }
                 }

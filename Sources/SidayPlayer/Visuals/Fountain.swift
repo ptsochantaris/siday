@@ -49,7 +49,7 @@ final class Fountain: VisualScene {
 
     /// What light is multiplied by to squeeze it into what a screen can show, given the most there
     /// is of any colour at a place: all three colours alike, so that they stay the colour they were.
-    private static func shown(most light: Float) -> Float { light > 0.0001 ? (1 - expf(-light * 2.2)) / light : 2.2 }
+    @inline(__always) private static func shown(most light: Float) -> Float { light > 0.0001 ? softLimit(light * 2.2) / light : 2.2 }
 
     private struct Light {
         /// Where it is, in dots, and how fast it is going, in dots a second.
@@ -183,21 +183,20 @@ final class Fountain: VisualScene {
             // The dots, over a dark that is a little less dark towards the bottom; and the light
             // at each fades for the next time.
             let fade = expf(-elapsed / Self.tail)
-            var pixel = frame.pixels, at = light
             for row in 0 ..< height {
                 let low = Float(row) / tall
                 let dark = 0.012 + 0.02 * low * low
-                for _ in 0 ..< width {
-                    let squeezed = Self.shown(most: max(at[0], at[1], at[2])) * 255
-                    pixel[0] = byte(at[0] * squeezed + dark * 390)
-                    pixel[1] = byte(at[1] * squeezed + dark * 450)
-                    pixel[2] = byte(at[2] * squeezed + dark * 780)
-                    pixel[3] = 255
-                    at[0] *= fade
-                    at[1] *= fade
-                    at[2] *= fade
-                    pixel += 4
-                    at += 3
+                let at = light + row * width * 3, to = frame.pixels + row * width * 4
+                for column in 0 ..< width {
+                    let red = at[column * 3], green = at[column * 3 + 1], blue = at[column * 3 + 2]
+                    let squeezed = Self.shown(most: max(red, green, blue)) * 255
+                    to[column * 4] = byte(red * squeezed + dark * 390)
+                    to[column * 4 + 1] = byte(green * squeezed + dark * 450)
+                    to[column * 4 + 2] = byte(blue * squeezed + dark * 780)
+                    to[column * 4 + 3] = 255
+                    at[column * 3] = red * fade
+                    at[column * 3 + 1] = green * fade
+                    at[column * 3 + 2] = blue * fade
                 }
             }
         }

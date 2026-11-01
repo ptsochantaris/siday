@@ -72,10 +72,12 @@ final class PetriDish: VisualScene {
     private var shown: [SIMD4<Float>] = [], softening: [SIMD4<Float>] = []
     /// (For softening: a sum for each column.)
     private var sums: [SIMD4<Float>] = []
-    /// For each column of dots, the grid's column before it and how far it is to the next; and a row
-    /// of dots' places on the grid, between the grid's rows on either side of it.
-    private var lying: [(Int, Float)] = [], blended: [Place] = []
-    private struct Place { var lit: Float = 0, after: Float = 0, red: Float = 0, green: Float = 0, blue: Float = 0 }
+    /// For each column of dots, the grid's column before it (times three) and how far it is to the
+    /// next; and a row of dots' places on the grid, between the grid's rows on either side of it.
+    private var lying: [(Int, Float)] = [], blended: [Float] = []
+    /// What each place of the grid looks like: red, green and blue, from 0 to 255; and a row of dots,
+    /// as `paintRow` takes them.
+    private var seen: [Float] = [], dots: [Float] = []
     /// How far the colour is softened, in places of the grid.
     private static let softness = 6
     /// How ready the whole picture is.
@@ -179,52 +181,59 @@ final class PetriDish: VisualScene {
         for at in ready.indices { ready[at] *= kept }
 
         // What it looks like: the charge, bright in its colour, and a dim glow of the same colour
-        // where it has lately been, while the place is tired; read off the four places of the grid
-        // round each dot: the grid's two rows on either side of a row of dots blended once for the
-        // row, and then read off across it, each column of dots where it lies between the grid's
-        // columns, which is the same on every row.
+        // where it has lately been, while the place is tired; worked out for each place of the grid,
+        // and read off the four places round each dot (which is as good as working it out for each
+        // dot, and a seventh of the work): the grid's two rows on either side of a row of dots blended
+        // once for the row, and then read off across it, each column of dots where it lies between
+        // the grid's columns, which is the same on every row.
         let scaleX = Float(across - 1) / Float(width), scaleY = Float(down - 1) / Float(height)
         if lying.count != width {
             lying = (0 ..< width).map { column in
                 let gx = Float(column) * scaleX
-                return (Int(gx), gx - Float(Int(gx)))
+                return (Int(gx) * 3, gx - Float(Int(gx)))
             }
         }
-        if blended.count != across { blended = [Place](repeating: Place(), count: across) }
+        if seen.count != across * down * 3 { seen = [Float](repeating: 0, count: across * down * 3) }
+        if blended.count != across * 3 + 3 { blended = [Float](repeating: 0, count: across * 3 + 3) }
+        if dots.count != width * 3 { dots = [Float](repeating: 0, count: width * 3) }
         charge.withUnsafeBufferPointer { charge in
             tired.withUnsafeBufferPointer { tired in
                 shown.withUnsafeBufferPointer { colour in
-                    lying.withUnsafeBufferPointer { lying in
-                        blended.withUnsafeMutableBufferPointer { blended in
-                            var pixel = frame.pixels
-                            for row in 0 ..< height {
-                                let gy = Float(row) * scaleY
-                                let gridRow = Int(gy), v = gy - Float(gridRow)
-                                let nextRow = min(down - 1, gridRow + 1)
-                                for column in 0 ..< across {
-                                    let a = gridRow * across + column, c = nextRow * across + column
-                                    blended[column] = Place(lit: charge[a] + (charge[c] - charge[a]) * v, after: tired[a] + (tired[c] - tired[a]) * v,
-                                                            red: colour[a].x + (colour[c].x - colour[a].x) * v,
-                                                            green: colour[a].y + (colour[c].y - colour[a].y) * v,
-                                                            blue: colour[a].z + (colour[c].z - colour[a].z) * v)
-                                }
-                                for column in 0 ..< width {
-                                    let (gridColumn, u) = lying[column]
-                                    let left = blended[gridColumn], right = blended[min(across - 1, gridColumn + 1)]
-                                    let lit = left.lit + (right.lit - left.lit) * u, after = left.after + (right.after - left.after) * u
-                                    let light = 0.95 * lit + 0.22 * after
-                                    let red = (left.red + (right.red - left.red) * u) * light
-                                    let green = (left.green + (right.green - left.green) * u) * light
-                                    let blue = (left.blue + (right.blue - left.blue) * u) * light
-                                    // A hint of white where the charge is greatest, as in the middle of a flame.
-                                    let white = max(0, lit - 0.7) * 0.5
-                                    pixel[0] = byte((0.012 + red + white) * 255)
-                                    pixel[1] = byte((0.012 + green + white) * 255)
-                                    pixel[2] = byte((0.02 + blue + white) * 255)
-                                    pixel[3] = 255
-                                    pixel += 4
-                                }
+                    seen.withUnsafeMutableBufferPointer { seen in
+                        for at in 0 ..< across * down {
+                            let lit = charge[at], light = 0.95 * lit + 0.22 * tired[at]
+                            // A hint of white where the charge is greatest, as in the middle of a flame.
+                            let white = max(0, lit - 0.7) * 0.5
+                            seen[at * 3] = (0.012 + colour[at].x * light + white) * 255
+                            seen[at * 3 + 1] = (0.012 + colour[at].y * light + white) * 255
+                            seen[at * 3 + 2] = (0.02 + colour[at].z * light + white) * 255
+                        }
+                    }
+                }
+            }
+        }
+        seen.withUnsafeBufferPointer { seen in
+            lying.withUnsafeBufferPointer { lying in
+                blended.withUnsafeMutableBufferPointer { blended in
+                    dots.withUnsafeMutableBufferPointer { dots in
+                        guard let dots = dots.baseAddress else { return }
+                        let rowLength = across * 3
+                        for row in 0 ..< height {
+                            let gy = Float(row) * scaleY
+                            let gridRow = Int(gy), v = gy - Float(gridRow)
+                            let above = gridRow * rowLength, below = min(down - 1, gridRow + 1) * rowLength
+                            for at in 0 ..< rowLength {
+                                blended[at] = seen[above + at] + (seen[below + at] - seen[above + at]) * v
                             }
+                            // (The last column's, again, for the dots after it.)
+                            for at in 0 ..< 3 { blended[rowLength + at] = blended[rowLength - 3 + at] }
+                            for column in 0 ..< width {
+                                let (a, u) = lying[column]
+                                dots[column * 3] = blended[a] + (blended[a + 3] - blended[a]) * u
+                                dots[column * 3 + 1] = blended[a + 1] + (blended[a + 4] - blended[a + 1]) * u
+                                dots[column * 3 + 2] = blended[a + 2] + (blended[a + 5] - blended[a + 2]) * u
+                            }
+                            paintRow(frame.pixels + row * width * 4, from: dots, count: width)
                         }
                     }
                 }

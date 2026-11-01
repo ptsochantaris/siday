@@ -35,6 +35,8 @@ final class Pond: VisualScene {
     /// (A row of the water, or of its colour, as it was, while the row is changed; and a row of dots'
     /// places on the grid, between the grid's rows on either side of it.)
     private var was: [Float] = []
+    /// (A row of dots, as `paintRow` takes them.)
+    private var dots: [Float] = []
     private var owed: Float = 0
 
     private struct Source {
@@ -233,25 +235,27 @@ final class Pond: VisualScene {
                 return (Int(gx) * 3, gx - Float(Int(gx)))
             }
         }
+        if dots.count != width * 3 { dots = [Float](repeating: 0, count: width * 3) }
         seen.withUnsafeBufferPointer { seen in
             lying.withUnsafeBufferPointer { lying in
                 was.withUnsafeMutableBufferPointer { blended in
-                    var pixel = frame.pixels
-                    for row in 0 ..< height {
-                        let gy = 1 + Float(row) * scaleY
-                        let gridRow = Int(gy), v = gy - Float(gridRow)
-                        // (The grid's two rows on either side of the row of dots, blended once for the row.)
-                        let above = gridRow * across * 3, below = above + across * 3
-                        for at in 0 ..< across * 3 {
-                            blended[at] = seen[above + at] * (1 - v) + seen[below + at] * v
-                        }
-                        for column in 0 ..< width {
-                            let (a, u) = lying[column]
-                            pixel[0] = byte(blended[a] * (1 - u) + blended[a + 3] * u)
-                            pixel[1] = byte(blended[a + 1] * (1 - u) + blended[a + 4] * u)
-                            pixel[2] = byte(blended[a + 2] * (1 - u) + blended[a + 5] * u)
-                            pixel[3] = 255
-                            pixel += 4
+                    dots.withUnsafeMutableBufferPointer { dots in
+                        guard let dots = dots.baseAddress else { return }
+                        for row in 0 ..< height {
+                            let gy = 1 + Float(row) * scaleY
+                            let gridRow = Int(gy), v = gy - Float(gridRow)
+                            // (The grid's two rows on either side of the row of dots, blended once for the row.)
+                            let above = gridRow * across * 3, below = above + across * 3
+                            for at in 0 ..< across * 3 {
+                                blended[at] = seen[above + at] * (1 - v) + seen[below + at] * v
+                            }
+                            for column in 0 ..< width {
+                                let (a, u) = lying[column]
+                                dots[column * 3] = blended[a] * (1 - u) + blended[a + 3] * u
+                                dots[column * 3 + 1] = blended[a + 1] * (1 - u) + blended[a + 4] * u
+                                dots[column * 3 + 2] = blended[a + 2] * (1 - u) + blended[a + 5] * u
+                            }
+                            paintRow(frame.pixels + row * width * 4, from: dots, count: width)
                         }
                     }
                 }
