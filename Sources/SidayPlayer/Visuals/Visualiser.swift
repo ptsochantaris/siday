@@ -70,6 +70,34 @@ struct VisualLook {
     }
 }
 
+/// A dot's brightness in one of its colours, from 0 to 255 (and held to that), as its byte: its whole
+/// part, as `UInt8(_:)` would give. (Worked out from how the number is kept: added to 2 to the 23rd,
+/// a number is rounded to a whole one, which is then the lowest bits of it; and that needs none of
+/// the checks for numbers that are no number, or too big, that `UInt8(_:)` makes, and is several
+/// times quicker. Every dot of every picture is three of these.)
+@inline(__always) func byte(_ value: Float) -> UInt8 {
+    UInt8(truncatingIfNeeded: (max(0, min(255, value) - 0.4999) + 8_388_608).bitPattern)
+}
+
+/// How near light that adds up without limit comes to the most a screen can show, from 0 to 1, so
+/// that it is come to gently: 1 - e to the minus so much light. Looked up, for every 1024th up to 12
+/// (and as at 12 beyond that, and at 0 below it), as a picture that works it out for every dot would
+/// spend most of its time on it; to the nearest, as `byte` finds a whole number. Taken once for a
+/// frame (`let glow = Glow()`) and then called.
+struct Glow {
+    private nonisolated(unsafe) static let table: UnsafeMutablePointer<Float> = {
+        let table = UnsafeMutablePointer<Float>.allocate(capacity: 12289)
+        for at in 0 ... 12288 { table[at] = 1 - expf(-Float(at) / 1024) }
+        return table
+    }()
+
+    private let table = Glow.table
+
+    @inline(__always) func callAsFunction(_ light: Float) -> Float {
+        table[Int(truncatingIfNeeded: (max(0, min(12288, light * 1024)) + 8_388_608).bitPattern & 0x7F_FFFF)]
+    }
+}
+
 /// What a picture is painted from, for one frame.
 struct VisualFrame {
     /// The picture: red, green, blue and a fourth byte that is always 255, for each dot, in rows from the top.

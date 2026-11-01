@@ -69,11 +69,19 @@ final class PetriDish: VisualScene {
     /// into the other, and not along a line (which is where two rings growing alike meet: a straight
     /// one). Red, green, blue and how much colour there was, for each place; worked out afresh for
     /// each frame, from `colour`, which is left as it is.
-    private var shown: [Float] = [], softening: [Float] = []
+    private var shown: [SIMD4<Float>] = [], softening: [SIMD4<Float>] = []
+    /// (For softening: a sum for each column.)
+    private var sums: [SIMD4<Float>] = []
+    /// For each column of dots, the grid's column before it and how far it is to the next; and a row
+    /// of dots' places on the grid, between the grid's rows on either side of it.
+    private var lying: [(Int, Float)] = [], blended: [Place] = []
+    private struct Place { var lit: Float = 0, after: Float = 0, red: Float = 0, green: Float = 0, blue: Float = 0 }
     /// How far the colour is softened, in places of the grid.
     private static let softness = 6
     /// How ready the whole picture is.
     private var readiness: Float = 0
+    /// (For the steps: see `move`.)
+    private var hunger: [Float] = []
     private var owed: Float = 0
 
     private struct Voice {
@@ -97,8 +105,10 @@ final class PetriDish: VisualScene {
         ready = charge
         colour = [Float](repeating: 0, count: across * down * 3)
         coloured = charge
-        shown = [Float](repeating: 0, count: across * down * 4)
+        shown = [SIMD4<Float>](repeating: .zero, count: across * down)
         softening = shown
+        sums = [SIMD4<Float>](repeating: .zero, count: across)
+        lying = []
         owed = 0
     }
 
@@ -170,36 +180,51 @@ final class PetriDish: VisualScene {
 
         // What it looks like: the charge, bright in its colour, and a dim glow of the same colour
         // where it has lately been, while the place is tired; read off the four places of the grid
-        // round each dot.
+        // round each dot: the grid's two rows on either side of a row of dots blended once for the
+        // row, and then read off across it, each column of dots where it lies between the grid's
+        // columns, which is the same on every row.
         let scaleX = Float(across - 1) / Float(width), scaleY = Float(down - 1) / Float(height)
-        var pixel = frame.pixels
+        if lying.count != width {
+            lying = (0 ..< width).map { column in
+                let gx = Float(column) * scaleX
+                return (Int(gx), gx - Float(Int(gx)))
+            }
+        }
+        if blended.count != across { blended = [Place](repeating: Place(), count: across) }
         charge.withUnsafeBufferPointer { charge in
             tired.withUnsafeBufferPointer { tired in
                 shown.withUnsafeBufferPointer { colour in
-                    for row in 0 ..< height {
-                        let gy = Float(row) * scaleY
-                        let gridRow = Int(gy), v = gy - Float(gridRow)
-                        let nextRow = min(down - 1, gridRow + 1)
-                        for column in 0 ..< width {
-                            let gx = Float(column) * scaleX
-                            let gridColumn = Int(gx), u = gx - Float(gridColumn)
-                            let nextColumn = min(across - 1, gridColumn + 1)
-                            let a = gridRow * across + gridColumn, b = gridRow * across + nextColumn
-                            let c = nextRow * across + gridColumn, d = nextRow * across + nextColumn
-                            let wa = (1 - u) * (1 - v), wb = u * (1 - v), wc = (1 - u) * v, wd = u * v
-                            let lit = charge[a] * wa + charge[b] * wb + charge[c] * wc + charge[d] * wd
-                            let after = tired[a] * wa + tired[b] * wb + tired[c] * wc + tired[d] * wd
-                            let light = 0.95 * lit + 0.22 * after
-                            let red = (colour[a * 4] * wa + colour[b * 4] * wb + colour[c * 4] * wc + colour[d * 4] * wd) * light
-                            let green = (colour[a * 4 + 1] * wa + colour[b * 4 + 1] * wb + colour[c * 4 + 1] * wc + colour[d * 4 + 1] * wd) * light
-                            let blue = (colour[a * 4 + 2] * wa + colour[b * 4 + 2] * wb + colour[c * 4 + 2] * wc + colour[d * 4 + 2] * wd) * light
-                            // A hint of white where the charge is greatest, as in the middle of a flame.
-                            let white = max(0, lit - 0.7) * 0.5
-                            pixel[0] = UInt8(max(0, min(255, (0.012 + red + white) * 255)))
-                            pixel[1] = UInt8(max(0, min(255, (0.012 + green + white) * 255)))
-                            pixel[2] = UInt8(max(0, min(255, (0.02 + blue + white) * 255)))
-                            pixel[3] = 255
-                            pixel += 4
+                    lying.withUnsafeBufferPointer { lying in
+                        blended.withUnsafeMutableBufferPointer { blended in
+                            var pixel = frame.pixels
+                            for row in 0 ..< height {
+                                let gy = Float(row) * scaleY
+                                let gridRow = Int(gy), v = gy - Float(gridRow)
+                                let nextRow = min(down - 1, gridRow + 1)
+                                for column in 0 ..< across {
+                                    let a = gridRow * across + column, c = nextRow * across + column
+                                    blended[column] = Place(lit: charge[a] + (charge[c] - charge[a]) * v, after: tired[a] + (tired[c] - tired[a]) * v,
+                                                            red: colour[a].x + (colour[c].x - colour[a].x) * v,
+                                                            green: colour[a].y + (colour[c].y - colour[a].y) * v,
+                                                            blue: colour[a].z + (colour[c].z - colour[a].z) * v)
+                                }
+                                for column in 0 ..< width {
+                                    let (gridColumn, u) = lying[column]
+                                    let left = blended[gridColumn], right = blended[min(across - 1, gridColumn + 1)]
+                                    let lit = left.lit + (right.lit - left.lit) * u, after = left.after + (right.after - left.after) * u
+                                    let light = 0.95 * lit + 0.22 * after
+                                    let red = (left.red + (right.red - left.red) * u) * light
+                                    let green = (left.green + (right.green - left.green) * u) * light
+                                    let blue = (left.blue + (right.blue - left.blue) * u) * light
+                                    // A hint of white where the charge is greatest, as in the middle of a flame.
+                                    let white = max(0, lit - 0.7) * 0.5
+                                    pixel[0] = byte((0.012 + red + white) * 255)
+                                    pixel[1] = byte((0.012 + green + white) * 255)
+                                    pixel[2] = byte((0.02 + blue + white) * 255)
+                                    pixel[3] = 255
+                                    pixel += 4
+                                }
+                            }
                         }
                     }
                 }
@@ -214,55 +239,71 @@ final class PetriDish: VisualScene {
         let quickness = Self.quickness + (Self.quicknessBusiest - Self.quickness) * readiness
         let starving = Self.starving, readiness = readiness, readinessFarAway = Self.readinessFarAway
         var next = charge
+        // How much more charge each place needs for the music not having made it ready, which the
+        // steps do not change.
+        let fed = max(readinessFarAway * readiness, 0)
+        if hunger.count != charge.count { hunger = [Float](repeating: 0, count: charge.count) }
+        for at in ready.indices { hunger[at] = starving * (1 - min(1, max(fed, ready[at]))) }
         charge.withUnsafeMutableBufferPointer { kept in
             next.withUnsafeMutableBufferPointer { spare in
                 tired.withUnsafeMutableBufferPointer { tired in
                     colour.withUnsafeMutableBufferPointer { colour in
                         coloured.withUnsafeMutableBufferPointer { coloured in
-                            ready.withUnsafeBufferPointer { ready in
+                            hunger.withUnsafeBufferPointer { hunger in
                                 // The charge as it is, and as it will be after the step: the two are
                                 // taken in turns.
                                 var charge = kept, next = spare
                                 for _ in 0 ..< steps {
+                                    @inline(__always) func move(_ at: Int, left: Int, right: Int, up: Int, below: Int) {
+                                        let here = charge[at]
+                                        // How the charge round it differs from its own: that is what spreads.
+                                        let round = charge[at + left] + charge[at + right] + charge[at + up] + charge[at + below] - 4 * here
+                                        // A place needs more charge to be set off the more tired it is, and
+                                        // the less the music has made it ready.
+                                        let needed = (tired[at] + b + hunger[at]) / a
+                                        next[at] = max(0, min(1, here + step * (here * (1 - here) * (here - needed) / quickness + spreading * round)))
+                                        // A place tires only once it is well set off, and then all at once
+                                        // (Markus Bär and Martin Eiswirth's change to Barkley's rule, which is
+                                        // what lets the waves tear).
+                                        let tiring: Float = here < 1.0 / 3 ? 0 : 1 - 6.75 * here * (here - 1) * (here - 1)
+                                        tired[at] += step * (tiring - tired[at])
+                                    }
+                                    // (The places along the edges, which have fewer beside them, apart from
+                                    // the rest.)
                                     for row in 0 ..< down {
                                         let up = row > 0 ? -across : 0, below = row < down - 1 ? across : 0
-                                        for column in 0 ..< across {
-                                            let at = row * across + column
-                                            let left = column > 0 ? -1 : 0, right = column < across - 1 ? 1 : 0
-                                            let here = charge[at]
-                                            // How the charge round it differs from its own: that is what spreads.
-                                            let round = charge[at + left] + charge[at + right] + charge[at + up] + charge[at + below] - 4 * here
-                                            // A place needs more charge to be set off the more tired it is, and
-                                            // the less the music has made it ready.
-                                            let fed = max(readinessFarAway * readiness, ready[at])
-                                            let needed = (tired[at] + b + starving * (1 - min(1, fed))) / a
-                                            let after = max(0, min(1, here + step * (here * (1 - here) * (here - needed) / quickness + spreading * round)))
-                                            next[at] = after
-                                            // A place tires only once it is well set off, and then all at once
-                                            // (Markus Bär and Martin Eiswirth's change to Barkley's rule, which is
-                                            // what lets the waves tear).
-                                            let tiring: Float = here < 1.0 / 3 ? 0 : 1 - 6.75 * here * (here - 1) * (here - 1)
-                                            tired[at] += step * (tiring - tired[at])
-                                            // A place being set off takes the colour of the charge that sets it off:
-                                            // that of the places beside it, each counted by how much charge it has.
-                                            if here < 0.3, after >= 0.3 {
-                                                var weight: Float = 0, red: Float = 0, green: Float = 0, blue: Float = 0
-                                                for beside in [at + left, at + right, at + up, at + below] where beside != at {
-                                                    // (Only those that are themselves set off: the places ahead of
-                                                    // the wave have a little charge too, and no colour yet.)
-                                                    let w = max(0, charge[beside] - 0.3)
-                                                    red += colour[beside * 3] * w
-                                                    green += colour[beside * 3 + 1] * w
-                                                    blue += colour[beside * 3 + 2] * w
-                                                    weight += w
-                                                }
-                                                if weight > 0.001 {
-                                                    colour[at * 3] = red / weight
-                                                    colour[at * 3 + 1] = green / weight
-                                                    colour[at * 3 + 2] = blue / weight
-                                                    coloured[at] = 1
-                                                }
-                                            }
+                                        let first = row * across
+                                        move(first, left: 0, right: 1, up: up, below: below)
+                                        var at = first + 1
+                                        while at < first + across - 1 {
+                                            move(at, left: -1, right: 1, up: up, below: below)
+                                            at += 1
+                                        }
+                                        move(first + across - 1, left: -1, right: 0, up: up, below: below)
+                                    }
+                                    // A place being set off takes the colour of the charge that sets it off:
+                                    // that of the places beside it, each counted by how much charge it has.
+                                    for at in 0 ..< across * down where charge[at] < 0.3 && next[at] >= 0.3 {
+                                        let row = at / across, column = at - row * across
+                                        var weight: Float = 0, red: Float = 0, green: Float = 0, blue: Float = 0
+                                        // (Only those that are themselves set off: the places ahead of
+                                        // the wave have a little charge too, and no colour yet.)
+                                        @inline(__always) func count(_ beside: Int) {
+                                            let w = max(0, charge[beside] - 0.3)
+                                            red += colour[beside * 3] * w
+                                            green += colour[beside * 3 + 1] * w
+                                            blue += colour[beside * 3 + 2] * w
+                                            weight += w
+                                        }
+                                        if column > 0 { count(at - 1) }
+                                        if column < across - 1 { count(at + 1) }
+                                        if row > 0 { count(at - across) }
+                                        if row < down - 1 { count(at + across) }
+                                        if weight > 0.001 {
+                                            colour[at * 3] = red / weight
+                                            colour[at * 3 + 1] = green / weight
+                                            colour[at * 3 + 2] = blue / weight
+                                            coloured[at] = 1
                                         }
                                     }
                                     swap(&charge, &next)
@@ -287,40 +328,49 @@ final class PetriDish: VisualScene {
                     coloured.withUnsafeBufferPointer { coloured in
                         for at in 0 ..< across * down {
                             let weight = coloured[at]
-                            shown[at * 4] = colour[at * 3] * weight
-                            shown[at * 4 + 1] = colour[at * 3 + 1] * weight
-                            shown[at * 4 + 2] = colour[at * 3 + 2] * weight
-                            shown[at * 4 + 3] = weight
+                            shown[at] = SIMD4(colour[at * 3] * weight, colour[at * 3 + 1] * weight, colour[at * 3 + 2] * weight, weight)
                         }
                     }
                 }
-                /// Adds up, into `to`, the places of `from` within reach along each line, across or down.
-                func pass(_ from: UnsafeMutableBufferPointer<Float>, _ to: UnsafeMutableBufferPointer<Float>, downwards: Bool) {
-                    let lines = downwards ? across : down, length = downwards ? down : across
-                    let apart = downwards ? across * 4 : 4, lineApart = downwards ? 4 : across * 4
-                    for line in 0 ..< lines {
-                        let first = line * lineApart
-                        for channel in 0 ..< 4 {
-                            var sum: Float = 0
-                            for place in 0 ..< min(reach, length) { sum += from[first + place * apart + channel] }
-                            for place in 0 ..< length {
-                                if place + reach < length { sum += from[first + (place + reach) * apart + channel] }
-                                to[first + place * apart + channel] = sum
-                                if place - reach >= 0 { sum -= from[first + (place - reach) * apart + channel] }
+                /// Adds up, into `to`, the places of `from` within reach along each row.
+                func alongRows(_ from: UnsafeMutableBufferPointer<SIMD4<Float>>, _ to: UnsafeMutableBufferPointer<SIMD4<Float>>) {
+                    for row in 0 ..< down {
+                        let first = row * across
+                        var sum = SIMD4<Float>.zero
+                        for place in 0 ..< min(reach, across) { sum += from[first + place] }
+                        for place in 0 ..< across {
+                            if place + reach < across { sum += from[first + place + reach] }
+                            to[first + place] = sum
+                            if place - reach >= 0 { sum -= from[first + place - reach] }
+                        }
+                    }
+                }
+                /// And down each column: a row at a time, with a sum for each column.
+                func downColumns(_ from: UnsafeMutableBufferPointer<SIMD4<Float>>, _ to: UnsafeMutableBufferPointer<SIMD4<Float>>) {
+                    sums.withUnsafeMutableBufferPointer { sums in
+                        for column in 0 ..< across { sums[column] = .zero }
+                        for place in 0 ..< min(reach, down) {
+                            for column in 0 ..< across { sums[column] += from[place * across + column] }
+                        }
+                        for place in 0 ..< down {
+                            for column in 0 ..< across {
+                                if place + reach < down { sums[column] += from[(place + reach) * across + column] }
+                                to[place * across + column] = sums[column]
+                                if place - reach >= 0 { sums[column] -= from[(place - reach) * across + column] }
                             }
                         }
                     }
                 }
                 for _ in 0 ..< 2 {
-                    pass(shown, softening, downwards: false)
-                    pass(softening, shown, downwards: true)
+                    alongRows(shown, softening)
+                    downColumns(softening, shown)
                 }
                 for at in 0 ..< across * down {
-                    let weight = shown[at * 4 + 3]
+                    let weight = shown[at].w
                     guard weight > 0.0001 else { continue }
-                    shown[at * 4] /= weight
-                    shown[at * 4 + 1] /= weight
-                    shown[at * 4 + 2] /= weight
+                    shown[at].x /= weight
+                    shown[at].y /= weight
+                    shown[at].z /= weight
                 }
             }
         }

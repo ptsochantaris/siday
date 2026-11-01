@@ -28,8 +28,10 @@ final class Pond: VisualScene {
     private var across = 0, down = 0
     /// The water's height now and one move ago, and the colour in it, for each place on the grid.
     private var water: [Float] = [], before: [Float] = [], dye: [Float] = []
-    /// What each place on the grid looks like: red, green and blue, with no upper limit.
+    /// What each place on the grid looks like: red, green and blue, from 0 to 255.
     private var seen: [Float] = []
+    /// For each column of dots, the grid's column before it (times three) and how far it is to the next.
+    private var lying: [(Int, Float)] = []
     private var owed: Float = 0
 
     private struct Source {
@@ -54,9 +56,15 @@ final class Pond: VisualScene {
             for dx in -3 ... 3 {
                 let c = column + dx, r = row + dy
                 guard c > 0, c < across - 1, r > 0, r < down - 1 else { continue }
-                water[r * across + c] += amount * expf(-Float(dx * dx + dy * dy) / 4.5)
+                water[r * across + c] += amount * Self.drop[(dy + 3) * 7 + dx + 3]
             }
         }
+    }
+
+    /// How much of a drop goes to each place round where it falls, seven by seven.
+    private static let drop = (0 ..< 49).map { at in
+        let dx = at % 7 - 3, dy = at / 7 - 3
+        return expf(-Float(dx * dx + dy * dy) / 4.5)
     }
 
     /// Lets colour into the water round a place.
@@ -84,6 +92,7 @@ final class Pond: VisualScene {
             before = water
             dye = [Float](repeating: 0, count: across * down * 3)
             seen = dye
+            lying = []
             owed = 0
         }
         guard across > 4, down > 4 else { return }
@@ -175,8 +184,10 @@ final class Pond: VisualScene {
         }
 
         // What it looks like: dark water, the colour in it, and the light that the slopes of the
-        // waves catch from one side and lose from the other.
+        // waves catch from one side and lose from the other; as bright as it can be shown.
         let still = VisualLook.rgb(hue: frame.look.hue + 0.08, saturation: 0.8, value: 1)
+        let glow = Glow()
+        @inline(__always) func shown(_ value: Float) -> Float { glow(value * 1.8) * 255 }
         for row in 1 ..< down - 1 {
             let far = 1 - Float(row) / Float(down)
             let depth = 0.05 + 0.05 * far
@@ -187,32 +198,40 @@ final class Pond: VisualScene {
                 // more than so much: water has no hard edges.
                 let lit = min(1, max(0, -slope) * 9), shaded = 1 - min(0.6, max(0, slope) * 7)
                 let colour = at * 3
-                seen[colour] = (still.0 * depth + dye[colour]) * shaded * (1 + lit * 1.5) + lit * 0.1
-                seen[colour + 1] = (still.1 * depth + dye[colour + 1]) * shaded * (1 + lit * 1.5) + lit * 0.11
-                seen[colour + 2] = (still.2 * depth + dye[colour + 2]) * shaded * (1 + lit * 1.5) + lit * 0.13
+                seen[colour] = shown((still.0 * depth + dye[colour]) * shaded * (1 + lit * 1.5) + lit * 0.1)
+                seen[colour + 1] = shown((still.1 * depth + dye[colour + 1]) * shaded * (1 + lit * 1.5) + lit * 0.11)
+                seen[colour + 2] = shown((still.2 * depth + dye[colour + 2]) * shaded * (1 + lit * 1.5) + lit * 0.13)
             }
         }
 
         // The dots, each read off the four places of the grid around it. (The outermost places are
-        // banks, and are left out: the picture is of the water within them.)
+        // banks, and are left out: the picture is of the water within them.) Where each column of
+        // dots lies between the grid's columns is the same on every row, and worked out once.
         var pixel = frame.pixels
         let scaleX = Float(across - 3) / Float(width), scaleY = Float(down - 3) / Float(height)
-        for row in 0 ..< height {
-            let gy = 1 + Float(row) * scaleY
-            let gridRow = Int(gy), v = gy - Float(gridRow)
-            for column in 0 ..< width {
+        if lying.count != width {
+            lying = (0 ..< width).map { column in
                 let gx = 1 + Float(column) * scaleX
-                let gridColumn = Int(gx), u = gx - Float(gridColumn)
-                let a = (gridRow * across + gridColumn) * 3, b = a + 3, c = a + across * 3, d = c + 3
-                let wa = (1 - u) * (1 - v), wb = u * (1 - v), wc = (1 - u) * v, wd = u * v
-                let red = seen[a] * wa + seen[b] * wb + seen[c] * wc + seen[d] * wd
-                let green = seen[a + 1] * wa + seen[b + 1] * wb + seen[c + 1] * wc + seen[d + 1] * wd
-                let blue = seen[a + 2] * wa + seen[b + 2] * wb + seen[c + 2] * wc + seen[d + 2] * wd
-                pixel[0] = UInt8(max(0, min(255, (1 - expf(-red * 1.8)) * 255)))
-                pixel[1] = UInt8(max(0, min(255, (1 - expf(-green * 1.8)) * 255)))
-                pixel[2] = UInt8(max(0, min(255, (1 - expf(-blue * 1.8)) * 255)))
-                pixel[3] = 255
-                pixel += 4
+                return (Int(gx) * 3, gx - Float(Int(gx)))
+            }
+        }
+        seen.withUnsafeBufferPointer { seen in
+            lying.withUnsafeBufferPointer { lying in
+                for row in 0 ..< height {
+                    let gy = 1 + Float(row) * scaleY
+                    let gridRow = Int(gy), v = gy - Float(gridRow)
+                    let above = gridRow * across * 3, below = above + across * 3
+                    for column in 0 ..< width {
+                        let (place, u) = lying[column]
+                        let a = above + place, b = a + 3, c = below + place, d = c + 3
+                        let wa = (1 - u) * (1 - v), wb = u * (1 - v), wc = (1 - u) * v, wd = u * v
+                        pixel[0] = byte(seen[a] * wa + seen[b] * wb + seen[c] * wc + seen[d] * wd)
+                        pixel[1] = byte(seen[a + 1] * wa + seen[b + 1] * wb + seen[c + 1] * wc + seen[d + 1] * wd)
+                        pixel[2] = byte(seen[a + 2] * wa + seen[b + 2] * wb + seen[c + 2] * wc + seen[d + 2] * wd)
+                        pixel[3] = 255
+                        pixel += 4
+                    }
+                }
             }
         }
     }

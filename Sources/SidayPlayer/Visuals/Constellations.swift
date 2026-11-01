@@ -147,15 +147,16 @@ final class Constellations: VisualScene {
 
         // The night, a little lighter towards the horizon, and the light of the stars over it.
         let night = VisualLook.rgb(hue: frame.look.hue + 0.05, saturation: 0.7, value: 1)
+        let glow = Glow()
         var pixel = frame.pixels
         var at = 0
         for row in 0 ..< height {
             let low = Float(row) / Float(height)
             let dusk = 0.025 + 0.06 * low * low
             for _ in 0 ..< width {
-                pixel[0] = UInt8(max(0, min(255, (1 - expf(-(light[at] + night.0 * dusk) * 1.5)) * 255)))
-                pixel[1] = UInt8(max(0, min(255, (1 - expf(-(light[at + 1] + night.1 * dusk) * 1.5)) * 255)))
-                pixel[2] = UInt8(max(0, min(255, (1 - expf(-(light[at + 2] + night.2 * dusk) * 1.5)) * 255)))
+                pixel[0] = byte(glow((light[at] + night.0 * dusk) * 1.5) * 255)
+                pixel[1] = byte(glow((light[at + 1] + night.1 * dusk) * 1.5) * 255)
+                pixel[2] = byte(glow((light[at + 2] + night.2 * dusk) * 1.5) * 255)
                 pixel[3] = 255
                 pixel += 4
                 at += 3

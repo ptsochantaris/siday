@@ -295,9 +295,9 @@ final class Rain: VisualScene {
                         let cover = min(1, thick + 0.5 - (offX * offX + offY * offY).squareRoot())
                         guard cover > 0 else { continue }
                         let at = frame.pixels + (row * width + column) * 4
-                        at[0] = UInt8(max(0, min(255, Float(at[0]) + (red - Float(at[0])) * cover)))
-                        at[1] = UInt8(max(0, min(255, Float(at[1]) + (green - Float(at[1])) * cover)))
-                        at[2] = UInt8(max(0, min(255, Float(at[2]) + (blue - Float(at[2])) * cover)))
+                        at[0] = byte(Float(at[0]) + (red - Float(at[0])) * cover)
+                        at[1] = byte(Float(at[1]) + (green - Float(at[1])) * cover)
+                        at[2] = byte(Float(at[2]) + (blue - Float(at[2])) * cover)
                     }
                 }
             }

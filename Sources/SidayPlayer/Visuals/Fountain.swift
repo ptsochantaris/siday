@@ -189,9 +189,9 @@ final class Fountain: VisualScene {
                 let dark = 0.012 + 0.02 * low * low
                 for _ in 0 ..< width {
                     let squeezed = Self.shown(most: max(at[0], at[1], at[2])) * 255
-                    pixel[0] = UInt8(max(0, min(255, at[0] * squeezed + dark * 390)))
-                    pixel[1] = UInt8(max(0, min(255, at[1] * squeezed + dark * 450)))
-                    pixel[2] = UInt8(max(0, min(255, at[2] * squeezed + dark * 780)))
+                    pixel[0] = byte(at[0] * squeezed + dark * 390)
+                    pixel[1] = byte(at[1] * squeezed + dark * 450)
+                    pixel[2] = byte(at[2] * squeezed + dark * 780)
                     pixel[3] = 255
                     at[0] *= fade
                     at[1] *= fade
@@ -215,9 +215,9 @@ final class Fountain: VisualScene {
                     let cover = min(1, size + 0.5 - (aside * aside + fall * fall).squareRoot())
                     guard cover > 0 else { continue }
                     let at = frame.pixels + (row * width + column) * 4
-                    at[0] = UInt8(max(0, min(255, Float(at[0]) + (one.colour.0 * bright - Float(at[0])) * cover)))
-                    at[1] = UInt8(max(0, min(255, Float(at[1]) + (one.colour.1 * bright - Float(at[1])) * cover)))
-                    at[2] = UInt8(max(0, min(255, Float(at[2]) + (one.colour.2 * bright - Float(at[2])) * cover)))
+                    at[0] = byte(Float(at[0]) + (one.colour.0 * bright - Float(at[0])) * cover)
+                    at[1] = byte(Float(at[1]) + (one.colour.1 * bright - Float(at[1])) * cover)
+                    at[2] = byte(Float(at[2]) + (one.colour.2 * bright - Float(at[2])) * cover)
                 }
             }
         }

@@ -46,7 +46,7 @@ final class Flame: VisualScene {
     /// What heat is multiplied by to squeeze it into what a screen can show, given the most there
     /// is of any colour at a place. All three colours are squeezed alike, and so stay the colour
     /// they were: squeezed each by itself, every colour would be paler the hotter it was.
-    private static func shown(most heat: Float) -> Float { heat > 0.0001 ? (1 - expf(-heat * 2.2)) / heat : 2.2 }
+    @inline(__always) private static func shown(most heat: Float, _ glow: Glow) -> Float { heat > 0.0001 ? glow(heat * 2.2) / heat : 2.2 }
 
     private var across = 0, down = 0
     /// The heat at each place on the grid, as red, green and blue, in rows from the top. The last
@@ -54,6 +54,11 @@ final class Flame: VisualScene {
     private var heat: [Float] = []
     /// How much of a lamp's heat each column is given this time.
     private var fed: [Float] = []
+    /// For each column of dots, the grid's column before it (times three) and how far it is to the
+    /// next; and a row of dots' places on the grid, between the grid's rows on either side of it.
+    private var lying: [(Int, Float)] = [], blended: [Float] = []
+    /// The heat at each place as it is shown, from 0 to 255.
+    private var shownHeat: [Float] = []
     private var owed: Float = 0
     /// How loud each voice is, followed nearly as quickly as the player's lights follow it, and
     /// what was last heard of it.
@@ -74,6 +79,7 @@ final class Flame: VisualScene {
             down = height / 2
             heat = [Float](repeating: 0, count: across * down * 3)
             fed = [Float](repeating: 1, count: across)
+            lying = []
             owed = 0
         }
         guard across > 8, down > 8 else { return }
@@ -122,9 +128,9 @@ final class Flame: VisualScene {
         let lost = 2 * (1 - expf(-Self.cooling / (0.8 * Float(down))))
         let rowLength = across * 3
         for _ in 0 ..< moves {
-            var dice = seed
             heat.withUnsafeMutableBufferPointer { heat in
                 guard let heat = heat.baseAddress else { return }
+                var dice = seed
                 // Each place takes the mean of the three below it and the one below that, and loses
                 // a little. From the top down, so that what is read is always what was there before
                 // this move.
@@ -169,28 +175,59 @@ final class Flame: VisualScene {
 
         // The dots, each read off the four places of the grid around it. The fire is shown as far
         // on its way up to its next place as it is owed, so that it rises smoothly however seldom
-        // it is moved on.
-        var pixel = frame.pixels
+        // it is moved on. (The grid's two rows on either side of a row of dots are blended once for
+        // the row, and then read off across it, each column of dots where it lies between the
+        // grid's columns, which is the same on every row.)
         let scaleX = Float(across - 1) / Float(width), scaleY = Float(down - 2) / Float(height)
-        for row in 0 ..< height {
-            let gy = Float(row) * scaleY + owed
-            let gridRow = min(down - 3, Int(gy)), v = min(1, gy - Float(gridRow))
-            let low = Float(row) / Float(height)
-            let dark = 0.012 + 0.02 * low * low
-            for column in 0 ..< width {
+        if lying.count != width {
+            lying = (0 ..< width).map { column in
                 let gx = Float(column) * scaleX
-                let gridColumn = min(across - 2, Int(gx)), u = gx - Float(gridColumn)
-                let a = (gridRow * across + gridColumn) * 3, b = a + 3, c = a + rowLength, d = c + 3
-                let wa = (1 - u) * (1 - v), wb = u * (1 - v), wc = (1 - u) * v, wd = u * v
-                let red = heat[a] * wa + heat[b] * wb + heat[c] * wc + heat[d] * wd
-                let green = heat[a + 1] * wa + heat[b + 1] * wb + heat[c + 1] * wc + heat[d + 1] * wd
-                let blue = heat[a + 2] * wa + heat[b + 2] * wb + heat[c + 2] * wc + heat[d + 2] * wd
-                let squeezed = Self.shown(most: max(red, green, blue)) * 255
-                pixel[0] = UInt8(max(0, min(255, red * squeezed + dark * 780)))
-                pixel[1] = UInt8(max(0, min(255, green * squeezed + dark * 450)))
-                pixel[2] = UInt8(max(0, min(255, blue * squeezed + dark * 390)))
-                pixel[3] = 255
-                pixel += 4
+                let gridColumn = min(across - 2, Int(gx))
+                return (gridColumn * 3, gx - Float(gridColumn))
+            }
+        }
+        if blended.count != rowLength { blended = [Float](repeating: 0, count: rowLength) }
+        // (Squeezed at the places of the grid, which is as good as at each dot, and a quarter of the work.)
+        let glow = Glow()
+        if shownHeat.count != heat.count { shownHeat = heat }
+        heat.withUnsafeBufferPointer { heat in
+            shownHeat.withUnsafeMutableBufferPointer { shown in
+                var at = 0
+                while at < heat.count {
+                    let squeezed = Self.shown(most: max(heat[at], heat[at + 1], heat[at + 2]), glow) * 255
+                    shown[at] = heat[at] * squeezed
+                    shown[at + 1] = heat[at + 1] * squeezed
+                    shown[at + 2] = heat[at + 2] * squeezed
+                    at += 3
+                }
+            }
+        }
+        shownHeat.withUnsafeBufferPointer { heat in
+            lying.withUnsafeBufferPointer { lying in
+                blended.withUnsafeMutableBufferPointer { blended in
+                    var pixel = frame.pixels
+                    for row in 0 ..< height {
+                        let gy = Float(row) * scaleY + owed
+                        let gridRow = min(down - 3, Int(gy)), v = min(1, gy - Float(gridRow))
+                        let above = gridRow * rowLength, below = above + rowLength
+                        for at in 0 ..< rowLength {
+                            blended[at] = heat[above + at] * (1 - v) + heat[below + at] * v
+                        }
+                        let low = Float(row) / Float(height)
+                        let dark = 0.012 + 0.02 * low * low
+                        for column in 0 ..< width {
+                            let (a, u) = lying[column]
+                            let red = blended[a] * (1 - u) + blended[a + 3] * u
+                            let green = blended[a + 1] * (1 - u) + blended[a + 4] * u
+                            let blue = blended[a + 2] * (1 - u) + blended[a + 5] * u
+                            pixel[0] = byte(red + dark * 780)
+                            pixel[1] = byte(green + dark * 450)
+                            pixel[2] = byte(blue + dark * 390)
+                            pixel[3] = 255
+                            pixel += 4
+                        }
+                    }
+                }
             }
         }
 
@@ -212,9 +249,9 @@ final class Flame: VisualScene {
                     guard cover > 0 else { continue }
                     let shade = 1 - 0.22 * min(1, away * away / (reach * reach))
                     let at = frame.pixels + (row * width + column) * 4
-                    at[0] = UInt8(max(0, min(255, Float(at[0]) + (lit.0 * shade - Float(at[0])) * cover)))
-                    at[1] = UInt8(max(0, min(255, Float(at[1]) + (lit.1 * shade - Float(at[1])) * cover)))
-                    at[2] = UInt8(max(0, min(255, Float(at[2]) + (lit.2 * shade - Float(at[2])) * cover)))
+                    at[0] = byte(Float(at[0]) + (lit.0 * shade - Float(at[0])) * cover)
+                    at[1] = byte(Float(at[1]) + (lit.1 * shade - Float(at[1])) * cover)
+                    at[2] = byte(Float(at[2]) + (lit.2 * shade - Float(at[2])) * cover)
                 }
             }
         }

@@ -265,9 +265,9 @@ final class ChladniPlate: VisualScene {
                 // A dot with a grain or two on it is pale; more grains are no paler than a heap is.
                 let grains = light[row * width + column]
                 let heap = 1 - expf(-grains * 0.7)
-                pixel[0] = UInt8(max(0, min(255, (metal.0 * sheen * (1 - heap) + sand.0 * heap * 0.95) * 255)))
-                pixel[1] = UInt8(max(0, min(255, (metal.1 * sheen * (1 - heap) + sand.1 * heap * 0.95) * 255)))
-                pixel[2] = UInt8(max(0, min(255, (metal.2 * sheen * (1 - heap) + sand.2 * heap * 0.95) * 255)))
+                pixel[0] = byte((metal.0 * sheen * (1 - heap) + sand.0 * heap * 0.95) * 255)
+                pixel[1] = byte((metal.1 * sheen * (1 - heap) + sand.1 * heap * 0.95) * 255)
+                pixel[2] = byte((metal.2 * sheen * (1 - heap) + sand.2 * heap * 0.95) * 255)
                 pixel[3] = 255
                 pixel += 4
             }
