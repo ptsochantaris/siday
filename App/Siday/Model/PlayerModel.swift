@@ -324,9 +324,10 @@ final class PlayerModel {
             return ListedTune(id: nextID, url: url, note: found.notes[url] ?? "")
         }, at: place)
         if let waiting = wanting, waiting >= place { wanting = waiting + found.tunes.count }
-        perform(queue.add(found.tunes.count, at: place))
         saveList()
         lookAtMIDI()
+        // (A tune that is to play now is read and begun after the list is shown with what was added.)
+        perform(queue.add(found.tunes.count, at: place))
     }
 
     /// The chip a row's picture is of: for a MIDI file, the synthesiser it is played on with what is kept now
@@ -523,11 +524,22 @@ final class PlayerModel {
         paused = startPaused
         rendered = 0
         engine.pause(startPaused)
-        let url = files[index].url
-        let read: TuneFiles.Read
-        do {
-            read = try TuneFiles.read(url)
-        } catch {
+        // The file is read away from the screen, which goes on being drawn meanwhile: on a network
+        // drive, and above all when the app has just been brought back to it, that can take seconds,
+        // which the system does not wait for. (What is heard from the tune before is not.)
+        asked += 1
+        let tune = asked, id = files[index].id, url = files[index].url
+        Task.detached {
+            let read = Result { try TuneFiles.read(url) }
+            await MainActor.run { self.read(read, of: url, tune: tune, id: id, song: song) }
+        }
+    }
+
+    /// A tune's file has been read for `play`: it is given to the engine, unless another has been
+    /// asked for since, or it has been taken out of the list.
+    private func read(_ read: Result<TuneFiles.Read, any Error>, of url: URL, tune: Int, id: Int, song: Int) {
+        guard tune == asked, let index = files.firstIndex(where: { $0.id == id }) else { return }
+        guard case let .success(read) = read else {
             loaded(plays: false, problem: String(localized: "The file could not be read."), info: nil, songs: [], song: 0, length: 0)
             return
         }
@@ -542,9 +554,8 @@ final class PlayerModel {
             companionNotice = nil
             wanting = nil
         }
-        asked += 1
         runs += 1
-        mayWant = read.unlooked.map { (asked, files[index].id, $0) }
+        mayWant = read.unlooked.map { (asked, id, $0) }
         engine.send(.load(tune: asked, serial: runs, name: url.lastPathComponent, bytes: read.bytes, companions: read.companions, subsong: song))
     }
 
@@ -821,7 +832,7 @@ final class PlayerModel {
         var roots: [Data] = []
         var tunes: [[String: Any]] = []
         for file in files {
-            guard let root = library.root(of: file.url) else { continue }
+            guard let (root, below) = library.place(of: file.url) else { continue }
             let place: Int
             if let known = used[root] {
                 place = known
@@ -830,9 +841,6 @@ final class PlayerModel {
                 used[root] = place
                 roots.append(library.roots[root].bookmark)
             }
-            let rootPath = library.roots[root].url.path
-            let path = Library.plain(file.url).path
-            let below = path == rootPath ? "" : String(path.dropFirst(rootPath.hasSuffix("/") ? rootPath.count : rootPath.count + 1))
             tunes.append(["root": place, "path": below, "note": file.note])
         }
         // (And the folders given for companions, which no tune came from.)

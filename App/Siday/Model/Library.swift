@@ -17,6 +17,12 @@ nonisolated final class Library: @unchecked Sendable {
         var bookmark: Data
         var given: URL
         var accessing: Bool
+        /// The paths a file inside it can be found under: its own (`url`'s), and the one it was given
+        /// by, which the tunes found in it begin with, and which may be another way to the same place.
+        var paths: [String] {
+            let own = url.path, given = given.standardizedFileURL.path
+            return own == given ? [own] : [own, given]
+        }
     }
 
     private(set) var roots: [Root] = []
@@ -84,10 +90,20 @@ nonisolated final class Library: @unchecked Sendable {
         url.standardizedFileURL.resolvingSymlinksInPath()
     }
 
-    /// The place of the root a file is, or is inside; nil if it is none of them.
-    func root(of url: URL) -> Int? {
-        let path = Self.plain(url).path
-        return roots.indices.first { path == roots[$0].url.path || path.hasPrefix(roots[$0].url.path.hasSuffix("/") ? roots[$0].url.path : roots[$0].url.path + "/") }
+    /// The place of the root a file is, or is inside, and where it is inside it (empty for the root
+    /// itself); nil if it is none of them. By the file's path alone, and not by following its links
+    /// as `plain` does, which asks the disk about every folder on the way: for a list of thousands
+    /// of tunes on a network drive, that took a minute.
+    func place(of url: URL) -> (root: Int, below: String)? {
+        let path = url.standardizedFileURL.path
+        for (place, root) in roots.enumerated() {
+            for rootPath in root.paths {
+                if path == rootPath { return (place, "") }
+                let folder = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+                if path.hasPrefix(folder) { return (place, String(path.dropFirst(folder.count))) }
+            }
+        }
+        return nil
     }
 
     /// Lets go of every root but those still wanted.
