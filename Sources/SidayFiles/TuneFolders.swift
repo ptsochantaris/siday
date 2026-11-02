@@ -55,7 +55,7 @@ public enum TuneFolders {
         var result = Found()
         var lookedBefore = 0
         var held = Set<String>()
-        func key(_ file: URL) -> String { file.standardizedFileURL.path.lowercased() }
+        func key(_ file: URL) -> String { plainPath(file).lowercased() }
         func take(_ url: URL, note: String = "") {
             if oncePerTune, !held.insert(key(url)).inserted { return }
             result.tunes.append(url)
@@ -80,7 +80,7 @@ public enum TuneFolders {
                     switch TuneGathering.kind(ofFileNamed: file.lastPathComponent) {
                     case .tune, .playlist: files.append(file)
                     case .songLengths: result.songLengths = file
-                    case .companion, .other: if !KeptFileStore.keepable(in: [file]).isEmpty { result.keepable.append(file) }
+                    case .companion, .other: if KeptFileStore.mayKeep(file) { result.keepable.append(file) }
                     }
                 }
                 if files.isEmpty {
@@ -135,7 +135,25 @@ public enum TuneFolders {
     private static func written(_ entry: PlaylistFile.Entry, from folder: URL) -> URL {
         var url = entry.absolute ? URL(fileURLWithPath: "/") : folder
         for part in entry.path { url = part == ".." ? url.deletingLastPathComponent() : url.appendingPathComponent(part) }
-        return url.standardizedFileURL
+        return URL(fileURLWithPath: plainPath(url), isDirectory: false)
+    }
+
+    /// A file's path as `standardizedFileURL` makes it, its `.` and `..` worked out, and without the
+    /// `/private` that a folder's listing puts before `/var` and `/tmp` (to which they are links, on
+    /// a Mac, an iPhone and an iPad), but from how it is written alone: `standardizedFileURL` asks
+    /// the disk whether the file is there, more than once, which for a folder of thousands of tunes on
+    /// a network drive is that many trips to it.
+    public static func plainPath(_ url: URL) -> String {
+        var path = url.path
+        if path.hasPrefix("/private/"), ["var", "tmp", "etc"].contains(where: { path.dropFirst(9) == $0 || path.dropFirst(9).hasPrefix($0 + "/") }) {
+            path.removeFirst(8)
+        }
+        guard path.contains("/.") || path.contains("//") else { return path }
+        var parts: [Substring] = []
+        for part in path.split(separator: "/") where part != "." {
+            if part == ".." { _ = parts.popLast() } else { parts.append(part) }
+        }
+        return "/" + parts.joined(separator: "/")
     }
 
     /// The file a playlist's entry means, if it is there. The lists were made on Windows, to which
@@ -165,7 +183,7 @@ public enum TuneFolders {
         }
         var isDirectory: ObjCBool = false
         guard manager.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else { return nil }
-        return url.standardizedFileURL
+        return URL(fileURLWithPath: plainPath(url), isDirectory: false)
     }
 }
 
@@ -230,7 +248,8 @@ public enum Coordinated {
     private static func listing(_ folder: URL, hidden: Bool = false) -> [(url: URL, isFolder: Bool)] {
         func asked() -> [(url: URL, isFolder: Bool)] {
             ((try? reading(folder) {
-                try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [.isDirectoryKey], options: hidden ? [] : [.skipsHiddenFiles])
+                // (With each file's size, for `KeptFileStore.mayKeep`, which would otherwise ask for it.)
+                try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey], options: hidden ? [] : [.skipsHiddenFiles])
             }) ?? []).map { ($0, (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true) }
         }
         let listed = asked()

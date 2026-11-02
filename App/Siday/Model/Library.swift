@@ -19,9 +19,15 @@ nonisolated final class Library: @unchecked Sendable {
         var accessing: Bool
         /// The paths a file inside it can be found under: its own (`url`'s), and the one it was given
         /// by, which the tunes found in it begin with, and which may be another way to the same place.
-        var paths: [String] {
-            let own = url.path, given = given.standardizedFileURL.path
-            return own == given ? [own] : [own, given]
+        let paths: [String]
+
+        init(url: URL, bookmark: Data, given: URL, accessing: Bool) {
+            self.url = url
+            self.bookmark = bookmark
+            self.given = given
+            self.accessing = accessing
+            let own = TuneFolders.plainPath(url), given = TuneFolders.plainPath(given)
+            paths = own == given ? [own] : [own, given]
         }
     }
 
@@ -92,10 +98,11 @@ nonisolated final class Library: @unchecked Sendable {
 
     /// The place of the root a file is, or is inside, and where it is inside it (empty for the root
     /// itself); nil if it is none of them. By the file's path alone, and not by following its links
-    /// as `plain` does, which asks the disk about every folder on the way: for a list of thousands
-    /// of tunes on a network drive, that took a minute.
+    /// as `plain` does, which asks the disk about every folder on the way, nor by standardising it
+    /// (`standardizedFileURL`), which asks it whether the file is there: for a list of thousands of
+    /// tunes on a network drive, either took half a minute or more.
     func place(of url: URL) -> (root: Int, below: String)? {
-        let path = url.standardizedFileURL.path
+        let path = TuneFolders.plainPath(url)
         for (place, root) in roots.enumerated() {
             for rootPath in root.paths {
                 if path == rootPath { return (place, "") }

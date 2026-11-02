@@ -66,25 +66,27 @@ public struct KeptFileStore: Sendable {
     /// or beginning as a list of song lengths begins, is read whole.
     public static func keepable(in urls: [URL]) -> [URL] {
         var found: [URL] = []
-        func look(_ url: URL) {
-            guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size < 64 << 20,
-                  let handle = try? FileHandle(forReadingFrom: url) else { return }
-            let start = (try? handle.read(upToCount: 64)) ?? Data()
-            try? handle.close()
-            if KeptFile.mayBe(size: size, start: [UInt8](start)) { found.append(url) }
-        }
         for url in urls {
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { continue }
             if isDirectory.boolValue {
                 let walker = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
                 while let file = walker?.nextObject() as? URL {
-                    if (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true { look(file) }
+                    if (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true, mayKeep(file) { found.append(file) }
                 }
-            } else {
-                look(url)
+            } else if mayKeep(url) {
+                found.append(url)
             }
         }
         return found
+    }
+
+    /// True for a file, known to be one, that may be one siday keeps: by its size, and its first bytes.
+    public static func mayKeep(_ file: URL) -> Bool {
+        guard let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size < 64 << 20,
+              let handle = try? FileHandle(forReadingFrom: file) else { return false }
+        let start = (try? handle.read(upToCount: 64)) ?? Data()
+        try? handle.close()
+        return KeptFile.mayBe(size: size, start: [UInt8](start))
     }
 }
