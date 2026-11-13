@@ -34,8 +34,11 @@ func appInfoPlist() -> String {
     ]
     /// - Parameter key: `LSItemContentTypes` for kinds of file, or `CFBundleTypeExtensions` for extensions.
     func documentType(_ name: String, _ key: String, _ items: [String]) {
+        // (Shown with the app's icon, where it is the one they open with, which the system draws: on a
+        // Mac, a kind of file the system has an icon for, such as a MIDI file, would show that instead.)
         lines += [
             "\t\t<dict>",
+            "\t\t\t<key>CFBundleTypeIconSystemGenerated</key>", "\t\t\t<integer>1</integer>",
             "\t\t\t<key>CFBundleTypeName</key>", "\t\t\t<string>\(name)</string>",
             "\t\t\t<key>CFBundleTypeRole</key>", "\t\t\t<string>Viewer</string>",
             "\t\t\t<key>LSHandlerRank</key>", "\t\t\t<string>Alternate</string>",
@@ -87,12 +90,18 @@ func appInfoPlist() -> String {
     return lines.joined(separator: "\n")
 }
 
-/// The kinds of file the system knows itself, by their extensions: recordings, which the app names as
-/// the system does, and does not declare again.
+/// The kinds of file the system knows itself, by their extensions: recordings, and MIDI files, which
+/// the app names as the system does, and does not declare again. (Declared again, a file of one is
+/// still of the system's kind, and is neither shown as the app's nor previewed by it.)
 let systemKinds = [
     "mp3": "public.mp3", "mp2": "public.mp2", "ogg": "org.xiph.ogg-audio", "oga": "org.xiph.ogg-audio",
     "wav": "com.microsoft.waveform-audio", "wave": "com.microsoft.waveform-audio",
+    "mid": "public.midi-audio", "midi": "public.midi-audio", "kar": "public.midi-audio", "smf": "public.midi-audio",
 ]
+
+/// Of those, the kinds the system previews itself: the recordings. A MIDI file it plays on a General
+/// MIDI synthesiser of its own; the app's preview plays it on what it was written for.
+let previewedBySystem: Set = ["public.mp3", "public.mp2", "org.xiph.ogg-audio", "com.microsoft.waveform-audio"]
 
 /// The kind of file a tune with this extension is: the system's, or the app's own.
 func kind(_ ending: String) -> String { systemKinds[ending] ?? tuneType(ending) }
@@ -103,12 +112,12 @@ func tuneType(_ ending: String) -> String {
     "build.bru.siday.tune." + String(ending.map { $0 == "_" ? "-" : $0 })
 }
 
-/// The Info.plist of the app's Quick Look extension, which previews every kind of tune the app declares:
+/// The Info.plist of the app's Quick Look extension, which previews every kind of tune the app opens:
 /// all but the recordings, which the system previews itself.
 func quickLookInfoPlist() -> String {
     var kinds: [String] = []
-    for ending in TuneFormat.fileExtensions where systemKinds[ending] == nil && !kinds.contains(tuneType(ending)) {
-        kinds.append(tuneType(ending))
+    for ending in TuneFormat.fileExtensions where !previewedBySystem.contains(kind(ending)) && !kinds.contains(kind(ending)) {
+        kinds.append(kind(ending))
     }
     var lines = [
         #"<?xml version="1.0" encoding="UTF-8"?>"#,
