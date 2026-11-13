@@ -9,6 +9,8 @@ import UniformTypeIdentifiers
 struct SidayApp: App {
     @State private var model: PlayerModel
     private let nowPlaying: SystemNowPlaying
+    /// The app's windows' together: in the background once none of them can be seen.
+    @Environment(\.scenePhase) private var phase
 
     init() {
         let model = PlayerModel()
@@ -23,9 +25,11 @@ struct SidayApp: App {
         #if os(macOS)
         Window("Siday", id: "player") { player }
             .commands { commands }
+            .onChange(of: phase) { model.setHidden(phase == .background) }
         #else
         WindowGroup { player }
             .commands { commands }
+            .onChange(of: phase) { model.setHidden(phase == .background) }
         #endif
         #if os(macOS)
         // On a Mac, the settings are a window of their own, opened from the app's menu; and what

@@ -523,10 +523,12 @@ final class PlayerModel {
         if !queue.play(index, song: song) { visualisers.newTune() }
         paused = startPaused
         rendered = 0
+        engine.hush()
         engine.pause(startPaused)
         // The file is read away from the screen, which goes on being drawn meanwhile: on a network
         // drive, and above all when the app has just been brought back to it, that can take seconds,
-        // which the system does not wait for. (What is heard from the tune before is not.)
+        // which the system does not wait for. (What was left of the tune before is not heard
+        // meanwhile: see `PlaybackEngine.hush`.)
         asked += 1
         let tune = asked, id = files[index].id, url = files[index].url
         Task.detached {
@@ -736,6 +738,12 @@ final class PlayerModel {
 
     func setPaused(_ paused: Bool) {
         if paused != self.paused { togglePause() }
+    }
+
+    /// No window of the app can be seen, or one can again: the engine tells the screen what is heard
+    /// less often meanwhile. (What is drawn stops of itself: see `Picture` and `EveryFrame`.)
+    func setHidden(_ hidden: Bool) {
+        engine.setHidden(hidden)
     }
 
     func toggleShuffle() {

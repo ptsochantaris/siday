@@ -80,7 +80,23 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         ring.paused.store(paused, ordering: .releasing)
         if paused { now.withLock { $0.resting = true } }
         if paused { letGo() } else { take() }
+        // (The engine's thread sleeps while paused: see `run`.)
+        wake.signal()
     }
+
+    /// Another tune has been asked for: nothing more is heard of the one before, though the sound goes
+    /// out again before the new one has been read and loaded.
+    func hush() {
+        ring.hush()
+    }
+
+    /// True while no window of the app can be seen: the screen is not told what is heard as often.
+    func setHidden(_ hidden: Bool) {
+        self.hidden.store(hidden, ordering: .relaxed)
+        wake.signal()
+    }
+
+    private let hidden = Atomic(false)
 
     /// Whether the sound is going out: only while something is to be heard, so that other apps'
     /// sound is left alone until then (on an iPhone or iPad, playing stops theirs, as Music's does).
@@ -93,7 +109,10 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
         letting = nil
         guard source != nil, !running else { return }
         #if os(iOS)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        // (Only now is the sound one that stops other apps': see `startOutput`.)
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .default)
+        try? session.setActive(true)
         #endif
         try? audio.start()
         running = audio.isRunning
@@ -108,7 +127,9 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             running = false
             #if os(iOS)
             // (And the app whose sound was stopped is told it can carry on.)
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            let session = AVAudioSession.sharedInstance()
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            try? session.setCategory(.ambient)
             #endif
         }
         letting = work
@@ -129,8 +150,10 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     func startOutput(silent: Bool) {
         guard source == nil else { return }
         #if os(iOS)
-        // (The session is made active only when there is something to hear: see `take()`.)
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        // The session is made active only when there is something to hear (see `take()`), and until
+        // then is of a kind that is heard with other apps' sound: should anything make it active
+        // meanwhile, as the app is opened or brought back, their sound is not stopped for nothing.
+        try? AVAudioSession.sharedInstance().setCategory(.ambient)
         NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
             guard let self, let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
@@ -138,6 +161,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             running = false
             letting?.cancel()
             letting = nil
+            try? AVAudioSession.sharedInstance().setCategory(.ambient)
             let tell = tell
             MainActor.assumeIsolated { tell(.interrupted) }
         }
@@ -226,7 +250,20 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             // (Once there is nothing left to read, the sound already read goes on coming out.)
             let dry = ring.dry.load(ordering: .relaxed)
             show(heardAt: read - lastLatency + min(dry, lastLatency), dry: dry >= lastLatency)
-            if !keeper.isWorking { _ = wake.wait(timeout: .now() + .milliseconds(5)) }
+            guard !keeper.isWorking else { continue }
+            // Nothing changes until something is asked for while paused, or while there is nothing to
+            // hear (nothing sent and not yet read, and no song's end still to come out of the speaker):
+            // then the thread sleeps until it is. Otherwise it looks again soon, to send more as there
+            // is room for it and to tell the screen what is heard; though while the screen cannot be
+            // seen, only as often as it must to keep sound waiting (`SongKeeper.ahead` chunks are sent
+            // ahead, a fifth of a second).
+            let ending = history.last.map { $0.sent.serial == serial && $0.sent.last && ended != serial } ?? false
+            let still = keeper.wakesAt == nil && (ring.paused.load(ordering: .relaxed) || (queued.isEmpty && keeper.outbox.isEmpty && !ending))
+            if still {
+                wake.wait()
+            } else {
+                _ = wake.wait(timeout: .now() + .milliseconds(hidden.load(ordering: .relaxed) ? 50 : 5))
+            }
         }
     }
 

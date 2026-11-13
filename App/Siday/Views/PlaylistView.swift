@@ -145,6 +145,7 @@ struct PlaylistView: View {
 private struct PlayingBar: View {
     @Environment(PlayerModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         let playing = !(model.paused || model.finished || model.tune == nil)
@@ -154,10 +155,11 @@ private struct PlayingBar: View {
             } label: {
                 HStack(spacing: 10) {
                     // (Its bars light one after another while the tune plays, and stand still while
-                    // it does not: still too, for a listener who would rather things moved less.)
+                    // it does not: still too, for a listener who would rather things moved less, and
+                    // while the window cannot be seen.)
                     Image(systemName: "waveform")
                         .foregroundStyle(.tint)
-                        .symbolEffect(.variableColor.iterative.dimInactiveLayers.nonReversing, isActive: playing && !reduceMotion)
+                        .symbolEffect(.variableColor.iterative.dimInactiveLayers.nonReversing, isActive: playing && !reduceMotion && phase != .background)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(model.tune.map { $0.title.isEmpty ? model.fileName : $0.title } ?? model.fileName)

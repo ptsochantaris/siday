@@ -143,8 +143,10 @@ function renew(resume) {
   void context.resume();
   settled = undefined;
   renewedAt = performance.now();
-  // Nothing more is shown of what the old output was playing.
+  // Nothing more is shown of what the old output was playing; and the new one is sent the tune again
+  // only to take it up where it was.
   serial++;
+  tuned = resume;
   const renewed = (sound = (async () => {
     const { engine } = await before;
     const { output, level } = await outlet.ready;
@@ -194,6 +196,8 @@ let passBack;
 let opened = 0;
 /// True when the audio hardware has been let go, after a pause: it is made afresh to play again.
 let released = false;
+/// True once a tune has been sent to the output that is playing now.
+let tuned = false;
 /// Where the song had got to when the display last showed it, and which request to play that was.
 let shownPosition = 0, shownFor = 0;
 
@@ -541,9 +545,11 @@ async function play(index, subsong, companions) {
   const request = ++asked;
   remaking(false);
   const tune = tunes[index];
-  // The audio hardware was let go while the player was paused: it is taken up again now, while the
-  // listener is pressing something.
-  if (released) {
+  // The audio hardware was let go while the player was paused, or the browser stopped it (for a call,
+  // or another app's sound): it is taken up again now, while the listener is pressing something. Made
+  // afresh, and not woken up: woken, it would play what it still had of the tune before for as long
+  // as the new one takes to be read.
+  if (released || (tuned && context.state !== "running")) {
     released = false;
     renew(false);
   }
@@ -562,6 +568,7 @@ async function play(index, subsong, companions) {
     // The output drops what it was playing at once; the engine starts on the new tune.
     const run = ++serial;
     output.port.postMessage({ type: "tune", serial: run });
+    tuned = true;
     const name = new TextEncoder().encode(tune.name).buffer;
     // (Another song: every voice of it is heard, whatever was muted in the last.)
     told = undefined;

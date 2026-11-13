@@ -7,11 +7,13 @@ import SwiftUI
 /// The picture to listen by, painted from what the voices are doing (see SidayPlayer's `Visualiser`), small
 /// and stretched soft over its place. It is calm: slower still if the listener would rather things
 /// moved less. It is painted 60 times a second at most, which is smooth enough for something so slow
-/// on a screen of any rate, and it stands still while the tune is paused or over.
+/// on a screen of any rate, and it stands still while the tune is paused or over, or the window cannot
+/// be seen.
 struct Picture: View {
     @Environment(PlayerModel.self) private var model
     @Environment(\.visualiser) private var visualiser
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var phase
     /// False while another picture is being painted (the one on the whole screen): a window has one
     /// painter, and a picture of another size would start it again from black on every frame.
     var painting = true
@@ -25,7 +27,7 @@ struct Picture: View {
     }
 
     var body: some View {
-        let still = model.paused || model.finished
+        let still = model.paused || model.finished || phase == .background
         GeometryReader { space in
             TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 10 : 1 / 60, paused: !painting || still)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate

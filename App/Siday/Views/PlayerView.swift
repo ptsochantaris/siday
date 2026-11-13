@@ -223,11 +223,13 @@ struct NowPlaying: View {
 /// iPhone 12, a line of text made again 60 times a second takes an eighth of a core.)
 struct EveryFrame<Content: View>: View {
     @Environment(PlayerModel.self) private var model
+    /// (Nothing is made again while the window cannot be seen.)
+    @Environment(\.scenePhase) private var phase
     var every = 1.0 / 60
     @ViewBuilder let content: (Frame) -> Content
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: every, paused: !(model.hasTune && model.moving))) { timeline in
+        TimelineView(.animation(minimumInterval: every, paused: !(model.hasTune && model.moving) || phase == .background)) { timeline in
             content(model.frame(at: timeline.date.timeIntervalSinceReferenceDate))
         }
     }

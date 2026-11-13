@@ -20,6 +20,10 @@ nonisolated final class SoundRing: @unchecked Sendable {
     private let dropTo = Atomic<Int>(0)
     /// True while the listener has paused: the sound fades out over a moment, and nothing is read.
     let paused = Atomic<Bool>(false)
+    /// True from the moment another tune is asked for until the engine has dropped what was waiting
+    /// (`drop`): nothing is heard meanwhile, so that the tune before is not heard again for a moment,
+    /// as the sound goes out once more, while the new one is being read.
+    private let hushed = Atomic<Bool>(false)
     /// Frames of silence played, while not paused, since the last there was anything to read: once a
     /// song's last sound has gone, how long ago that was.
     let dry = Atomic<Int>(0)
@@ -56,11 +60,24 @@ nonisolated final class SoundRing: @unchecked Sendable {
         let at = written.load(ordering: .relaxed)
         dropTo.store(at, ordering: .releasing)
         dry.store(0, ordering: .relaxed)
+        hushed.store(false, ordering: .releasing)
         return at
+    }
+
+    /// Nothing is heard until what is waiting has been dropped. Any thread may ask.
+    func hush() {
+        hushed.store(true, ordering: .releasing)
     }
 
     /// The audio thread's turn: fills `left` and `right` with `count` frames.
     func fill(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
+        // (Asked before where to jump to: once it is false, the jump that came before it is seen.)
+        if hushed.load(ordering: .acquiring) {
+            left.update(repeating: 0, count: count)
+            right.update(repeating: 0, count: count)
+            gain = 0
+            return
+        }
         var at = read.load(ordering: .relaxed)
         let jump = dropTo.load(ordering: .acquiring)
         if jump > at {
