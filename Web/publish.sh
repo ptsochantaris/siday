@@ -35,5 +35,5 @@ git -C $site add --all
 git -C $site -c user.name="$name" -c user.email="$email" commit --quiet --message "The web player, built from $source"
 git -C $site push --force --quiet $remote gh-pages
 
-page=$(print -r -- $remote | sed -E 's#^(git@github\.com:|https://github\.com/)([^/]+)/([^/.]+)(\.git)?$#https://\2.github.io/\3/#')
+page=$(print -r -- $remote | sed -E 's#^(ssh://git@github\.com/|git@github\.com:|https://github\.com/)([^/]+)/([^/.]+)(\.git)?$#https://\2.github.io/\3/#')
 print "Published. GitHub takes a minute or two to put it up: $page"
