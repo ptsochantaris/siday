@@ -147,7 +147,12 @@ public struct TuneQueue: Sendable {
     /// The place in the list of the tune that is playing or was asked for.
     public private(set) var current: Int?
     public private(set) var tune: Tune?
-    /// The place in the list of the tune `tune` describes.
+    /// The tune whose details are up: `tune`, or while another is being read and loaded, the one that
+    /// was up before it, so that the player keeps its shape meanwhile and does not jump from one
+    /// tune's details to a line saying another is loading and back. Nil when there is none.
+    public var shown: Tune? { tune ?? before }
+    private var before: Tune?
+    /// The place in the list of the tune `shown` describes.
     public private(set) var tuneFile: Int?
     /// Why the tune asked for is not playing, when it is not.
     public private(set) var problem: String?
@@ -225,12 +230,18 @@ public struct TuneQueue: Sendable {
         // The order is of places in the list, and those after the one that has gone are each one less.
         order = order.filter { $0 != index }.map { $0 > index ? $0 - 1 : $0 }
         if let playing = current, playing > index { current = playing - 1 }
+        if tuneFile == index {
+            tuneFile = nil
+            before = nil
+        }
         if let described = tuneFile, described > index { tuneFile = described - 1 }
         guard wasCurrent else { return .none }
         current = nil
         tuneFile = nil
-        if place < order.count { return .play(order[place], song: -1) }
+        // (Nothing more is shown of it, while the next is loading either.)
         tune = nil
+        before = nil
+        if place < order.count { return .play(order[place], song: -1) }
         problem = nil
         finished = false
         return .stop
@@ -244,6 +255,7 @@ public struct TuneQueue: Sendable {
         current = nil
         tuneFile = nil
         tune = nil
+        before = nil
         problem = nil
         finished = false
         endedUnfollowed = false
@@ -272,8 +284,9 @@ public struct TuneQueue: Sendable {
         if same {
             tune?.song = song
         } else {
+            // (Its details stay up, as `shown`, until the new one's are.)
+            if let tune { before = tune }
             tune = nil
-            tuneFile = nil
         }
         current = index
         problem = nil
@@ -287,6 +300,7 @@ public struct TuneQueue: Sendable {
     public mutating func loaded(_ loaded: Tune?, problem: String, isListed: (Int) -> Bool) -> Step {
         guard var loaded else {
             tune = nil
+            before = nil
             tuneFile = nil
             self.problem = problem
             failures += 1
@@ -302,6 +316,7 @@ public struct TuneQueue: Sendable {
         }
         tuneFile = current
         tune = loaded
+        before = nil
         return .none
     }
 

@@ -45,6 +45,13 @@ struct PlayerView: View {
                 } action: { _, height in
                     visibleHeight = max(0, height)
                 }
+                .overlay {
+                    if model.loadingSlowly, model.tune == nil, model.problem == nil {
+                        LoadingCover(name: model.fileName)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: model.loadingSlowly && model.tune == nil && model.problem == nil)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     PlayerBar()
                 }
@@ -91,6 +98,26 @@ struct PlayerView: View {
             // (A sheet is put away by sliding it down or pressing beside it: it needs no button.)
             SlideOverView(closable: false)
         }
+    }
+}
+
+/// Over the player while a tune takes a moment to load: that it is loading, over what was shown before
+/// it, which stays as it was meanwhile, so that nothing moves.
+private struct LoadingCover: View {
+    let name: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading \(name)…")
+                .font(.headline)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -174,7 +201,9 @@ struct NowPlaying: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let tune = model.tune {
+            // (While another tune is loading, the one before it, so that the player keeps its shape: see
+            // `LoadingCover`.)
+            if let tune = model.shownTune {
                 HStack(alignment: .top, spacing: 16) {
                     if let chip = tune.chips.first {
                         ChipCard(chip: chip, size: 96)
@@ -201,9 +230,6 @@ struct NowPlaying: View {
                 }
             } else if let problem = model.problem {
                 Text("\(model.fileName): \(problem)")
-            } else {
-                Text("Loading \(model.fileName)…")
-                    .foregroundStyle(.secondary)
             }
             if model.hasTune, model.voiceCount > 0, model.shows(.lights) || model.shows(.waves) {
                 EveryFrame { frame in
@@ -213,6 +239,8 @@ struct NowPlaying: View {
                 .disabled(model.remaking)
             }
         }
+        // (What is shown of the tune before, while another loads, is not to be pressed.)
+        .allowsHitTesting(model.tune != nil || model.problem != nil)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -259,10 +287,10 @@ struct Details: View {
                 Text(tune.format).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             }
             HStack(alignment: .firstTextBaseline) {
-                Text(tune.title.isEmpty ? model.fileName : tune.title)
+                Text(tune.title.isEmpty ? model.shownFileName : tune.title)
                     .font(.title2.weight(.semibold))
                     // (A file's name read out as words: its kind and underscores left out.)
-                    .accessibilityLabel(Text(tune.title.isEmpty ? spoken(model.fileName) : tune.title))
+                    .accessibilityLabel(Text(tune.title.isEmpty ? spoken(model.shownFileName) : tune.title))
                 if !tune.shortfalls.isEmpty {
                     Button {
                         model.slideOver = .shortfalls
@@ -280,7 +308,7 @@ struct Details: View {
                     .font(.headline)
                     .foregroundStyle(.secondary)
             }
-            Text([tune.songs.count > 1 ? String(localized: "song \(tune.song + 1) of \(tune.songs.count)") : "", tune.detail, tune.title.isEmpty ? "" : model.fileName]
+            Text([tune.songs.count > 1 ? String(localized: "song \(tune.song + 1) of \(tune.songs.count)") : "", tune.detail, tune.title.isEmpty ? "" : model.shownFileName]
                 .filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

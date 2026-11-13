@@ -175,3 +175,34 @@ private extension Tune {
     #expect(queue.next(automatic: true, isListed: everyTune) == .finish)
     #expect(queue.add(2, at: 2) == .play(2, song: -1) && queue.count == 8)
 }
+
+@Test func aTunesDetailsStayUpWhileTheNextIsLoadingAndGoWithItsFileOrAProblem() {
+    var queue = TuneQueue()
+    _ = queue.add(3)
+    queue.play(0, song: -1)
+    #expect(queue.shown == nil)
+    _ = queue.loaded(tune([90]), problem: "", isListed: everyTune)
+    // While the next is read and loaded, the first's details are up, and its file is the one described.
+    queue.play(1, song: -1)
+    #expect(queue.tune == nil && queue.shown?.songs.first?.length == 90 && queue.tuneFile == 0)
+    // Another asked for meanwhile: the same.
+    queue.play(2, song: -1)
+    #expect(queue.shown?.songs.first?.length == 90 && queue.tuneFile == 0)
+    _ = queue.loaded(tune([30]), problem: "", isListed: everyTune)
+    #expect(queue.shown?.songs.first?.length == 30 && queue.tuneFile == 2)
+    // One that will not play: nothing is shown but why.
+    queue.play(1, song: -1)
+    _ = queue.loaded(nil, problem: "No", isListed: everyTune)
+    #expect(queue.shown == nil && queue.problem == "No")
+    // The file whose details are up taken out of the list while another loads: they go with it.
+    queue.play(0, song: -1)
+    _ = queue.loaded(tune([12]), problem: "", isListed: everyTune)
+    queue.play(1, song: -1)
+    #expect(queue.remove(0) == .none)
+    #expect(queue.shown == nil && queue.tuneFile == nil && queue.current == 0)
+    // And the tune that is playing taken out: nothing of it is shown while the next loads.
+    _ = queue.loaded(tune([12]), problem: "", isListed: everyTune)
+    #expect(queue.remove(0) == .play(0, song: -1))
+    queue.play(0, song: -1)
+    #expect(queue.shown == nil)
+}

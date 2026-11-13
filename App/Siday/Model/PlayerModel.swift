@@ -103,6 +103,13 @@ final class PlayerModel {
     /// The place in `files` of the tune that is playing or was asked for.
     var current: Int? { queue.current }
     var tune: Tune? { queue.tune }
+    /// The tune whose details are up: `tune`, or while another is loading, the one before it (see
+    /// `TuneQueue.shown`).
+    var shownTune: Tune? { queue.shown }
+    /// True once the tune asked for has been loading for a moment: the player says so, over what it
+    /// shows. (Not at once: most tunes load in less time than that, and would only flicker.)
+    private(set) var loadingSlowly = false
+    @ObservationIgnored private var loadingWatch: Task<Void, Never>?
     /// The place in `files` of the file `tune` describes.
     private var tuneFile: Int? { queue.tuneFile }
     var problem: String? { queue.problem }
@@ -523,6 +530,13 @@ final class PlayerModel {
         if !queue.play(index, song: song) { visualisers.newTune() }
         paused = startPaused
         rendered = 0
+        loadingWatch?.cancel()
+        if loadingSlowly { loadingSlowly = false }
+        loadingWatch = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard let self, !Task.isCancelled, tune == nil, problem == nil, current != nil else { return }
+            loadingSlowly = true
+        }
         engine.hush()
         engine.pause(startPaused)
         // The file is read away from the screen, which goes on being drawn meanwhile: on a network
@@ -609,6 +623,8 @@ final class PlayerModel {
 
     private func loaded(plays: Bool, problem: String?, info: TuneInfo?, songs: [SongInfo], song: Int, length: Double) {
         let loaded = plays ? info.map { Tune($0, songs: songs, song: song, length: length) } : nil
+        loadingWatch?.cancel()
+        if loadingSlowly { loadingSlowly = false }
         perform(queue.loaded(loaded, problem: problem ?? String(localized: "The file could not be played."), isListed: isListed))
         guard let loaded else { return }
         if let current, files.indices.contains(current) {
@@ -767,14 +783,20 @@ final class PlayerModel {
         }
     }
 
-    /// The part of FORMATS.md that tells of the playing tune's format, by the word its heading begins with.
+    /// The part of FORMATS.md that tells of the shown tune's format, by the word its heading begins with.
     var chapter: String? {
         guard let tuneFile, files.indices.contains(tuneFile) else { return nil }
-        return TuneFormat.chapter(fileExtension: files[tuneFile].url.pathExtension, tuneFormat: tune?.format)
+        return TuneFormat.chapter(fileExtension: files[tuneFile].url.pathExtension, tuneFormat: shownTune?.format)
     }
 
+    /// The name of the file of the tune asked for.
     var fileName: String {
         current.flatMap { files.indices.contains($0) ? files[$0].name : nil } ?? ""
+    }
+
+    /// The name of the file of the shown tune.
+    var shownFileName: String {
+        tuneFile.flatMap { files.indices.contains($0) ? files[$0].name : nil } ?? fileName
     }
 
     var note: String? {

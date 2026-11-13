@@ -59,7 +59,7 @@ final class Player {
         guard let tuneFile, files.indices.contains(tuneFile) else { return nil }
         let letters = Array(files[tuneFile].utf8)
         guard let stop = letters.lastIndex(of: 0x2E) else { return nil }
-        return TuneFormat.chapter(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self), tuneFormat: tune?.format)
+        return TuneFormat.chapter(fileExtension: String(decoding: letters[(stop + 1)...], as: UTF8.self), tuneFormat: shownTune?.format)
     }
 
     /// What there is to say about the playlists last added, that tunes they name were not found, and
@@ -95,8 +95,15 @@ final class Player {
     /// The place in `files` of the tune that is playing or was asked for.
     var current: Int? { queue.current }
     var tune: Tune? { queue.tune }
-    /// The place in `files` of the file `tune` describes.
+    /// The tune whose details are up: `tune`, or while another is loading, the one before it (see
+    /// `TuneQueue.shown`).
+    var shownTune: Tune? { queue.shown }
+    /// The place in `files` of the file `shownTune` describes.
     private var tuneFile: Int? { queue.tuneFile }
+    /// The file of the tune whose details are up.
+    var shownFile: Int? { tuneFile }
+    /// True while the tune asked for is being read and loaded.
+    var loading: Bool { current != nil && tune == nil && problem == nil }
     /// The tunes of the list that have been played and were not played quite as their files ask:
     /// each keeps a mark on its row, which says why. (Only a tune that has been loaded can be known
     /// to be one, so the rest of the list has no marks, whatever is in it.)
@@ -680,7 +687,9 @@ final class Player {
         // Another song of the tune that is showing: its details stay up, with the new song marked,
         // until the song itself reports in.
         if !queue.play(index, song: song) {
-            lights = []
+            // (Its lights go out, and stay where they are until the new tune's come: see `TuneQueue.shown`.)
+            lights = lights.map { _ in 0 }
+            if muted.contains(true) { muted = muted.map { _ in false } }
             visualiser.newTune()
         }
         paused = false

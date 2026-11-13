@@ -69,80 +69,88 @@ struct NowPlaying {
         section(.class("now")) {
             Shown(player: player)
 
-            if let tune = player.tune {
-                // Beside its details, the picture of the chip it is heard as made by.
-                div(.class("heading")) {
-                    if let chip = tune.chips.first {
-                        img(.class("chip"), .src("generated/chips/\(chip.rawValue)-small.jpg"), .alt(chipName(chip)), .title(chipName(chip)))
-                    }
-                    div(.class("details")) {
-                        div(.class("what")) {
-                            // The format's name is a button: pressed, it tells the format's story, as
-                            // FORMATS.md has it.
-                            if let chapter = player.chapter {
-                                button(.class("format"), .title("About this format")) { tune.format }
-                                    .onClick { try? sidayAbout(chapter) }
-                            } else {
-                                span(.class("format")) { tune.format }
+            // The tune's part of the player; while another tune is loading, the one before it, which
+            // keeps its place meanwhile, under a cover that says what is loading (see `Player.loading`).
+            div(.class(player.loading ? "tune loading" : "tune")) {
+                if let tune = player.shownTune {
+                    // Beside its details, the picture of the chip it is heard as made by.
+                    div(.class("heading")) {
+                        if let chip = tune.chips.first {
+                            img(.class("chip"), .src("generated/chips/\(chip.rawValue)-small.jpg"), .alt(chipName(chip)), .title(chipName(chip)))
+                        }
+                        div(.class("details")) {
+                            div(.class("what")) {
+                                // The format's name is a button: pressed, it tells the format's story, as
+                                // FORMATS.md has it.
+                                if let chapter = player.chapter {
+                                    button(.class("format"), .title("About this format")) { tune.format }
+                                        .onClick { try? sidayAbout(chapter) }
+                                } else {
+                                    span(.class("format")) { tune.format }
+                                }
+                                span(.class("title")) { tune.title.isEmpty ? shownFileName(player) : tune.title }
+                                if !tune.author.isEmpty {
+                                    span(.class("author")) { tune.author }
+                                }
+                                // A tune that is not played quite as its file asks has a small mark beside its
+                                // name, which says why when the pointer rests on it, and when it is pressed
+                                // writes it out under the details.
+                                if !tune.shortfalls.isEmpty {
+                                    ShortfallMark(player: player, why: tune.shortfalls.joined(separator: " "))
+                                }
                             }
-                            span(.class("title")) { tune.title.isEmpty ? fileName(player) : tune.title }
-                            if !tune.author.isEmpty {
-                                span(.class("author")) { tune.author }
+                            p(.class("detail")) {
+                                [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : shownFileName(player)]
+                                    .filter { !$0.isEmpty }.joined(separator: " · ")
                             }
-                            // A tune that is not played quite as its file asks has a small mark beside its
-                            // name, which says why when the pointer rests on it, and when it is pressed
-                            // writes it out under the details.
-                            if !tune.shortfalls.isEmpty {
-                                ShortfallMark(player: player, why: tune.shortfalls.joined(separator: " "))
-                            }
-                        }
-                        p(.class("detail")) {
-                            [tune.songs.count > 1 ? "song \(tune.song + 1) of \(tune.songs.count)" : "", tune.detail, tune.title.isEmpty ? "" : fileName(player)]
-                                .filter { !$0.isEmpty }.joined(separator: " · ")
-                        }
-                        // What the playlist the tune came by says about it.
-                        if let note = player.note {
-                            p(.class("note")) { note }
-                        }
-                    }
-                }
-                if !tune.shortfalls.isEmpty, player.shortfallsShown {
-                    p(.class("shortfalls")) {
-                        ForEach(Array(tune.shortfalls.indices), key: { String($0) }) { index in
-                            span { index < tune.shortfalls.count ? tune.shortfalls[index] : "" }
-                        }
-                    }
-                }
-                if player.shows(.analyser) {
-                    Analyser(bars: player.bars, caps: player.caps)
-                }
-                div(.class("time")) {
-                    span { formatTime(player.position) }
-                    // Pressing the bar moves to that place in the song. Behind the part played is the
-                    // part that is ready to be moved to at once; the rest has to be waited for.
-                    div(.class("seek")) {
-                        div(.class("bar")) {
-                            div(.class("ready"), .style(["width": "\(percent(player.rendered, of: tune.length))%"])) {}
-                            div(.class(player.waiting ? "fill waiting" : "fill"), .style(["width": "\(percent(player.position, of: tune.length))%"])) {}
-                        }
-                        if let pointed = player.pointed {
-                            div(.class("pointer"), .style(["left": "\(percent(pointed, of: 1))%"])) {
-                                span { formatTime(pointed * tune.length) }
+                            // What the playlist the tune came by says about it.
+                            if let note = player.note {
+                                p(.class("note")) { note }
                             }
                         }
                     }
-                    span { formatTime(tune.length) }
+                    if !tune.shortfalls.isEmpty, player.shortfallsShown {
+                        p(.class("shortfalls")) {
+                            ForEach(Array(tune.shortfalls.indices), key: { String($0) }) { index in
+                                span { index < tune.shortfalls.count ? tune.shortfalls[index] : "" }
+                            }
+                        }
+                    }
+                    if player.shows(.analyser) {
+                        Analyser(bars: player.bars, caps: player.caps)
+                    }
+                    div(.class("time")) {
+                        span { formatTime(player.position) }
+                        // Pressing the bar moves to that place in the song. Behind the part played is the
+                        // part that is ready to be moved to at once; the rest has to be waited for.
+                        div(.class("seek")) {
+                            div(.class("bar")) {
+                                div(.class("ready"), .style(["width": "\(percent(player.rendered, of: tune.length))%"])) {}
+                                div(.class(player.waiting ? "fill waiting" : "fill"), .style(["width": "\(percent(player.position, of: tune.length))%"])) {}
+                            }
+                            if let pointed = player.pointed {
+                                div(.class("pointer"), .style(["left": "\(percent(pointed, of: 1))%"])) {
+                                    span { formatTime(pointed * tune.length) }
+                                }
+                            }
+                        }
+                        span { formatTime(tune.length) }
+                    }
+                    if tune.songs.count > 1 {
+                        Songs(player: player, tune: tune)
+                    }
+                } else if let problem = player.problem {
+                    p(.class("problem")) { "\(fileName(player)): \(problem)" }
+                } else if player.current == nil {
+                    // (The buttons that add tunes are in the list, which may have been put away.)
+                    p(.class("detail")) { player.shows(.list) ? "Nothing is playing yet. Add some tunes." : "Nothing is playing yet. Drop some tunes on the page, or bring back the list to add them." }
                 }
-                if tune.songs.count > 1 {
-                    Songs(player: player, tune: tune)
+                if player.loading {
+                    div(.class("cover"), .custom(name: "role", value: "status")) {
+                        span(.class("spinner")) {}
+                        span { "Loading \(fileName(player))…" }
+                    }
                 }
-            } else if let problem = player.problem {
-                p(.class("problem")) { "\(fileName(player)): \(problem)" }
-            } else if player.current != nil {
-                p(.class("detail")) { "Loading \(fileName(player))…" }
-            } else {
-                // (The buttons that add tunes are in the list, which may have been put away.)
-                p(.class("detail")) { player.shows(.list) ? "Nothing is playing yet. Add some tunes." : "Nothing is playing yet. Drop some tunes on the page, or bring back the list to add them." }
             }
 
             div(.class("controls")) {
@@ -612,8 +620,14 @@ private func chipName(_ chip: SoundChip) -> String {
     }
 }
 
+/// The name of the file of the tune asked for.
 private func fileName(_ player: Player) -> String {
     player.current.map { lastComponent(player.file(at: $0)) } ?? ""
+}
+
+/// The name of the file of the tune whose details are up.
+private func shownFileName(_ player: Player) -> String {
+    player.shownFile.map { lastComponent(player.file(at: $0)) } ?? fileName(player)
 }
 
 private func lastComponent(_ path: String) -> String {
