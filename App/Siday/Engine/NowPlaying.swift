@@ -81,8 +81,7 @@ final class SystemNowPlaying {
     /// The picture as the system takes it, which asks for it on a queue of its own, not the main one.
     #if os(macOS)
     private nonisolated static func systemArtwork(_ image: NSImage) -> MPMediaItemArtwork {
-        nonisolated(unsafe) let image = image
-        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
     #else
     private nonisolated static func systemArtwork(_ image: UIImage) -> MPMediaItemArtwork {

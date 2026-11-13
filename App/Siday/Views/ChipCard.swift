@@ -122,7 +122,7 @@ private struct ChipDrawing: View {
         }
     }
 
-    private static let ink = Color(red: 0.86, green: 0.85, blue: 0.80)
+    nonisolated private static let ink = Color(red: 0.86, green: 0.85, blue: 0.80)
 
     var body: some View {
         Canvas { context, size in

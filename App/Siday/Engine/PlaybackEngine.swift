@@ -286,10 +286,10 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
             keeper.setSongLengths(bytes.map { SongLengthDatabase($0) })
         case let .mt32ROMs(roms):
             keeper.setMT32ROMs(roms)
-            measuring.async { [measuredPlayer] in measuredPlayer.setMT32ROMs(roms) }
+            measuring.async { [self] in measuredPlayer.setMT32ROMs(roms) }
         case let .soundCanvases(sets):
             keeper.setSoundCanvases(sets)
-            measuring.async { [measuredPlayer] in measuredPlayer.setSoundCanvases(sets) }
+            measuring.async { [self] in measuredPlayer.setSoundCanvases(sets) }
         case let .keptLevel(key, text):
             keeper.setKeptLevel(key: key, text: text, now: time)
         case let .measured(tune, key, measures):
@@ -307,6 +307,7 @@ nonisolated final class PlaybackEngine: @unchecked Sendable {
     /// which can take a second or two: on a thread of its own, so that the sound is not held up by it.
     /// Only the latest tune asked for is, if several are asked for while one is being played through.
     private let measuring = DispatchQueue(label: "siday measuring", qos: .utility)
+    /// (Used only on `measuring`.)
     private let measuredPlayer = TunePlayer()
     private let latestMeasured = Mutex(0)
 
